@@ -1,0 +1,43 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Rename APK
+        run: |
+          mkdir -p out
+          cp app/build/outputs/apk/debug/app-debug.apk "out/WikiFlerty-0.1.${{ github.run_number }}.apk"
+
+      - name: Publish release with the APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v0.1.${{ github.run_number }}" out/*.apk \
+            --title "WikiFlerty 0.1.${{ github.run_number }}" \
+            --notes "$(git log -1 --pretty=%B)" \
+            --target "${{ github.sha }}"
