@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -107,7 +108,7 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
                     .fieldSurface(appCorner(24))
                     .padding(horizontal = 16.dp),
                 decorationBox = { inner ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
                         Icon(AppIcons.Search, null, tint = AppColors.Muted, modifier = Modifier.size(20.dp))
                         Box(Modifier.padding(start = 10.dp).weight(1f)) {
                             if (query.isEmpty()) Text("Поиск по заметкам", color = AppColors.Faint, fontSize = 15.sp)

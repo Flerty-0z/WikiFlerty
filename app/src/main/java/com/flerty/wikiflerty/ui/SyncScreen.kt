@@ -38,7 +38,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -47,7 +46,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.flerty.wikiflerty.App
 import com.flerty.wikiflerty.sync.Backup
-import com.flerty.wikiflerty.sync.DropboxStore
 import com.flerty.wikiflerty.sync.GoogleAuth
 import com.flerty.wikiflerty.sync.SyncManager
 import com.google.android.gms.auth.api.identity.Identity
@@ -59,7 +57,7 @@ import kotlinx.coroutines.launch
 private val Good = Color(0xFF7ED3A0)
 private val Bad = Color(0xFFF08A8A)
 
-/** Sync with Google Drive and Dropbox, and export/import of all data. */
+/** Sync with Google Drive, and export/import of all data. */
 @Composable
 fun SyncScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -138,7 +136,7 @@ fun SyncScreen(modifier: Modifier = Modifier) {
                     CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.5.dp, color = AppColors.OnAccent)
                 } else {
                     Text(
-                        if (sync.hasCloud) "Синхронизировать сейчас" else "Подключи облако ниже",
+                        if (sync.hasCloud) "Синхронизировать сейчас" else "Сначала войди через Google",
                         color = if (sync.hasCloud) AppColors.OnAccent else AppColors.Muted,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
@@ -158,10 +156,10 @@ fun SyncScreen(modifier: Modifier = Modifier) {
         CloudCard(
             title = "Google Drive",
             connected = state.googleConnected,
-            description = "Файл хранится в скрытой папке приложения на твоём Google Диске.",
+            description = "Данные лежат в скрытой папке приложения на твоём Google Диске. Другие файлы Диска приложение не видит и не трогает.",
             onDisconnect = { sync.store.update { it.copy(googleConnected = false) } },
         ) {
-            ActionButton("Подключить Google Drive") {
+            ActionButton("Войти через Google") {
                 scope.launch {
                     runCatching { GoogleAuth.authorize(context) }
                         .onSuccess { result ->
@@ -175,18 +173,12 @@ fun SyncScreen(modifier: Modifier = Modifier) {
                         }
                         .onFailure {
                             toast(
-                                "Google не дал доступ: ${it.message}. Проверь, что приложение зарегистрировано в Google Cloud " +
-                                    "(инструкция в чате с Claude).",
+                                "Google не дал доступ: ${it.message}",
                             )
                         }
                 }
             }
         }
-
-        // Dropbox
-        DropboxCard(state.dropboxConnected, state.dropboxAppKey, sync, onError = ::toast, onConnected = {
-            scope.launch { sync.syncNow().onFailure { e -> toast(e.message ?: "Ошибка") } }
-        })
 
         SettingsGroup("Как синхронизировать") {
             SettingSwitch("Автоматически", state.autoSync, hint = "При открытии приложения и после закрытия книги") { v ->
@@ -263,80 +255,6 @@ private fun CloudCard(
         Text(description, color = AppColors.Faint, fontSize = 12.sp, lineHeight = 17.sp)
         if (!connected) connect()
     }
-}
-
-@Composable
-private fun DropboxCard(
-    connected: Boolean,
-    savedKey: String,
-    sync: SyncManager,
-    onError: (String) -> Unit,
-    onConnected: () -> Unit,
-) {
-    val uri = LocalUriHandler.current
-    val scope = rememberCoroutineScope()
-    var appKey by remember(savedKey) { mutableStateOf(savedKey) }
-    var verifier by remember { mutableStateOf<String?>(null) }
-    var code by remember { mutableStateOf("") }
-    var working by remember { mutableStateOf(false) }
-
-    CloudCard(
-        title = "Dropbox",
-        connected = connected,
-        description = "Файл хранится в папке «Приложения/WikiFlerty» в твоём Dropbox.",
-        onDisconnect = { sync.disconnectDropbox() },
-    ) {
-        InputField(appKey, { appKey = it.trim() }, "App key из консоли Dropbox")
-        ActionButton("1. Открыть Dropbox и разрешить доступ", enabled = appKey.isNotBlank()) {
-            val (v, challenge) = DropboxStore.newVerifier()
-            verifier = v
-            runCatching { uri.openUri(DropboxStore.authorizeUrl(appKey, challenge)) }
-        }
-        AnimatedVisibility(visible = verifier != null, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("После «Разрешить» Dropbox покажет код. Скопируй его сюда:", color = AppColors.Muted, fontSize = 13.sp)
-                InputField(code, { code = it.trim() }, "Код из Dropbox")
-                ActionButton(if (working) "Подключаю…" else "2. Готово", enabled = code.isNotBlank() && !working) {
-                    val v = verifier ?: return@ActionButton
-                    scope.launch {
-                        working = true
-                        runCatching { DropboxStore.exchangeCode(appKey, code, v) }
-                            .onSuccess { token ->
-                                sync.saveDropbox(appKey, token)
-                                verifier = null
-                                code = ""
-                                onConnected()
-                            }
-                            .onFailure { onError(it.message ?: "Dropbox: не удалось подключить") }
-                        working = false
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun InputField(value: String, onChange: (String) -> Unit, placeholder: String) {
-    BasicTextField(
-        value = value,
-        onValueChange = onChange,
-        singleLine = true,
-        textStyle = TextStyle(color = AppColors.Text, fontSize = 14.sp, fontFamily = FontFamily.Monospace),
-        cursorBrush = SolidColor(AppColors.Accent),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp)
-            .background(AppColors.Background.copy(alpha = 0.6f), appCorner(12))
-            .border(1.dp, AppColors.Line, appCorner(12))
-            .padding(horizontal = 12.dp),
-        decorationBox = { inner ->
-            Box(contentAlignment = Alignment.CenterStart) {
-                if (value.isEmpty()) Text(placeholder, color = AppColors.Faint, fontSize = 14.sp)
-                inner()
-            }
-        },
-    )
 }
 
 @Composable

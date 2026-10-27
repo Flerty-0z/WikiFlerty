@@ -1,7 +1,6 @@
 package com.flerty.wikiflerty.sync
 
 import com.flerty.wikiflerty.App
-import com.flerty.wikiflerty.ai.KeyVault
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -17,43 +16,25 @@ import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 
 /**
- * Sync: download the file from every connected cloud, merge it into this phone,
+ * Sync through Google Drive: download the file, merge it into this phone,
  * then upload the merged result back. Runs by hand or automatically when the app opens
  * and when a book is closed.
  */
 class SyncManager(private val app: App) {
     val store = SyncStateStore(app)
-    /** Dropbox refresh token, encrypted like the AI keys. */
-    val vault = KeyVault(app, "sync_keys.bin", "wikiflerty_sync_keys")
-
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val mutex = Mutex()
     private val _running = MutableStateFlow(false)
     val running: StateFlow<Boolean> = _running.asStateFlow()
 
-    /** Kept between syncs so its short-lived access token is reused. */
-    private var dropbox: DropboxStore? = null
-    private var dropboxKey = ""
-
-    fun clouds(): List<CloudStore> {
-        val s = store.state.value
-        return buildList {
-            if (s.googleConnected) add(GoogleDriveStore(app))
-            if (s.dropboxConnected && s.dropboxAppKey.isNotBlank() && vault.get(DROPBOX_TOKEN) != null) {
-                if (dropbox == null || dropboxKey != s.dropboxAppKey) {
-                    dropbox = DropboxStore(s.dropboxAppKey) { vault.get(DROPBOX_TOKEN) }
-                    dropboxKey = s.dropboxAppKey
-                }
-                add(dropbox!!)
-            }
-        }
-    }
+    fun clouds(): List<CloudStore> =
+        if (store.state.value.googleConnected) listOf(GoogleDriveStore(app)) else emptyList()
 
     val hasCloud: Boolean get() = clouds().isNotEmpty()
 
     suspend fun syncNow(): Result<String> = mutex.withLock {
         val clouds = clouds()
-        if (clouds.isEmpty()) return Result.failure(SyncException("Подключи Google Drive или Dropbox"))
+        if (clouds.isEmpty()) return Result.failure(SyncException("Войди через Google, чтобы включить синхронизацию"))
         _running.value = true
         try {
             var report = MergeReport()
@@ -113,19 +94,7 @@ class SyncManager(private val app: App) {
         store.update { it.copy(settingsChangedAt = System.currentTimeMillis()) }
     }
 
-    fun saveDropbox(appKey: String, refreshToken: String) {
-        vault.set(DROPBOX_TOKEN, refreshToken)
-        store.update { it.copy(dropboxAppKey = appKey.trim(), dropboxConnected = true) }
-    }
-
-    fun disconnectDropbox() {
-        vault.set(DROPBOX_TOKEN, null)
-        store.update { it.copy(dropboxConnected = false) }
-    }
-
     companion object {
-        const val DROPBOX_TOKEN = "dropbox_refresh"
-
         fun formatTime(time: Long): String =
             if (time <= 0) "ещё не было" else SimpleDateFormat("d MMM, HH:mm", Locale("ru")).format(Date(time))
     }

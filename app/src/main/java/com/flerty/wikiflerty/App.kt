@@ -45,7 +45,8 @@ class App : Application() {
     lateinit var sync: SyncManager
         private set
 
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    /** Work that must finish even after a screen is closed. */
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /** AI providers, keys and requests. */
     val ai: AiManager by lazy { AiManager(this) }

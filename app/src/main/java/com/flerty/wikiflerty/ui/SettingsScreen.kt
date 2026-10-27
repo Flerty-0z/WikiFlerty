@@ -241,7 +241,7 @@ private fun CustomizationContent() {
     }
 
     SettingsGroup("Цвета") {
-        SettingSegmented("Основа", UiBase.entries.map { it.title }, UiBase.of(style.base).ordinal) { i ->
+        SettingSegmented("Основной фон", UiBase.entries.map { it.title }, UiBase.of(style.base).ordinal) { i ->
             store.update { it.copy(base = UiBase.entries[i].id) }
         }
         Text("Акцентный цвет", color = AppColors.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
@@ -295,7 +295,7 @@ private fun CustomizationContent() {
             range = 0f..1.6f,
             format = { if (it < 0.05f) "Квадратные" else "${(it * 100).roundToInt()}%" },
         ) { v -> store.update { it.copy(corners = v) } }
-        SettingSegmented("Выделенные кнопки", ButtonLook.entries.map { it.title }, ButtonLook.of(style.buttons).ordinal) { i ->
+        SettingSegmented("Вид активных кнопок", ButtonLook.entries.map { it.title }, ButtonLook.of(style.buttons).ordinal) { i ->
             store.update { it.copy(buttons = ButtonLook.entries[i].id) }
         }
         SettingSwitch("Контур панелей", style.outline, hint = "Тонкая светлая рамка вокруг панелей") { v ->

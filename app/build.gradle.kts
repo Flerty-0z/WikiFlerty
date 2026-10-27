@@ -21,8 +21,8 @@ android {
 
     signingConfigs {
         // A fixed key stored in the repo, so every build is signed the same way
-        // and updates install without uninstalling the app. Debug builds only.
-        getByName("debug") {
+        // and updates install over the previous version without uninstalling.
+        create("app") {
             storeFile = file("debug.keystore")
             storePassword = "android"
             keyAlias = "androiddebugkey"
@@ -32,10 +32,14 @@ android {
 
     buildTypes {
         debug {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("app")
         }
+        // The build people install: optimized and much faster than a debug build.
         release {
-            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("app")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 

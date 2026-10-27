@@ -135,7 +135,7 @@ private fun BookCard(
         val cover by produceState<ImageBitmap?>(null, coverFile) {
             value = coverFile?.takeIf { it.exists() }?.let { file ->
                 withContext(Dispatchers.IO) {
-                    BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap()
+                    CoverCache.load(file)
                 }
             }
         }

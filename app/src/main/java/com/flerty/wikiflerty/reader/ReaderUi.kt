@@ -747,11 +747,11 @@ private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
                     Column(
                         modifier = Modifier
                             .weight(1f)
-                            .height(96.dp)
+                            .heightIn(min = 96.dp)
                             .liveClick(shape, sound = FeedbackSound.Open) { onOpen(tile.target) }
                             .fieldSurface(shape)
                             .padding(14.dp),
-                        verticalArrangement = Arrangement.SpaceBetween,
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         Box(
                             Modifier

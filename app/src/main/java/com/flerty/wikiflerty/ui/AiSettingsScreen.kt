@@ -103,7 +103,7 @@ fun AiSettingsContent(ai: AiManager, modifier: Modifier = Modifier) {
         Spacer(Modifier.height(4.dp))
         SettingsGroup("Ответы") {
             SettingSegmented(
-                label = "Подробность",
+                label = "Длина ответов",
                 options = listOf("Кратко", "Подробно"),
                 selected = if (settings.style == "detailed") 1 else 0,
             ) { i -> ai.store.update { it.copy(style = if (i == 1) "detailed" else "short") } }
@@ -219,7 +219,7 @@ private fun ProviderCard(
                             Box {
                                 if (keyInput.isEmpty()) {
                                     Text(
-                                        if (hasKey) "Ключ сохранён · вставь новый, чтобы заменить" else "Вставь API-ключ",
+                                        if (hasKey) "Ключ сохранён. Вставь новый, чтобы заменить" else "Вставь API-ключ",
                                         color = AppColors.Faint,
                                         fontSize = 14.sp,
                                         maxLines = 1,
@@ -248,7 +248,7 @@ private fun ProviderCard(
                     Box(
                         Modifier
                             .weight(1f)
-                            .height(44.dp)
+                            .heightIn(min = 44.dp)
                             .liveClick(buttonShape, sound = FeedbackSound.Toggle, enabled = keyInput.isNotBlank() || hasKey) {
                                 scope.launch {
                                     if (keyInput.isNotBlank()) {
@@ -267,12 +267,14 @@ private fun ProviderCard(
                             color = AppColors.OnAccent,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                         )
                     }
                     if (hasKey) {
                         Box(
                             Modifier
-                                .height(44.dp)
+                                .heightIn(min = 44.dp)
                                 .liveClick(buttonShape, sound = FeedbackSound.Close) { scope.launch { ai.saveKey(provider, "") } }
                                 .border(1.dp, Color(0x55F08A8A), buttonShape)
                                 .padding(horizontal = 14.dp),

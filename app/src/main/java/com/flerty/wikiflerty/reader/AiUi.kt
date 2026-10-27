@@ -256,7 +256,7 @@ fun AiChatContent(bridge: AiBridge, modifier: Modifier = Modifier) {
         AnimatedVisibility(visible = hasAnswer, enter = fadeIn(tween(220)) + expandVertically(), exit = fadeOut() + shrinkVertically()) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AiPrompts.followUps.forEach { (label, prompt) ->
+                    AiPrompts.followUps(bridge.manager.settings.value).forEach { (label, prompt) ->
                         val shape = appCorner(18)
                         Box(
                             Modifier.height(34.dp)

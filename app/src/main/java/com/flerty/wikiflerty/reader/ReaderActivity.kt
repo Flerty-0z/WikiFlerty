@@ -50,6 +50,8 @@ import com.flerty.wikiflerty.ui.FeedbackSound
 import com.flerty.wikiflerty.ui.LocalFeedback
 import com.flerty.wikiflerty.ui.WikiFlertyTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.flerty.wikiflerty.ai.AiAction
@@ -91,6 +93,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private var turning = false
     private var actionMode: ActionMode? = null
     private var bookId: String = ""
+    // Progress is written to disk a moment after the page settles, not on every page turn.
+    private var pendingLocator: org.readium.r2.shared.publication.Locator? = null
+    private var saveTimer: Job? = null
+    private var lastSave: Job? = null
     private var bookTitle: String = ""
     private var bookAuthor: String = ""
     private val chat = AiChatState()
@@ -364,7 +370,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         lifecycleScope.launch {
             book?.let { app.library.coverFile(it) }?.takeIf { it.exists() }?.let { file ->
                 cover = withContext(Dispatchers.IO) {
-                    BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap()
+                    com.flerty.wikiflerty.ui.CoverCache.load(file, maxWidth = 160)
                 }
             }
         }
@@ -382,7 +388,12 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         ui.progression = locator.locations.totalProgression ?: ui.progression
                         ui.position = locator.locations.position
                         ui.chapter = locator.title
-                        app.library.saveProgress(session.bookId, locator)
+                        pendingLocator = locator
+                        saveTimer?.cancel()
+                        saveTimer = launch {
+                            delay(1200)
+                            flushProgress()
+                        }
                     }
                 }
                 launch {
@@ -774,11 +785,35 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             self + flattenToc(link.children, depth + 1)
         }
 
+    /** Writes the latest reading position now (in the app scope, so leaving the book does not cancel it). */
+    private fun flushProgress() {
+        saveTimer?.cancel()
+        saveTimer = null
+        val locator = pendingLocator ?: return
+        pendingLocator = null
+        val id = bookId
+        val previous = lastSave
+        lastSave = app.appScope.launch {
+            previous?.join()
+            app.library.saveProgress(id, locator)
+        }
+    }
+
+    override fun onStop() {
+        flushProgress()
+        super.onStop()
+    }
+
     override fun onDestroy() {
+        flushProgress()
         super.onDestroy()
         if (isFinishing) {
             app.closeReader()
-            app.sync.autoSync()
+            val save = lastSave
+            app.appScope.launch {
+                save?.join()
+                app.sync.autoSync()
+            }
         }
     }
 

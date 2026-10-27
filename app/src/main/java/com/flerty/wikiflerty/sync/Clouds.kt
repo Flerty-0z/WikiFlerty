@@ -1,7 +1,6 @@
 package com.flerty.wikiflerty.sync
 
 import android.content.Context
-import android.util.Base64
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.AuthorizationResult
 import com.google.android.gms.auth.api.identity.Identity
@@ -10,8 +9,6 @@ import com.google.android.gms.tasks.Task
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
-import java.security.MessageDigest
-import java.security.SecureRandom
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.Dispatchers
@@ -165,121 +162,6 @@ class GoogleDriveStore(private val context: Context) : CloudStore {
             }
             try {
                 if (Http.code(c) !in 200..299) throw Http.error(c, title)
-            } finally {
-                c.disconnect()
-            }
-        }
-    }
-}
-
-// ---------------------------------------------------------------- Dropbox
-
-/**
- * Dropbox with the "App folder" permission. Sign-in uses PKCE: the user opens a Dropbox page,
- * allows access and pastes the short code back into the app. No secret is stored in the app.
- */
-class DropboxStore(
-    private val appKey: String,
-    private val getRefreshToken: () -> String?,
-) : CloudStore {
-    override val title = "Dropbox"
-    private var accessToken: String? = null
-    private var expiresAt = 0L
-
-    private suspend fun token(): String {
-        val cached = accessToken
-        if (cached != null && System.currentTimeMillis() < expiresAt - 60_000) return cached
-        val refresh = getRefreshToken() ?: throw SyncException("Dropbox: нужно подключить заново")
-        return withContext(Dispatchers.IO) {
-            val c = Http.open("https://api.dropboxapi.com/oauth2/token", "POST", mapOf("Content-Type" to "application/x-www-form-urlencoded"))
-            Http.send(c, Http.form("grant_type" to "refresh_token", "refresh_token" to refresh, "client_id" to appKey))
-            try {
-                if (Http.code(c) !in 200..299) throw Http.error(c, title)
-                val j = JSONObject(Http.text(c))
-                accessToken = j.getString("access_token")
-                expiresAt = System.currentTimeMillis() + j.optLong("expires_in", 3600) * 1000
-                accessToken!!
-            } finally {
-                c.disconnect()
-            }
-        }
-    }
-
-    override suspend fun download(): String? {
-        val t = token()
-        return withContext(Dispatchers.IO) {
-            val arg = JSONObject().put("path", "/${Backup.CLOUD_FILE}").toString()
-            val c = Http.open(
-                "https://content.dropboxapi.com/2/files/download",
-                "POST",
-                mapOf("Authorization" to "Bearer $t", "Dropbox-API-Arg" to arg),
-            )
-            try {
-                when (Http.code(c)) {
-                    in 200..299 -> Http.text(c)
-                    409 -> null // no file yet
-                    else -> throw Http.error(c, title)
-                }
-            } finally {
-                c.disconnect()
-            }
-        }
-    }
-
-    override suspend fun upload(text: String) {
-        val t = token()
-        withContext(Dispatchers.IO) {
-            val arg = JSONObject().put("path", "/${Backup.CLOUD_FILE}").put("mode", "overwrite").put("mute", true).toString()
-            val c = Http.open(
-                "https://content.dropboxapi.com/2/files/upload",
-                "POST",
-                mapOf(
-                    "Authorization" to "Bearer $t",
-                    "Dropbox-API-Arg" to arg,
-                    "Content-Type" to "application/octet-stream",
-                ),
-            )
-            Http.send(c, text.toByteArray(Charsets.UTF_8))
-            try {
-                if (Http.code(c) !in 200..299) throw Http.error(c, title)
-            } finally {
-                c.disconnect()
-            }
-        }
-    }
-
-    companion object {
-        /** A random PKCE verifier and its challenge. */
-        fun newVerifier(): Pair<String, String> {
-            val bytes = ByteArray(48).also { SecureRandom().nextBytes(it) }
-            val verifier = Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
-            val challenge = Base64.encodeToString(
-                MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray()),
-                Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP,
-            )
-            return verifier to challenge
-        }
-
-        fun authorizeUrl(appKey: String, challenge: String): String =
-            "https://www.dropbox.com/oauth2/authorize?client_id=${URLEncoder.encode(appKey, "UTF-8")}" +
-                "&response_type=code&code_challenge=$challenge&code_challenge_method=S256&token_access_type=offline"
-
-        /** Exchanges the code the user pasted for a long-lived refresh token. */
-        suspend fun exchangeCode(appKey: String, code: String, verifier: String): String = withContext(Dispatchers.IO) {
-            val c = Http.open("https://api.dropboxapi.com/oauth2/token", "POST", mapOf("Content-Type" to "application/x-www-form-urlencoded"))
-            Http.send(
-                c,
-                Http.form(
-                    "code" to code.trim(),
-                    "grant_type" to "authorization_code",
-                    "code_verifier" to verifier,
-                    "client_id" to appKey.trim(),
-                ),
-            )
-            try {
-                if (Http.code(c) !in 200..299) throw Http.error(c, "Dropbox")
-                JSONObject(Http.text(c)).optString("refresh_token").takeIf { it.isNotBlank() }
-                    ?: throw SyncException("Dropbox не выдал ключ доступа")
             } finally {
                 c.disconnect()
             }
