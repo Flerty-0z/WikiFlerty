@@ -25,8 +25,32 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # Reading fonts (SIL Open Font License) are downloaded at build time
+      # from the Google Fonts repository instead of being stored in git.
+      - name: Download reading fonts
+        run: |
+          mkdir -p app/src/main/assets/fonts
+          cd app/src/main/assets/fonts
+          base=https://github.com/google/fonts/raw/main/ofl
+          get() { curl -fsSL --retry 3 -o "$1" "$2" || { echo "::warning::Font not downloaded: $1"; rm -f "$1"; }; }
+          get Literata.ttf          "$base/literata/Literata%5Bopsz,wght%5D.ttf"
+          get Literata-Italic.ttf   "$base/literata/Literata-Italic%5Bopsz,wght%5D.ttf"
+          get PTSerif-Regular.ttf   "$base/ptserif/PT_Serif-Web-Regular.ttf"
+          get PTSerif-Bold.ttf      "$base/ptserif/PT_Serif-Web-Bold.ttf"
+          get PTSerif-Italic.ttf    "$base/ptserif/PT_Serif-Web-Italic.ttf"
+          ls -la
+
       - name: Build
-        run: ./gradlew assembleDebug --stacktrace
+        run: |
+          set -o pipefail
+          ./gradlew assembleDebug --stacktrace 2>&1 | tee build.log
+
+      - name: Report build errors
+        if: failure()
+        run: |
+          grep -E "^e: |error:|What went wrong" -A3 build.log | head -60 | while IFS= read -r line; do
+            [ -n "$line" ] && echo "::error::${line}"
+          done
 
       - name: Rename APK
         run: |

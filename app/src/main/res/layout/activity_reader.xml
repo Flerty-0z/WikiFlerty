@@ -2,10 +2,20 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/reader_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/background">
 
+    <!-- The book. Space at the bottom is left for the progress flag. -->
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/navigator_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginTop="20dp"
+        android:layout_marginBottom="40dp" />
+
+    <!-- Panels, options and table of contents, drawn over the book. -->
+    <androidx.compose.ui.platform.ComposeView
+        android:id="@+id/reader_overlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 </FrameLayout>

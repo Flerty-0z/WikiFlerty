@@ -96,13 +96,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                     "WikiFlerty",
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(start = 28.dp, top = 24.dp, bottom = 4.dp),
-                )
-                Text(
-                    "Читалка",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 28.dp, bottom = 16.dp),
+                    modifier = Modifier.padding(start = 28.dp, top = 24.dp, bottom = 20.dp),
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 28.dp))
                 Spacer(Modifier.height(12.dp))
