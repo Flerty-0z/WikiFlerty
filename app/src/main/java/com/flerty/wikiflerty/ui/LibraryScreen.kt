@@ -73,6 +73,8 @@ private const val SHELF = "shelf:"
 /** What the library shows: everything, a status, favorites, or one of the user's shelves. */
 data class LibraryFilter(val id: String, val title: String, val icon: ImageVector, val matches: (Book) -> Boolean) {
     val isShelf: Boolean get() = id.startsWith(SHELF)
+    /** Heading above the books: "Мои книги" for everything, else the filter's own name. */
+    val sectionTitle: String get() = if (id == "all") "Мои книги" else title
 }
 
 private fun baseFilters(): List<LibraryFilter> = listOf(
@@ -180,6 +182,7 @@ fun LibraryScreen(
     val stats by app.stats.days.collectAsStateWithLifecycle()
     val todayMs = stats[LocalDate.now().toString()]?.values?.sumOf { it.ms } ?: 0L
     val longPress = { book: Book -> menuBookId = book.id }
+    val goalText = if (prefs.dailyGoalMinutes > 0) "Сегодня ${todayMs / 60_000} из ${prefs.dailyGoalMinutes} мин" else null
 
     Column(modifier) {
         // Search, as wide as the filter button below it.
@@ -216,10 +219,12 @@ fun LibraryScreen(
                 modifier = Modifier.fillMaxSize(),
             ) {
                 if (current != null) {
+                    item(key = "continue-title", span = { GridItemSpan(maxLineSpan) }) { SectionTitle("Продолжить", goalText) }
                     item(key = "continue", span = { GridItemSpan(maxLineSpan) }) {
                         ContinueCard(current, viewModel.coverFile(current), todayMs, prefs.dailyGoalMinutes, prefs.progressInPages) { open(current) }
                     }
                 }
+                item(key = "books-title", span = { GridItemSpan(maxLineSpan) }) { SectionTitle(active.sectionTitle, prefs.sort.title) }
                 items(shown, key = { it.id }) { book ->
                     BookCard(book, viewModel.coverFile(book), small = prefs.coverSize == 0, inPages = prefs.progressInPages, onClick = { open(book) }, onLongClick = { longPress(book) })
                 }
@@ -231,10 +236,12 @@ fun LibraryScreen(
                 modifier = Modifier.fillMaxSize(),
             ) {
                 if (current != null) {
+                    item(key = "continue-title") { SectionTitle("Продолжить", goalText) }
                     item(key = "continue") {
                         ContinueCard(current, viewModel.coverFile(current), todayMs, prefs.dailyGoalMinutes, prefs.progressInPages) { open(current) }
                     }
                 }
+                item(key = "books-title") { SectionTitle(active.sectionTitle, prefs.sort.title) }
                 items(shown, key = { it.id }) { book ->
                     BookRow(book, viewModel.coverFile(book), inPages = prefs.progressInPages, onClick = { open(book) }, onLongClick = { longPress(book) })
                 }
@@ -611,5 +618,23 @@ private fun EmptyLibrary(onAddBook: () -> Unit, modifier: Modifier) {
                 .accentHighlight(shape).padding(horizontal = 24.dp),
             contentAlignment = Alignment.Center,
         ) { Text("Добавить EPUB", color = accentContent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+    }
+}
+
+/** A small heading between blocks of the library, with a hint on the right. */
+@Composable
+private fun SectionTitle(title: String, hint: String?) {
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp, start = 2.dp, end = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            title.uppercase(),
+            color = AppColors.Muted,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.8.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        if (hint != null) Text(hint, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1)
     }
 }

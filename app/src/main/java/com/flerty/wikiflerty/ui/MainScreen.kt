@@ -58,6 +58,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.flow.map
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -84,12 +89,12 @@ import kotlin.math.roundToInt
 
 /** The main sections of the app, opened from the side panel. */
 enum class Section(val title: String, val icon: ImageVector) {
-    Library("Библиотека", Icons.Filled.Home),
+    Library("Библиотека", AppIcons.Book),
     Notes("Заметки", AppIcons.Note),
-    Dictionary("Словарь", Icons.Filled.Search),
+    Dictionary("Словарь", AppIcons.TextSize),
     Stats("Статистика", AppIcons.Chart),
     Settings("Настройки", AppIcons.Options),
-    About("О приложении", Icons.Filled.Info),
+    About("О приложении", AppIcons.Info),
 }
 
 @Composable
@@ -101,6 +106,9 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
     val busy by libraryViewModel.busy.collectAsStateWithLifecycle()
     val libraryBooks by libraryViewModel.books.collectAsStateWithLifecycle()
     val libraryControls = remember { LibraryControls() }
+    val app = context.applicationContext as com.flerty.wikiflerty.App
+    val notesCount by remember { app.notes.notes.map { it.size } }.collectAsStateWithLifecycle(0)
+    val wordsCount by remember { app.dictionary.entries.map { it.size } }.collectAsStateWithLifecycle(0)
     val feedback = LocalFeedback.current
     val view = LocalView.current
 
@@ -128,17 +136,27 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
             DrawerLogo()
             Spacer(Modifier.height(10.dp))
             Section.entries.forEach { item ->
-                if (item == Section.Settings) Spacer(Modifier.height(12.dp))
-                DrawerItem(item, selected = item == section) {
+                if (item == Section.Settings) {
+                    Box(Modifier.padding(horizontal = 22.dp, vertical = 8.dp).fillMaxWidth().height(1.dp).background(AppColors.Line))
+                }
+                val count = when (item) {
+                    Section.Library -> libraryBooks.size
+                    Section.Notes -> notesCount
+                    Section.Dictionary -> wordsCount
+                    else -> 0
+                }
+                DrawerItem(item, selected = item == section, count = count) {
                     section = item
                     drawerOpen = false
                 }
             }
+            Spacer(Modifier.weight(1f))
+            DrawerTodayCard()
         },
     ) {
         Box(Modifier.fillMaxSize()) {
             AppBackground()
-            val hasBackground = BackgroundKind.of(AppStyle.current.background) != BackgroundKind.None
+            val hasBackground = hasAppBackground
             Scaffold(
                 containerColor = if (hasBackground) Color.Transparent else AppColors.Background,
                 topBar = {
@@ -203,26 +221,92 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
 }
 
 @Composable
-private fun DrawerItem(item: Section, selected: Boolean, onClick: () -> Unit) {
-    val shape = appCorner(28)
+private fun DrawerItem(item: Section, selected: Boolean, count: Int, onClick: () -> Unit) {
+    val shape = appCorner(18)
     Row(
         Modifier
             .padding(horizontal = 12.dp, vertical = 2.dp)
             .fillMaxWidth()
             .height(54.dp)
             .liveClick(shape, sound = FeedbackSound.Tap, pressedScale = 0.97f, onClick = onClick)
-            .then(if (selected) Modifier.background(AppColors.AccentTintStrong) else Modifier)
-            .padding(horizontal = 16.dp),
+            .then(
+                if (selected) {
+                    Modifier.background(AppColors.Accent.copy(alpha = 0.16f)).border(1.dp, AppColors.Accent.copy(alpha = 0.24f), shape)
+                } else {
+                    Modifier
+                },
+            )
+            .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Icon(item.icon, null, tint = if (selected) AppColors.Accent else AppColors.Muted, modifier = Modifier.size(22.dp))
+        // Each section's icon sits on its own small tile.
+        val tile = appCorner(11)
+        Box(
+            Modifier
+                .size(34.dp)
+                .clip(tile)
+                .background(if (selected) AppColors.Accent else Color.White.copy(alpha = 0.07f))
+                .border(1.dp, if (selected) Color.Transparent else Color.White.copy(alpha = 0.08f), tile),
+            contentAlignment = Alignment.Center,
+        ) { Icon(item.icon, null, tint = if (selected) AppColors.OnAccent else AppColors.Accent, modifier = Modifier.size(19.dp)) }
         Text(
             item.title,
             color = AppColors.Text,
             fontSize = 16.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            maxLines = 1,
+            modifier = Modifier.weight(1f),
         )
+        if (count > 0) Text(count.toString(), color = AppColors.Faint, fontSize = 12.sp)
+    }
+}
+
+/** Bottom of the side panel: today's reading, the goal ring and the streak. */
+@Composable
+private fun DrawerTodayCard() {
+    val app = LocalContext.current.applicationContext as com.flerty.wikiflerty.App
+    val days by app.stats.days.collectAsStateWithLifecycle()
+    val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
+    val perDay = remember(days) { StatsCalc.perDay(days) }
+    val today = java.time.LocalDate.now()
+    val todayMs = perDay[today]?.ms ?: 0L
+    val goal = prefs.dailyGoalMinutes
+    val (streak, _) = StatsCalc.streaks(perDay, today)
+    val shape = appCorner(18)
+    Row(
+        Modifier
+            .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 16.dp)
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.06f))
+            .border(1.dp, Color.White.copy(alpha = 0.09f), shape)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        if (goal > 0) {
+            GoalRing(todayMs, goal, 46.dp)
+        } else {
+            Box(Modifier.size(46.dp).clip(CircleShape).background(AppColors.Accent.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+                Icon(AppIcons.Clock, null, tint = AppColors.Accent, modifier = Modifier.size(22.dp))
+            }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                if (goal > 0) "Сегодня ${todayMs / 60_000} из $goal мин" else "Сегодня ${StatsCalc.duration(todayMs)}",
+                color = AppColors.Text,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+            )
+            Text(
+                if (streak > 0) "Серия: ${StatsCalc.days(streak)}" else "Почитай сегодня, чтобы начать серию",
+                color = AppColors.Muted,
+                fontSize = 12.sp,
+                maxLines = 1,
+            )
+        }
     }
 }
 
@@ -234,7 +318,7 @@ private fun DrawerItem(item: Section, selected: Boolean, onClick: () -> Unit) {
 private fun SideDrawer(
     open: Boolean,
     onOpenChange: (Boolean) -> Unit,
-    drawer: @Composable () -> Unit,
+    drawer: @Composable ColumnScope.() -> Unit,
     content: @Composable () -> Unit,
 ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -279,7 +363,20 @@ private fun SideDrawer(
                     .width(width)
                     .fillMaxHeight()
                     .shadow(24.dp)
-                    .background(AppColors.Panel)
+                    .drawBehind {
+                        // The panel's own background: a soft gradient and a glow in the look's colors.
+                        drawRect(Brush.verticalGradient(listOf(AppColors.PanelTop, AppColors.Panel, AppColors.Background)))
+                        val glow = AppStyle.base.ambience?.spots?.firstOrNull()?.color?.let { Color(it) } ?: AppColors.Accent
+                        drawCircle(
+                            Brush.radialGradient(
+                                listOf(glow.copy(alpha = 0.32f), glow.copy(alpha = 0f)),
+                                center = Offset(size.width * 0.15f, size.height * 0.05f),
+                                radius = size.width * 1.1f,
+                            ),
+                            radius = size.width * 1.1f,
+                            center = Offset(size.width * 0.15f, size.height * 0.05f),
+                        )
+                    }
                     .windowInsetsPadding(WindowInsets.systemBars)
                     .then(
                         if (open) {

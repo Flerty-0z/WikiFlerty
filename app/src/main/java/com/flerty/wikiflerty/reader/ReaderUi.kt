@@ -64,6 +64,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import com.flerty.wikiflerty.ui.AppStyle
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.text.TextAutoSize
@@ -681,6 +683,16 @@ private fun SheetFrame(content: @Composable () -> Unit) {
             .imePadding()
             .heightIn(max = 580.dp)
             .panelSurface(appCorner(26), elevation = 20.dp)
+            .drawBehind {
+                // A soft glow at the top in the look's color.
+                val glow = AppStyle.base.ambience?.spots?.firstOrNull()?.color?.let { Color(it) } ?: AppColors.Accent
+                val center = androidx.compose.ui.geometry.Offset(size.width * 0.1f, 0f)
+                drawCircle(
+                    Brush.radialGradient(listOf(glow.copy(alpha = 0.22f), glow.copy(alpha = 0f)), center = center, radius = size.width * 0.8f),
+                    radius = size.width * 0.8f,
+                    center = center,
+                )
+            }
             .blockTaps(),
     ) {
         content()
@@ -802,17 +814,18 @@ private fun SheetContent(
 
 @Composable
 private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
-    data class Tile(val target: ReaderSheet, val hint: String, val icon: ImageVector?)
+    // Each section has its own color, so the grid is easy to scan.
+    data class Tile(val target: ReaderSheet, val hint: String, val icon: ImageVector, val from: Long, val to: Long, val dark: Boolean = false)
     val tiles = listOf(
-        Tile(ReaderSheet.Text, "Шрифт, размер", AppIcons.TextSize),
-        Tile(ReaderSheet.Scroll, "Режим, анимация", AppIcons.Pages),
-        Tile(ReaderSheet.Theme, "Фон страницы", AppIcons.Theme),
-        Tile(ReaderSheet.Panel, "Кнопки, прогресс", AppIcons.Panel),
-        Tile(ReaderSheet.Gestures, "Тапы, свайпы", AppIcons.Gesture),
-        Tile(ReaderSheet.Screen, "Яркость, поворот", AppIcons.Screen),
-        Tile(ReaderSheet.Listen, "Голос, скорость", AppIcons.Headphones),
-        Tile(ReaderSheet.Sound, "Звуки, вибрация", AppIcons.Sound),
-        Tile(ReaderSheet.AiSetup, "Нейросети, модели", AppIcons.Sparkle),
+        Tile(ReaderSheet.Text, "Шрифт, размер", AppIcons.TextSize, 0xFF6E8EFF, 0xFF4C63D9),
+        Tile(ReaderSheet.Scroll, "Режим, анимация", AppIcons.Pages, 0xFFA78BFA, 0xFF7653E0),
+        Tile(ReaderSheet.Theme, "Фон страницы", AppIcons.Theme, 0xFFF6C770, 0xFFD9922B, dark = true),
+        Tile(ReaderSheet.Panel, "Кнопки, прогресс", AppIcons.Panel, 0xFF5EEAD4, 0xFF1FA392, dark = true),
+        Tile(ReaderSheet.Gestures, "Тапы, свайпы", AppIcons.Gesture, 0xFFF49AC1, 0xFFD45A93),
+        Tile(ReaderSheet.Screen, "Яркость, поворот", AppIcons.Screen, 0xFFF7D774, 0xFFD9A92B, dark = true),
+        Tile(ReaderSheet.Listen, "Голос, скорость", AppIcons.Headphones, 0xFF8BD3A5, 0xFF3E9E66, dark = true),
+        Tile(ReaderSheet.Sound, "Звуки, вибрация", AppIcons.Sound, 0xFFF6A26B, 0xFFD9692B),
+        Tile(ReaderSheet.AiSetup, "Нейросети, модели", AppIcons.Sparkle, 0xFF8AB4F8, 0xFF7653E0),
     )
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         tiles.chunked(2).forEach { row ->
@@ -830,17 +843,12 @@ private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
                     ) {
                         Box(
                             Modifier
-                                .size(36.dp)
-                                .clip(appCorner(11))
-                                .background(Brush.linearGradient(listOf(AppColors.Accent.copy(alpha = 0.28f), AppColors.Accent.copy(alpha = 0.1f))))
-                                .border(1.dp, AppColors.Accent.copy(alpha = 0.2f), appCorner(11)),
+                                .size(38.dp)
+                                .clip(appCorner(12))
+                                .background(Brush.linearGradient(listOf(Color(tile.from), Color(tile.to)))),
                             contentAlignment = Alignment.Center,
                         ) {
-                            if (tile.icon == null) {
-                                Text("Aa", color = AppColors.Accent, fontFamily = FontFamily.Serif, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                            } else {
-                                Icon(tile.icon, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp))
-                            }
+                            Icon(tile.icon, null, tint = if (tile.dark) Color(0xFF1A1405) else Color.White, modifier = Modifier.size(20.dp))
                         }
                         Column {
                             Text(tile.target.title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)

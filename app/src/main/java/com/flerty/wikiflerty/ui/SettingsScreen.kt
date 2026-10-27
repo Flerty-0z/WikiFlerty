@@ -50,6 +50,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -208,8 +210,21 @@ private fun CustomizationContent() {
 
     StylePreview()
 
-    // Ready-made looks
-    Text("Готовые стили", color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp))
+    // Whole templates: background with glows, colors, font, buttons, corners.
+    Text("Шаблоны оформления", color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp))
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        StyleTemplates.forEach { template ->
+            TemplateCard(template, selected = template.matches(style)) { store.update { template.applyTo(it) } }
+        }
+    }
+    SettingsGroup(null) {
+        SettingSwitch("Свечение фона", style.ambience, hint = "Мягкий цветной фон шаблона", icon = AppIcons.Sun) { v ->
+            store.update { it.copy(ambience = v) }
+        }
+    }
+
+    // Simple color pairs on the classic backgrounds.
+    Text("Цветовые пары", color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp))
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         StylePresets.forEach { preset ->
             val selected = style.base == preset.base.id && style.accent == preset.accent
@@ -501,3 +516,46 @@ private fun copyImage(context: Context, uri: Uri, target: File): Boolean = runCa
     target.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it) }
     true
 }.getOrDefault(false)
+
+/** A small picture of a template: its glowing background, a card and an accent button. */
+@Composable
+private fun TemplateCard(template: StylePreset, selected: Boolean, onClick: () -> Unit) {
+    val shape = appCorner(18)
+    val accent = Color(template.accent)
+    Box(
+        Modifier
+            .width(132.dp)
+            .height(176.dp)
+            .liveClick(shape, sound = FeedbackSound.Toggle, onClick = onClick)
+            .border(if (selected) 2.dp else 1.dp, if (selected) accent else AppColors.PanelBorder, shape),
+    ) {
+        template.base.ambience?.let { AmbienceBackground(template.base, it, Modifier.matchParentSize()) }
+            ?: Box(Modifier.matchParentSize().background(Color(template.base.background)))
+        Column(Modifier.matchParentSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            // A tiny "continue reading" card
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(accent.copy(alpha = 0.18f).compositeOver(Color(template.base.field)))
+                    .border(1.dp, accent.copy(alpha = 0.3f), RoundedCornerShape(10.dp)).padding(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(width = 18.dp, height = 26.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFFE0A548)))
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(Modifier.width(48.dp).height(5.dp).clip(CircleShape).background(Color(0xCCFFFFFF)))
+                    Box(Modifier.width(36.dp).height(4.dp).clip(CircleShape).background(accent))
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                repeat(2) {
+                    Box(
+                        Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(8.dp)).background(Color(template.base.field))
+                            .border(1.dp, Color(template.base.border), RoundedCornerShape(8.dp)),
+                    )
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            Text(template.title, color = Color(0xFFF1F2F5), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, lineHeight = 16.sp)
+            Box(Modifier.width(40.dp).height(6.dp).clip(CircleShape).background(accent))
+        }
+    }
+}

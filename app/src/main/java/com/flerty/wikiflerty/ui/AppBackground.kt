@@ -36,7 +36,10 @@ fun AppBackground() {
     val style = AppStyle.current
     val app = LocalContext.current.applicationContext as App
     val kind = BackgroundKind.of(style.background)
-    if (kind == BackgroundKind.None) return
+    if (kind == BackgroundKind.None) {
+        AppStyle.base.ambience?.takeIf { style.ambience }?.let { AmbienceBackground(AppStyle.base, it, Modifier.fillMaxSize()) }
+        return
+    }
 
     Box(Modifier.fillMaxSize()) {
         when (kind) {
@@ -119,4 +122,59 @@ private fun cropToFill(view: TextureView, videoWidth: Int, videoHeight: Int) {
         setScale(videoWidth * scale / viewW, videoHeight * scale / viewH, viewW / 2f, viewH / 2f)
     }
     view.setTransform(matrix)
+}
+
+/** True when the main screens show something behind them (glows, a picture or a video). */
+val hasAppBackground: Boolean
+    get() {
+        val style = AppStyle.current
+        return BackgroundKind.of(style.background) != BackgroundKind.None || (style.ambience && AppStyle.base.ambience != null)
+    }
+
+/** The look's own background: base color, a gradient from the top, soft colored glows, maybe a fine dot grid. */
+@Composable
+fun AmbienceBackground(base: UiBase, ambience: Ambience, modifier: Modifier) {
+    androidx.compose.foundation.Canvas(modifier) {
+        val w = size.width
+        val h = size.height
+        drawRect(Color(base.background))
+        ambience.topColor?.let { top ->
+            drawRect(
+                androidx.compose.ui.graphics.Brush.verticalGradient(
+                    0f to Color(top).copy(alpha = ambience.topAlpha),
+                    1f to Color(top).copy(alpha = 0f),
+                    startY = 0f,
+                    endY = h * ambience.topHeight,
+                ),
+            )
+        }
+        ambience.spots.forEach { spot ->
+            val center = androidx.compose.ui.geometry.Offset(w * spot.x, h * spot.y)
+            val radius = w * spot.radius
+            drawCircle(
+                androidx.compose.ui.graphics.Brush.radialGradient(
+                    0f to Color(spot.color).copy(alpha = spot.alpha),
+                    1f to Color(spot.color).copy(alpha = 0f),
+                    center = center,
+                    radius = radius,
+                ),
+                radius = radius,
+                center = center,
+            )
+        }
+        if (ambience.dots) {
+            val step = 18.dp.toPx()
+            val dot = 1.dp.toPx()
+            val color = Color.White.copy(alpha = 0.07f)
+            var y = step / 2
+            while (y < h) {
+                var x = step / 2
+                while (x < w) {
+                    drawCircle(color, dot, androidx.compose.ui.geometry.Offset(x, y))
+                    x += step
+                }
+                y += step
+            }
+        }
+    }
 }
