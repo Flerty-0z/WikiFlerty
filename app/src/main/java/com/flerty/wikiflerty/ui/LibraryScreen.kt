@@ -581,7 +581,7 @@ private fun EmptyLibrary(onAddBook: () -> Unit, modifier: Modifier) {
         Text("Здесь будут твои книги", color = AppColors.Text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Добавь файл EPUB из памяти телефона.",
+            "Добавь книгу в формате EPUB, FB2 или TXT из памяти телефона.",
             color = AppColors.Muted,
             fontSize = 14.sp,
             lineHeight = 20.sp,
@@ -593,7 +593,7 @@ private fun EmptyLibrary(onAddBook: () -> Unit, modifier: Modifier) {
             Modifier.heightIn(min = 48.dp).liveClick(shape, sound = FeedbackSound.Open, onClick = onAddBook)
                 .accentHighlight(shape).padding(horizontal = 24.dp),
             contentAlignment = Alignment.Center,
-        ) { Text("Добавить EPUB", color = accentContent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+        ) { Text("Добавить книгу", color = accentContent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
     }
 }
 

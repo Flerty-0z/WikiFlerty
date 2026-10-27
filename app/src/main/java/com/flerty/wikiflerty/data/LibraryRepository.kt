@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.OpenableColumns
 import com.flerty.wikiflerty.reader.ReadiumServices
+import com.flerty.wikiflerty.data.convert.BookConverter
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
@@ -40,10 +41,38 @@ class LibraryRepository(
     suspend fun import(uri: Uri): Result<Book> = withContext(Dispatchers.IO) {
         val id = UUID.randomUUID().toString()
         val file = File(booksDir, "$id.epub")
+        val source = File(booksDir, "$id.src")
         try {
             val input = context.contentResolver.openInputStream(uri)
                 ?: return@withContext Result.failure(Exception("Не удалось прочитать файл"))
-            input.use { source -> file.outputStream().use { source.copyTo(it) } }
+            input.use { stream -> source.outputStream().use { stream.copyTo(it) } }
+            val kind = BookConverter.detect(source)
+            when (kind) {
+                BookConverter.Kind.Epub -> if (!source.renameTo(file)) {
+                    source.copyTo(file, overwrite = true)
+                    source.delete()
+                }
+                BookConverter.Kind.Fb2, BookConverter.Kind.Fb2Zip, BookConverter.Kind.Txt -> {
+                    val name = displayName(uri)?.substringBeforeLast('.')?.removeSuffix(".fb2")?.takeIf { it.isNotBlank() } ?: "Без названия"
+                    try {
+                        BookConverter.toEpub(source, kind, file, name, fingerprintOf(source).take(24))
+                    } catch (e: Exception) {
+                        file.delete()
+                        val what = if (kind == BookConverter.Kind.Txt) "текстовый файл" else "FB2"
+                        return@withContext Result.failure(Exception("Не удалось прочитать $what: файл повреждён или в необычном формате"))
+                    } finally {
+                        source.delete()
+                    }
+                }
+                BookConverter.Kind.Pdf -> {
+                    source.delete()
+                    return@withContext Result.failure(Exception("PDF пока не поддерживается. Подойдут EPUB, FB2 и TXT"))
+                }
+                BookConverter.Kind.Unknown -> {
+                    source.delete()
+                    return@withContext Result.failure(Exception("Этот формат не поддерживается. Подойдут EPUB, FB2 и TXT"))
+                }
+            }
             val fingerprint = fingerprintOf(file)
 
             val publication = readium.open(file).getOrElse {
@@ -91,6 +120,7 @@ class LibraryRepository(
             }
         } catch (e: Exception) {
             file.delete()
+            source.delete()
             Result.failure(e)
         }
     }

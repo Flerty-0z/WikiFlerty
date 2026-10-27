@@ -183,7 +183,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                         ExtendedFloatingActionButton(
                             onClick = {
                                 feedback?.play(FeedbackSound.Open, view)
-                                pickBook.launch(arrayOf("application/epub+zip", "application/octet-stream"))
+                                pickBook.launch(arrayOf("*/*"))
                             },
                             icon = { Icon(Icons.Filled.Add, contentDescription = null) },
                             text = { Text("Книга") },
@@ -195,7 +195,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 if (section == Section.Library) {
                     LibraryScreen(
                         viewModel = libraryViewModel,
-                        onAddBook = { pickBook.launch(arrayOf("application/epub+zip", "application/octet-stream")) },
+                        onAddBook = { pickBook.launch(arrayOf("*/*")) },
                         controls = libraryControls,
                         modifier = Modifier.fillMaxSize().padding(padding),
                     )
