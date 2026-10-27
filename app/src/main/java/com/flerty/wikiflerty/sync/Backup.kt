@@ -42,7 +42,6 @@ data class MergeReport(val notes: Int = 0, val words: Int = 0, val progress: Int
  * API keys are never included.
  */
 object Backup {
-    const val CLOUD_FILE = "wikiflerty-sync.json"
     private const val FOREIGN = "fp:"
 
     fun snapshot(app: App): JSONObject {
@@ -232,7 +231,7 @@ object Backup {
                 if (app.library.import(Uri.fromFile(file)).isSuccess) booksAdded++
             }
             val data = backup ?: throw IllegalArgumentException("В файле нет данных WikiFlerty")
-            merge(app, data, applySettings = true).also { lastImportedBooks = booksAdded }
+            merge(app, data, applySettings = app.sync.store.state.value.syncSettings).also { lastImportedBooks = booksAdded }
         } finally {
             tempDir.deleteRecursively()
         }

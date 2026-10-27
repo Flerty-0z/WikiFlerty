@@ -71,6 +71,7 @@ private enum class SettingsPage(val title: String) {
     Ai("ИИ-помощник"),
     Custom("Кастомизация"),
     Sound("Звук и отклик"),
+    Backup("Резервная копия"),
 }
 
 /** Main settings, split into sections so each thing is where you expect it. */
@@ -105,6 +106,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                     SettingsPage.Ai -> AiSettingsContent((LocalContext.current.applicationContext as App).ai)
                     SettingsPage.Custom -> CustomizationContent()
                     SettingsPage.Sound -> SoundContent()
+                    SettingsPage.Backup -> BackupContent()
                 }
             }
         }
@@ -116,6 +118,7 @@ private fun SettingsHome(onOpen: (SettingsPage) -> Unit) {
     SettingsNavRow(AppIcons.Sparkle, "ИИ-помощник", "Нейросети, ключи, модели, язык перевода") { onOpen(SettingsPage.Ai) }
     SettingsNavRow(AppIcons.Theme, "Кастомизация", "Цвета, стиль, форма, шрифт и фон интерфейса") { onOpen(SettingsPage.Custom) }
     SettingsNavRow(AppIcons.Sound, "Звук и отклик", "Звуки кнопок, громкость, вибрация") { onOpen(SettingsPage.Sound) }
+    SettingsNavRow(AppIcons.Backup, "Резервная копия", "Экспорт и импорт: перенос на другой телефон") { onOpen(SettingsPage.Backup) }
     Text(
         "Настройки чтения (шрифт книги, темы страницы, листание, жесты) — внутри книги: тап по центру страницы → «Опции».",
         color = AppColors.Faint,

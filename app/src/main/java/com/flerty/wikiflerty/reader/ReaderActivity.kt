@@ -55,6 +55,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.flerty.wikiflerty.ai.AiAction
+import com.flerty.wikiflerty.ai.AiBusyException
 import com.flerty.wikiflerty.ai.AiException
 import com.flerty.wikiflerty.ai.AiPrompts
 import com.flerty.wikiflerty.ai.AiProvider
@@ -555,10 +556,23 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         chat.job = lifecycleScope.launch {
             val answer = StringBuilder()
             try {
-                app.ai.chat(provider, chat.model, system, history).collect { piece ->
-                    answer.append(piece)
-                    val text = answer.toString()
-                    if (chat.bubbles.isNotEmpty()) chat.bubbles[chat.bubbles.lastIndex] = AiBubble(false, text, text)
+                // An overloaded model often answers on the second or third try, so ask again quietly first.
+                var attempt = 0
+                while (true) {
+                    try {
+                        app.ai.chat(provider, chat.model, system, history).collect { piece ->
+                            chat.retryNote = null
+                            answer.append(piece)
+                            val text = answer.toString()
+                            if (chat.bubbles.isNotEmpty()) chat.bubbles[chat.bubbles.lastIndex] = AiBubble(false, text, text)
+                        }
+                        break
+                    } catch (e: AiBusyException) {
+                        if (answer.isNotEmpty() || attempt >= 2) throw e
+                        attempt++
+                        chat.retryNote = "Модель перегружена, пробую ещё раз ($attempt из 2)…"
+                        delay(if (attempt == 1) 2_000L else 5_000L)
+                    }
                 }
                 if (answer.isEmpty()) throw AiException("Модель вернула пустой ответ. Попробуй другую модель.")
             } catch (e: CancellationException) {
@@ -568,6 +582,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 if (answer.isEmpty()) dropEmptyAnswer()
                 chat.error = e.message ?: "Не удалось получить ответ"
             } finally {
+                chat.retryNote = null
                 chat.streaming = false
             }
         }
@@ -809,11 +824,6 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         super.onDestroy()
         if (isFinishing) {
             app.closeReader()
-            val save = lastSave
-            app.appScope.launch {
-                save?.join()
-                app.sync.autoSync()
-            }
         }
     }
 

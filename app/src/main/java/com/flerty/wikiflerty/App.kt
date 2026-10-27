@@ -41,7 +41,7 @@ class App : Application() {
     lateinit var dictionary: DictionaryRepository
         private set
 
-    /** Sync with Google Drive / Dropbox, and backups. */
+    /** Bookkeeping for moving data between phones with backup files. */
     lateinit var sync: SyncManager
         private set
 

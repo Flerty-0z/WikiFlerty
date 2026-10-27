@@ -93,6 +93,10 @@ class AiChatState {
     var model by mutableStateOf("")
     var savedToDictionary by mutableStateOf(false)
     var savedToNotes by mutableStateOf(false)
+    /** The model list under the chip at the top of the chat. */
+    var modelMenuOpen by mutableStateOf(false)
+    /** Shown while an overloaded model is being asked again. */
+    var retryNote by mutableStateOf<String?>(null)
     var job: Job? = null
 
     val lastAnswer: String?
@@ -229,7 +233,8 @@ fun AiChatContent(bridge: AiBridge, modifier: Modifier = Modifier) {
                 if (bubble.fromUser) {
                     UserBubble(bubble, first = index == 0, fragment = chat.fragment)
                 } else {
-                    AnswerBubble(bubble.shown, writing = chat.streaming && index == chat.bubbles.lastIndex)
+                    val writing = chat.streaming && index == chat.bubbles.lastIndex
+                    AnswerBubble(bubble.shown, writing = writing, note = if (writing) chat.retryNote else null)
                 }
             }
             chat.error?.let { error ->
@@ -240,13 +245,24 @@ fun AiChatContent(bridge: AiBridge, modifier: Modifier = Modifier) {
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(error, color = Color(0xFFF5B4B4), fontSize = 13.sp, lineHeight = 18.sp)
-                        Text(
-                            "Повторить",
-                            color = AppColors.Accent,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.liveClick(appCorner(8), onClick = bridge.onRetry).padding(vertical = 4.dp),
-                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                            Text(
+                                "Повторить",
+                                color = AppColors.Accent,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.liveClick(appCorner(8), onClick = bridge.onRetry).padding(vertical = 4.dp),
+                            )
+                            Text(
+                                "Другая модель",
+                                color = AppColors.Accent,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier
+                                    .liveClick(appCorner(8), sound = FeedbackSound.Open) { chat.modelMenuOpen = true }
+                                    .padding(vertical = 4.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -303,13 +319,12 @@ fun AiChatContent(bridge: AiBridge, modifier: Modifier = Modifier) {
 @Composable
 private fun ModelChip(bridge: AiBridge) {
     val settings by bridge.manager.settings.collectAsStateWithLifecycle()
-    var open by remember { mutableStateOf(false) }
     val chat = bridge.chat
     Box {
         val shape = appCorner(16)
         Row(
             Modifier.height(32.dp)
-                .liveClick(shape, sound = FeedbackSound.Open) { open = true }
+                .liveClick(shape, sound = FeedbackSound.Open) { chat.modelMenuOpen = true }
                 .background(AppColors.Field)
                 .border(1.dp, AppColors.PanelBorder, shape)
                 .padding(horizontal = 12.dp),
@@ -328,8 +343,8 @@ private fun ModelChip(bridge: AiBridge) {
             Text("▾", color = AppColors.Muted, fontSize = 12.sp)
         }
         DropdownMenu(
-            expanded = open,
-            onDismissRequest = { open = false },
+            expanded = chat.modelMenuOpen,
+            onDismissRequest = { chat.modelMenuOpen = false },
             modifier = Modifier.heightIn(max = 420.dp).background(AppColors.Panel),
         ) {
             bridge.manager.connected().forEachIndexed { index, provider ->
@@ -359,7 +374,7 @@ private fun ModelChip(bridge: AiBridge) {
                             null
                         },
                         onClick = {
-                            open = false
+                            chat.modelMenuOpen = false
                             bridge.onModel(provider, model.id)
                         },
                     )
@@ -400,7 +415,7 @@ private fun UserBubble(bubble: AiBubble, first: Boolean, fragment: String) {
 }
 
 @Composable
-private fun AnswerBubble(text: String, writing: Boolean) {
+private fun AnswerBubble(text: String, writing: Boolean, note: String? = null) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -410,6 +425,7 @@ private fun AnswerBubble(text: String, writing: Boolean) {
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         if (text.isEmpty() && writing) {
+            if (note != null) Text(note, color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
             TypingDots()
         } else {
             SelectionContainer {

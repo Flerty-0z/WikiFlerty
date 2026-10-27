@@ -56,7 +56,12 @@ data class AiModel(val id: String, val name: String)
 
 data class ChatMessage(val fromUser: Boolean, val text: String)
 
-class AiException(message: String) : Exception(message)
+open class AiException(message: String) : Exception(message)
+
+/** The model is overloaded right now; trying again a bit later usually works. */
+class AiBusyException : AiException(
+    "Модель сейчас перегружена — так бывает у новых и популярных моделей. Повтори чуть позже или выбери другую модель.",
+)
 
 /**
  * Talks to Claude, ChatGPT, Gemini and DeepSeek over HTTPS.
@@ -148,6 +153,7 @@ object AiClient {
                     if (event.optString("type") == "content_block_delta") {
                         event.optJSONObject("delta")?.optString("text")
                     } else if (event.optString("type") == "error") {
+                        if (event.optJSONObject("error")?.optString("type") == "overloaded_error") throw AiBusyException()
                         throw AiException(event.optJSONObject("error")?.optString("message") ?: "Ошибка Claude")
                     } else {
                         null
@@ -272,6 +278,9 @@ object AiClient {
                 ?: json.optString("message").takeIf { it.isNotBlank() }
         }.getOrNull() ?: raw.take(200)
         connection.disconnect()
+        if (code == 503 || code == 529 || (code in 500..599 && Regex("(?i)overload|high demand|unavailable").containsMatchIn(detail))) {
+            throw AiBusyException()
+        }
         val hint = when (code) {
             400 -> "Запрос отклонён"
             401, 403 -> "Ключ не подошёл"

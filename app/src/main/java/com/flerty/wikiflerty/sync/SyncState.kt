@@ -38,15 +38,9 @@ data class ForeignBook(
     }
 }
 
-/** What sync remembers between runs. Saved to sync_state.json. */
+/** What moving data between phones remembers. Saved to sync_state.json. */
 data class SyncState(
-    val googleConnected: Boolean = false,
-    val dropboxAppKey: String = "",
-    val dropboxConnected: Boolean = false,
-    val autoSync: Boolean = true,
     val syncSettings: Boolean = true,
-    val lastSyncAt: Long = 0,
-    val lastResult: String? = null,
     /** When this phone last changed its settings. */
     val settingsChangedAt: Long = 0,
     /** Deleted notes and words: id → time, so deletions reach other phones too. */
@@ -56,13 +50,7 @@ data class SyncState(
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("version", 1)
-        put("googleConnected", googleConnected)
-        put("dropboxAppKey", dropboxAppKey)
-        put("dropboxConnected", dropboxConnected)
-        put("autoSync", autoSync)
         put("syncSettings", syncSettings)
-        put("lastSyncAt", lastSyncAt)
-        put("lastResult", lastResult)
         put("settingsChangedAt", settingsChangedAt)
         put("deletedNotes", JSONObject(deletedNotes))
         put("deletedWords", JSONObject(deletedWords))
@@ -71,13 +59,7 @@ data class SyncState(
 
     companion object {
         fun fromJson(j: JSONObject) = SyncState(
-            googleConnected = j.optBoolean("googleConnected"),
-            dropboxAppKey = j.optString("dropboxAppKey"),
-            dropboxConnected = j.optBoolean("dropboxConnected"),
-            autoSync = j.optBoolean("autoSync", true),
             syncSettings = j.optBoolean("syncSettings", true),
-            lastSyncAt = j.optLong("lastSyncAt"),
-            lastResult = if (j.isNull("lastResult")) null else j.optString("lastResult"),
             settingsChangedAt = j.optLong("settingsChangedAt"),
             deletedNotes = j.optJSONObject("deletedNotes").toLongMap(),
             deletedWords = j.optJSONObject("deletedWords").toLongMap(),
