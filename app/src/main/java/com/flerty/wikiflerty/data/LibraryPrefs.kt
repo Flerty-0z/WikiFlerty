@@ -41,6 +41,8 @@ data class LibraryPrefs(
     val shelves: List<String> = emptyList(),
     /** Minutes of reading a day to aim for; 0 = no goal. */
     val dailyGoalMinutes: Int = 0,
+    /** Show "стр. 110 из 366" instead of "30%". */
+    val progressInPages: Boolean = false,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("filter", filter)
@@ -50,6 +52,7 @@ data class LibraryPrefs(
         put("coverSize", coverSize)
         put("shelves", JSONArray(shelves))
         put("dailyGoalMinutes", dailyGoalMinutes)
+        put("progressInPages", progressInPages)
     }
 
     companion object {
@@ -60,6 +63,7 @@ data class LibraryPrefs(
             view = LibraryView.of(j.optString("view")),
             coverSize = j.optInt("coverSize", 1).coerceIn(0, 2),
             dailyGoalMinutes = j.optInt("dailyGoalMinutes", 0).coerceAtLeast(0),
+            progressInPages = j.optBoolean("progressInPages", false),
             shelves = j.optJSONArray("shelves")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
         )
     }

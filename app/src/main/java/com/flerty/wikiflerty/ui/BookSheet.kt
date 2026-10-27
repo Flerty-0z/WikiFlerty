@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -138,7 +139,7 @@ fun BookSheet(
                 Text(book.title, color = AppColors.Text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (book.author.isNotBlank()) Text(book.author, color = AppColors.Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    "${(book.progress * 100).toInt()}% · ${book.status.title}",
+                    "${progressLabel(book, app.libraryPrefs.prefs.value.progressInPages)} · ${book.status.title}",
                     color = AppColors.Faint,
                     fontSize = 12.sp,
                     maxLines = 1,
@@ -265,11 +266,11 @@ private fun BookStatsContent(app: App, book: Book, onBack: () -> Unit) {
     } else {
         null
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         StatTile("Время чтения", StatsCalc.duration(stats.ms), Modifier.weight(1f))
         StatTile("Страниц", stats.pages.toString(), Modifier.weight(1f), hint = if (book.positions > 0) "из ${book.positions}" else null)
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         StatTile("Скорость", speed?.let { "${it.toInt()} стр/ч" } ?: "—", Modifier.weight(1f))
         StatTile(
             "Осталось",
@@ -281,7 +282,7 @@ private fun BookStatsContent(app: App, book: Book, onBack: () -> Unit) {
             Modifier.weight(1f),
         )
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         StatTile("Дней чтения", stats.days.toString(), Modifier.weight(1f))
         StatTile(
             "Заметки и слова",
@@ -354,6 +355,15 @@ fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
             }
         }
         SettingsGroup("Вид") {
+            PickerRow(
+                label = "Прогресс",
+                icon = AppIcons.Percent,
+                options = listOf(
+                    PickerOption("percent", "Проценты", "30%"),
+                    PickerOption("pages", "Страницы", "стр. 110 из 366"),
+                ),
+                selectedId = if (prefs.progressInPages) "pages" else "percent",
+            ) { id -> app.libraryPrefs.update { it.copy(progressInPages = id == "pages") } }
             SettingSegmented(null, listOf("Сетка", "Список"), if (prefs.view == LibraryView.Grid) 0 else 1) { i ->
                 app.libraryPrefs.update { it.copy(view = if (i == 0) LibraryView.Grid else LibraryView.List) }
             }

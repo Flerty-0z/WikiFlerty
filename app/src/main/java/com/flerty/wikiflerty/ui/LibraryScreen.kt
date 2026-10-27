@@ -36,6 +36,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -66,17 +69,42 @@ import kotlinx.coroutines.withContext
 
 private const val SHELF = "shelf:"
 
-/** Filter chips: everything, statuses, favorites, then the user's shelves. */
-private data class LibraryFilter(val id: String, val title: String, val matches: (Book) -> Boolean)
+/** What the library shows: everything, a status, favorites, or one of the user's shelves. */
+data class LibraryFilter(val id: String, val title: String, val icon: ImageVector, val matches: (Book) -> Boolean) {
+    val isShelf: Boolean get() = id.startsWith(SHELF)
+}
 
 private fun baseFilters(): List<LibraryFilter> = listOf(
-    LibraryFilter("all", "Все") { true },
-    LibraryFilter(ReadStatus.Reading.id, "Читаю") { it.status == ReadStatus.Reading },
-    LibraryFilter(ReadStatus.Planned.id, "В планах") { it.status == ReadStatus.Planned },
-    LibraryFilter(ReadStatus.Finished.id, "Прочитано") { it.status == ReadStatus.Finished },
-    LibraryFilter("favorite", "Избранное") { it.favorite },
-    LibraryFilter(ReadStatus.New.id, "Не начаты") { it.status == ReadStatus.New },
+    LibraryFilter("all", "Все книги", AppIcons.Grid) { true },
+    LibraryFilter(ReadStatus.Reading.id, "Читаю", AppIcons.Book) { it.status == ReadStatus.Reading },
+    LibraryFilter(ReadStatus.Planned.id, "В планах", AppIcons.Clock) { it.status == ReadStatus.Planned },
+    LibraryFilter(ReadStatus.Finished.id, "Прочитано", AppIcons.Check) { it.status == ReadStatus.Finished },
+    LibraryFilter("favorite", "Избранное", AppIcons.StarFilled) { it.favorite },
+    LibraryFilter(ReadStatus.New.id, "Не начаты", AppIcons.Plus) { it.status == ReadStatus.New },
 )
+
+/** "30%" or, if chosen in «Вид и сортировка», "стр. 110 из 366". */
+fun progressLabel(book: Book, inPages: Boolean): String =
+    if (inPages && book.positions > 0) {
+        "стр. ${(book.progress * book.positions).toInt().coerceIn(1, book.positions)} из ${book.positions}"
+    } else {
+        "${(book.progress * 100).toInt()}%"
+    }
+
+/** Color of each status in badges. */
+fun statusColor(status: ReadStatus): Color = when (status) {
+    ReadStatus.Reading -> AppColors.Accent
+    ReadStatus.Finished -> Color(0xFF7ED3A0)
+    ReadStatus.Planned -> Color(0xFFF2C46B)
+    ReadStatus.New -> AppColors.Muted
+}
+
+fun statusIcon(status: ReadStatus): ImageVector = when (status) {
+    ReadStatus.Reading -> AppIcons.Book
+    ReadStatus.Planned -> AppIcons.Clock
+    ReadStatus.Finished -> AppIcons.Check
+    ReadStatus.New -> AppIcons.Plus
+}
 
 /** All shelves: the ones made by hand plus any that came with books from a backup. */
 fun allShelves(prefs: LibraryPrefs, books: List<Book>): List<String> =
@@ -107,6 +135,7 @@ fun LibraryScreen(
     var menuBookId by rememberSaveable { mutableStateOf<String?>(null) }
     var showViewSheet by rememberSaveable { mutableStateOf(false) }
     var shelfDialog by remember { mutableStateOf<ShelfDialog?>(null) }
+    var showFilterSheet by rememberSaveable { mutableStateOf(false) }
 
     if (books.isEmpty()) {
         EmptyLibrary(onAddBook, modifier)
@@ -114,7 +143,7 @@ fun LibraryScreen(
     }
 
     val shelves = allShelves(prefs, books)
-    val filters = baseFilters() + shelves.map { name -> LibraryFilter(SHELF + name, name) { name in it.shelves } }
+    val filters = baseFilters() + shelves.map { name -> LibraryFilter(SHELF + name, name, AppIcons.Shelf) { name in it.shelves } }
     val active = filters.firstOrNull { it.id == prefs.filter } ?: filters.first()
     val q = query.trim()
     val shown = sorted(
@@ -146,35 +175,9 @@ fun LibraryScreen(
             ToolButton(AppIcons.Sort, "Сортировка") { showViewSheet = true }
         }
 
-        // Filter chips with counts.
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(bottom = 10.dp),
-        ) {
-            items(filters, key = { it.id }) { filter ->
-                val count = books.count(filter.matches)
-                val isShelf = filter.id.startsWith(SHELF)
-                FilterChip(
-                    title = filter.title,
-                    count = count,
-                    selected = filter.id == active.id,
-                    onLongClick = if (isShelf) ({ shelfDialog = ShelfDialog.Edit(filter.title) }) else null,
-                ) { app.libraryPrefs.update { it.copy(filter = filter.id) } }
-            }
-            item(key = "new-shelf") {
-                val shape = appCorner(18)
-                Box(
-                    Modifier.height(36.dp).liveClick(shape, sound = FeedbackSound.Open) { shelfDialog = ShelfDialog.Create(null) }
-                        .border(1.dp, AppColors.Line, shape).padding(horizontal = 12.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(AppIcons.Plus, null, tint = AppColors.Muted, modifier = Modifier.size(16.dp))
-                        Text("Полка", color = AppColors.Muted, fontSize = 13.sp)
-                    }
-                }
-            }
+        // Which books to show: one button that opens a pull-up list.
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            FilterButton(active, books.count(active.matches)) { showFilterSheet = true }
         }
 
         if (shown.isEmpty()) {
@@ -195,17 +198,17 @@ fun LibraryScreen(
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = minSize),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
                 if (current != null) {
                     item(key = "continue", span = { GridItemSpan(maxLineSpan) }) {
-                        ContinueCard(current, viewModel.coverFile(current), todayMs, prefs.dailyGoalMinutes) { open(current) }
+                        ContinueCard(current, viewModel.coverFile(current), todayMs, prefs.dailyGoalMinutes, prefs.progressInPages) { open(current) }
                     }
                 }
                 items(shown, key = { it.id }) { book ->
-                    BookCard(book, viewModel.coverFile(book), small = prefs.coverSize == 0, onClick = { open(book) }, onLongClick = { longPress(book) })
+                    BookCard(book, viewModel.coverFile(book), small = prefs.coverSize == 0, inPages = prefs.progressInPages, onClick = { open(book) }, onLongClick = { longPress(book) })
                 }
             }
         } else {
@@ -216,11 +219,11 @@ fun LibraryScreen(
             ) {
                 if (current != null) {
                     item(key = "continue") {
-                        ContinueCard(current, viewModel.coverFile(current), todayMs, prefs.dailyGoalMinutes) { open(current) }
+                        ContinueCard(current, viewModel.coverFile(current), todayMs, prefs.dailyGoalMinutes, prefs.progressInPages) { open(current) }
                     }
                 }
                 items(shown, key = { it.id }) { book ->
-                    BookRow(book, viewModel.coverFile(book), onClick = { open(book) }, onLongClick = { longPress(book) })
+                    BookRow(book, viewModel.coverFile(book), inPages = prefs.progressInPages, onClick = { open(book) }, onLongClick = { longPress(book) })
                 }
             }
         }
@@ -241,6 +244,21 @@ fun LibraryScreen(
     }
 
     if (showViewSheet) LibraryViewSheet(prefs, onDismiss = { showViewSheet = false })
+
+    if (showFilterSheet) {
+        LibraryFilterSheet(
+            filters = filters,
+            counts = filters.associate { f -> f.id to books.count(f.matches) },
+            selectedId = active.id,
+            onSelect = { id ->
+                app.libraryPrefs.update { it.copy(filter = id) }
+                showFilterSheet = false
+            },
+            onEditShelf = { name -> shelfDialog = ShelfDialog.Edit(name) },
+            onNewShelf = { shelfDialog = ShelfDialog.Create(null) },
+            onDismiss = { showFilterSheet = false },
+        )
+    }
 
     shelfDialog?.let { dialog ->
         ShelfDialogView(dialog, shelves, onDismiss = { shelfDialog = null })
@@ -285,23 +303,88 @@ private fun ToolButton(icon: ImageVector, description: String, onClick: () -> Un
 }
 
 @Composable
-private fun FilterChip(title: String, count: Int, selected: Boolean, onLongClick: (() -> Unit)?, onClick: () -> Unit) {
-    val shape = appCorner(18)
+private fun FilterButton(filter: LibraryFilter, count: Int, onClick: () -> Unit) {
+    val shape = appCorner(20)
     Row(
         Modifier
-            .height(36.dp)
-            .liveClick(shape, sound = FeedbackSound.Tap, onLongClick = onLongClick, onClick = onClick)
-            .then(if (selected) Modifier.accentHighlight(shape) else Modifier.fieldSurface(shape))
-            .padding(horizontal = 14.dp),
+            .height(40.dp)
+            .liveClick(shape, sound = FeedbackSound.Open, onClick = onClick)
+            .fieldSurface(shape)
+            .padding(start = 12.dp, end = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(title, color = if (selected) accentContent else AppColors.Text, fontSize = 14.sp, maxLines = 1)
+        Icon(filter.icon, null, tint = if (filter.id == "favorite") StarYellow else AppColors.Accent, modifier = Modifier.size(18.dp))
+        Text(filter.title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 200.dp))
+        Text(count.toString(), color = AppColors.Faint, fontSize = 13.sp)
+        Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(16.dp).rotate(90f))
+    }
+}
+
+/** The pull-up list of what to show: statuses, favorites, shelves. */
+@Composable
+private fun LibraryFilterSheet(
+    filters: List<LibraryFilter>,
+    counts: Map<String, Int>,
+    selectedId: String,
+    onSelect: (String) -> Unit,
+    onEditShelf: (String) -> Unit,
+    onNewShelf: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AppSheet(onDismiss, title = "Показать") {
+        SettingsGroup(null) {
+            filters.filterNot { it.isShelf }.forEach { f ->
+                FilterRow(f, counts[f.id] ?: 0, f.id == selectedId, onEdit = null) { onSelect(f.id) }
+            }
+        }
+        SettingsGroup("Полки") {
+            filters.filter { it.isShelf }.forEach { f ->
+                FilterRow(f, counts[f.id] ?: 0, f.id == selectedId, onEdit = { onEditShelf(f.title) }) { onSelect(f.id) }
+            }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 50.dp)
+                    .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onNewShelf),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SettingIcon(AppIcons.Plus)
+                Text("Новая полка", color = AppColors.Accent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 12.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterRow(filter: LibraryFilter, count: Int, selected: Boolean, onEdit: (() -> Unit)?, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 50.dp)
+            .liveClick(appCorner(12), sound = FeedbackSound.Toggle, pressedScale = 0.98f, onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SettingIcon(filter.icon)
         Text(
-            count.toString(),
-            color = if (selected) accentContent.copy(alpha = 0.7f) else AppColors.Faint,
-            fontSize = 12.sp,
+            filter.title,
+            color = if (selected) AppColors.Accent else AppColors.Text,
+            fontSize = 15.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).padding(start = 12.dp, end = 8.dp),
         )
+        Text(count.toString(), color = AppColors.Faint, fontSize = 14.sp)
+        if (onEdit != null) {
+            Box(
+                Modifier.padding(start = 4.dp).size(36.dp).liveClick(CircleShape, sound = FeedbackSound.Open, onClick = onEdit),
+                contentAlignment = Alignment.Center,
+            ) { Icon(AppIcons.Pencil, "Изменить", tint = AppColors.Muted, modifier = Modifier.size(17.dp)) }
+        }
+        Box(Modifier.padding(start = 6.dp).size(22.dp), contentAlignment = Alignment.Center) {
+            if (selected) Icon(AppIcons.Check, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp))
+        }
     }
 }
 
@@ -315,12 +398,24 @@ fun ProgressLine(progress: Float, modifier: Modifier = Modifier) {
     }
 }
 
-/** "19%", "Прочитано", "В планах" or "Новая". */
-private fun statusLine(book: Book): String = when (book.status) {
-    ReadStatus.Finished -> "Прочитано"
-    ReadStatus.Planned -> if (book.progress > 0) "В планах · ${percent(book)}" else "В планах"
-    ReadStatus.New -> "Новая"
-    ReadStatus.Reading -> percent(book)
+/** The small colored label with the book's status (and progress while reading). */
+@Composable
+private fun StatusBadge(book: Book, inPages: Boolean, compact: Boolean = false) {
+    val color = statusColor(book.status)
+    val text = when (book.status) {
+        ReadStatus.Reading -> if (compact) progressLabel(book, false) else progressLabel(book, inPages)
+        ReadStatus.Planned -> "В планах"
+        ReadStatus.Finished -> "Прочитано"
+        ReadStatus.New -> "Новая"
+    }
+    Row(
+        Modifier.clip(appCorner(8)).background(color.copy(alpha = 0.14f)).padding(horizontal = 7.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Icon(statusIcon(book.status), null, tint = color, modifier = Modifier.size(12.dp))
+        Text(text, color = color, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
 }
 
 private fun percent(book: Book) = "${(book.progress * 100).toInt()}%"
@@ -357,21 +452,19 @@ private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.StarFilled, "Избранное", tint = StarYellow, modifier = Modifier.size(if (small) 12.dp else 15.dp)) }
         }
-        if (book.status == ReadStatus.Finished) {
-            Box(
-                Modifier.align(Alignment.TopStart).padding(5.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
-                    .background(AppColors.Accent),
-                contentAlignment = Alignment.Center,
-            ) { Icon(AppIcons.Check, "Прочитано", tint = AppColors.OnAccent, modifier = Modifier.size(if (small) 12.dp else 14.dp)) }
-        }
     }
 }
 
 @Composable
-private fun BookCard(book: Book, coverFile: File?, small: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
-    val shape = appCorner(10)
+private fun BookCard(book: Book, coverFile: File?, small: Boolean, inPages: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
+    val shape = appCorner(14)
+    // A solid card behind each book, so a picture or video background never mixes with the text.
     Column(
-        Modifier.liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onLongClick = onLongClick, onClick = onClick),
+        Modifier
+            .fillMaxHeight()
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onLongClick = onLongClick, onClick = onClick)
+            .fieldSurface(shape)
+            .padding(if (small) 6.dp else 8.dp),
     ) {
         CoverBox(book, coverFile, Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(appCorner(8)), small)
         if (book.status == ReadStatus.Reading || (book.status == ReadStatus.Planned && book.progress > 0)) {
@@ -383,16 +476,21 @@ private fun BookCard(book: Book, coverFile: File?, small: Boolean, onClick: () -
             fontSize = if (small) 12.sp else 14.sp,
             lineHeight = if (small) 15.sp else 18.sp,
             maxLines = 2,
+            minLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 6.dp),
         )
-        val details = listOfNotNull(book.author.takeIf { it.isNotBlank() && !small }, statusLine(book)).joinToString(" · ")
-        Text(details, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (!small) {
+            // Always one line, even without an author, so cards in a row stay the same height.
+            Text(book.author.ifBlank { " " }, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.height(6.dp))
+        StatusBadge(book, inPages, compact = small)
     }
 }
 
 @Composable
-private fun BookRow(book: Book, coverFile: File?, onClick: () -> Unit, onLongClick: () -> Unit) {
+private fun BookRow(book: Book, coverFile: File?, inPages: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
     val shape = appCorner(16)
     Row(
         Modifier
@@ -409,8 +507,10 @@ private fun BookRow(book: Book, coverFile: File?, onClick: () -> Unit, onLongCli
             if (book.author.isNotBlank()) {
                 Text(book.author, color = AppColors.Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            val details = listOfNotNull(statusLine(book), book.lastReadAt?.let { relativeDay(it) }).joinToString(" · ")
-            Text(details, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 2.dp)) {
+                StatusBadge(book, inPages)
+                book.lastReadAt?.let { Text(relativeDay(it), color = AppColors.Faint, fontSize = 12.sp, maxLines = 1) }
+            }
             if (book.status == ReadStatus.Reading || (book.status == ReadStatus.Planned && book.progress > 0)) {
                 ProgressLine(book.progress.toFloat(), Modifier.fillMaxWidth().padding(top = 4.dp, end = 4.dp))
             }
@@ -433,14 +533,14 @@ fun relativeDay(time: Long): String {
 
 /** «Продолжить чтение»: the last book, big, with today's goal ring. */
 @Composable
-private fun ContinueCard(book: Book, coverFile: File?, todayMs: Long, goalMinutes: Int, onClick: () -> Unit) {
+private fun ContinueCard(book: Book, coverFile: File?, todayMs: Long, goalMinutes: Int, inPages: Boolean, onClick: () -> Unit) {
     val shape = appCorner(20)
     Row(
         Modifier
             .fillMaxWidth()
             .padding(bottom = 4.dp)
             .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
-            .background(Brush.linearGradient(listOf(AppColors.Accent.copy(alpha = 0.16f), AppColors.Field)))
+            .background(Brush.linearGradient(listOf(AppColors.Accent.copy(alpha = 0.16f).compositeOver(AppColors.Field), AppColors.Field)))
             .border(1.dp, AppColors.Accent.copy(alpha = 0.22f), shape)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -458,7 +558,7 @@ private fun ContinueCard(book: Book, coverFile: File?, todayMs: Long, goalMinute
             }
             ProgressLine(book.progress.toFloat(), Modifier.fillMaxWidth().padding(top = 6.dp))
             Text(
-                listOfNotNull(percent(book), book.lastReadAt?.let { relativeDay(it) }).joinToString(" · "),
+                listOfNotNull(progressLabel(book, inPages), book.lastReadAt?.let { relativeDay(it) }).joinToString(" · "),
                 color = AppColors.Faint,
                 fontSize = 12.sp,
                 maxLines = 1,

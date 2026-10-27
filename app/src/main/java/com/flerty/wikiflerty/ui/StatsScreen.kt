@@ -5,6 +5,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -161,11 +163,11 @@ fun StatsScreen(modifier: Modifier = Modifier) {
         val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
         GoalCard(prefs.dailyGoalMinutes, perDay) { minutes -> app.libraryPrefs.update { it.copy(dailyGoalMinutes = minutes) } }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatTile("Сегодня", StatsCalc.duration(perDay[today]?.ms ?: 0), Modifier.weight(1f), icon = AppIcons.Clock)
             StatTile("За неделю", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(6)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatTile("За месяц", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(29)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
             StatTile("За год", StatsCalc.duration(StatsCalc.sumSince(perDay, today.withDayOfYear(1)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
         }
@@ -173,7 +175,7 @@ fun StatsScreen(modifier: Modifier = Modifier) {
         val (current, best) = StatsCalc.streaks(perDay, today)
         val yearStart = today.withDayOfYear(1).toEpochDay() * 86_400_000L
         val finishedThisYear = books.count { it.status == ReadStatus.Finished && (it.finishedAt ?: 0) >= yearStart }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatTile("Серия", StatsCalc.days(current), Modifier.weight(1f), hint = "Лучшая: ${StatsCalc.days(best)}", icon = AppIcons.Fire)
             StatTile(
                 "Прочитано",
@@ -186,7 +188,7 @@ fun StatsScreen(modifier: Modifier = Modifier) {
 
         val total = perDay.values.fold(DayEntry()) { a, b -> a + b }
         val readingDays = perDay.values.count { it.ms >= 60_000 }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatTile("Всего", StatsCalc.duration(total.ms), Modifier.weight(1f), hint = "${total.pages} стр.", icon = AppIcons.Pages)
             StatTile(
                 "В среднем",
@@ -236,7 +238,7 @@ private fun TopBookRow(app: App, book: Book, stats: BookStats) {
 @Composable
 fun StatTile(label: String, value: String, modifier: Modifier = Modifier, hint: String? = null, icon: ImageVector? = null) {
     Column(
-        modifier.heightIn(min = 76.dp).fieldSurface(appCorner(16)).padding(horizontal = 14.dp, vertical = 12.dp),
+        modifier.fillMaxHeight().heightIn(min = 76.dp).fieldSurface(appCorner(16)).padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
