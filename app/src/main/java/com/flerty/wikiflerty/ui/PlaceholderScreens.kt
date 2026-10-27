@@ -32,28 +32,3 @@ fun PlaceholderScreen(description: String, modifier: Modifier = Modifier) {
         )
     }
 }
-
-@Composable
-fun AboutScreen(modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val version = remember {
-        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
-            .getOrNull() ?: "?"
-    }
-    Column(
-        modifier = modifier.padding(32.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("WikiFlerty", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.height(4.dp))
-        Text("Версия $version", style = MaterialTheme.typography.bodyMedium)
-        Spacer(Modifier.height(16.dp))
-        Text(
-            "Читалка EPUB от Флерти. Движок отображения книг: Readium (BSD-3).",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-    }
-}

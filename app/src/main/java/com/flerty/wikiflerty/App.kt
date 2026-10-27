@@ -54,6 +54,10 @@ class App : Application() {
 
     val ai: AiManager by lazy { AiManager(this) }
 
+    val crashLog: com.flerty.wikiflerty.system.CrashLog by lazy { com.flerty.wikiflerty.system.CrashLog(this) }
+
+    val updates: com.flerty.wikiflerty.system.Updates by lazy { com.flerty.wikiflerty.system.Updates(this) }
+
     val feedback: Feedback by lazy { Feedback(this, readerSettings.settings) }
 
     var readerSession: ReaderSession? = null
@@ -61,6 +65,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        crashLog.install()
         style = StyleStore(this)
         readium = ReadiumServices(this)
         library = LibraryRepository(this, readium)
