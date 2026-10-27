@@ -77,7 +77,7 @@ class TxtConverter(private val identifier: String) {
     private fun isHeading(p: String): Boolean {
         if (p.length > 80) return false
         val t = p.trim()
-        if (Regex("^(глава|часть|книга|пролог|эпилог|предисловие|послесловие|chapter|part|book|prologue|epilogue|preface|afterword)\\b.*", RegexOption.IGNORE_CASE).matches(t)) return true
+        if (Regex("^(глава|часть|книга|пролог|эпилог|предисловие|послесловие|chapter|part|book|prologue|epilogue|preface|afterword)([\\s.:,\\-—–]+.*)?", RegexOption.IGNORE_CASE).matches(t)) return true
         if (Regex("^(\\d{1,3}|[IVXLC]{1,7})[.)]?$").matches(t)) return true
         if (Regex("^\\*\\s*\\*\\s*\\*$").matches(t)) return false
         return false
