@@ -67,6 +67,7 @@ enum class QuickButton(val id: String, val title: String) {
     Notes("notes", "Заметки"),
     Listen("listen", "Слушать"),
     Search("search", "Поиск"),
+    Auto("auto", "Авто"),
     ;
 
     companion object {
@@ -113,8 +114,21 @@ data class ReaderSettings(
     val ttsPitch: Double = 1.0,
     val ttsColor: Long = 0xFFF2C46B,
     val ttsFollow: Boolean = true,
+    val autoNight: Boolean = false,
+    val nightTheme: String = PageTheme.Black.id,
+    val nightFrom: Int = 22 * 60,
+    val nightTo: Int = 7 * 60,
+    val autoSpeed: Int = 4,
 ) {
-    val pageTheme: PageTheme get() = PageTheme.of(theme)
+    val dayTheme: PageTheme get() = PageTheme.of(theme)
+    val isNightNow: Boolean
+        get() {
+            if (!autoNight || nightFrom == nightTo) return false
+            val now = java.util.Calendar.getInstance()
+            val minutes = now.get(java.util.Calendar.HOUR_OF_DAY) * 60 + now.get(java.util.Calendar.MINUTE)
+            return if (nightFrom < nightTo) minutes in nightFrom until nightTo else minutes >= nightFrom || minutes < nightTo
+        }
+    val pageTheme: PageTheme get() = if (isNightNow) PageTheme.of(nightTheme) else PageTheme.of(theme)
     val animation: PageAnimation get() = PageAnimation.of(pageAnimation)
 
     fun toEpubPreferences(fonts: List<FontEntry>): EpubPreferences {
@@ -179,6 +193,11 @@ data class ReaderSettings(
         put("ttsPitch", ttsPitch)
         put("ttsColor", String.format("#%08X", ttsColor))
         put("ttsFollow", ttsFollow)
+        put("autoNight", autoNight)
+        put("nightTheme", nightTheme)
+        put("nightFrom", nightFrom)
+        put("nightTo", nightTo)
+        put("autoSpeed", autoSpeed)
     }
 
     companion object {
@@ -234,6 +253,11 @@ data class ReaderSettings(
                 ttsPitch = json.optDouble("ttsPitch", d.ttsPitch).coerceIn(0.3, 3.0),
                 ttsColor = runCatching { json.getString("ttsColor").removePrefix("#").toLong(16) }.getOrDefault(d.ttsColor),
                 ttsFollow = json.optBoolean("ttsFollow", d.ttsFollow),
+                autoNight = json.optBoolean("autoNight", d.autoNight),
+                nightTheme = json.optString("nightTheme", d.nightTheme),
+                nightFrom = json.optInt("nightFrom", d.nightFrom).coerceIn(0, 24 * 60 - 1),
+                nightTo = json.optInt("nightTo", d.nightTo).coerceIn(0, 24 * 60 - 1),
+                autoSpeed = json.optInt("autoSpeed", d.autoSpeed).coerceIn(1, 10),
             )
         }
     }
@@ -272,4 +296,14 @@ class ReaderSettingsStore(context: Context) {
     private fun load(): ReaderSettings = runCatching {
         if (file.exists()) ReaderSettings.fromJson(JSONObject(file.readText())) else ReaderSettings()
     }.getOrElse { ReaderSettings() }
+}
+
+object AutoScroll {
+    private val pageSeconds = listOf(60, 45, 35, 28, 22, 18, 14, 11, 8, 6)
+    private val pixels = listOf(12, 18, 25, 33, 42, 52, 64, 78, 95, 115)
+
+    fun pageDelayMs(speed: Int): Long = pageSeconds[(speed - 1).coerceIn(0, 9)] * 1000L
+    fun pixelsPerSecond(speed: Int): Int = pixels[(speed - 1).coerceIn(0, 9)]
+    fun label(speed: Int, scroll: Boolean): String =
+        if (scroll) "Скорость $speed" else "${pageSeconds[(speed - 1).coerceIn(0, 9)]} с/стр"
 }

@@ -240,6 +240,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 selectionJob?.cancel()
                 ui.selection = null
             }
+            "auto-end" -> onAutoEnd()
         }
     }
 
@@ -333,6 +334,79 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             },
             onSelectionClose = { endSelection() },
         )
+    }
+
+    private var autoJob: Job? = null
+    private var autoHref: String? = null
+    private var lastAutoSpeed = -1
+    private var lastAutoScrollMode = false
+
+    private val autoActions by lazy {
+        AutoActions(
+            onStart = ::startAuto,
+            onToggle = ::toggleAuto,
+            onStop = ::stopAuto,
+        )
+    }
+
+    private fun startAuto() {
+        endSelection()
+        ui.hideAll()
+        ui.footnote = null
+        ui.autoActive = true
+        ui.autoPaused = false
+        runAuto()
+    }
+
+    private fun toggleAuto() {
+        if (!ui.autoActive) return
+        ui.autoPaused = !ui.autoPaused
+        runAuto()
+    }
+
+    private fun stopAuto() {
+        ui.autoActive = false
+        ui.autoPaused = false
+        autoJob?.cancel()
+        stopAutoScrollJs()
+    }
+
+    private fun runAuto() {
+        autoJob?.cancel()
+        if (!ui.autoActive || ui.autoPaused) {
+            stopAutoScrollJs()
+            return
+        }
+        if (settings.scroll) {
+            startAutoScrollJs()
+            return
+        }
+        stopAutoScrollJs()
+        autoJob = lifecycleScope.launch {
+            while (isActive && ui.autoActive && !ui.autoPaused) {
+                delay(AutoScroll.pageDelayMs(settings.autoSpeed))
+                if (ui.sheet != null || ui.selection != null || ui.footnote != null) continue
+                if (ui.progression >= 0.9995) {
+                    stopAuto()
+                    break
+                }
+                turn(forward = true)
+            }
+        }
+    }
+
+    private fun startAutoScrollJs() {
+        val px = AutoScroll.pixelsPerSecond(settings.autoSpeed)
+        lifecycleScope.launch { runCatching { navigator.evaluateJavascript("window.__wfAuto && window.__wfAuto.start($px)") } }
+    }
+
+    private fun stopAutoScrollJs() {
+        lifecycleScope.launch { runCatching { navigator.evaluateJavascript("window.__wfAuto && window.__wfAuto.stop()") } }
+    }
+
+    private fun onAutoEnd() {
+        if (!ui.autoActive || ui.autoPaused || !settings.scroll) return
+        if (!navigator.goForward(animated = false)) stopAuto()
     }
 
     private val search = SearchState()
@@ -435,6 +509,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private val tapListener = object : InputListener {
         override fun onTap(event: TapEvent): Boolean {
+            if (ui.autoActive && ui.sheet == null && !ui.panelsVisible) {
+                toggleAuto()
+                return true
+            }
             if (ui.footnote != null) {
                 ui.footnote = null
                 return true
@@ -569,6 +647,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         onInstallVoices = { ReadAloud.installVoices(this@ReaderActivity) },
                         onSeek = ::seekTo,
                         search = searchActions,
+                        auto = autoActions,
                         onFootnoteGo = { url ->
                             lifecycleScope.launch {
                                 runCatching { navigator.evaluateJavascript("window.__wfGo && window.__wfGo(${org.json.JSONObject.quote(url)})") }
@@ -601,6 +680,11 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 launch {
                     navigator.currentLocator.collect { locator ->
                         launch { runCatching { navigator.evaluateJavascript(selectionScript) } }
+                        val href = locator.href.toString()
+                        if (href != autoHref) {
+                            autoHref = href
+                            if (ui.autoActive && !ui.autoPaused && settings.scroll) startAutoScrollJs()
+                        }
                         ui.progression = locator.locations.totalProgression ?: ui.progression
                         ui.position = locator.locations.position
                         ui.chapter = locator.title
@@ -635,6 +719,22 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         navigator.submitPreferences(s.toEpubPreferences(fonts))
                         applyWindowSettings(s)
                         applyListeningSettings(s)
+                        val speedChanged = s.autoSpeed != lastAutoSpeed || s.scroll != lastAutoScrollMode
+                        lastAutoSpeed = s.autoSpeed
+                        lastAutoScrollMode = s.scroll
+                        if (speedChanged && ui.autoActive && !ui.autoPaused) runAuto()
+                    }
+                }
+                launch {
+                    var night = settings.isNightNow
+                    while (isActive) {
+                        delay(30_000)
+                        val now = settings.isNightNow
+                        if (now != night) {
+                            night = now
+                            navigator.submitPreferences(settings.toEpubPreferences(fonts))
+                            applyWindowSettings(settings)
+                        }
                     }
                 }
             }
@@ -890,6 +990,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private fun onStripTap(left: Boolean) {
+        if (ui.autoActive) {
+            toggleAuto()
+            return
+        }
         if (ui.selection != null) {
             endSelection()
             return
@@ -1107,9 +1211,14 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     override fun onPause() {
+        if (ui.autoActive && !ui.autoPaused) {
+            ui.autoPaused = true
+            runAuto()
+        }
         trackReading()
         visible = false
         app.appScope.launch(Dispatchers.IO) { app.stats.save() }
+        com.flerty.wikiflerty.widget.ReadingWidget.refreshSoon(app)
         super.onPause()
     }
 

@@ -33,6 +33,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIncomingBook(intent: Intent?) {
+        if (intent != null && intent.action == com.flerty.wikiflerty.widget.ReadingWidget.ACTION_OPEN_BOOK) {
+            intent.getStringExtra(com.flerty.wikiflerty.widget.ReadingWidget.EXTRA_BOOK_ID)?.let { libraryViewModel.openById(it) }
+            intent.setAction(null)
+            return
+        }
         val uri: Uri? = when (intent?.action) {
             Intent.ACTION_VIEW -> intent.data
             Intent.ACTION_SEND -> if (Build.VERSION.SDK_INT >= 33) {

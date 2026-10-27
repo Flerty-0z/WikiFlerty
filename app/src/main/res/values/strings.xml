@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">WikiFlerty</string>
+    <string name="widget_continue">Продолжить чтение</string>
+    <string name="widget_description">Текущая книга и цель на день</string>
 </resources>

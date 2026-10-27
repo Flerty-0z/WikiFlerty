@@ -146,6 +146,8 @@ class ReaderUiState {
     var brightnessHint by mutableStateOf<Int?>(null)
     var selection by mutableStateOf<SelectionInfo?>(null)
     var footnote by mutableStateOf<FootnoteInfo?>(null)
+    var autoActive by mutableStateOf(false)
+    var autoPaused by mutableStateOf(false)
     var editor by mutableStateOf<NoteDraft?>(null)
     var aiSetupFromMenu by mutableStateOf(false)
     var ttsActive by mutableStateOf(false)
@@ -196,6 +198,7 @@ fun ReaderOverlay(
     onSeek: (Double) -> Unit = {},
     search: SearchActions,
     onFootnoteGo: (String) -> Unit = {},
+    auto: AutoActions,
 ) {
     val progressText = progressText(state, settings)
     val feedback = LocalFeedback.current
@@ -327,6 +330,7 @@ fun ReaderOverlay(
                         QuickButton.Notes -> state.sheet = ReaderSheet.Notes
                         QuickButton.Listen -> state.sheet = ReaderSheet.Listen
                         QuickButton.Search -> state.sheet = ReaderSheet.Search
+                        QuickButton.Auto -> auto.onStart()
                     }
                 },
                 onOptions = { state.sheet = ReaderSheet.Options },
@@ -360,6 +364,7 @@ fun ReaderOverlay(
                         ttsSleep = state.ttsSleep,
                         bookLanguage = bookLanguage,
                         search = search,
+                        auto = auto,
                         sheet = sheet,
                         settings = settings,
                         fonts = fonts,
@@ -392,12 +397,28 @@ fun ReaderOverlay(
     val searchState = search.state
     AnimatedVisibility(
         visible = searchState.current >= 0 && searchState.results.isNotEmpty() && state.sheet == null &&
-            state.selection == null && state.footnote == null && !state.panelsVisible,
+            state.selection == null && state.footnote == null && !state.panelsVisible && !state.autoActive,
         enter = fadeIn(tween(200)) + slideInVertically(tween(240)) { it / 2 },
         exit = fadeOut(tween(160)),
         modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.systemBars).padding(bottom = 56.dp),
     ) {
         SearchNavBar(search, onReopen = { state.sheet = ReaderSheet.Search }, modifier = Modifier)
+    }
+
+    AnimatedVisibility(
+        visible = state.autoActive && state.sheet == null && state.footnote == null && state.selection == null,
+        enter = fadeIn(tween(200)) + slideInVertically(tween(240)) { it / 2 },
+        exit = fadeOut(tween(160)),
+        modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.systemBars).padding(bottom = 56.dp),
+    ) {
+        AutoBar(
+            paused = state.autoPaused,
+            label = AutoScroll.label(settings.autoSpeed, settings.scroll),
+            onToggle = auto.onToggle,
+            onSlower = { onSettingsChange { it.copy(autoSpeed = (it.autoSpeed - 1).coerceAtLeast(1)) } },
+            onFaster = { onSettingsChange { it.copy(autoSpeed = (it.autoSpeed + 1).coerceAtMost(10)) } },
+            onStop = auto.onStop,
+        )
     }
 
     AnimatedVisibility(
@@ -728,6 +749,7 @@ private fun quickIconVector(button: QuickButton): ImageVector = when (button) {
     QuickButton.Notes -> AppIcons.Note
     QuickButton.Listen -> AppIcons.Headphones
     QuickButton.Search -> AppIcons.Search
+    QuickButton.Auto -> AppIcons.Play
 }
 
 @Composable
@@ -848,6 +870,7 @@ private fun SheetContent(
     ttsSleep: com.flerty.wikiflerty.tts.SleepTimer?,
     bookLanguage: String?,
     search: SearchActions,
+    auto: AutoActions,
 ) {
     Column(
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
@@ -926,7 +949,7 @@ private fun SheetContent(
                 when (sheet) {
                     ReaderSheet.Options -> OptionsHome(onOpen)
                     ReaderSheet.Text -> TextOptions(settings, fonts, onSettingsChange, onOpen)
-                    ReaderSheet.Scroll -> ScrollOptions(settings, onSettingsChange)
+                    ReaderSheet.Scroll -> ScrollOptions(settings, onSettingsChange, auto.onStart)
                     ReaderSheet.Theme -> ThemeOptions(settings, onSettingsChange)
                     ReaderSheet.Panel -> PanelOptions(settings, onSettingsChange)
                     ReaderSheet.Gestures -> GestureOptions(settings, onSettingsChange)
@@ -1165,7 +1188,11 @@ private fun FontList(
 }
 
 @Composable
-private fun ScrollOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit) {
+private fun ScrollOptions(
+    settings: ReaderSettings,
+    onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit,
+    onAutoStart: (() -> Unit)? = null,
+) {
     Segmented("Режим", listOf("Страницы", "Лента"), if (settings.scroll) 1 else 0, icon = AppIcons.Scroll) { i ->
         onSettingsChange { it.copy(scroll = i == 1) }
     }
@@ -1193,16 +1220,37 @@ private fun ScrollOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSe
         selectedId = settings.animation.id,
     ) { id -> onSettingsChange { it.copy(pageAnimation = id) } }
     SwitchRow("Кнопки громкости", settings.volumeKeys, icon = AppIcons.VolumeKeys) { v -> onSettingsChange { it.copy(volumeKeys = v) } }
+    StepSlider(
+        label = "Автопрокрутка",
+        value = settings.autoSpeed.toDouble(),
+        range = 1.0..10.0,
+        step = 1.0,
+        format = { AutoScroll.label(it.roundToInt(), settings.scroll) },
+        icon = AppIcons.Play,
+    ) { v -> onSettingsChange { it.copy(autoSpeed = v.roundToInt()) } }
+    if (onAutoStart != null) {
+        val shape = appCorner(14)
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(46.dp)
+                .liveClick(shape, sound = FeedbackSound.Open, onClick = onAutoStart)
+                .accentHighlight(shape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("Запустить автопрокрутку", color = accentContent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+    }
 }
 
 @Composable
 private fun ThemeOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit) {
-    Group("Фон страницы") {
+    Group(if (settings.autoNight) "Днём" else "Фон страницы") {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             PageTheme.entries.chunked(3).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { theme ->
-                        val selected = settings.pageTheme == theme
+                        val selected = settings.dayTheme == theme
                         val shape = appCorner(16)
                         Column(
                             modifier = Modifier
@@ -1221,6 +1269,30 @@ private fun ThemeOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
                 }
             }
         }
+    }
+    SwitchRow("Ночная тема по расписанию", settings.autoNight, icon = AppIcons.Moon) { v -> onSettingsChange { it.copy(autoNight = v) } }
+    if (settings.autoNight) {
+        val times = (0 until 48).map { it * 30 }.map { m -> PickerOption(m.toString(), "%02d:%02d".format(m / 60, m % 60)) }
+        PickerRow(
+            label = "Ночная тема",
+            icon = AppIcons.Theme,
+            options = PageTheme.entries.map { PickerOption(it.id, it.title, swatch = Color(it.background)) },
+            selectedId = settings.nightTheme,
+        ) { id -> onSettingsChange { it.copy(nightTheme = id) } }
+        PickerRow(
+            label = "Включать в",
+            icon = AppIcons.Moon,
+            options = times,
+            selectedId = (settings.nightFrom / 30 * 30).toString(),
+            searchable = false,
+        ) { id -> onSettingsChange { it.copy(nightFrom = id.toInt()) } }
+        PickerRow(
+            label = "Выключать в",
+            icon = AppIcons.Sun,
+            options = times,
+            selectedId = (settings.nightTo / 30 * 30).toString(),
+            searchable = false,
+        ) { id -> onSettingsChange { it.copy(nightTo = id.toInt()) } }
     }
 }
 
@@ -1598,5 +1670,48 @@ private fun FinishedPrompt(onMark: () -> Unit, onDismiss: () -> Unit) {
             Modifier.size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onDismiss),
             contentAlignment = Alignment.Center,
         ) { Icon(AppIcons.Close, "Закрыть", tint = AppColors.Muted, modifier = Modifier.size(18.dp)) }
+    }
+}
+
+class AutoActions(
+    val onStart: () -> Unit,
+    val onToggle: () -> Unit,
+    val onStop: () -> Unit,
+)
+
+@Composable
+private fun AutoBar(
+    paused: Boolean,
+    label: String,
+    onToggle: () -> Unit,
+    onSlower: () -> Unit,
+    onFaster: () -> Unit,
+    onStop: () -> Unit,
+) {
+    Row(
+        Modifier
+            .panelSurface(appCorner(24), elevation = 12.dp)
+            .blockTaps()
+            .padding(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RoundIconButton(if (paused) AppIcons.Play else AppIcons.Pause, if (paused) "Продолжить" else "Пауза", filled = true, sound = FeedbackSound.Toggle, onClick = onToggle)
+        AutoStepButton("−", "Медленнее", onSlower)
+        Text(label, color = AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(horizontal = 4.dp))
+        AutoStepButton("+", "Быстрее", onFaster)
+        RoundIconButton(AppIcons.Close, "Остановить", sound = FeedbackSound.Close, onClick = onStop)
+    }
+}
+
+@Composable
+private fun AutoStepButton(symbol: String, description: String, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(44.dp)
+            .liveClick(CircleShape, sound = FeedbackSound.Tap, onClick = onClick)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(symbol, color = AppColors.Text, fontSize = 22.sp, fontWeight = FontWeight.Medium)
     }
 }

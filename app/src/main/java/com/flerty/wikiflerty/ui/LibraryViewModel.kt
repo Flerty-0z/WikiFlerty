@@ -62,6 +62,11 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun openById(bookId: String) {
+        val book = app.library.books.value.firstOrNull { it.id == bookId } ?: return
+        open(book)
+    }
+
     fun openNote(note: Note) {
         val book = app.library.books.value.firstOrNull { it.id == note.bookId }
         if (book == null) {

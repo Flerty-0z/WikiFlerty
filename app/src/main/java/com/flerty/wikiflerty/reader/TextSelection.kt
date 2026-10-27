@@ -16,7 +16,44 @@ class TextSelectionBridge(
 internal object TextSelection {
     const val BRIDGE = "WikiFlertySelection"
 
-    fun script(accent: String): String = SCRIPT.replace("__ACCENT__", accent) + "\n" + NOTES
+    fun script(accent: String): String = SCRIPT.replace("__ACCENT__", accent) + "\n" + NOTES + "\n" + AUTO
+
+    private val AUTO = """
+        (function () {
+          if (window.__wfAuto) return;
+          var speed = 0, raf = 0, last = 0, acc = 0, ended = false;
+          function atEnd() {
+            var root = document.scrollingElement || document.documentElement;
+            return window.scrollY + window.innerHeight >= root.scrollHeight - 2;
+          }
+          function step(t) {
+            if (!speed) { raf = 0; last = 0; return; }
+            if (last) {
+              acc += (t - last) * speed / 1000;
+              var px = Math.floor(acc);
+              if (px >= 1) { window.scrollBy(0, px); acc -= px; }
+            }
+            last = t;
+            if (atEnd()) {
+              if (!ended) {
+                ended = true;
+                speed = 0;
+                raf = 0;
+                last = 0;
+                try { window.${BRIDGE}.onEvent("auto-end"); } catch (e) {}
+                return;
+              }
+            } else {
+              ended = false;
+            }
+            raf = requestAnimationFrame(step);
+          }
+          window.__wfAuto = {
+            start: function (s) { speed = s; ended = false; if (!raf) { last = 0; raf = requestAnimationFrame(step); } },
+            stop: function () { speed = 0; }
+          };
+        })();
+    """.trimIndent()
 
     private val NOTES = """
         (function () {
