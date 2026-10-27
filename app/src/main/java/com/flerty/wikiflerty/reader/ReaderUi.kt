@@ -308,14 +308,14 @@ fun ReaderOverlay(
     val selection = state.selection
     AnimatedVisibility(
         visible = selection != null && state.sheet == null,
-        enter = fadeIn(tween(160)) + scaleIn(initialScale = 0.92f),
-        exit = fadeOut(tween(120)),
+        enter = fadeIn(tween(220)),
+        exit = fadeOut(tween(160)),
     ) {
         val last = remember { arrayOf<SelectionInfo?>(null) }
         selection?.let { last[0] = it }
         val info = last[0] ?: return@AnimatedVisibility
         val density = androidx.compose.ui.platform.LocalDensity.current
-        val menuHeight = with(density) { 84.dp.toPx() }
+        val menuHeight = with(density) { 54.dp.toPx() }
         val gap = with(density) { 12.dp.toPx() }
         val y = if (info.top - menuHeight - gap > with(density) { 24.dp.toPx() }) {
             info.top - menuHeight - gap
@@ -670,6 +670,8 @@ private fun SheetContent(
             ReaderSheet.NoteEditor -> if (editor != null) {
                 NoteEditor(
                     draft = editor,
+                    palette = settings.noteColors,
+                    onPaletteChange = { colors -> onSettingsChange { it.copy(noteColors = colors) } },
                     onSave = noteActions.onSave,
                     onDelete = noteActions.onDelete,
                     onCancel = onClose,

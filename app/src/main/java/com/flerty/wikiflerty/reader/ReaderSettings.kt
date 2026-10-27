@@ -121,6 +121,8 @@ data class ReaderSettings(
     // Notes
     /** Color used by the quick "Маркер" action; the last color chosen for a note. */
     val markerColor: Long = 0xFFE9C84A,
+    /** The user's highlight colors; can be edited, added and deleted. */
+    val noteColors: List<Long> = com.flerty.wikiflerty.data.NoteColors.presets.map { it.second },
 ) {
     val pageTheme: PageTheme get() = PageTheme.of(theme)
     val animation: PageAnimation get() = PageAnimation.of(pageAnimation)
@@ -174,6 +176,7 @@ data class ReaderSettings(
         put("soundVolume", soundVolume)
         put("haptics", haptics)
         put("markerColor", String.format("#%08X", markerColor))
+        put("noteColors", JSONArray(noteColors.map { String.format("#%08X", it) }))
     }
 
     companion object {
@@ -217,6 +220,11 @@ data class ReaderSettings(
                 haptics = json.optBoolean("haptics", d.haptics),
                 markerColor = runCatching { json.getString("markerColor").removePrefix("#").toLong(16) }
                     .getOrDefault(d.markerColor),
+                noteColors = json.optJSONArray("noteColors")?.let { arr ->
+                    (0 until arr.length()).mapNotNull { i ->
+                        runCatching { arr.getString(i).removePrefix("#").toLong(16) }.getOrNull()
+                    }
+                }?.takeIf { it.isNotEmpty() } ?: d.noteColors,
             )
         }
     }

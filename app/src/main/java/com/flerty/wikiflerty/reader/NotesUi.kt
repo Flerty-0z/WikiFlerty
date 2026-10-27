@@ -2,6 +2,7 @@ package com.flerty.wikiflerty.reader
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -56,7 +57,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.flerty.wikiflerty.data.Note
-import com.flerty.wikiflerty.data.NoteColors
 import com.flerty.wikiflerty.ui.AppColors
 import com.flerty.wikiflerty.ui.AppIcons
 import com.flerty.wikiflerty.ui.FeedbackSound
@@ -101,34 +101,35 @@ class NoteActions(
 
 @Composable
 fun SelectionMenu(markerColor: Long, actions: NoteActions, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .padding(horizontal = 14.dp)
-            .fillMaxWidth()
-            .panelSurface(RoundedCornerShape(22.dp), elevation = 18.dp)
-            .padding(8.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        MenuAction("Заметка", Modifier.weight(1f), onClick = actions.onSelectionNote) {
-            Icon(AppIcons.Note, null, tint = AppColors.Text, modifier = Modifier.size(22.dp))
-        }
-        MenuAction("ИИ", Modifier.weight(1f), highlighted = true, onClick = actions.onSelectionAi) {
-            Icon(AppIcons.Sparkle, null, tint = AppColors.Accent, modifier = Modifier.size(22.dp))
-        }
-        MenuAction("Маркер", Modifier.weight(1f), sound = FeedbackSound.Toggle, onClick = actions.onSelectionMarker) {
-            Box(
-                Modifier
-                    .size(20.dp)
-                    .clip(CircleShape)
-                    .background(Color(markerColor))
-                    .border(1.dp, Color(0x55FFFFFF), CircleShape),
-            )
-        }
-        MenuAction("Копия", Modifier.weight(1f), onClick = actions.onSelectionCopy) {
-            Icon(AppIcons.Copy, null, tint = AppColors.Text, modifier = Modifier.size(21.dp))
-        }
-        MenuAction("Закрыть", Modifier.weight(1f), sound = FeedbackSound.Close, onClick = actions.onSelectionClose) {
-            Icon(AppIcons.Close, null, tint = AppColors.Text, modifier = Modifier.size(20.dp))
+    // A small pill with icons only, centered over the selected text.
+    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Row(
+            modifier = Modifier
+                .panelSurface(RoundedCornerShape(26.dp), elevation = 16.dp)
+                .padding(5.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            MenuAction("Заметка", onClick = actions.onSelectionNote) {
+                Icon(AppIcons.Note, null, tint = AppColors.Text, modifier = Modifier.size(21.dp))
+            }
+            MenuAction("Спросить ИИ", highlighted = true, onClick = actions.onSelectionAi) {
+                Icon(AppIcons.Sparkle, null, tint = AppColors.Accent, modifier = Modifier.size(21.dp))
+            }
+            MenuAction("Маркер", sound = FeedbackSound.Toggle, onClick = actions.onSelectionMarker) {
+                Box(
+                    Modifier
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .background(Color(markerColor))
+                        .border(1.dp, Color(0x55FFFFFF), CircleShape),
+                )
+            }
+            MenuAction("Копировать", onClick = actions.onSelectionCopy) {
+                Icon(AppIcons.Copy, null, tint = AppColors.Text, modifier = Modifier.size(20.dp))
+            }
+            MenuAction("Закрыть", sound = FeedbackSound.Close, onClick = actions.onSelectionClose) {
+                Icon(AppIcons.Close, null, tint = AppColors.Muted, modifier = Modifier.size(18.dp))
+            }
         }
     }
 }
@@ -136,32 +137,20 @@ fun SelectionMenu(markerColor: Long, actions: NoteActions, modifier: Modifier = 
 @Composable
 private fun MenuAction(
     label: String,
-    modifier: Modifier,
     highlighted: Boolean = false,
     sound: FeedbackSound = FeedbackSound.Open,
     onClick: () -> Unit,
     icon: @Composable () -> Unit,
 ) {
-    val shape = RoundedCornerShape(14.dp)
-    Column(
-        modifier = modifier
-            .height(62.dp)
-            .liveClick(shape, sound = sound, pressedScale = 0.9f, onClick = onClick)
-            .background(if (highlighted) AppColors.AccentSoft else Color.Transparent),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) { icon() }
-        Spacer(Modifier.height(5.dp))
-        Text(
-            label,
-            color = if (highlighted) AppColors.Accent else AppColors.Text,
-            fontSize = 12.sp,
-            fontWeight = if (highlighted) FontWeight.SemiBold else FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
+    val shape = RoundedCornerShape(21.dp)
+    Box(
+        modifier = Modifier
+            .size(width = 46.dp, height = 42.dp)
+            .liveClick(shape, sound = sound, pressedScale = 0.88f, onClick = onClick)
+            .background(if (highlighted) AppColors.AccentSoft else Color.Transparent)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) { icon() }
 }
 
 // ---------------------------------------------------------------- list of the book's notes
@@ -261,6 +250,8 @@ fun NoteCard(
 @Composable
 fun NoteEditor(
     draft: NoteDraft,
+    palette: List<Long>,
+    onPaletteChange: (List<Long>) -> Unit,
     onSave: (NoteDraft) -> Unit,
     onDelete: (String) -> Unit,
     onCancel: () -> Unit,
@@ -268,13 +259,25 @@ fun NoteEditor(
 ) {
     var text by remember(draft.id, draft.text) { mutableStateOf(draft.note) }
     var color by remember(draft.id, draft.text) { mutableStateOf(draft.color) }
-    var customOpen by remember { mutableStateOf(false) }
-    var hue by remember { mutableFloatStateOf(200f) }
-    val presets = NoteColors.presets
-    val isCustom = presets.none { it.second == color }
+    /** Index of the palette color being edited; -1 = a new color; null = editor closed. */
+    var editing by remember { mutableStateOf<Int?>(null) }
+    var hue by remember { mutableFloatStateOf(0f) }
+    var saturation by remember { mutableFloatStateOf(0.55f) }
+    var brightness by remember { mutableFloatStateOf(0.95f) }
+    val edited = hsvColor(hue, saturation, brightness)
+
+    fun startEdit(index: Int) {
+        val base = if (index >= 0) palette[index] else hsvColor((palette.size * 47f) % 360f, 0.55f, 0.95f)
+        val hsv = FloatArray(3)
+        android.graphics.Color.colorToHSV(base.toInt(), hsv)
+        hue = hsv[0]
+        saturation = hsv[1]
+        brightness = hsv[2]
+        editing = index
+    }
 
     Column(modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        val quoteBorder by animateColorAsState(Color(color), label = "quote")
+        val quoteBorder by animateColorAsState(Color(if (editing != null) edited else color), label = "quote")
         Row(
             Modifier
                 .fillMaxWidth()
@@ -318,48 +321,93 @@ fun NoteEditor(
             )
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Цвет", color = AppColors.Muted, fontSize = 13.sp)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                presets.forEach { (name, value) ->
-                    ColorDot(value, name, selected = color == value) { color = value }
+                // A note may keep a color that is no longer in the palette.
+                if (color !in palette) {
+                    PaletteDot(color, "Текущий цвет", selected = editing == null, showSettings = false) { editing = null }
                 }
-                if (isCustom) ColorDot(color, "Свой цвет", selected = true) { customOpen = true }
-                val shape = CircleShape
-                Box(
-                    Modifier
-                        .size(40.dp)
-                        .liveClick(shape, sound = FeedbackSound.Toggle) { customOpen = !customOpen }
-                        .border(1.dp, Color(0xFF4A4E56), shape)
-                        .semantics { contentDescription = "Свой цвет" },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(if (customOpen) "–" else "+", color = AppColors.Muted, fontSize = 20.sp)
+                palette.forEachIndexed { index, value ->
+                    val selected = color == value && editing == null || editing == index
+                    PaletteDot(
+                        value = if (editing == index) edited else value,
+                        name = "Цвет ${index + 1}",
+                        selected = selected,
+                        showSettings = selected,
+                    ) {
+                        when {
+                            editing == index -> editing = null
+                            color == value && editing == null -> startEdit(index)
+                            else -> {
+                                color = value
+                                editing = null
+                            }
+                        }
+                    }
                 }
-            }
-            AnimatedVisibility(visible = customOpen, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (palette.size < MAX_PALETTE) {
                     Box(
                         Modifier
-                            .fillMaxWidth()
-                            .height(10.dp)
-                            .clip(RoundedCornerShape(5.dp))
-                            .background(Brush.horizontalGradient((0..6).map { Color.hsv(it * 60f % 360f, 0.55f, 0.95f) })),
-                    )
-                    Slider(
-                        value = hue,
-                        onValueChange = {
-                            hue = it
-                            color = Color.hsv(it % 360f, 0.55f, 0.95f).toArgb().toLong() and 0xFFFFFFFFL
-                        },
-                        valueRange = 0f..360f,
-                        colors = SliderDefaults.colors(
-                            thumbColor = Color.hsv(hue % 360f, 0.55f, 0.95f),
-                            activeTrackColor = Color.Transparent,
-                            inactiveTrackColor = Color.Transparent,
-                        ),
-                    )
+                            .size(40.dp)
+                            .liveClick(CircleShape, sound = FeedbackSound.Toggle) { if (editing == -1) editing = null else startEdit(-1) }
+                            .border(1.dp, if (editing == -1) AppColors.Accent else Color(0xFF4A4E56), CircleShape)
+                            .semantics { contentDescription = "Добавить цвет" },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (editing == -1) {
+                            Box(Modifier.size(28.dp).clip(CircleShape).background(Color(edited)))
+                        } else {
+                            Text("+", color = AppColors.Muted, fontSize = 20.sp)
+                        }
+                    }
                 }
+            }
+            Text(
+                "Нажми на выбранный цвет ещё раз, чтобы изменить или удалить его.",
+                color = AppColors.Faint,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+            )
+
+            AnimatedVisibility(
+                visible = editing != null,
+                enter = expandVertically(tween(260)) + fadeIn(tween(220)),
+                exit = shrinkVertically(tween(220)) + fadeOut(tween(160)),
+            ) {
+                ColorSettings(
+                    isNew = editing == -1,
+                    canDelete = editing != null && editing != -1 && palette.size > 1,
+                    hue = hue,
+                    saturation = saturation,
+                    brightness = brightness,
+                    onHue = { hue = it },
+                    onSaturation = { saturation = it },
+                    onBrightness = { brightness = it },
+                    onDelete = {
+                        val index = editing ?: return@ColorSettings
+                        if (index < 0) return@ColorSettings
+                        val removed = palette[index]
+                        val updated = palette.filterIndexed { i, _ -> i != index }
+                        onPaletteChange(updated)
+                        if (color == removed) color = updated.first()
+                        editing = null
+                    },
+                    onDone = {
+                        val index = editing ?: return@ColorSettings
+                        if (index < 0) {
+                            onPaletteChange(palette + edited)
+                        } else {
+                            val old = palette[index]
+                            onPaletteChange(palette.mapIndexed { i, v -> if (i == index) edited else v })
+                            if (color != old) {
+                                color = edited
+                            }
+                        }
+                        color = edited
+                        editing = null
+                    },
+                )
             }
         }
 
@@ -385,7 +433,10 @@ fun NoteEditor(
                 Modifier
                     .weight(2f)
                     .height(50.dp)
-                    .liveClick(shape, sound = FeedbackSound.Toggle) { onSave(draft.copy(note = text, color = color)) }
+                    .liveClick(shape, sound = FeedbackSound.Toggle) {
+                        val finalColor = if (editing != null) edited else color
+                        onSave(draft.copy(note = text, color = finalColor))
+                    }
                     .background(Brush.verticalGradient(listOf(Color(0xFFA3C1FF), AppColors.Accent))),
                 contentAlignment = Alignment.Center,
             ) {
@@ -395,17 +446,154 @@ fun NoteEditor(
     }
 }
 
+private const val MAX_PALETTE = 12
+
+private fun hsvColor(hue: Float, saturation: Float, value: Float): Long =
+    Color.hsv(((hue % 360f) + 360f) % 360f, saturation.coerceIn(0f, 1f), value.coerceIn(0f, 1f)).toArgb().toLong() and 0xFFFFFFFFL
+
+/** Settings for one palette color: hue, saturation, brightness; delete or done. */
 @Composable
-private fun ColorDot(value: Long, name: String, selected: Boolean, onClick: () -> Unit) {
+private fun ColorSettings(
+    isNew: Boolean,
+    canDelete: Boolean,
+    hue: Float,
+    saturation: Float,
+    brightness: Float,
+    onHue: (Float) -> Unit,
+    onSaturation: (Float) -> Unit,
+    onBrightness: (Float) -> Unit,
+    onDelete: () -> Unit,
+    onDone: () -> Unit,
+) {
+    val current = Color(hsvColor(hue, saturation, brightness))
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .fieldSurface(RoundedCornerShape(18.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(
+                Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(current)
+                    .border(2.dp, Color(0x33FFFFFF), CircleShape),
+            )
+            Text(
+                if (isNew) "Новый цвет" else "Настройка цвета",
+                color = AppColors.Text,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        GradientSlider(
+            label = "Оттенок",
+            value = hue,
+            range = 0f..360f,
+            colors = (0..6).map { Color.hsv((it * 60f) % 360f, saturation.coerceAtLeast(0.35f), brightness.coerceAtLeast(0.6f)) },
+            thumb = current,
+            onChange = onHue,
+        )
+        GradientSlider(
+            label = "Насыщенность",
+            value = saturation,
+            range = 0.1f..1f,
+            colors = listOf(Color.hsv(hue % 360f, 0.1f, brightness), Color.hsv(hue % 360f, 1f, brightness)),
+            thumb = current,
+            onChange = onSaturation,
+        )
+        GradientSlider(
+            label = "Яркость",
+            value = brightness,
+            range = 0.35f..1f,
+            colors = listOf(Color.hsv(hue % 360f, saturation, 0.35f), Color.hsv(hue % 360f, saturation, 1f)),
+            thumb = current,
+            onChange = onBrightness,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val shape = RoundedCornerShape(12.dp)
+            if (canDelete) {
+                Row(
+                    Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .liveClick(shape, sound = FeedbackSound.Close, onClick = onDelete)
+                        .border(1.dp, Color(0x55F08A8A), shape),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(AppIcons.Trash, null, tint = Color(0xFFF08A8A), modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Удалить цвет", color = Color(0xFFF08A8A), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(44.dp)
+                    .liveClick(shape, sound = FeedbackSound.Toggle, onClick = onDone)
+                    .background(Color(0xFF2C3446))
+                    .border(1.dp, Color(0x558FB3FF), shape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(if (isNew) "Добавить" else "Готово", color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun GradientSlider(
+    label: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    colors: List<Color>,
+    thumb: Color,
+    onChange: (Float) -> Unit,
+) {
+    Column {
+        Text(label, color = AppColors.Muted, fontSize = 12.sp)
+        Box(contentAlignment = Alignment.Center) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp)
+                    .height(10.dp)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(Brush.horizontalGradient(colors)),
+            )
+            Slider(
+                value = value.coerceIn(range.start, range.endInclusive),
+                onValueChange = onChange,
+                valueRange = range,
+                colors = SliderDefaults.colors(
+                    thumbColor = thumb,
+                    activeTrackColor = Color.Transparent,
+                    inactiveTrackColor = Color.Transparent,
+                ),
+            )
+        }
+    }
+}
+
+/** A palette color. The selected one shows a faint "settings" mark inside; tapping it again opens its settings. */
+@Composable
+private fun PaletteDot(value: Long, name: String, selected: Boolean, showSettings: Boolean, onClick: () -> Unit) {
     val ring by animateColorAsState(if (selected) AppColors.Text else Color.Transparent, label = "ring")
     Box(
         Modifier
             .size(40.dp)
             .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.85f, onClick = onClick)
             .border(2.dp, ring, CircleShape)
-            .semantics { contentDescription = name },
+            .semantics { contentDescription = if (showSettings) "$name, настроить" else name },
         contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.size(28.dp).clip(CircleShape).background(Color(value)))
+        Box(Modifier.size(28.dp).clip(CircleShape).background(Color(value)), contentAlignment = Alignment.Center) {
+            AnimatedVisibility(visible = showSettings, enter = fadeIn(tween(220)), exit = fadeOut(tween(160))) {
+                Icon(AppIcons.Options, null, tint = Color(0x8C000000), modifier = Modifier.size(16.dp))
+            }
+        }
     }
 }
