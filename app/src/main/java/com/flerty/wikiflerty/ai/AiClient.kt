@@ -45,6 +45,12 @@ enum class AiProvider(
         "https://platform.deepseek.com/api_keys",
         listOf("deepseek-v4-flash", "deepseek-v4-pro"),
     ),
+    /** One key for models of many companies (Claude, GPT, Gemini, DeepSeek…), sent from OpenRouter's servers. */
+    OpenRouter(
+        "openrouter", "OpenRouter", "OpenRouter",
+        "https://openrouter.ai/settings/keys",
+        listOf("openrouter/auto"),
+    ),
     ;
 
     companion object {
@@ -112,6 +118,18 @@ object AiClient {
                 val json = getJson("https://api.deepseek.com/models", bearer(key))
                 json.optJSONArray("data").objects().map { AiModel(it.getString("id"), it.getString("id")) }
             }
+            AiProvider.OpenRouter -> {
+                // The key is checked separately, then the list of text models is loaded.
+                getJson("https://openrouter.ai/api/v1/key", bearer(key))
+                val json = getJson("https://openrouter.ai/api/v1/models", bearer(key))
+                json.optJSONArray("data").objects()
+                    .filter { m ->
+                        val outputs = m.optJSONObject("architecture")?.optJSONArray("output_modalities")
+                        outputs == null || (0 until outputs.length()).any { outputs.optString(it) == "text" }
+                    }
+                    .sortedByDescending { it.optLong("created") }
+                    .map { AiModel(it.getString("id"), it.optString("name").ifBlank { it.getString("id") }) }
+            }
         }.ifEmpty { throw AiException("Список моделей пуст") }
     }
 
@@ -160,11 +178,11 @@ object AiClient {
                     }
                 }
             }
-            AiProvider.ChatGpt, AiProvider.DeepSeek -> {
-                val url = if (provider == AiProvider.ChatGpt) {
-                    "https://api.openai.com/v1/chat/completions"
-                } else {
-                    "https://api.deepseek.com/chat/completions"
+            AiProvider.ChatGpt, AiProvider.DeepSeek, AiProvider.OpenRouter -> {
+                val url = when (provider) {
+                    AiProvider.ChatGpt -> "https://api.openai.com/v1/chat/completions"
+                    AiProvider.OpenRouter -> "https://openrouter.ai/api/v1/chat/completions"
+                    else -> "https://api.deepseek.com/chat/completions"
                 }
                 val body = JSONObject().apply {
                     put("model", model)
@@ -176,7 +194,8 @@ object AiClient {
                         }
                     })
                 }
-                connection = post(url, bearer(key), body)
+                val headers = if (provider == AiProvider.OpenRouter) bearer(key) + ("X-Title" to "WikiFlerty") else bearer(key)
+                connection = post(url, headers, body)
                 parse = { event ->
                     event.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("delta")
                         ?.let { if (it.isNull("content")) null else it.optString("content") }
@@ -278,6 +297,11 @@ object AiClient {
                 ?: json.optString("message").takeIf { it.isNotBlank() }
         }.getOrNull() ?: raw.take(200)
         connection.disconnect()
+        if (Regex("(?i)location is not supported|unsupported_country|not available in your (country|region)|country, region, or territory not supported|request not allowed from your region").containsMatchIn(detail)) {
+            throw AiException(
+                "Эта нейросеть не работает в твоей стране. Включи VPN или выбери другую: DeepSeek или OpenRouter.",
+            )
+        }
         if (code == 503 || code == 529 || (code in 500..599 && Regex("(?i)overload|high demand|unavailable").containsMatchIn(detail))) {
             throw AiBusyException()
         }

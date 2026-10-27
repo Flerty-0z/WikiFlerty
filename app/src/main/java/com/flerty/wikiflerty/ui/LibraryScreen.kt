@@ -304,20 +304,34 @@ private fun ToolButton(icon: ImageVector, description: String, onClick: () -> Un
 
 @Composable
 private fun FilterButton(filter: LibraryFilter, count: Int, onClick: () -> Unit) {
-    val shape = appCorner(20)
+    val shape = appCorner(22)
     Row(
         Modifier
-            .height(40.dp)
-            .liveClick(shape, sound = FeedbackSound.Open, onClick = onClick)
+            .fillMaxWidth()
+            .height(44.dp)
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
             .fieldSurface(shape)
-            .padding(start = 12.dp, end = 10.dp),
+            .padding(start = 14.dp, end = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Icon(filter.icon, null, tint = if (filter.id == "favorite") StarYellow else AppColors.Accent, modifier = Modifier.size(18.dp))
-        Text(filter.title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 200.dp))
-        Text(count.toString(), color = AppColors.Faint, fontSize = 13.sp)
-        Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(16.dp).rotate(90f))
+        Text(
+            filter.title,
+            color = AppColors.Text,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            count.toString(),
+            color = AppColors.Muted,
+            fontSize = 13.sp,
+            modifier = Modifier.clip(appCorner(10)).background(AppColors.Line).padding(horizontal = 8.dp, vertical = 2.dp),
+        )
+        Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(18.dp).rotate(90f))
     }
 }
 
