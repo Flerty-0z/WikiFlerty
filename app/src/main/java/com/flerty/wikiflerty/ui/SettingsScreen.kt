@@ -367,7 +367,7 @@ private fun CustomizationContent() {
                     when (kind) {
                         BackgroundKind.None -> "Однотонный фон темы"
                         BackgroundKind.Image -> "Своя картинка из галереи"
-                        BackgroundKind.Video -> "Своё видео, без звука"
+                        BackgroundKind.Video -> "Своё видео со звуком"
                     },
                     icon = when (kind) {
                         BackgroundKind.None -> AppIcons.Close
