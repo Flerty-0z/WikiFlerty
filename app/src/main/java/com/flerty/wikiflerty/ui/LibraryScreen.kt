@@ -123,10 +123,31 @@ private fun sorted(books: List<Book>, prefs: LibraryPrefs): List<Book> {
     return books.sortedWith(if (prefs.descending) comparator.reversed() else comparator)
 }
 
+/** Library sheets and dialogs that are opened from the top bar. */
+class LibraryControls {
+    var showViewSheet by mutableStateOf(false)
+    var shelfDialog by mutableStateOf<ShelfDialog?>(null)
+}
+
+/** Top bar buttons of the library: new shelf, grid/list, view and sorting. */
+@Composable
+fun LibraryTopActions(controls: LibraryControls) {
+    val app = LocalContext.current.applicationContext as App
+    val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
+    Row(Modifier.padding(end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        ToolButton(AppIcons.ShelfAdd, "Новая полка") { controls.shelfDialog = ShelfDialog.Create(null) }
+        ToolButton(if (prefs.view == LibraryView.Grid) AppIcons.ListView else AppIcons.Grid, "Вид") {
+            app.libraryPrefs.update { it.copy(view = if (it.view == LibraryView.Grid) LibraryView.List else LibraryView.Grid) }
+        }
+        ToolButton(AppIcons.Sort, "Вид и сортировка") { controls.showViewSheet = true }
+    }
+}
+
 @Composable
 fun LibraryScreen(
     viewModel: LibraryViewModel,
     onAddBook: () -> Unit,
+    controls: LibraryControls,
     modifier: Modifier = Modifier,
 ) {
     val app = LocalContext.current.applicationContext as App
@@ -134,8 +155,6 @@ fun LibraryScreen(
     val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
     var query by rememberSaveable { mutableStateOf("") }
     var menuBookId by rememberSaveable { mutableStateOf<String?>(null) }
-    var showViewSheet by rememberSaveable { mutableStateOf(false) }
-    var shelfDialog by remember { mutableStateOf<ShelfDialog?>(null) }
     var showFilterSheet by rememberSaveable { mutableStateOf(false) }
 
     if (books.isEmpty()) {
@@ -163,18 +182,8 @@ fun LibraryScreen(
     val longPress = { book: Book -> menuBookId = book.id }
 
     Column(modifier) {
-        // Search, list/grid switch, sorting.
-        Row(
-            Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 2.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            SearchField(query, { query = it }, Modifier.weight(1f))
-            ToolButton(if (prefs.view == LibraryView.Grid) AppIcons.ListView else AppIcons.Grid, "Вид") {
-                app.libraryPrefs.update { it.copy(view = if (it.view == LibraryView.Grid) LibraryView.List else LibraryView.Grid) }
-            }
-            ToolButton(AppIcons.Sort, "Сортировка") { showViewSheet = true }
-        }
+        // Search, as wide as the filter button below it.
+        SearchField(query, { query = it }, Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 10.dp))
 
         // Which books to show: one button that opens a pull-up list.
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -238,7 +247,7 @@ fun LibraryScreen(
             book = book,
             shelves = shelves,
             coverFile = viewModel.coverFile(book),
-            onNewShelf = { shelfDialog = ShelfDialog.Create(book.id) },
+            onNewShelf = { controls.shelfDialog = ShelfDialog.Create(book.id) },
             onDelete = {
                 menuBookId = null
                 viewModel.delete(book)
@@ -247,7 +256,7 @@ fun LibraryScreen(
         )
     }
 
-    if (showViewSheet) LibraryViewSheet(prefs, onDismiss = { showViewSheet = false })
+    if (controls.showViewSheet) LibraryViewSheet(prefs, onDismiss = { controls.showViewSheet = false })
 
     if (showFilterSheet) {
         LibraryFilterSheet(
@@ -258,14 +267,13 @@ fun LibraryScreen(
                 app.libraryPrefs.update { it.copy(filter = id) }
                 showFilterSheet = false
             },
-            onEditShelf = { name -> shelfDialog = ShelfDialog.Edit(name) },
-            onNewShelf = { shelfDialog = ShelfDialog.Create(null) },
+            onEditShelf = { name -> controls.shelfDialog = ShelfDialog.Edit(name) },
             onDismiss = { showFilterSheet = false },
         )
     }
 
-    shelfDialog?.let { dialog ->
-        ShelfDialogView(dialog, shelves, onDismiss = { shelfDialog = null })
+    controls.shelfDialog?.let { dialog ->
+        ShelfDialogView(dialog, shelves, onDismiss = { controls.shelfDialog = null })
     }
 }
 
@@ -347,7 +355,6 @@ private fun LibraryFilterSheet(
     selectedId: String,
     onSelect: (String) -> Unit,
     onEditShelf: (String) -> Unit,
-    onNewShelf: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     AppSheet(onDismiss, title = "Показать") {
@@ -356,19 +363,12 @@ private fun LibraryFilterSheet(
                 FilterRow(f, counts[f.id] ?: 0, f.id == selectedId, onEdit = null) { onSelect(f.id) }
             }
         }
-        SettingsGroup("Полки") {
-            filters.filter { it.isShelf }.forEach { f ->
-                FilterRow(f, counts[f.id] ?: 0, f.id == selectedId, onEdit = { onEditShelf(f.title) }) { onSelect(f.id) }
-            }
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 50.dp)
-                    .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onNewShelf),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                SettingIcon(AppIcons.Plus)
-                Text("Новая полка", color = AppColors.Accent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 12.dp))
+        val shelves = filters.filter { it.isShelf }
+        if (shelves.isNotEmpty()) {
+            SettingsGroup("Полки") {
+                shelves.forEach { f ->
+                    FilterRow(f, counts[f.id] ?: 0, f.id == selectedId, onEdit = { onEditShelf(f.title) }) { onSelect(f.id) }
+                }
             }
         }
     }

@@ -58,6 +58,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -91,6 +98,8 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
     var section by rememberSaveable { mutableStateOf(Section.Library) }
     var drawerOpen by rememberSaveable { mutableStateOf(false) }
     val busy by libraryViewModel.busy.collectAsStateWithLifecycle()
+    val libraryBooks by libraryViewModel.books.collectAsStateWithLifecycle()
+    val libraryControls = remember { LibraryControls() }
     val feedback = LocalFeedback.current
     val view = LocalView.current
 
@@ -115,15 +124,8 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
         open = drawerOpen,
         onOpenChange = { drawerOpen = it },
         drawer = {
-            Text(
-                "WikiFlerty",
-                color = AppColors.Accent,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(start = 28.dp, top = 24.dp, bottom = 20.dp),
-            )
-            HorizontalDivider(color = AppColors.Line, modifier = Modifier.padding(horizontal = 28.dp))
-            Spacer(Modifier.height(12.dp))
+            DrawerLogo()
+            Spacer(Modifier.height(10.dp))
             Section.entries.forEach { item ->
                 if (item == Section.Settings) Spacer(Modifier.height(12.dp))
                 DrawerItem(item, selected = item == section) {
@@ -142,6 +144,9 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                     Column {
                         TopAppBar(
                             title = { Text(section.title) },
+                            actions = {
+                                if (section == Section.Library && libraryBooks.isNotEmpty()) LibraryTopActions(libraryControls)
+                            },
                             colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                             navigationIcon = {
                                 IconButton(onClick = {
@@ -174,6 +179,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                     LibraryScreen(
                         viewModel = libraryViewModel,
                         onAddBook = { pickBook.launch(arrayOf("application/epub+zip", "application/octet-stream")) },
+                        controls = libraryControls,
                         modifier = Modifier.fillMaxSize().padding(padding),
                     )
                 } else {
@@ -294,6 +300,53 @@ private fun SideDrawer(
                         },
                     ),
             ) { drawer() }
+        }
+    }
+}
+
+/** "WikiFlerty" in a framed flag: Wiki in white, Flerty in the accent color, version below. */
+@OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+@Composable
+private fun DrawerLogo() {
+    val context = LocalContext.current
+    val logoFont = remember {
+        androidx.compose.ui.text.font.FontFamily(
+            androidx.compose.ui.text.font.Font(
+                path = "fonts/Nunito.ttf",
+                assetManager = context.assets,
+                weight = FontWeight.ExtraBold,
+                variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(
+                    androidx.compose.ui.text.font.FontVariation.weight(850),
+                ),
+            ),
+        )
+    }
+    val version = remember {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
+    }
+    val shape = appCorner(20)
+    Column(
+        Modifier
+            .padding(start = 16.dp, end = 16.dp, top = 20.dp)
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Brush.linearGradient(listOf(AppColors.Accent.copy(alpha = 0.16f).compositeOver(AppColors.Field), AppColors.Field)))
+            .border(1.dp, AppColors.Accent.copy(alpha = 0.25f), shape)
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+    ) {
+        Text(
+            buildAnnotatedString {
+                withStyle(SpanStyle(color = Color.White)) { append("Wiki") }
+                withStyle(SpanStyle(color = AppColors.Accent)) { append("Flerty") }
+            },
+            fontFamily = logoFont,
+            fontWeight = FontWeight.ExtraBold,
+            fontSize = 30.sp,
+            lineHeight = 34.sp,
+            maxLines = 1,
+        )
+        if (version.isNotBlank()) {
+            Text("Версия $version", color = AppColors.Faint, fontSize = 12.sp, fontWeight = FontWeight.Light, modifier = Modifier.padding(top = 2.dp))
         }
     }
 }

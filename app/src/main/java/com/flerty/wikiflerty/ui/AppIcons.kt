@@ -126,6 +126,7 @@ object AppIcons {
     val Speed by lazy { icon("speed", "M4 16a8 8 0 1 1 16 0", "M12 16l4-5", "M4 16h2M18 16h2") }
     val Voice by lazy { icon("voice", "M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z", "M6 11a6 6 0 0 0 12 0", "M12 17v4") }
     val Engine by lazy { icon("engine", "M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2") }
+    val ShelfAdd by lazy { icon("shelf-add", "M5 5v15M9.5 5v15", "M3 20h10", "M17.5 8v8M13.5 12h8") }
     val Bookmark by lazy { icon("bookmark", "M7 3h10v18l-5-3.6L7 21z") }
     val Sparkle by lazy {
         icon("sparkle", fills = listOf("M12 2l2.1 6.1L20 10l-5.9 1.9L12 18l-2.1-6.1L4 10l5.9-1.9z"))
