@@ -25,6 +25,8 @@ data class DictionaryEntry(
     val bookTitle: String?,
     val locatorJson: String?,
     val createdAt: Long,
+    /** Flashcard progress (spaced repetition), see [Srs]. */
+    val srs: SrsState = SrsState(),
 ) {
     val locator: Locator? get() = locatorJson?.let { runCatching { Locator.fromJSON(JSONObject(it)) }.getOrNull() }
 
@@ -37,6 +39,7 @@ data class DictionaryEntry(
         put("bookTitle", bookTitle)
         put("locator", locatorJson)
         put("createdAt", createdAt)
+        put("srs", srs.toJson())
     }
 
     companion object {
@@ -49,6 +52,7 @@ data class DictionaryEntry(
             bookTitle = json.optNullable("bookTitle"),
             locatorJson = json.optNullable("locator"),
             createdAt = json.optLong("createdAt"),
+            srs = json.optJSONObject("srs")?.let { SrsState.fromJson(it) } ?: SrsState(),
         )
 
         private fun JSONObject.optNullable(name: String): String? =
@@ -92,6 +96,10 @@ class DictionaryRepository(context: Context) {
         update { list -> list.filterNot { it.id == id } }
         onDeleted?.invoke(listOf(id))
     }
+
+    /** Saves the result of answering a flashcard. */
+    suspend fun saveReview(id: String, srs: SrsState) =
+        update { list -> list.map { if (it.id == id) it.copy(srs = srs) else it } }
 
     /** Replaces everything at once (after merging with another phone). */
     suspend fun replaceAll(entries: List<DictionaryEntry>) = update { entries }

@@ -292,19 +292,21 @@ private fun DrawerTodayCard() {
                 Icon(AppIcons.Clock, null, tint = AppColors.Accent, modifier = Modifier.size(22.dp))
             }
         }
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 if (goal > 0) "Сегодня ${todayMs / 60_000} из $goal мин" else "Сегодня ${StatsCalc.duration(todayMs)}",
                 color = AppColors.Text,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
             Text(
-                if (streak > 0) "Серия: ${StatsCalc.days(streak)}" else "Почитай сегодня, чтобы начать серию",
+                if (streak > 0) "Серия: ${StatsCalc.days(streak)}" else "Серия ещё не начата",
                 color = AppColors.Muted,
                 fontSize = 12.sp,
                 maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
         }
     }

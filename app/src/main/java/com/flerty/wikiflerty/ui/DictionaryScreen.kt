@@ -34,6 +34,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
@@ -53,6 +55,13 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
     var query by remember { mutableStateOf("") }
     var openId by remember { mutableStateOf<String?>(null) }
     var toDelete by remember { mutableStateOf<DictionaryEntry?>(null) }
+    var studying by rememberSaveable { mutableStateOf(false) }
+    var cardSettings by remember { mutableStateOf(false) }
+
+    if (studying && entries.isNotEmpty()) {
+        FlashcardSession(onClose = { studying = false }, modifier = modifier)
+        return
+    }
 
     if (entries.isEmpty()) {
         Column(
@@ -82,6 +91,9 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        item(key = "study") {
+            StudyCard(entries, onStart = { studying = true }, onSettings = { cardSettings = true })
+        }
         item(key = "search") {
             BasicTextField(
                 value = query,
@@ -117,7 +129,27 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
                     .padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Text(entry.word, color = AppColors.Text, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Serif)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        entry.word,
+                        color = AppColors.Text,
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = FontFamily.Serif,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).padding(end = 8.dp),
+                    )
+                    val (badge, badgeColor) = srsBadge(entry.srs)
+                    Text(
+                        badge,
+                        color = badgeColor,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        modifier = Modifier.clip(appCorner(8)).background(badgeColor.copy(alpha = 0.14f)).padding(horizontal = 8.dp, vertical = 3.dp),
+                    )
+                }
                 if (open) {
                     SelectionContainer {
                         Text(markdown(entry.definition), color = Color(0xFFE2E3E6), fontSize = 15.sp, lineHeight = 22.sp)
@@ -173,6 +205,8 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
             }
         }
     }
+
+    if (cardSettings) FlashcardSettingsSheet(onDismiss = { cardSettings = false })
 
     toDelete?.let { entry ->
         AlertDialog(

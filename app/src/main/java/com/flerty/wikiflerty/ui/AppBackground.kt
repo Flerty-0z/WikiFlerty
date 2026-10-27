@@ -25,6 +25,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.flerty.wikiflerty.App
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -60,7 +61,11 @@ fun AppBackground() {
                     )
                 }
             }
-            BackgroundKind.Video -> LoopingVideo(app.style.backgroundVideo, Modifier.fillMaxSize())
+            BackgroundKind.Video -> {
+                // The video goes quiet while a book is being read aloud.
+                val listening by app.readAloud.session.collectAsStateWithLifecycle()
+                LoopingVideo(app.style.backgroundVideo, if (listening != null) 0f else style.videoVolume, Modifier.fillMaxSize())
+            }
             BackgroundKind.None -> Unit
         }
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = style.backgroundDim)))
@@ -69,10 +74,12 @@ fun AppBackground() {
 
 /** A silent video playing in a loop, filling the area (cropped, never stretched). */
 @Composable
-private fun LoopingVideo(file: File, modifier: Modifier) {
+private fun LoopingVideo(file: File, volume: Float, modifier: Modifier) {
+    val currentVolume by androidx.compose.runtime.rememberUpdatedState(volume)
     if (!file.exists()) return
     key(file.path, file.lastModified()) {
         val player = remember { MediaPlayer() }
+        androidx.compose.runtime.LaunchedEffect(volume) { runCatching { player.setVolume(volume, volume) } }
         DisposableEffect(Unit) {
             onDispose { runCatching { player.release() } }
         }
@@ -87,7 +94,7 @@ private fun LoopingVideo(file: File, modifier: Modifier) {
                                 player.setDataSource(file.path)
                                 player.setSurface(Surface(texture))
                                 player.isLooping = true
-                                player.setVolume(0f, 0f)
+                                player.setVolume(currentVolume, currentVolume)
                                 player.setOnPreparedListener { mp ->
                                     cropToFill(this@apply, mp.videoWidth, mp.videoHeight)
                                     mp.start()

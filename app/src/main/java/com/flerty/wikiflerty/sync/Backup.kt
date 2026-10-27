@@ -126,7 +126,16 @@ object Backup {
             val entry = runCatching {
                 DictionaryEntry.fromJson(j.put("bookId", localBookId(fp) ?: JSONObject.NULL))
             }.getOrNull() ?: return@forEach
-            if (deletedWords.containsKey(entry.id) || localWords.containsKey(entry.id)) return@forEach
+            if (deletedWords.containsKey(entry.id)) return@forEach
+            val mine = localWords[entry.id]
+            if (mine != null) {
+                // The same word on both phones: keep the flashcard progress that was practised last.
+                if (entry.srs.last > mine.srs.last) {
+                    localWords[entry.id] = mine.copy(srs = entry.srs)
+                    wordsChanged++
+                }
+                return@forEach
+            }
             localWords[entry.id] = entry
             wordsChanged++
         }

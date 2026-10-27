@@ -52,6 +52,9 @@ class App : Application() {
     /** Reading the open book aloud. */
     val readAloud: com.flerty.wikiflerty.tts.ReadAloud by lazy { com.flerty.wikiflerty.tts.ReadAloud(this) }
 
+    /** Flashcard settings and daily counts. */
+    val flashcards: com.flerty.wikiflerty.data.FlashcardStore by lazy { com.flerty.wikiflerty.data.FlashcardStore(this) }
+
     /** Reading time and pages, day by day. */
     val stats: com.flerty.wikiflerty.data.ReadingStatsStore by lazy { com.flerty.wikiflerty.data.ReadingStatsStore(this) }
 

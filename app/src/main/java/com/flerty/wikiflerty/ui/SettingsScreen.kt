@@ -425,6 +425,15 @@ private fun CustomizationContent() {
             SettingSlider("Затемнение", style.backgroundDim, 0f..0.9f, ::percent, icon = AppIcons.Moon) { v ->
                 store.update { it.copy(backgroundDim = v) }
             }
+            if (kind == BackgroundKind.Video) {
+                SettingSlider(
+                    "Звук видео",
+                    style.videoVolume,
+                    0f..1f,
+                    { if (it < 0.01f) "Без звука" else percent(it) },
+                    icon = AppIcons.Sound,
+                ) { v -> store.update { it.copy(videoVolume = v) } }
+            }
             if (kind == BackgroundKind.Image && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 SettingSlider("Размытие", style.backgroundBlur, 0f..30f, { if (it < 0.5f) "Нет" else "${it.roundToInt()}" }, icon = AppIcons.Drop) { v ->
                     store.update { it.copy(backgroundBlur = v) }

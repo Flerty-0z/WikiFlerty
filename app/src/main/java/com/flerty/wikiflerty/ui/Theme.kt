@@ -158,6 +158,8 @@ data class UiStyle(
     val backgroundBlur: Float = 0f,
     /** The soft glows and gradient of the look behind the main screens. */
     val ambience: Boolean = true,
+    /** Sound of the background video, 0..1 (0 = silent). */
+    val videoVolume: Float = 0.5f,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("version", 1)
@@ -173,6 +175,7 @@ data class UiStyle(
         put("backgroundDim", backgroundDim.toDouble())
         put("backgroundBlur", backgroundBlur.toDouble())
         put("ambience", ambience)
+        put("videoVolume", videoVolume.toDouble())
     }
 
     companion object {
@@ -191,6 +194,7 @@ data class UiStyle(
                 backgroundDim = json.optDouble("backgroundDim", d.backgroundDim.toDouble()).toFloat().coerceIn(0f, 0.9f),
                 backgroundBlur = json.optDouble("backgroundBlur", d.backgroundBlur.toDouble()).toFloat().coerceIn(0f, 30f),
                 ambience = json.optBoolean("ambience", d.ambience),
+                videoVolume = json.optDouble("videoVolume", d.videoVolume.toDouble()).toFloat().coerceIn(0f, 1f),
             )
         }
     }
