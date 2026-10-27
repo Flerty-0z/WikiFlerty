@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -56,6 +57,7 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
     var toDelete by remember { mutableStateOf<DictionaryEntry?>(null) }
     var studying by rememberSaveable { mutableStateOf(false) }
     var cardSettings by remember { mutableStateOf(false) }
+    var exporting by remember { mutableStateOf(false) }
 
     if (studying && entries.isNotEmpty()) {
         FlashcardSession(onClose = { studying = false }, modifier = modifier)
@@ -94,27 +96,36 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
             StudyCard(entries, onStart = { studying = true }, onSettings = { cardSettings = true })
         }
         item(key = "search") {
-            BasicTextField(
-                value = query,
-                onValueChange = { query = it },
-                singleLine = true,
-                textStyle = TextStyle(color = AppColors.Text, fontSize = 15.sp),
-                cursorBrush = SolidColor(AppColors.Accent),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .fieldSurface(appCorner(24))
-                    .padding(horizontal = 16.dp),
-                decorationBox = { inner ->
-                    Row(Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(AppIcons.Search, null, tint = AppColors.Muted, modifier = Modifier.size(20.dp))
-                        Box(Modifier.padding(start = 10.dp).weight(1f)) {
-                            if (query.isEmpty()) Text("Поиск · слов: ${entries.size}", color = AppColors.Faint, fontSize = 15.sp)
-                            inner()
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                BasicTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    textStyle = TextStyle(color = AppColors.Text, fontSize = 15.sp),
+                    cursorBrush = SolidColor(AppColors.Accent),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .fieldSurface(appCorner(24))
+                        .padding(horizontal = 16.dp),
+                    decorationBox = { inner ->
+                        Row(Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(AppIcons.Search, null, tint = AppColors.Muted, modifier = Modifier.size(20.dp))
+                            Box(Modifier.padding(start = 10.dp).weight(1f)) {
+                                if (query.isEmpty()) Text("Поиск · слов: ${entries.size}", color = AppColors.Faint, fontSize = 15.sp)
+                                inner()
+                            }
                         }
-                    }
-                },
-            )
+                    },
+                )
+                Box(
+                    Modifier
+                        .size(48.dp)
+                        .liveClick(CircleShape, sound = FeedbackSound.Open) { exporting = true }
+                        .fieldSurface(CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(AppIcons.Send, "Экспорт", tint = AppColors.Accent, modifier = Modifier.size(20.dp)) }
+            }
         }
         items(filtered, key = { it.id }) { entry ->
             val open = openId == entry.id
@@ -206,6 +217,24 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
     }
 
     if (cardSettings) FlashcardSettingsSheet(onDismiss = { cardSettings = false })
+
+    if (exporting) {
+        ExportSheet(
+            title = "Экспорт словаря",
+            onDismiss = { exporting = false },
+            formats = listOf(
+                ExportFormat("anki", "Для Anki", "Файл для импорта в Anki: слово на лицевой стороне, значение и цитата на обороте", "WikiFlerty Anki ${exportStamp()}.txt", "text/plain") {
+                    com.flerty.wikiflerty.data.Exporter.wordsAnki(entries)
+                },
+                ExportFormat("md", "Markdown", "Список слов со значениями и цитатами", "Словарь ${exportStamp()}.md", "text/markdown") {
+                    com.flerty.wikiflerty.data.Exporter.wordsMarkdown(entries)
+                },
+                ExportFormat("csv", "Таблица CSV", "Открывается в Excel и Google Таблицах", "Словарь ${exportStamp()}.csv", "text/csv") {
+                    com.flerty.wikiflerty.data.Exporter.wordsCsv(entries)
+                },
+            ),
+        )
+    }
 
     toDelete?.let { entry ->
         AlertDialog(

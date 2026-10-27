@@ -193,7 +193,10 @@ internal fun SearchContent(search: SearchActions, modifier: Modifier) {
 private fun snippet(hit: SearchHit) = buildAnnotatedString {
     val before = hit.before.replace(Regex("\\s+"), " ").takeLast(70)
     val after = hit.after.replace(Regex("\\s+"), " ").take(110)
-    if (before.isNotEmpty()) append("…").append(before)
+    if (before.isNotEmpty()) {
+        append("…")
+        append(before)
+    }
     withStyle(SpanStyle(color = AppColors.Accent, fontWeight = FontWeight.Bold, background = AppColors.AccentSoft)) {
         append(hit.match)
     }

@@ -52,6 +52,7 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
     var query by remember { mutableStateOf("") }
     var colorFilter by remember { mutableStateOf<Long?>(null) }
     var toDelete by remember { mutableStateOf<Note?>(null) }
+    var exporting by remember { mutableStateOf(false) }
 
     val titles = books.associate { it.id to it.title }
     val usedColors = notes.map { it.color }.distinct()
@@ -94,27 +95,36 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item(key = "search") {
-            BasicTextField(
-                value = query,
-                onValueChange = { query = it },
-                singleLine = true,
-                textStyle = TextStyle(color = AppColors.Text, fontSize = 15.sp),
-                cursorBrush = SolidColor(AppColors.Accent),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .fieldSurface(appCorner(24))
-                    .padding(horizontal = 16.dp),
-                decorationBox = { inner ->
-                    Row(Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(AppIcons.Search, null, tint = AppColors.Muted, modifier = Modifier.size(20.dp))
-                        Box(Modifier.padding(start = 10.dp).weight(1f)) {
-                            if (query.isEmpty()) Text("Поиск по заметкам", color = AppColors.Faint, fontSize = 15.sp)
-                            inner()
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                BasicTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    textStyle = TextStyle(color = AppColors.Text, fontSize = 15.sp),
+                    cursorBrush = SolidColor(AppColors.Accent),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .fieldSurface(appCorner(24))
+                        .padding(horizontal = 16.dp),
+                    decorationBox = { inner ->
+                        Row(Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(AppIcons.Search, null, tint = AppColors.Muted, modifier = Modifier.size(20.dp))
+                            Box(Modifier.padding(start = 10.dp).weight(1f)) {
+                                if (query.isEmpty()) Text("Поиск по заметкам", color = AppColors.Faint, fontSize = 15.sp)
+                                inner()
+                            }
                         }
-                    }
-                },
-            )
+                    },
+                )
+                Box(
+                    Modifier
+                        .size(48.dp)
+                        .liveClick(CircleShape, sound = FeedbackSound.Open) { exporting = true }
+                        .fieldSurface(CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(AppIcons.Send, "Экспорт", tint = AppColors.Accent, modifier = Modifier.size(20.dp)) }
+            }
         }
         if (usedColors.size > 1) {
             item(key = "colors") {
@@ -191,6 +201,36 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
                 )
             }
         }
+    }
+
+    if (exporting) {
+        var scope by remember { mutableStateOf("all") }
+        val withNotes = books.filter { b -> notes.any { it.bookId == b.id } }
+        val chosen = { if (scope == "all") notes else notes.filter { it.bookId == scope } }
+        val base = if (scope == "all") "Заметки" else (titles[scope] ?: "Заметки").take(40)
+        ExportSheet(
+            title = "Экспорт заметок",
+            onDismiss = { exporting = false },
+            formats = listOf(
+                ExportFormat("md", "Markdown", "Цитаты с заметками по книгам. Открывается в Obsidian, Notion и любом редакторе", "$base ${exportStamp()}.md", "text/markdown") {
+                    com.flerty.wikiflerty.data.Exporter.notesMarkdown(chosen(), books)
+                },
+                ExportFormat("txt", "Простой текст", "Удобно переслать в мессенджер или вставить в документ", "$base ${exportStamp()}.txt", "text/plain") {
+                    com.flerty.wikiflerty.data.Exporter.notesText(chosen(), books)
+                },
+            ),
+            extra = {
+                SettingsGroup(null) {
+                    PickerRow(
+                        label = "Книги",
+                        icon = AppIcons.Book,
+                        options = listOf(PickerOption("all", "Все книги", "Заметок: ${notes.size}")) +
+                            withNotes.map { b -> PickerOption(b.id, b.title, "Заметок: ${notes.count { it.bookId == b.id }}") },
+                        selectedId = scope,
+                    ) { scope = it }
+                }
+            },
+        )
     }
 
     toDelete?.let { note ->

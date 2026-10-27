@@ -350,7 +350,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private fun runSearch(query: String) {
         val publication = app.readerSession?.publication ?: return
         searchJob?.cancel()
-        navigator.applyDecorations(emptyList(), SEARCH_GROUP)
+        lifecycleScope.launch { navigator.applyDecorations(emptyList(), SEARCH_GROUP) }
         search.results.clear()
         search.current = -1
         search.error = null
@@ -402,10 +402,12 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         ui.panelsVisible = false
         endSelection()
         navigator.go(hit.locator, animated = false)
-        navigator.applyDecorations(
-            listOf(Decoration("search-$index", hit.locator, Decoration.Style.Highlight(tint = selectionAccent(), isActive = true))),
-            SEARCH_GROUP,
-        )
+        lifecycleScope.launch {
+            navigator.applyDecorations(
+                listOf(Decoration("search-$index", hit.locator, Decoration.Style.Highlight(tint = selectionAccent(), isActive = true))),
+                SEARCH_GROUP,
+            )
+        }
         resyncListening()
     }
 
@@ -416,7 +418,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         search.searched = false
         search.limited = false
         search.error = null
-        navigator.applyDecorations(emptyList(), SEARCH_GROUP)
+        lifecycleScope.launch { navigator.applyDecorations(emptyList(), SEARCH_GROUP) }
     }
 
     private fun showFootnote(raw: String, url: String) {
