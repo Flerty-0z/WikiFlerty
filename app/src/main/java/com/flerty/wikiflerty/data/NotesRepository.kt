@@ -123,9 +123,26 @@ class NotesRepository(context: Context) {
         update { list -> list.map { if (it.id == id) it.copy(note = note.trim(), color = color, updatedAt = now) else it } }
     }
 
-    suspend fun delete(id: String) = update { list -> list.filterNot { it.id == id } }
+    /** Remembers deletions so sync can remove the same notes on other phones. */
+    var onDeleted: ((List<String>) -> Unit)? = null
 
-    suspend fun deleteForBook(bookId: String) = update { list -> list.filterNot { it.bookId == bookId } }
+    suspend fun delete(id: String) {
+        update { list -> list.filterNot { it.id == id } }
+        onDeleted?.invoke(listOf(id))
+    }
+
+    suspend fun deleteForBook(bookId: String) {
+        val ids = _notes.value.filter { it.bookId == bookId }.map { it.id }
+        update { list -> list.filterNot { it.bookId == bookId } }
+        if (ids.isNotEmpty()) onDeleted?.invoke(ids)
+    }
+
+    /** Replaces everything at once (after merging with another phone). */
+    suspend fun replaceAll(notes: List<Note>) = update { notes }
+
+    /** Points notes of [from] (e.g. a book known only by fingerprint) to the book [to]. */
+    suspend fun remapBook(from: String, to: String) =
+        update { list -> list.map { if (it.bookId == from) it.copy(bookId = to) else it } }
 
     private suspend fun update(transform: (List<Note>) -> List<Note>) = withContext(Dispatchers.IO) {
         mutex.withLock {

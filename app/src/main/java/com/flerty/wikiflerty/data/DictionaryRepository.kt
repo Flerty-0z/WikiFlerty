@@ -85,7 +85,19 @@ class DictionaryRepository(context: Context) {
         return entry
     }
 
-    suspend fun delete(id: String) = update { list -> list.filterNot { it.id == id } }
+    /** Remembers deletions so sync can remove the same words on other phones. */
+    var onDeleted: ((List<String>) -> Unit)? = null
+
+    suspend fun delete(id: String) {
+        update { list -> list.filterNot { it.id == id } }
+        onDeleted?.invoke(listOf(id))
+    }
+
+    /** Replaces everything at once (after merging with another phone). */
+    suspend fun replaceAll(entries: List<DictionaryEntry>) = update { entries }
+
+    suspend fun remapBook(from: String, to: String) =
+        update { list -> list.map { if (it.bookId == from) it.copy(bookId = to) else it } }
 
     private suspend fun update(transform: (List<DictionaryEntry>) -> List<DictionaryEntry>) = withContext(Dispatchers.IO) {
         mutex.withLock {

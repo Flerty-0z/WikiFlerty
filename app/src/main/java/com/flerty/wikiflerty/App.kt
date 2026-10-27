@@ -11,6 +11,12 @@ import com.flerty.wikiflerty.reader.ReaderSettingsStore
 import com.flerty.wikiflerty.reader.ReadiumServices
 import com.flerty.wikiflerty.ui.Feedback
 import com.flerty.wikiflerty.ui.StyleStore
+import com.flerty.wikiflerty.sync.Backup
+import com.flerty.wikiflerty.sync.SyncManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 import org.readium.r2.shared.publication.Locator
 
@@ -35,6 +41,12 @@ class App : Application() {
     lateinit var dictionary: DictionaryRepository
         private set
 
+    /** Sync with Google Drive / Dropbox, and backups. */
+    lateinit var sync: SyncManager
+        private set
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     /** AI providers, keys and requests. */
     val ai: AiManager by lazy { AiManager(this) }
 
@@ -53,6 +65,16 @@ class App : Application() {
         readerSettings = ReaderSettingsStore(this)
         notes = NotesRepository(this)
         dictionary = DictionaryRepository(this)
+        sync = SyncManager(this)
+
+        // Let sync know about deletions and setting changes, and attach synced data to newly added books.
+        notes.onDeleted = { sync.noteDeleted(it) }
+        dictionary.onDeleted = { sync.wordDeleted(it) }
+        readerSettings.onChanged = { sync.settingsChanged() }
+        style.onChanged = { sync.settingsChanged() }
+        ai.store.onChanged = { sync.settingsChanged() }
+        library.onBookAdded = { book -> Backup.onBookAdded(this, book) }
+        appScope.launch { library.ensureFingerprints() }
     }
 
     /**

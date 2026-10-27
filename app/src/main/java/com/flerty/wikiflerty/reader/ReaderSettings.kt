@@ -236,9 +236,20 @@ class ReaderSettingsStore(context: Context) {
     private val _settings = MutableStateFlow(load())
     val settings: StateFlow<ReaderSettings> = _settings.asStateFlow()
 
+    /** Told about every change the user makes (sync uses it to know which side is newer). */
+    var onChanged: (() -> Unit)? = null
+
     fun update(transform: (ReaderSettings) -> ReaderSettings) {
-        val updated = transform(_settings.value)
-        if (updated == _settings.value) return
+        if (write(transform(_settings.value))) onChanged?.invoke()
+    }
+
+    /** Sets settings received from another phone. */
+    fun replace(settings: ReaderSettings) {
+        write(settings)
+    }
+
+    private fun write(updated: ReaderSettings): Boolean {
+        if (updated == _settings.value) return false
         _settings.value = updated
         runCatching {
             val tmp = File(file.parentFile, "reader_settings.json.tmp")
@@ -248,6 +259,7 @@ class ReaderSettingsStore(context: Context) {
                 tmp.delete()
             }
         }
+        return true
     }
 
     private fun load(): ReaderSettings = runCatching {

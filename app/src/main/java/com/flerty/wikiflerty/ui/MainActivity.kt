@@ -28,6 +28,11 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) handleIncomingBook(intent)
     }
 
+    override fun onStart() {
+        super.onStart()
+        (application as App).sync.autoSync()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIncomingBook(intent)

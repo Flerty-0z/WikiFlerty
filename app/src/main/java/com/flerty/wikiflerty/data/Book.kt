@@ -20,6 +20,8 @@ data class Book(
     val progress: Double,
     /** The exact reading position (a Readium Locator) as JSON. */
     val locatorJson: String?,
+    /** SHA-256 of the book file: the same book on another phone has the same fingerprint. */
+    val fingerprint: String? = null,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id)
@@ -31,6 +33,7 @@ data class Book(
         put("lastReadAt", lastReadAt)
         put("progress", progress)
         put("locator", locatorJson)
+        put("fingerprint", fingerprint)
     }
 
     companion object {
@@ -44,6 +47,7 @@ data class Book(
             lastReadAt = if (json.isNull("lastReadAt")) null else json.optLong("lastReadAt"),
             progress = json.optDouble("progress", 0.0).takeUnless { it.isNaN() } ?: 0.0,
             locatorJson = json.optStringOrNull("locator"),
+            fingerprint = json.optStringOrNull("fingerprint"),
         )
 
         private fun JSONObject.optStringOrNull(name: String): String? =

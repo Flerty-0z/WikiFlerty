@@ -164,12 +164,23 @@ class StyleStore(context: Context) {
         AppStyle.current = _style.value
     }
 
+    var onChanged: (() -> Unit)? = null
+
     fun update(transform: (UiStyle) -> UiStyle) {
-        val updated = transform(_style.value)
-        if (updated == _style.value) return
+        if (write(transform(_style.value))) onChanged?.invoke()
+    }
+
+    /** Sets the look received from another phone. */
+    fun replace(style: UiStyle) {
+        write(style)
+    }
+
+    private fun write(updated: UiStyle): Boolean {
+        if (updated == _style.value) return false
         _style.value = updated
         AppStyle.current = updated
         runCatching { file.writeText(updated.toJson().toString()) }
+        return true
     }
 
     private fun load(): UiStyle = runCatching {

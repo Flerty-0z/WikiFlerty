@@ -80,6 +80,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.google.material)
+    implementation(libs.play.services.auth)
 
     implementation(libs.compose.ui)
     implementation(libs.compose.foundation)

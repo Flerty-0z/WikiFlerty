@@ -776,7 +776,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     override fun onDestroy() {
         super.onDestroy()
-        if (isFinishing) app.closeReader()
+        if (isFinishing) {
+            app.closeReader()
+            app.sync.autoSync()
+        }
     }
 
     override fun onExternalLinkActivated(url: AbsoluteUrl) {

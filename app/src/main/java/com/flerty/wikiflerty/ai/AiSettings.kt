@@ -21,28 +21,32 @@ import org.json.JSONObject
  * They never leave the phone except in requests to the matching AI company,
  * and they are never part of export or sync.
  */
-class KeyVault(context: Context) {
-    private val file = File(context.filesDir, "ai_keys.bin")
+class KeyVault(context: Context, fileName: String = "ai_keys.bin", private val alias: String = "wikiflerty_ai_keys") {
+    private val file = File(context.filesDir, fileName)
     private val _keys = MutableStateFlow(load())
 
     /** Which providers have a key. The keys themselves are read with [get]. */
     val keys: StateFlow<Map<String, String>> = _keys.asStateFlow()
 
-    fun get(provider: AiProvider): String? = _keys.value[provider.id]?.takeIf { it.isNotBlank() }
+    fun get(provider: AiProvider): String? = get(provider.id)
 
-    fun set(provider: AiProvider, key: String?) {
+    fun set(provider: AiProvider, key: String?) = set(provider.id, key)
+
+    fun get(id: String): String? = _keys.value[id]?.takeIf { it.isNotBlank() }
+
+    fun set(id: String, key: String?) {
         val updated = _keys.value.toMutableMap()
-        if (key.isNullOrBlank()) updated.remove(provider.id) else updated[provider.id] = key.trim()
+        if (key.isNullOrBlank()) updated.remove(id) else updated[id] = key.trim()
         _keys.value = updated
         save(updated)
     }
 
     private fun secretKey(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (store.getEntry(ALIAS, null) as? KeyStore.SecretKeyEntry)?.let { return it.secretKey }
+        (store.getEntry(alias, null) as? KeyStore.SecretKeyEntry)?.let { return it.secretKey }
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
         generator.init(
-            KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+            KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .setKeySize(256)
@@ -78,7 +82,6 @@ class KeyVault(context: Context) {
     }.getOrElse { emptyMap() }
 
     private companion object {
-        const val ALIAS = "wikiflerty_ai_keys"
         const val TRANSFORMATION = "AES/GCM/NoPadding"
     }
 }
@@ -144,11 +147,21 @@ class AiSettingsStore(context: Context) {
     private val _settings = MutableStateFlow(load())
     val settings: StateFlow<AiSettings> = _settings.asStateFlow()
 
+    var onChanged: (() -> Unit)? = null
+
     fun update(transform: (AiSettings) -> AiSettings) {
-        val updated = transform(_settings.value)
-        if (updated == _settings.value) return
+        if (write(transform(_settings.value))) onChanged?.invoke()
+    }
+
+    fun replace(settings: AiSettings) {
+        write(settings)
+    }
+
+    private fun write(updated: AiSettings): Boolean {
+        if (updated == _settings.value) return false
         _settings.value = updated
         runCatching { file.writeText(updated.toJson().toString()) }
+        return true
     }
 
     private fun load(): AiSettings = runCatching {

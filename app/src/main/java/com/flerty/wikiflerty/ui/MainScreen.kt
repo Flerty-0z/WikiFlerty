@@ -177,10 +177,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                     )
                     Section.Notes -> NotesScreen(libraryViewModel, modifier)
                     Section.Dictionary -> DictionaryScreen(libraryViewModel, modifier)
-                    Section.Sync -> PlaceholderScreen(
-                        "Синхронизация прогресса, заметок и словаря с Google Drive и Dropbox, а также экспорт и импорт всех данных одним файлом.",
-                        modifier,
-                    )
+                    Section.Sync -> SyncScreen(modifier)
                     Section.Settings -> SettingsScreen(modifier)
                     Section.About -> AboutScreen(modifier)
                 }

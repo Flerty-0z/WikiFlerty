@@ -39,6 +39,9 @@ class LibraryRepository(
 
     fun bookFile(book: Book): File = File(booksDir, book.fileName)
 
+    /** Called after a new book is added (used by sync to attach notes made on other phones). */
+    var onBookAdded: (suspend (Book) -> Unit)? = null
+
     fun coverFile(book: Book): File? = book.coverFileName?.let { File(coversDir, it) }
 
     /** Copies an EPUB into the app, reads its title, author and cover, and adds it to the library. */
@@ -49,6 +52,7 @@ class LibraryRepository(
             val input = context.contentResolver.openInputStream(uri)
                 ?: return@withContext Result.failure(Exception("Не удалось прочитать файл"))
             input.use { source -> file.outputStream().use { source.copyTo(it) } }
+            val fingerprint = fingerprintOf(file)
 
             val publication = readium.open(file).getOrElse {
                 file.delete()
@@ -61,7 +65,9 @@ class LibraryRepository(
                 val author = publication.metadata.authors.joinToString(", ") { it.name }
 
                 // The same book added twice: keep the copy that is already there.
-                _books.value.firstOrNull { it.title == title && it.author == author }?.let { existing ->
+                _books.value.firstOrNull {
+                    it.fingerprint == fingerprint || (it.title == title && it.author == author)
+                }?.let { existing ->
                     file.delete()
                     return@withContext Result.success(existing)
                 }
@@ -84,9 +90,11 @@ class LibraryRepository(
                     lastReadAt = null,
                     progress = 0.0,
                     locatorJson = null,
+                    fingerprint = fingerprint,
                 )
                 update { it + book }
-                Result.success(book)
+                onBookAdded?.invoke(book)
+                Result.success(_books.value.firstOrNull { it.id == book.id } ?: book)
             } finally {
                 publication.close()
             }
@@ -94,6 +102,40 @@ class LibraryRepository(
             file.delete()
             Result.failure(e)
         }
+    }
+
+    /** Books added before fingerprints existed get one now. */
+    suspend fun ensureFingerprints() = withContext(Dispatchers.IO) {
+        val missing = _books.value.filter { it.fingerprint == null }
+        if (missing.isEmpty()) return@withContext
+        val computed = missing.associate { it.id to runCatching { fingerprintOf(bookFile(it)) }.getOrNull() }
+        update { list -> list.map { b -> computed[b.id]?.let { b.copy(fingerprint = it) } ?: b } }
+    }
+
+    /** Takes reading progress from another phone if it is newer than ours. */
+    suspend fun applyProgress(bookId: String, locatorJson: String?, progress: Double, lastReadAt: Long) {
+        update { list ->
+            list.map {
+                if (it.id == bookId && lastReadAt > (it.lastReadAt ?: 0L)) {
+                    it.copy(locatorJson = locatorJson ?: it.locatorJson, progress = progress, lastReadAt = lastReadAt)
+                } else {
+                    it
+                }
+            }
+        }
+    }
+
+    private fun fingerprintOf(file: File): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     suspend fun delete(book: Book) = withContext(Dispatchers.IO) {
