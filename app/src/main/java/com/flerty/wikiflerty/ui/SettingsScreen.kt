@@ -146,11 +146,12 @@ private fun SoundContent() {
     val app = LocalContext.current.applicationContext as App
     val settings by app.readerSettings.settings.collectAsStateWithLifecycle()
     SettingsGroup(null) {
-        SettingSwitch("Звуки кнопок", settings.sounds, hint = "Тихие мягкие щелчки при нажатиях") { v ->
+        SettingSwitch("Звуки кнопок", settings.sounds, hint = "Тихие мягкие щелчки при нажатиях", icon = AppIcons.Sound) { v ->
             app.readerSettings.update { it.copy(sounds = v) }
         }
         SettingSlider(
             label = "Громкость",
+            icon = AppIcons.Sound,
             value = settings.soundVolume.toFloat(),
             range = 0.1f..1f,
             format = ::percent,
@@ -159,7 +160,7 @@ private fun SoundContent() {
             app.readerSettings.update { it.copy(soundVolume = v.toDouble()) }
             app.feedback.play(FeedbackSound.Tap)
         }
-        SettingSwitch("Лёгкая вибрация", settings.haptics, hint = "Короткий отклик при нажатии") { v ->
+        SettingSwitch("Лёгкая вибрация", settings.haptics, hint = "Короткий отклик при нажатии", icon = AppIcons.Vibration) { v ->
             app.readerSettings.update { it.copy(haptics = v) }
         }
     }
@@ -244,9 +245,12 @@ private fun CustomizationContent() {
     }
 
     SettingsGroup("Цвета") {
-        SettingSegmented("Основной фон", UiBase.entries.map { it.title }, UiBase.of(style.base).ordinal) { i ->
-            store.update { it.copy(base = UiBase.entries[i].id) }
-        }
+        PickerRow(
+            label = "Основной фон",
+            icon = AppIcons.Palette,
+            options = UiBase.entries.map { PickerOption(it.id, it.title, swatch = Color(it.panel)) },
+            selectedId = UiBase.of(style.base).id,
+        ) { id -> store.update { it.copy(base = id) } }
         Text("Акцентный цвет", color = AppColors.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
         FlowRow(
             Modifier.padding(vertical = 8.dp),
@@ -294,17 +298,31 @@ private fun CustomizationContent() {
     SettingsGroup("Форма и кнопки") {
         SettingSlider(
             label = "Скругление углов",
+            icon = AppIcons.Corners,
             value = style.corners,
             range = 0f..1.6f,
             format = { if (it < 0.05f) "Квадратные" else "${(it * 100).roundToInt()}%" },
         ) { v -> store.update { it.copy(corners = v) } }
-        SettingSegmented("Вид активных кнопок", ButtonLook.entries.map { it.title }, ButtonLook.of(style.buttons).ordinal) { i ->
-            store.update { it.copy(buttons = ButtonLook.entries[i].id) }
-        }
-        SettingSwitch("Контур панелей", style.outline, hint = "Тонкая светлая рамка вокруг панелей") { v ->
+        PickerRow(
+            label = "Вид активных кнопок",
+            icon = AppIcons.Press,
+            options = ButtonLook.entries.map { look ->
+                PickerOption(
+                    look.id,
+                    look.title,
+                    when (look) {
+                        ButtonLook.Soft -> "Полупрозрачный цветной фон"
+                        ButtonLook.Outline -> "Только цветная рамка"
+                        ButtonLook.Filled -> "Сплошной акцентный цвет"
+                    },
+                )
+            },
+            selectedId = ButtonLook.of(style.buttons).id,
+        ) { id -> store.update { it.copy(buttons = id) } }
+        SettingSwitch("Контур панелей", style.outline, hint = "Тонкая светлая рамка вокруг панелей", icon = AppIcons.Outline) { v ->
             store.update { it.copy(outline = v) }
         }
-        SettingSwitch("Эффект нажатия", style.pressEffect, hint = "Кнопки слегка проседают под пальцем") { v ->
+        SettingSwitch("Эффект нажатия", style.pressEffect, hint = "Кнопки слегка проседают под пальцем", icon = AppIcons.Gesture) { v ->
             store.update { it.copy(pressEffect = v) }
         }
     }
@@ -313,6 +331,7 @@ private fun CustomizationContent() {
         val fonts = remember { FontCatalog.available(context).filter { it.css != null && it.category != FontCategory.Mono || it.id == "jetbrainsmono" } }
         PickerRow(
             label = "Шрифт",
+            icon = AppIcons.TextSize,
             options = listOf(PickerOption("system", "Системный", "Как в Android")) +
                 fonts.filter { it.bundled }.map {
                     PickerOption(it.id, it.title, "Съешь же ещё этих мягких французских булок", FontCatalog.preview(context, it))
@@ -321,6 +340,7 @@ private fun CustomizationContent() {
         ) { id -> store.update { it.copy(font = id) } }
         SettingSlider(
             label = "Размер текста",
+            icon = AppIcons.LineHeight,
             value = style.textScale,
             range = 0.85f..1.25f,
             steps = 7,
@@ -329,8 +349,28 @@ private fun CustomizationContent() {
     }
 
     SettingsGroup("Фон приложения") {
-        SettingSegmented(null, BackgroundKind.entries.map { it.title }, BackgroundKind.of(style.background).ordinal) { i ->
-            when (BackgroundKind.entries[i]) {
+        PickerRow(
+            label = "Фон",
+            icon = AppIcons.Image,
+            options = BackgroundKind.entries.map { kind ->
+                PickerOption(
+                    kind.id,
+                    kind.title,
+                    when (kind) {
+                        BackgroundKind.None -> "Однотонный фон темы"
+                        BackgroundKind.Image -> "Своя картинка из галереи"
+                        BackgroundKind.Video -> "Своё видео, без звука"
+                    },
+                    icon = when (kind) {
+                        BackgroundKind.None -> AppIcons.Close
+                        BackgroundKind.Image -> AppIcons.Image
+                        BackgroundKind.Video -> AppIcons.Video
+                    },
+                )
+            },
+            selectedId = BackgroundKind.of(style.background).id,
+        ) { id ->
+            when (BackgroundKind.of(id)) {
                 BackgroundKind.None -> store.update { it.copy(background = BackgroundKind.None.id) }
                 BackgroundKind.Image ->
                     if (store.backgroundImage.exists()) {
@@ -374,11 +414,11 @@ private fun CustomizationContent() {
                     fontWeight = FontWeight.SemiBold,
                 )
             }
-            SettingSlider("Затемнение", style.backgroundDim, 0f..0.9f, ::percent) { v ->
+            SettingSlider("Затемнение", style.backgroundDim, 0f..0.9f, ::percent, icon = AppIcons.Moon) { v ->
                 store.update { it.copy(backgroundDim = v) }
             }
             if (kind == BackgroundKind.Image && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                SettingSlider("Размытие", style.backgroundBlur, 0f..30f, { if (it < 0.5f) "Нет" else "${it.roundToInt()}" }) { v ->
+                SettingSlider("Размытие", style.backgroundBlur, 0f..30f, { if (it < 0.5f) "Нет" else "${it.roundToInt()}" }, icon = AppIcons.Drop) { v ->
                     store.update { it.copy(backgroundBlur = v) }
                 }
             }

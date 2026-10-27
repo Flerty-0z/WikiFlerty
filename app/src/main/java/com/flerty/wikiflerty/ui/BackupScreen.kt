@@ -102,10 +102,10 @@ fun BackupContent() {
     }
 
     SettingsGroup("Что входит") {
-        SettingSwitch("Вместе с книгами", includeBooks, hint = "Файл станет больше, зато книги не нужно добавлять заново") {
+        SettingSwitch("Вместе с книгами", includeBooks, hint = "Файл станет больше, зато книги не нужно добавлять заново", icon = AppIcons.Book) {
             includeBooks = it
         }
-        SettingSwitch("Переносить настройки", state.syncSettings, hint = "При импорте взять оформление и опции чтения из файла") { v ->
+        SettingSwitch("Переносить настройки", state.syncSettings, hint = "При импорте взять оформление и опции чтения из файла", icon = AppIcons.Options) { v ->
             app.sync.store.update { it.copy(syncSettings = v) }
         }
     }

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -26,6 +27,9 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -81,8 +85,8 @@ object StatsCalc {
         perDay.filterKeys { !it.isBefore(from) }.values.fold(DayEntry()) { a, b -> a + b }
 
     /** Current streak (today or up to yesterday) and the best one, in days. */
-    fun streaks(perDay: Map<LocalDate, DayEntry>, today: LocalDate = LocalDate.now()): Pair<Int, Int> {
-        val read = perDay.filterValues { it.ms >= STREAK_MS }.keys.sorted()
+    fun streaks(perDay: Map<LocalDate, DayEntry>, today: LocalDate = LocalDate.now(), minMs: Long = STREAK_MS): Pair<Int, Int> {
+        val read = perDay.filterValues { it.ms >= minMs }.keys.sorted()
         var best = 0
         var run = 0
         var prev: LocalDate? = null
@@ -154,37 +158,42 @@ fun StatsScreen(modifier: Modifier = Modifier) {
             )
         }
 
+        val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
+        GoalCard(prefs.dailyGoalMinutes, perDay) { minutes -> app.libraryPrefs.update { it.copy(dailyGoalMinutes = minutes) } }
+
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("Сегодня", StatsCalc.duration(perDay[today]?.ms ?: 0), Modifier.weight(1f))
-            StatTile("За неделю", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(6)).ms), Modifier.weight(1f))
+            StatTile("Сегодня", StatsCalc.duration(perDay[today]?.ms ?: 0), Modifier.weight(1f), icon = AppIcons.Clock)
+            StatTile("За неделю", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(6)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("За месяц", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(29)).ms), Modifier.weight(1f))
-            StatTile("За год", StatsCalc.duration(StatsCalc.sumSince(perDay, today.withDayOfYear(1)).ms), Modifier.weight(1f))
+            StatTile("За месяц", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(29)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
+            StatTile("За год", StatsCalc.duration(StatsCalc.sumSince(perDay, today.withDayOfYear(1)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
         }
 
         val (current, best) = StatsCalc.streaks(perDay, today)
         val yearStart = today.withDayOfYear(1).toEpochDay() * 86_400_000L
         val finishedThisYear = books.count { it.status == ReadStatus.Finished && (it.finishedAt ?: 0) >= yearStart }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("Серия", StatsCalc.days(current), Modifier.weight(1f), hint = "Лучшая: ${StatsCalc.days(best)}")
+            StatTile("Серия", StatsCalc.days(current), Modifier.weight(1f), hint = "Лучшая: ${StatsCalc.days(best)}", icon = AppIcons.Fire)
             StatTile(
                 "Прочитано",
                 "$finishedThisYear " + StatsCalc.plural(finishedThisYear, "книга", "книги", "книг"),
                 Modifier.weight(1f),
                 hint = "В ${today.year} году",
+                icon = AppIcons.Book,
             )
         }
 
         val total = perDay.values.fold(DayEntry()) { a, b -> a + b }
         val readingDays = perDay.values.count { it.ms >= 60_000 }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("Всего", StatsCalc.duration(total.ms), Modifier.weight(1f), hint = "${total.pages} стр.")
+            StatTile("Всего", StatsCalc.duration(total.ms), Modifier.weight(1f), hint = "${total.pages} стр.", icon = AppIcons.Pages)
             StatTile(
                 "В среднем",
                 StatsCalc.duration(if (readingDays > 0) total.ms / readingDays else 0),
                 Modifier.weight(1f),
                 hint = "в день чтения",
+                icon = AppIcons.Chart,
             )
         }
 
@@ -233,12 +242,15 @@ private fun TopBookRow(app: App, book: Book, stats: BookStats) {
 // ---------------------------------------------------------------- shared pieces
 
 @Composable
-fun StatTile(label: String, value: String, modifier: Modifier = Modifier, hint: String? = null) {
+fun StatTile(label: String, value: String, modifier: Modifier = Modifier, hint: String? = null, icon: ImageVector? = null) {
     Column(
         modifier.heightIn(min = 76.dp).fieldSurface(appCorner(16)).padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Text(label, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (icon != null) Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(15.dp))
+            Text(label, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
         Text(value, color = AppColors.Text, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (hint != null) Text(hint, color = AppColors.Faint, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
@@ -290,5 +302,78 @@ fun SmallCover(file: File?, modifier: Modifier, maxWidth: Int = 160) {
     val shape = appCorner(6)
     Box(modifier.clip(shape).background(AppColors.Field)) {
         cover?.let { Image(it, null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize()) }
+    }
+}
+
+// ---------------------------------------------------------------- daily goal
+
+val GoalChoices = listOf(0, 5, 10, 15, 20, 30, 45, 60, 90)
+
+/** A ring that fills up as today's reading gets closer to the goal; minutes in the middle. */
+@Composable
+fun GoalRing(todayMs: Long, goalMinutes: Int, size: androidx.compose.ui.unit.Dp, showText: Boolean = true) {
+    val fraction = if (goalMinutes > 0) (todayMs / 60_000f / goalMinutes).coerceIn(0f, 1f) else 0f
+    val accent = AppColors.Accent
+    val track = AppColors.Line
+    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.matchParentSize()) {
+            val stroke = this.size.minDimension * 0.11f
+            val inset = stroke / 2
+            val arcSize = Size(this.size.width - stroke, this.size.height - stroke)
+            drawArc(track, 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(stroke))
+            if (fraction > 0f) {
+                drawArc(accent, -90f, 360f * fraction, false, Offset(inset, inset), arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
+            }
+        }
+        if (showText) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("${todayMs / 60_000}", color = AppColors.Text, fontSize = (size.value * 0.26f).sp, fontWeight = FontWeight.SemiBold)
+                Text("мин", color = AppColors.Faint, fontSize = (size.value * 0.13f).sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun GoalCard(goalMinutes: Int, perDay: Map<LocalDate, DayEntry>, onGoal: (Int) -> Unit) {
+    val today = LocalDate.now()
+    val todayMs = perDay[today]?.ms ?: 0L
+    Column(
+        Modifier.fillMaxWidth().fieldSurface(appCorner(18)).padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        if (goalMinutes > 0) {
+            val done = todayMs >= goalMinutes * 60_000L
+            val (streak, _) = StatsCalc.streaks(perDay, today, minMs = goalMinutes * 60_000L)
+            Row(
+                Modifier.padding(top = 6.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                GoalRing(todayMs, goalMinutes, 76.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(
+                        if (done) "Цель на сегодня выполнена" else "Ещё ${goalMinutes - (todayMs / 60_000).toInt()} мин до цели",
+                        color = AppColors.Text,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text("Цель: $goalMinutes мин в день", color = AppColors.Muted, fontSize = 13.sp)
+                    if (streak > 0) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(AppIcons.Fire, null, tint = AppColors.Accent, modifier = Modifier.size(14.dp))
+                            Text("Выполняешь ${StatsCalc.days(streak)} подряд", color = AppColors.Faint, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+        PickerRow(
+            label = "Цель на день",
+            icon = AppIcons.Target,
+            options = GoalChoices.map { m ->
+                if (m == 0) PickerOption("0", "Без цели", "Просто считать время") else PickerOption(m.toString(), "$m мин", null)
+            },
+            selectedId = goalMinutes.toString(),
+        ) { id -> onGoal(id.toInt()) }
     }
 }

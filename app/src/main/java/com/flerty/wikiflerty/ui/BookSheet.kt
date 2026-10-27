@@ -178,7 +178,7 @@ private fun ColumnScope.BookMainContent(
         }
 
         SettingsGroup(null) {
-            SettingSwitch("Избранное", book.favorite) { v -> scope.launch { app.library.setFavorite(book.id, v) } }
+            SettingSwitch("Избранное", book.favorite, icon = AppIcons.Heart) { v -> scope.launch { app.library.setFavorite(book.id, v) } }
         }
 
         SheetLabel("Полки")

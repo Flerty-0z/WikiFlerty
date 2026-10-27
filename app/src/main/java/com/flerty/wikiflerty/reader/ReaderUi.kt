@@ -64,6 +64,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -83,6 +87,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.flerty.wikiflerty.ui.AppColors
+import com.flerty.wikiflerty.ui.PickerOption
+import com.flerty.wikiflerty.ui.PickerRow
+import com.flerty.wikiflerty.ui.SettingIcon
 import com.flerty.wikiflerty.ui.appCorner
 import com.flerty.wikiflerty.ui.accentContent
 import com.flerty.wikiflerty.ui.accentHighlight
@@ -483,14 +490,15 @@ private fun BottomPanel(
         buttons.forEach { button ->
             PanelButton(
                 label = button.title,
-                highlighted = false,
                 sound = FeedbackSound.Open,
                 onClick = { onButton(button) },
                 modifier = Modifier.weight(1f),
             ) { QuickIcon(button, AppColors.Text) }
         }
-        PanelButton("Опции", highlighted = true, sound = FeedbackSound.Open, onClick = onOptions, modifier = Modifier.weight(1f)) {
-            Icon(AppIcons.Options, contentDescription = null, tint = accentContent, modifier = Modifier.size(22.dp))
+        // A thin line between the quick buttons and «Опции».
+        Box(Modifier.padding(horizontal = 4.dp).width(1.dp).height(34.dp).background(AppColors.Line))
+        PanelButton("Опции", sound = FeedbackSound.Open, onClick = onOptions, modifier = Modifier.weight(1f)) {
+            Icon(AppIcons.Options, contentDescription = null, tint = AppColors.Text, modifier = Modifier.size(22.dp))
         }
     }
 }
@@ -498,7 +506,6 @@ private fun BottomPanel(
 @Composable
 private fun PanelButton(
     label: String,
-    highlighted: Boolean,
     sound: FeedbackSound,
     onClick: () -> Unit,
     modifier: Modifier,
@@ -509,19 +516,20 @@ private fun PanelButton(
         modifier = modifier
             .height(56.dp)
             .liveClick(shape, sound = sound, pressedScale = 0.9f, onClick = onClick)
-            .then(if (highlighted) Modifier.accentHighlight(shape) else Modifier),
+            .padding(horizontal = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) { icon() }
         Spacer(Modifier.height(3.dp))
-        Text(
+        // Long words shrink a little instead of running into the next button.
+        BasicText(
             label,
-            color = if (highlighted) accentContent else AppColors.Text,
-            fontSize = 11.sp,
-            fontWeight = if (highlighted) FontWeight.SemiBold else FontWeight.Medium,
+            style = TextStyle(color = AppColors.Text, fontSize = 11.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center),
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            softWrap = false,
+            autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 11.sp, stepSize = 0.5.sp),
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
@@ -529,7 +537,7 @@ private fun PanelButton(
 @Composable
 private fun QuickIcon(button: QuickButton, tint: Color) {
     when (button) {
-        QuickButton.Font -> Text("Aa", color = tint, fontFamily = FontFamily.Serif, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+        QuickButton.Font -> Icon(AppIcons.TextSize, null, tint = tint, modifier = Modifier.size(23.dp))
         else -> Icon(quickIconVector(button), null, tint = tint, modifier = Modifier.size(22.dp))
     }
 }
@@ -742,7 +750,7 @@ private fun SheetContent(
 private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
     data class Tile(val target: ReaderSheet, val hint: String, val icon: ImageVector?)
     val tiles = listOf(
-        Tile(ReaderSheet.Text, "Шрифт, размер", null),
+        Tile(ReaderSheet.Text, "Шрифт, размер", AppIcons.TextSize),
         Tile(ReaderSheet.Scroll, "Режим, анимация", AppIcons.Pages),
         Tile(ReaderSheet.Theme, "Фон страницы", AppIcons.Theme),
         Tile(ReaderSheet.Panel, "Кнопки, прогресс", AppIcons.Panel),
@@ -825,6 +833,7 @@ private fun TextOptions(
     }
     StepSlider(
         label = "Размер",
+        icon = AppIcons.TextSize,
         value = settings.fontSize,
         range = 0.6..2.0,
         step = 0.1,
@@ -833,6 +842,7 @@ private fun TextOptions(
     )
     StepSlider(
         label = "Интервал",
+        icon = AppIcons.LineHeight,
         value = settings.lineHeight,
         range = 1.0..2.0,
         step = 0.1,
@@ -841,6 +851,7 @@ private fun TextOptions(
     )
     StepSlider(
         label = "Поля",
+        icon = AppIcons.Margins,
         value = settings.margins,
         range = 0.0..3.0,
         step = 0.25,
@@ -870,7 +881,7 @@ private fun TextOptions(
     if (!entry.supportsItalic) {
         Text("У этого шрифта нет курсива", color = AppColors.Faint, fontSize = 12.sp)
     }
-    SwitchRow("Переносы", settings.hyphens) { v -> onSettingsChange { it.copy(hyphens = v) } }
+    SwitchRow("Переносы", settings.hyphens, icon = AppIcons.Wrap) { v -> onSettingsChange { it.copy(hyphens = v) } }
 }
 
 @Composable
@@ -955,33 +966,34 @@ private fun FontList(
 
 @Composable
 private fun ScrollOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit) {
-    Segmented("Режим", listOf("Страницы", "Лента"), if (settings.scroll) 1 else 0) { i ->
+    Segmented("Режим", listOf("Страницы", "Лента"), if (settings.scroll) 1 else 0, icon = AppIcons.Scroll) { i ->
         onSettingsChange { it.copy(scroll = i == 1) }
     }
-    Group("Анимация") {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            PageAnimation.entries.chunked(2).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    row.forEach { animation ->
-                        val selected = settings.animation == animation
-                        val shape = appCorner(14)
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(52.dp)
-                                .liveClick(shape, sound = FeedbackSound.Toggle) { onSettingsChange { it.copy(pageAnimation = animation.id) } }
-                                .fieldSurface(shape, selected),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(animation.title, color = AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-            }
-        }
-    }
+    PickerRow(
+        label = "Анимация листания",
+        icon = AppIcons.Animation,
+        options = PageAnimation.entries.map { a ->
+            PickerOption(
+                a.id,
+                a.title,
+                when (a) {
+                    PageAnimation.Slide -> "Страница уезжает в сторону"
+                    PageAnimation.Fade -> "Мягкое растворение"
+                    PageAnimation.Cover -> "Новая страница накрывает старую"
+                    PageAnimation.None -> "Мгновенно, без эффекта"
+                },
+                icon = when (a) {
+                    PageAnimation.Slide -> AppIcons.Forward
+                    PageAnimation.Fade -> AppIcons.Drop
+                    PageAnimation.Cover -> AppIcons.Pages
+                    PageAnimation.None -> AppIcons.Close
+                },
+            )
+        },
+        selectedId = settings.animation.id,
+    ) { id -> onSettingsChange { it.copy(pageAnimation = id) } }
     Hint("Анимация работает при тапе по краю и кнопках громкости. Свайп листает сдвигом.")
-    SwitchRow("Кнопки громкости", settings.volumeKeys) { v -> onSettingsChange { it.copy(volumeKeys = v) } }
+    SwitchRow("Кнопки громкости", settings.volumeKeys, icon = AppIcons.VolumeKeys) { v -> onSettingsChange { it.copy(volumeKeys = v) } }
 }
 
 @Composable
@@ -1015,10 +1027,10 @@ private fun ThemeOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
 
 @Composable
 private fun PanelOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit) {
-    Segmented("Прогресс", listOf("Проценты", "Страницы"), if (settings.progressInPages) 1 else 0) { i ->
+    Segmented("Прогресс", listOf("Проценты", "Страницы"), if (settings.progressInPages) 1 else 0, icon = AppIcons.Percent) { i ->
         onSettingsChange { it.copy(progressInPages = i == 1) }
     }
-    SwitchRow("Флажок внизу", settings.showFlag) { v -> onSettingsChange { it.copy(showFlag = v) } }
+    SwitchRow("Флажок внизу", settings.showFlag, icon = AppIcons.Flag) { v -> onSettingsChange { it.copy(showFlag = v) } }
     Group("Кнопки панели") {
         Column(Modifier.clip(appCorner(16)).background(AppColors.Field)) {
             QuickButton.entries.forEach { button ->
@@ -1059,9 +1071,10 @@ private fun PanelOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
 
 @Composable
 private fun GestureOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit) {
-    SwitchRow("Тап по краям листает", settings.edgeTaps) { v -> onSettingsChange { it.copy(edgeTaps = v) } }
+    SwitchRow("Тап по краям листает", settings.edgeTaps, icon = AppIcons.Gesture) { v -> onSettingsChange { it.copy(edgeTaps = v) } }
     StepSlider(
         label = "Ширина зон у краёв",
+        icon = AppIcons.EdgeZones,
         value = settings.edgeZone,
         range = 0.15..0.40,
         step = 0.05,
@@ -1069,22 +1082,23 @@ private fun GestureOptions(settings: ReaderSettings, onSettingsChange: ((ReaderS
         format = { "${(it * 100).roundToInt()}%" },
         onCommit = { v -> onSettingsChange { it.copy(edgeZone = v) } },
     )
-    SwitchRow("Левый край тоже вперёд", settings.leftTapForward, enabled = settings.edgeTaps) { v ->
+    SwitchRow("Левый край тоже вперёд", settings.leftTapForward, enabled = settings.edgeTaps, icon = AppIcons.Forward) { v ->
         onSettingsChange { it.copy(leftTapForward = v) }
     }
     Hint("Удобно читать одной рукой: любой край листает вперёд.")
-    SwitchRow("Яркость свайпом слева", settings.brightnessSwipe) { v -> onSettingsChange { it.copy(brightnessSwipe = v) } }
+    SwitchRow("Яркость свайпом слева", settings.brightnessSwipe, icon = AppIcons.Sun) { v -> onSettingsChange { it.copy(brightnessSwipe = v) } }
     Hint("Проведи пальцем вверх или вниз у самого левого края страницы.")
 }
 
 @Composable
 private fun ScreenOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit) {
     val system = settings.brightness < 0
-    SwitchRow("Яркость как в системе", system) { v ->
+    SwitchRow("Яркость как в системе", system, icon = AppIcons.Screen) { v ->
         onSettingsChange { it.copy(brightness = if (v) -1.0 else 0.6) }
     }
     StepSlider(
         label = "Яркость",
+        icon = AppIcons.Sun,
         value = if (system) 0.6 else settings.brightness,
         range = 0.05..1.0,
         step = 0.05,
@@ -1092,12 +1106,30 @@ private fun ScreenOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSe
         format = { "${(it * 100).roundToInt()}%" },
         onCommit = { v -> onSettingsChange { it.copy(brightness = v) } },
     )
-    Segmented("Поворот", ScreenOrientation.entries.map { it.title }, ScreenOrientation.of(settings.orientation).ordinal) { i ->
-        onSettingsChange { it.copy(orientation = ScreenOrientation.entries[i].id) }
-    }
+    PickerRow(
+        label = "Поворот экрана",
+        icon = AppIcons.Rotate,
+        options = ScreenOrientation.entries.map { o ->
+            PickerOption(
+                o.id,
+                o.title,
+                when (o) {
+                    ScreenOrientation.Auto -> "Как повернёшь телефон"
+                    ScreenOrientation.Portrait -> "Всегда вертикально"
+                    ScreenOrientation.Landscape -> "Всегда горизонтально"
+                },
+                icon = when (o) {
+                    ScreenOrientation.Auto -> AppIcons.Rotate
+                    ScreenOrientation.Portrait -> AppIcons.VolumeKeys
+                    ScreenOrientation.Landscape -> AppIcons.Pages
+                },
+            )
+        },
+        selectedId = ScreenOrientation.of(settings.orientation).id,
+    ) { id -> onSettingsChange { it.copy(orientation = id) } }
     Column(Modifier.clip(appCorner(16)).background(AppColors.Field).padding(horizontal = 14.dp)) {
-        SwitchRow("Не гасить экран", settings.keepScreenOn) { v -> onSettingsChange { it.copy(keepScreenOn = v) } }
-        SwitchRow("Полный экран", settings.fullscreen) { v -> onSettingsChange { it.copy(fullscreen = v) } }
+        SwitchRow("Не гасить экран", settings.keepScreenOn, icon = AppIcons.Bulb) { v -> onSettingsChange { it.copy(keepScreenOn = v) } }
+        SwitchRow("Полный экран", settings.fullscreen, icon = AppIcons.Fullscreen) { v -> onSettingsChange { it.copy(fullscreen = v) } }
     }
 }
 
@@ -1105,9 +1137,10 @@ private fun ScreenOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSe
 private fun SoundOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit) {
     val feedback = LocalFeedback.current
     val view = LocalView.current
-    SwitchRow("Звуки кнопок", settings.sounds) { v -> onSettingsChange { it.copy(sounds = v) } }
+    SwitchRow("Звуки кнопок", settings.sounds, icon = AppIcons.Sound) { v -> onSettingsChange { it.copy(sounds = v) } }
     StepSlider(
         label = "Громкость",
+        icon = AppIcons.Sound,
         value = settings.soundVolume,
         range = 0.1..1.0,
         step = 0.05,
@@ -1118,7 +1151,7 @@ private fun SoundOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
             feedback?.play(FeedbackSound.Tap, null)
         },
     )
-    SwitchRow("Лёгкая вибрация", settings.haptics) { v ->
+    SwitchRow("Лёгкая вибрация", settings.haptics, icon = AppIcons.Vibration) { v ->
         onSettingsChange { it.copy(haptics = v) }
         if (v) view.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
     }
@@ -1152,9 +1185,17 @@ private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: M
 // ---------------------------------------------------------------- small controls
 
 @Composable
-private fun Group(label: String, content: @Composable () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, color = AppColors.Muted, fontSize = 13.sp)
+private fun Group(label: String, icon: ImageVector? = null, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (icon != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SettingIcon(icon, 30.dp)
+                Spacer(Modifier.width(12.dp))
+                Text(label, color = AppColors.Text, fontSize = 15.sp)
+            }
+        } else {
+            Text(label, color = AppColors.Muted, fontSize = 13.sp)
+        }
         content()
     }
 }
@@ -1184,13 +1225,18 @@ private fun StepSlider(
     step: Double,
     format: (Double) -> String,
     enabled: Boolean = true,
+    icon: ImageVector? = null,
     onCommit: (Double) -> Unit,
 ) {
     var current by remember(value) { mutableFloatStateOf(value.toFloat()) }
     val steps = ((range.endInclusive - range.start) / step).roundToInt() - 1
     Column(Modifier.alpha(if (enabled) 1f else 0.4f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row {
-            Text(label, color = AppColors.Muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) {
+                SettingIcon(icon, 30.dp)
+                Spacer(Modifier.width(12.dp))
+            }
+            Text(label, color = if (icon != null) AppColors.Text else AppColors.Muted, fontSize = if (icon != null) 15.sp else 13.sp, modifier = Modifier.weight(1f))
             Text(format(current.toDouble()), color = AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
         Slider(
@@ -1218,8 +1264,8 @@ private fun StepSlider(
 }
 
 @Composable
-private fun Segmented(label: String, options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
-    Group(label) {
+private fun Segmented(label: String, options: List<String>, selected: Int, icon: ImageVector? = null, onSelect: (Int) -> Unit) {
+    Group(label, icon) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -1257,7 +1303,7 @@ private fun Segmented(label: String, options: List<String>, selected: Int, onSel
 }
 
 @Composable
-private fun SwitchRow(label: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
+private fun SwitchRow(label: String, checked: Boolean, enabled: Boolean = true, icon: ImageVector? = null, onChange: (Boolean) -> Unit) {
     val feedback = LocalFeedback.current
     val view = LocalView.current
     val change: (Boolean) -> Unit = { v ->
@@ -1272,7 +1318,11 @@ private fun SwitchRow(label: String, checked: Boolean, enabled: Boolean = true, 
             .clickable(enabled = enabled) { change(!checked) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, color = AppColors.Text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+        if (icon != null) {
+            SettingIcon(icon, 30.dp)
+            Spacer(Modifier.width(12.dp))
+        }
+        Text(label, color = AppColors.Text, fontSize = 15.sp, modifier = Modifier.weight(1f).padding(end = 8.dp))
         Switch(
             checked = checked,
             onCheckedChange = change,

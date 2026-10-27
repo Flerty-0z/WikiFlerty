@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -101,7 +103,14 @@ fun SettingsNavRow(icon: ImageVector, title: String, subtitle: String, onClick: 
 }
 
 @Composable
-fun SettingSwitch(label: String, checked: Boolean, hint: String? = null, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
+fun SettingSwitch(
+    label: String,
+    checked: Boolean,
+    hint: String? = null,
+    enabled: Boolean = true,
+    icon: ImageVector? = null,
+    onChange: (Boolean) -> Unit,
+) {
     val feedback = LocalFeedback.current
     val view = LocalView.current
     val change: (Boolean) -> Unit = {
@@ -117,7 +126,11 @@ fun SettingSwitch(label: String, checked: Boolean, hint: String? = null, enabled
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f)) {
+        if (icon != null) {
+            SettingIcon(icon)
+            Spacer(Modifier.width(12.dp))
+        }
+        Column(Modifier.weight(1f).padding(end = 8.dp)) {
             Text(label, color = AppColors.Text, fontSize = 15.sp)
             if (hint != null) Text(hint, color = AppColors.Faint, fontSize = 12.sp, lineHeight = 16.sp)
         }
@@ -145,12 +158,17 @@ fun SettingSlider(
     format: (Float) -> String,
     steps: Int = 0,
     enabled: Boolean = true,
+    icon: ImageVector? = null,
     onCommit: (Float) -> Unit,
 ) {
     var current by remember(value) { mutableFloatStateOf(value) }
-    Column(Modifier.alpha(if (enabled) 1f else 0.4f).padding(vertical = 4.dp)) {
-        Row {
-            Text(label, color = AppColors.Muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
+    Column(Modifier.alpha(if (enabled) 1f else 0.4f).padding(top = 8.dp, bottom = 2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) {
+                SettingIcon(icon)
+                Spacer(Modifier.width(12.dp))
+            }
+            Text(label, color = if (icon != null) AppColors.Text else AppColors.Muted, fontSize = if (icon != null) 15.sp else 13.sp, modifier = Modifier.weight(1f))
             Text(format(current), color = AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
         Slider(
@@ -210,7 +228,38 @@ fun SettingSegmented(label: String?, options: List<String>, selected: Int, onSel
 }
 
 /** An option chosen from a pull-up sheet ("шторка"): shows the current value, tap to open the list. */
-data class PickerOption(val id: String, val title: String, val subtitle: String? = null, val font: FontFamily? = null)
+data class PickerOption(
+    val id: String,
+    val title: String,
+    val subtitle: String? = null,
+    val font: FontFamily? = null,
+    val icon: ImageVector? = null,
+    /** A color dot shown before the title (for color choices). */
+    val swatch: Color? = null,
+)
+
+/** The small tinted square with an icon at the start of a settings row. */
+@Composable
+fun SettingIcon(icon: ImageVector, size: androidx.compose.ui.unit.Dp = 32.dp) {
+    Box(
+        Modifier
+            .size(size)
+            .clip(appCorner(10))
+            .background(Brush.linearGradient(listOf(AppColors.Accent.copy(alpha = 0.24f), AppColors.Accent.copy(alpha = 0.08f))))
+            .border(1.dp, AppColors.Accent.copy(alpha = 0.16f), appCorner(10)),
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(size * 0.56f)) }
+}
+
+@Composable
+private fun OptionLead(option: PickerOption, tint: Color) {
+    when {
+        option.swatch != null -> Box(
+            Modifier.size(22.dp).clip(CircleShape).background(option.swatch).border(1.dp, AppColors.Line, CircleShape),
+        )
+        option.icon != null -> Icon(option.icon, null, tint = tint, modifier = Modifier.size(20.dp))
+    }
+}
 
 @Composable
 fun PickerRow(
@@ -218,34 +267,40 @@ fun PickerRow(
     options: List<PickerOption>,
     selectedId: String,
     searchable: Boolean = options.size > 12,
+    icon: ImageVector? = null,
     onSelect: (String) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
     val selected = options.firstOrNull { it.id == selectedId }
-    val shape = appCorner(14)
-    Column(Modifier.padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, color = AppColors.Muted, fontSize = 13.sp)
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .height(50.dp)
-                .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) { open = true }
-                .background(AppColors.Background.copy(alpha = 0.6f))
-                .border(1.dp, AppColors.Line, shape)
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                selected?.title ?: selectedId,
-                color = AppColors.Text,
-                fontSize = 16.sp,
-                fontFamily = selected?.font,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(20.dp).rotate(90f))
+    // One row: what it is on the left, the current choice on the right; tap opens the list.
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 54.dp)
+            .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.98f) { open = true }
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (icon != null) {
+            SettingIcon(icon)
+            Spacer(Modifier.width(12.dp))
         }
+        Text(label, color = AppColors.Text, fontSize = 15.sp, maxLines = 2, modifier = Modifier.weight(1f).padding(end = 10.dp))
+        if (selected != null && (selected.swatch != null || selected.icon != null)) {
+            OptionLead(selected, AppColors.Accent)
+            Spacer(Modifier.width(6.dp))
+        }
+        Text(
+            selected?.title ?: selectedId,
+            color = AppColors.Accent,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = selected?.font,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 170.dp),
+        )
+        Icon(AppIcons.Chevron, null, tint = AppColors.Accent, modifier = Modifier.padding(start = 2.dp).size(18.dp).rotate(90f))
     }
     if (open) {
         PickerSheet(label, options, selectedId, searchable, onDismiss = { open = false }) {
@@ -316,6 +371,10 @@ fun PickerSheet(
                             .padding(horizontal = 14.dp, vertical = 13.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        if (option.swatch != null || option.icon != null) {
+                            OptionLead(option, if (isSelected) AppColors.Accent else AppColors.Muted)
+                            Spacer(Modifier.width(14.dp))
+                        }
                         Column(Modifier.weight(1f)) {
                             Text(
                                 option.title,

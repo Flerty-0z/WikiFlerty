@@ -102,13 +102,18 @@ fun AiSettingsContent(ai: AiManager, modifier: Modifier = Modifier) {
 
         Spacer(Modifier.height(4.dp))
         SettingsGroup("Ответы") {
-            SettingSegmented(
+            PickerRow(
                 label = "Длина ответов",
-                options = listOf("Кратко", "Подробно"),
-                selected = if (settings.style == "detailed") 1 else 0,
-            ) { i -> ai.store.update { it.copy(style = if (i == 1) "detailed" else "short") } }
+                icon = AppIcons.Length,
+                options = listOf(
+                    PickerOption("short", "Кратко", "2–5 предложений, только суть"),
+                    PickerOption("detailed", "Подробно", "Развёрнуто, с примерами"),
+                ),
+                selectedId = if (settings.style == "detailed") "detailed" else "short",
+            ) { id -> ai.store.update { it.copy(style = id) } }
             PickerRow(
                 label = "Переводить на",
+                icon = AppIcons.Translate,
                 options = TranslateLanguages.map { PickerOption(it, it.replaceFirstChar { c -> c.uppercase() }) },
                 selectedId = settings.translateTo,
             ) { language -> ai.store.update { it.copy(translateTo = language) } }
@@ -315,43 +320,20 @@ private fun ProviderCard(
                             Text("Сделать основной", color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
-                    Text(
-                        if (loadedModels) "Модель" else "Модель (нажми «Проверить ключ», чтобы загрузить полный список)",
-                        color = AppColors.Muted,
-                        fontSize = 13.sp,
-                    )
-                    Column(
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 260.dp)
-                            .clip(appCorner(12))
-                            .background(Color(0xFF121316))
-                            .verticalScroll(rememberScrollState()),
-                    ) {
-                        models.forEach { model ->
-                            val selected = model.id == selectedModel
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .liveClick(appCorner(0), sound = FeedbackSound.Toggle, pressedScale = 0.99f) {
-                                        ai.store.update { it.copy(models = it.models + (provider.id to model.id)) }
-                                    }
-                                    .background(if (selected) AppColors.AccentTint else Color.Transparent)
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(model.name, color = AppColors.Text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    if (model.name != model.id) {
-                                        Text(model.id, color = AppColors.Faint, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    }
-                                }
-                                if (selected) {
-                                    Spacer(Modifier.width(8.dp))
-                                    Icon(AppIcons.Check, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
-                                }
-                            }
-                        }
+                    PickerRow(
+                        label = "Модель",
+                        icon = AppIcons.Sparkle,
+                        options = models.map { PickerOption(it.id, it.name, it.id.takeIf { id -> id != it.name }) },
+                        selectedId = selectedModel,
+                        searchable = models.size > 8,
+                    ) { id -> ai.store.update { it.copy(models = it.models + (provider.id to id)) } }
+                    if (!loadedModels) {
+                        Text(
+                            "Нажми «Проверить ключ», чтобы загрузить полный список моделей",
+                            color = AppColors.Faint,
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp,
+                        )
                     }
                 }
             }

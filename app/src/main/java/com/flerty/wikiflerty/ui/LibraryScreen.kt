@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
@@ -37,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
@@ -120,6 +122,14 @@ fun LibraryScreen(
         prefs,
     )
     val open = { book: Book -> viewModel.open(book) }
+    // The book you were reading last, shown big at the top of «Все».
+    val current = if (active.id == "all" && q.isEmpty()) {
+        books.filter { it.status == ReadStatus.Reading && it.lastReadAt != null }.maxByOrNull { it.lastReadAt ?: 0L }
+    } else {
+        null
+    }
+    val stats by app.stats.days.collectAsStateWithLifecycle()
+    val todayMs = stats[LocalDate.now().toString()]?.values?.sumOf { it.ms } ?: 0L
     val longPress = { book: Book -> menuBookId = book.id }
 
     Column(modifier) {
@@ -189,6 +199,11 @@ fun LibraryScreen(
                 verticalArrangement = Arrangement.spacedBy(18.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
+                if (current != null) {
+                    item(key = "continue", span = { GridItemSpan(maxLineSpan) }) {
+                        ContinueCard(current, viewModel.coverFile(current), todayMs, prefs.dailyGoalMinutes) { open(current) }
+                    }
+                }
                 items(shown, key = { it.id }) { book ->
                     BookCard(book, viewModel.coverFile(book), small = prefs.coverSize == 0, onClick = { open(book) }, onLongClick = { longPress(book) })
                 }
@@ -199,6 +214,11 @@ fun LibraryScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
+                if (current != null) {
+                    item(key = "continue") {
+                        ContinueCard(current, viewModel.coverFile(current), todayMs, prefs.dailyGoalMinutes) { open(current) }
+                    }
+                }
                 items(shown, key = { it.id }) { book ->
                     BookRow(book, viewModel.coverFile(book), onClick = { open(book) }, onLongClick = { longPress(book) })
                 }
@@ -408,6 +428,42 @@ fun relativeDay(time: Long): String {
         diff == 1L -> "вчера"
         diff < 7L -> "${diff} " + StatsCalc.plural(diff.toInt(), "день", "дня", "дней") + " назад"
         else -> StatsCalc.date(day)
+    }
+}
+
+/** «Продолжить чтение»: the last book, big, with today's goal ring. */
+@Composable
+private fun ContinueCard(book: Book, coverFile: File?, todayMs: Long, goalMinutes: Int, onClick: () -> Unit) {
+    val shape = appCorner(20)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(bottom = 4.dp)
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
+            .background(Brush.linearGradient(listOf(AppColors.Accent.copy(alpha = 0.16f), AppColors.Field)))
+            .border(1.dp, AppColors.Accent.copy(alpha = 0.22f), shape)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        CoverBox(book, coverFile, Modifier.size(width = 66.dp, height = 99.dp).clip(appCorner(8)), small = true)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                Icon(AppIcons.Book, null, tint = AppColors.Accent, modifier = Modifier.size(14.dp))
+                Text("Продолжить чтение", color = AppColors.Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Text(book.title, color = AppColors.Text, fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (book.author.isNotBlank()) {
+                Text(book.author, color = AppColors.Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            ProgressLine(book.progress.toFloat(), Modifier.fillMaxWidth().padding(top = 6.dp))
+            Text(
+                listOfNotNull(percent(book), book.lastReadAt?.let { relativeDay(it) }).joinToString(" · "),
+                color = AppColors.Faint,
+                fontSize = 12.sp,
+            )
+        }
+        if (goalMinutes > 0) GoalRing(todayMs, goalMinutes, 54.dp)
     }
 }
 
