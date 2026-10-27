@@ -108,30 +108,30 @@ fun SelectionMenu(markerColor: Long, actions: NoteActions, modifier: Modifier = 
     Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Row(
             modifier = Modifier
-                .panelSurface(appCorner(30), elevation = 16.dp)
-                .padding(6.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                .panelSurface(appCorner(28), elevation = 16.dp)
+                .padding(5.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
         ) {
             MenuAction("Заметка", onClick = actions.onSelectionNote) {
-                Icon(AppIcons.Note, null, tint = AppColors.Text, modifier = Modifier.size(24.dp))
+                Icon(AppIcons.Note, null, tint = AppColors.Text, modifier = Modifier.size(22.dp))
             }
             MenuAction("Спросить ИИ", highlighted = true, onClick = actions.onSelectionAi) {
-                Icon(AppIcons.Sparkle, null, tint = accentContent, modifier = Modifier.size(24.dp))
+                Icon(AppIcons.Sparkle, null, tint = accentContent, modifier = Modifier.size(22.dp))
             }
             MenuAction("Маркер", sound = FeedbackSound.Toggle, onClick = actions.onSelectionMarker) {
                 Box(
                     Modifier
-                        .size(22.dp)
+                        .size(20.dp)
                         .clip(CircleShape)
                         .background(Color(markerColor))
                         .border(1.dp, Color(0x55FFFFFF), CircleShape),
                 )
             }
             MenuAction("Копировать", onClick = actions.onSelectionCopy) {
-                Icon(AppIcons.Copy, null, tint = AppColors.Text, modifier = Modifier.size(23.dp))
+                Icon(AppIcons.Copy, null, tint = AppColors.Text, modifier = Modifier.size(21.dp))
             }
             MenuAction("Закрыть", sound = FeedbackSound.Close, onClick = actions.onSelectionClose) {
-                Icon(AppIcons.Close, null, tint = AppColors.Muted, modifier = Modifier.size(21.dp))
+                Icon(AppIcons.Close, null, tint = AppColors.Muted, modifier = Modifier.size(19.dp))
             }
         }
     }
@@ -148,7 +148,7 @@ private fun MenuAction(
     val shape = appCorner(24)
     Box(
         modifier = Modifier
-            .size(width = 54.dp, height = 50.dp)
+            .size(width = 50.dp, height = 46.dp)
             .liveClick(shape, sound = sound, pressedScale = 0.88f, onClick = onClick)
             .then(if (highlighted) Modifier.accentHighlight(shape) else Modifier)
             .semantics { contentDescription = label },

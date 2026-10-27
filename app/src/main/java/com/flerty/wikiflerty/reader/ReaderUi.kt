@@ -330,7 +330,7 @@ fun ReaderOverlay(
         selection?.let { last[0] = it }
         val info = last[0] ?: return@AnimatedVisibility
         val density = androidx.compose.ui.platform.LocalDensity.current
-        val menuHeight = with(density) { 64.dp.toPx() }
+        val menuHeight = with(density) { 58.dp.toPx() }
         val gap = with(density) { 12.dp.toPx() }
         val y = if (info.top - menuHeight - gap > with(density) { 24.dp.toPx() }) {
             info.top - menuHeight - gap

@@ -429,13 +429,22 @@ private fun StylePreview() {
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Options, null, tint = accentContent, modifier = Modifier.size(22.dp)) }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Chip("Выбрано", selected = true) {}
-            Chip("Обычный", selected = false) {}
+        // A sample switch (one option chosen) and a progress line — not clickable, just for looks.
+        Row(
+            Modifier.fillMaxWidth().clip(appCorner(12)).background(AppColors.Field)
+                .border(1.dp, AppColors.PanelBorder, appCorner(12)).padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             Box(
-                Modifier.weight(1f).height(36.dp).clip(CircleShape).background(AppColors.Line),
-                contentAlignment = Alignment.CenterStart,
-            ) { Box(Modifier.fillMaxWidth(0.6f).height(36.dp).clip(CircleShape).background(AppColors.Accent)) }
+                Modifier.weight(1f).height(34.dp).clip(appCorner(9)).background(AppColors.AccentTintStrong),
+                contentAlignment = Alignment.Center,
+            ) { Text("Страницы", color = AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+            Box(Modifier.weight(1f).height(34.dp), contentAlignment = Alignment.Center) {
+                Text("Лента", color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(AppColors.Line)) {
+            Box(Modifier.fillMaxWidth(0.6f).height(4.dp).clip(CircleShape).background(AppColors.Accent))
         }
         Text("Аа Бб Вв — так выглядит текст интерфейса", color = AppColors.Text, fontSize = 15.sp)
     }

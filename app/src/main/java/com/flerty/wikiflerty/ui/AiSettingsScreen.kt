@@ -74,7 +74,7 @@ fun AiSettingsContent(ai: AiManager, modifier: Modifier = Modifier) {
     val settings by ai.settings.collectAsStateWithLifecycle()
     val keys by ai.vault.keys.collectAsStateWithLifecycle()
     val checks by ai.checks.collectAsStateWithLifecycle()
-    var expanded by remember { mutableStateOf<String?>(ai.current()?.id ?: AiProvider.Claude.id) }
+    var expanded by remember { mutableStateOf<String?>(null) }
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
@@ -234,7 +234,12 @@ private fun ProviderCard(
                         Modifier.size(44.dp).liveClick(CircleShape, sound = FeedbackSound.Toggle) { showKey = !showKey },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(if (showKey) "скрыть" else "показ.", color = AppColors.Muted, fontSize = 10.sp)
+                        Icon(
+                            if (showKey) AppIcons.EyeOff else AppIcons.Eye,
+                            contentDescription = if (showKey) "Скрыть ключ" else "Показать ключ",
+                            tint = AppColors.Muted,
+                            modifier = Modifier.size(20.dp),
+                        )
                     }
                 }
 
