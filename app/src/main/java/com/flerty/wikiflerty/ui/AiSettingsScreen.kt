@@ -382,21 +382,20 @@ fun ProviderIcon(provider: AiProvider, size: androidx.compose.ui.unit.Dp) {
     val res = remember(provider.id) {
         if (provider.custom) 0 else context.resources.getIdentifier("ai_${provider.id}", "drawable", context.packageName)
     }
-    val shape = appCorner((size.value * 0.29f).toInt())
-    Box(
-        Modifier.size(size).clip(shape)
-            .background(if (res != 0) Color.White else AppColors.AccentSoft)
-            .border(1.dp, AppColors.Accent.copy(alpha = 0.2f), shape),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (res != 0) {
-            Image(
-                painterResource(res),
-                contentDescription = provider.title,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize().padding(size * 0.16f),
-            )
-        } else {
+    if (res != 0) {
+        Image(
+            painterResource(res),
+            contentDescription = provider.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.size(size).clip(CircleShape),
+        )
+    } else {
+        Box(
+            Modifier.size(size).clip(CircleShape)
+                .background(AppColors.AccentSoft)
+                .border(1.dp, AppColors.Accent.copy(alpha = 0.2f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
             Text(
                 provider.title.take(1).uppercase(),
                 color = AppColors.Accent,

@@ -62,32 +62,19 @@ data class AiProvider(
             "mistral", "Mistral", "Mistral AI", "https://console.mistral.ai/api-keys",
             listOf("mistral-large-latest", "mistral-small-latest"), ApiFormat.OpenAi, "https://api.mistral.ai/v1",
         )
-        val Groq = AiProvider(
-            "groq", "Groq", "Groq", "https://console.groq.com/keys",
-            emptyList(), ApiFormat.OpenAi, "https://api.groq.com/openai/v1", listOf("gsk_"),
-        )
-        val Qwen = AiProvider(
-            "qwen", "Qwen", "Alibaba Cloud", "https://bailian.console.alibabacloud.com/?apiKey=1",
-            listOf("qwen-plus", "qwen-max", "qwen-turbo"), ApiFormat.OpenAi, "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", listOf("sk-"),
-        )
         val Kimi = AiProvider(
             "kimi", "Kimi", "Moonshot AI", "https://platform.moonshot.ai/console/api-keys",
             emptyList(), ApiFormat.OpenAi, "https://api.moonshot.ai/v1", listOf("sk-"),
         )
-        val Glm = AiProvider(
-            "glm", "GLM", "Zhipu AI", "https://z.ai/manage-apikey/apikey-list",
-            listOf("glm-4.6", "glm-4.5-air"), ApiFormat.OpenAi, "https://api.z.ai/api/paas/v4",
-        )
 
-        val builtIn = listOf(Claude, ChatGpt, Gemini, DeepSeek, OpenRouter, Grok, Mistral, Groq, Qwen, Kimi, Glm)
+        val builtIn = listOf(Claude, ChatGpt, Gemini, DeepSeek, OpenRouter, Grok, Mistral, Kimi)
 
         fun candidates(key: String): List<AiProvider> {
             val k = key.trim()
             val specific = builtIn.filter { p -> p.keyPrefixes.any { it != "sk-" && k.startsWith(it) } }
             if (specific.isNotEmpty()) return specific.sortedByDescending { p -> p.keyPrefixes.maxOf { if (k.startsWith(it)) it.length else 0 } }.take(1)
             return when {
-                k.startsWith("sk-") -> listOf(ChatGpt, DeepSeek, Kimi, Qwen)
-                Regex("^[0-9a-f]{32}\\.[A-Za-z0-9]+$").matches(k) -> listOf(Glm)
+                k.startsWith("sk-") -> listOf(ChatGpt, DeepSeek, Kimi)
                 Regex("^[A-Za-z0-9]{32}$").matches(k) -> listOf(Mistral)
                 else -> builtIn
             }

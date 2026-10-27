@@ -23,7 +23,7 @@ internal object TextSelection {
           };
           var css = document.createElement("style");
           css.textContent =
-            "html,body{-webkit-touch-callout:none!important}" +
+            "html,body,body *{-webkit-touch-callout:none!important;-webkit-user-drag:none!important}" +
             ".wf-h{position:fixed;width:44px;height:44px;z-index:2147483647;display:none;touch-action:none;-webkit-user-select:none;user-select:none}" +
             ".wf-h i{position:absolute;top:0;width:20px;height:20px;background:__ACCENT__;box-shadow:0 1px 4px rgba(0,0,0,.35)}" +
             ".wf-e i{left:12px;border-radius:0 50% 50% 50%}" +
@@ -278,6 +278,10 @@ internal object TextSelection {
             if (!st.programmatic) e.preventDefault();
           }, true);
           document.addEventListener("contextmenu", function (e) { e.preventDefault(); }, true);
+          document.addEventListener("dragstart", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+          }, true);
           document.addEventListener("selectionchange", function () {
             var sel = window.getSelection();
             if (!sel || sel.isCollapsed) {
