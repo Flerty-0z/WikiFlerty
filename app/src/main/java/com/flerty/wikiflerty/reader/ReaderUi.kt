@@ -579,7 +579,7 @@ private fun SeekBar(
                     change.consume()
                     drag = (change.position.x / size.width).coerceIn(0f, 1f)
                     preview(drag?.toDouble())
-                },
+                }
             },
         contentAlignment = Alignment.CenterStart,
     ) {
