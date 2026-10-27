@@ -35,7 +35,15 @@ class Feedback(context: Context, private val settings: StateFlow<ReaderSettings>
         FeedbackSound.Close to pool.load(context, R.raw.ui_close, 1),
     )
 
+    private var lastSound: FeedbackSound? = null
+    private var lastTime = 0L
+
     fun play(sound: FeedbackSound, view: View? = null) {
+        // One tap = one sound: ignore the same sound fired again within a moment.
+        val now = android.os.SystemClock.uptimeMillis()
+        if (sound == lastSound && now - lastTime < 80) return
+        lastSound = sound
+        lastTime = now
         val s = settings.value
         if (s.sounds) {
             val volume = s.soundVolume.toFloat().coerceIn(0f, 1f)

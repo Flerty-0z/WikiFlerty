@@ -126,7 +126,6 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
             Section.entries.forEach { item ->
                 if (item == Section.Settings) Spacer(Modifier.height(12.dp))
                 DrawerItem(item, selected = item == section) {
-                    feedback?.play(FeedbackSound.Tap, view)
                     section = item
                     drawerOpen = false
                 }
