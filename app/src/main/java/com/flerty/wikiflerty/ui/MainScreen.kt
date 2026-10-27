@@ -58,6 +58,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -334,19 +335,38 @@ private fun DrawerLogo() {
             .border(1.dp, AppColors.Accent.copy(alpha = 0.25f), shape)
             .padding(horizontal = 18.dp, vertical = 14.dp),
     ) {
-        Text(
-            buildAnnotatedString {
-                withStyle(SpanStyle(color = Color.White)) { append("Wiki") }
-                withStyle(SpanStyle(color = AppColors.Accent)) { append("Flerty") }
-            },
-            fontFamily = logoFont,
-            fontWeight = FontWeight.ExtraBold,
-            fontSize = 30.sp,
-            lineHeight = 34.sp,
-            maxLines = 1,
-        )
-        if (version.isNotBlank()) {
-            Text("Версия $version", color = AppColors.Faint, fontSize = 12.sp, fontWeight = FontWeight.Light, modifier = Modifier.padding(top = 2.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // The app icon: the same open book as on the home screen.
+            Box(
+                Modifier
+                    .size(48.dp)
+                    .clip(appCorner(14))
+                    .background(androidx.compose.ui.res.colorResource(com.flerty.wikiflerty.R.color.icon_background)),
+                contentAlignment = Alignment.Center,
+            ) {
+                androidx.compose.foundation.Image(
+                    androidx.compose.ui.res.painterResource(com.flerty.wikiflerty.R.drawable.ic_launcher_foreground),
+                    contentDescription = null,
+                    modifier = Modifier.requiredSize(60.dp),
+                )
+            }
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(
+                    buildAnnotatedString {
+                        withStyle(SpanStyle(color = Color.White)) { append("Wiki") }
+                        withStyle(SpanStyle(color = AppColors.Accent)) { append("Flerty") }
+                    },
+                    fontFamily = logoFont,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 28.sp,
+                    lineHeight = 32.sp,
+                    maxLines = 1,
+                )
+                if (version.isNotBlank()) {
+                    Text("Версия $version", color = AppColors.Faint, fontSize = 12.sp, fontWeight = FontWeight.Light)
+                }
+            }
         }
     }
 }
