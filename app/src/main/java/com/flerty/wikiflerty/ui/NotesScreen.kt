@@ -79,7 +79,7 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
         ) {
             Text("Заметок пока нет", color = AppColors.Text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
             Text(
-                "Открой книгу, удерживай палец на слове, чтобы выделить текст, и выбери «Заметка» или «Маркер». Всё появится здесь.",
+                "Выдели текст в книге → «Заметка» или «Маркер».",
                 color = AppColors.Muted,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,

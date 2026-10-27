@@ -62,8 +62,7 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
         ) {
             Text("Словарь пуст", color = AppColors.Text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
             Text(
-                "Выдели непонятное слово в книге, нажми ✦ и выбери «Объяснить» или «Определение». " +
-                    "Под ответом нажми «В словарь» — слово сохранится сюда вместе с объяснением и цитатой.",
+                "Выдели слово в книге → ✦ → «В словарь» под ответом.",
                 color = AppColors.Muted,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,

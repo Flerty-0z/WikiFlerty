@@ -179,7 +179,7 @@ fun LibraryScreen(
 
         if (shown.isEmpty()) {
             Text(
-                if (q.isNotEmpty()) "Ничего не нашлось" else "Здесь пока пусто. Долгое нажатие на книгу — статус, избранное и полки.",
+                if (q.isNotEmpty()) "Ничего не нашлось" else "Здесь пока пусто",
                 color = AppColors.Muted,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
@@ -355,7 +355,7 @@ private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean
                 Modifier.align(Alignment.TopEnd).padding(5.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
                     .background(Color(0xB0101114)),
                 contentAlignment = Alignment.Center,
-            ) { Icon(AppIcons.HeartFilled, "Избранное", tint = Color(0xFFF28B9B), modifier = Modifier.size(if (small) 12.dp else 14.dp)) }
+            ) { Icon(AppIcons.StarFilled, "Избранное", tint = StarYellow, modifier = Modifier.size(if (small) 12.dp else 15.dp)) }
         }
         if (book.status == ReadStatus.Finished) {
             Box(
@@ -450,7 +450,7 @@ private fun ContinueCard(book: Book, coverFile: File?, todayMs: Long, goalMinute
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 Icon(AppIcons.Book, null, tint = AppColors.Accent, modifier = Modifier.size(14.dp))
-                Text("Продолжить чтение", color = AppColors.Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text("Продолжить", color = AppColors.Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Text(book.title, color = AppColors.Text, fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (book.author.isNotBlank()) {
@@ -461,6 +461,7 @@ private fun ContinueCard(book: Book, coverFile: File?, todayMs: Long, goalMinute
                 listOfNotNull(percent(book), book.lastReadAt?.let { relativeDay(it) }).joinToString(" · "),
                 color = AppColors.Faint,
                 fontSize = 12.sp,
+                maxLines = 1,
             )
         }
         if (goalMinutes > 0) GoalRing(todayMs, goalMinutes, 54.dp)
@@ -479,7 +480,7 @@ private fun EmptyLibrary(onAddBook: () -> Unit, modifier: Modifier) {
         Text("Здесь будут твои книги", color = AppColors.Text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Добавь файл EPUB из памяти телефона. Ещё можно открыть книгу из файлового менеджера через «Открыть с помощью».",
+            "Добавь файл EPUB из памяти телефона.",
             color = AppColors.Muted,
             fontSize = 14.sp,
             lineHeight = 20.sp,

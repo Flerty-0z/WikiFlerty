@@ -78,8 +78,7 @@ fun AiSettingsContent(ai: AiManager, modifier: Modifier = Modifier) {
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
-            "Вставь API-ключ хотя бы одной нейросети. Ключ хранится только на этом телефоне в зашифрованном виде. " +
-                "Запросы оплачиваются по тарифам выбранной компании.",
+            "Нужен ключ хотя бы одной нейросети. Хранится зашифрованным только на телефоне.",
             color = AppColors.Muted,
             fontSize = 13.sp,
             lineHeight = 18.sp,
@@ -224,7 +223,7 @@ private fun ProviderCard(
                             Box {
                                 if (keyInput.isEmpty()) {
                                     Text(
-                                        if (hasKey) "Ключ сохранён. Вставь новый, чтобы заменить" else "Вставь API-ключ",
+                                        if (hasKey) "Ключ сохранён" else "Вставь API-ключ",
                                         color = AppColors.Faint,
                                         fontSize = 14.sp,
                                         maxLines = 1,
@@ -292,7 +291,7 @@ private fun ProviderCard(
 
                 when (check) {
                     is KeyCheck.Failed -> Text(check.message, color = Bad, fontSize = 13.sp, lineHeight = 18.sp)
-                    is KeyCheck.Ok -> Text("Ключ работает · доступно моделей: ${check.models}", color = Good, fontSize = 13.sp)
+                    is KeyCheck.Ok -> Text("Ключ работает · моделей: ${check.models}", color = Good, fontSize = 13.sp)
                     else -> Unit
                 }
 
@@ -329,7 +328,7 @@ private fun ProviderCard(
                     ) { id -> ai.store.update { it.copy(models = it.models + (provider.id to id)) } }
                     if (!loadedModels) {
                         Text(
-                            "Нажми «Проверить ключ», чтобы загрузить полный список моделей",
+                            "Полный список — после «Проверить ключ»",
                             color = AppColors.Faint,
                             fontSize = 12.sp,
                             lineHeight = 16.sp,

@@ -992,7 +992,6 @@ private fun ScrollOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSe
         },
         selectedId = settings.animation.id,
     ) { id -> onSettingsChange { it.copy(pageAnimation = id) } }
-    Hint("Анимация работает при тапе по краю и кнопках громкости. Свайп листает сдвигом.")
     SwitchRow("Кнопки громкости", settings.volumeKeys, icon = AppIcons.VolumeKeys) { v -> onSettingsChange { it.copy(volumeKeys = v) } }
 }
 
@@ -1066,7 +1065,7 @@ private fun PanelOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
             }
         }
     }
-    Hint("Кнопки стоят в том порядке, в каком ты их отметил. Не больше пяти. «Опции» всегда на панели.")
+    Hint("До пяти кнопок, в порядке выбора.")
 }
 
 @Composable
@@ -1085,9 +1084,7 @@ private fun GestureOptions(settings: ReaderSettings, onSettingsChange: ((ReaderS
     SwitchRow("Левый край тоже вперёд", settings.leftTapForward, enabled = settings.edgeTaps, icon = AppIcons.Forward) { v ->
         onSettingsChange { it.copy(leftTapForward = v) }
     }
-    Hint("Удобно читать одной рукой: любой край листает вперёд.")
     SwitchRow("Яркость свайпом слева", settings.brightnessSwipe, icon = AppIcons.Sun) { v -> onSettingsChange { it.copy(brightnessSwipe = v) } }
-    Hint("Проведи пальцем вверх или вниз у самого левого края страницы.")
 }
 
 @Composable
@@ -1191,7 +1188,7 @@ private fun Group(label: String, icon: ImageVector? = null, content: @Composable
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SettingIcon(icon, 30.dp)
                 Spacer(Modifier.width(12.dp))
-                Text(label, color = AppColors.Text, fontSize = 15.sp)
+                Text(label, color = AppColors.Text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         } else {
             Text(label, color = AppColors.Muted, fontSize = 13.sp)
@@ -1236,7 +1233,7 @@ private fun StepSlider(
                 SettingIcon(icon, 30.dp)
                 Spacer(Modifier.width(12.dp))
             }
-            Text(label, color = if (icon != null) AppColors.Text else AppColors.Muted, fontSize = if (icon != null) 15.sp else 13.sp, modifier = Modifier.weight(1f))
+            Text(label, color = if (icon != null) AppColors.Text else AppColors.Muted, fontSize = if (icon != null) 15.sp else 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 8.dp))
             Text(format(current.toDouble()), color = AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
         Slider(
@@ -1322,7 +1319,7 @@ private fun SwitchRow(label: String, checked: Boolean, enabled: Boolean = true, 
             SettingIcon(icon, 30.dp)
             Spacer(Modifier.width(12.dp))
         }
-        Text(label, color = AppColors.Text, fontSize = 15.sp, modifier = Modifier.weight(1f).padding(end = 8.dp))
+        Text(label, color = AppColors.Text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 8.dp))
         Switch(
             checked = checked,
             onCheckedChange = change,

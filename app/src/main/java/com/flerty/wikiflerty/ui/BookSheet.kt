@@ -63,20 +63,36 @@ private val Danger = Color(0xFFF08A8A)
 
 /** A pull-up sheet in the app's style. */
 @Composable
-fun AppSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+fun AppSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable ColumnScope.() -> Unit) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        // No dragging: swipes always scroll the content. Close with ✕, back or a tap outside.
+        sheetGesturesEnabled = false,
+        dragHandle = null,
         containerColor = AppColors.Panel,
         shape = RoundedCornerShape(topStart = (26 * AppStyle.current.corners).dp, topEnd = (26 * AppStyle.current.corners).dp),
     ) {
         Column(
-            Modifier.padding(horizontal = 16.dp).navigationBarsPadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp),
+            Modifier.padding(horizontal = 16.dp).navigationBarsPadding().verticalScroll(rememberScrollState()).padding(top = if (title == null) 16.dp else 0.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            content = content,
-        )
+        ) {
+            if (title != null) SheetHeader(title, onDismiss)
+            content()
+        }
     }
 }
+
+/** Round icon button used in sheet headers. */
+@Composable
+private fun RoundButton(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, tint: Color, sound: FeedbackSound, onClick: () -> Unit) {
+    Box(
+        Modifier.size(40.dp).liveClick(CircleShape, sound = sound, onClick = onClick).background(AppColors.Field),
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, description, tint = tint, modifier = Modifier.size(20.dp)) }
+}
+
+val StarYellow = Color(0xFFFFC94D)
 
 @Composable
 private fun SmallChip(title: String, selected: Boolean, icon: androidx.compose.ui.graphics.vector.ImageVector? = null, onClick: () -> Unit) {
@@ -124,7 +140,17 @@ fun BookSheet(
                     "${(book.progress * 100).toInt()}% · ${book.status.title}",
                     color = AppColors.Faint,
                     fontSize = 12.sp,
+                    maxLines = 1,
                 )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                RoundButton(AppIcons.Close, "Закрыть", AppColors.Muted, FeedbackSound.Close, onDismiss)
+                RoundButton(
+                    if (book.favorite) AppIcons.StarFilled else AppIcons.Star,
+                    "Избранное",
+                    if (book.favorite) StarYellow else AppColors.Muted,
+                    FeedbackSound.Toggle,
+                ) { scope.launch { app.library.setFavorite(book.id, !book.favorite) } }
             }
         }
 
@@ -142,7 +168,7 @@ fun BookSheet(
             title = { Text("Удалить книгу?", color = AppColors.Text) },
             text = {
                 Text(
-                    "«${book.title}» и заметки к ней будут удалены с телефона. Слова в словаре и статистика чтения останутся.",
+                    "Книга и заметки к ней удалятся. Словарь и статистика останутся.",
                     color = AppColors.Muted,
                 )
             },
@@ -168,17 +194,24 @@ private fun ColumnScope.BookMainContent(
     onDelete: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-        SheetLabel("Статус")
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(ReadStatus.Reading, ReadStatus.Planned, ReadStatus.Finished, ReadStatus.New).forEach { status ->
-                SmallChip(status.title, book.status == status) {
-                    scope.launch { app.library.setStatus(book.id, status) }
-                }
-            }
-        }
-
         SettingsGroup(null) {
-            SettingSwitch("Избранное", book.favorite, icon = AppIcons.Heart) { v -> scope.launch { app.library.setFavorite(book.id, v) } }
+            PickerRow(
+                label = "Статус",
+                icon = AppIcons.Bookmark,
+                options = listOf(ReadStatus.Reading, ReadStatus.Planned, ReadStatus.Finished, ReadStatus.New).map { status ->
+                    PickerOption(
+                        status.id,
+                        status.title,
+                        icon = when (status) {
+                            ReadStatus.Reading -> AppIcons.Book
+                            ReadStatus.Planned -> AppIcons.Clock
+                            ReadStatus.Finished -> AppIcons.Check
+                            ReadStatus.New -> AppIcons.Plus
+                        },
+                    )
+                },
+                selectedId = book.status.id,
+            ) { id -> ReadStatus.of(id)?.let { status -> scope.launch { app.library.setStatus(book.id, status) } } }
         }
 
         SheetLabel("Полки")
@@ -193,7 +226,7 @@ private fun ColumnScope.BookMainContent(
         }
 
         Spacer(Modifier.height(2.dp))
-        SettingsNavRow(AppIcons.Chart, "Статистика книги", "Время, скорость, сколько осталось") { onStats() }
+        SettingsNavRow(AppIcons.Chart, "Статистика книги", "Время, скорость, остаток") { onStats() }
 
         val shape = appCorner(16)
         Box(
@@ -270,7 +303,7 @@ private fun BookStatsContent(app: App, book: Book, onBack: () -> Unit) {
     Text(dates.joinToString("\n"), color = AppColors.Faint, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(horizontal = 4.dp))
     if (speed == null) {
         Text(
-            "Скорость и оставшееся время появятся, когда почитаешь эту книгу хотя бы 5 минут.",
+            "Скорость появится после 5 минут чтения.",
             color = AppColors.Faint,
             fontSize = 12.sp,
             lineHeight = 17.sp,
@@ -284,8 +317,7 @@ private fun BookStatsContent(app: App, book: Book, onBack: () -> Unit) {
 @Composable
 fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
-    AppSheet(onDismiss) {
-        Text("Вид и сортировка", color = AppColors.Text, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+    AppSheet(onDismiss, title = "Вид и сортировка") {
         SettingsGroup("Сортировка") {
             LibrarySort.entries.forEach { sort ->
                 val selected = sort == prefs.sort

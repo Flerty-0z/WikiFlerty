@@ -76,8 +76,7 @@ fun BackupContent() {
     }
 
     Text(
-        "Прогресс, заметки, словарь и настройки — в одном файле. Сохрани его куда удобно (например, на Google Диск " +
-            "или в Telegram) и загрузи обратно или на другом телефоне. Ключи нейросетей в файл не попадают.",
+        "Всё в одном файле: прогресс, заметки, словарь, статистика и настройки.",
         color = AppColors.Muted,
         fontSize = 13.sp,
         lineHeight = 19.sp,
@@ -101,23 +100,15 @@ fun BackupContent() {
         }
     }
 
-    SettingsGroup("Что входит") {
-        SettingSwitch("Вместе с книгами", includeBooks, hint = "Файл станет больше, зато книги не нужно добавлять заново", icon = AppIcons.Book) {
+    SettingsGroup("В файле") {
+        SettingSwitch("Вместе с книгами", includeBooks, hint = "Файл будет больше", icon = AppIcons.Book) {
             includeBooks = it
         }
-        SettingSwitch("Переносить настройки", state.syncSettings, hint = "При импорте взять оформление и опции чтения из файла", icon = AppIcons.Options) { v ->
+        SettingSwitch("Переносить настройки", state.syncSettings, hint = "Оформление и опции чтения", icon = AppIcons.Options) { v ->
             app.sync.store.update { it.copy(syncSettings = v) }
         }
     }
 
-    Text(
-        "При импорте ничего не теряется: данные объединяются, и для каждой книги остаётся самое свежее место чтения. " +
-            "Если книги нет в файле, просто добавь её на новом телефоне — прогресс и заметки подтянутся сами.",
-        color = AppColors.Faint,
-        fontSize = 12.sp,
-        lineHeight = 17.sp,
-        modifier = Modifier.padding(horizontal = 4.dp),
-    )
 }
 
 @Composable

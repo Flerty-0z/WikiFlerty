@@ -150,7 +150,7 @@ fun StatsScreen(modifier: Modifier = Modifier) {
     ) {
         if (perDay.values.none { it.ms > 0 }) {
             Text(
-                "Статистика появится, когда почитаешь: время считается само, пока книга открыта на экране.",
+                "Почитай немного — статистика появится сама.",
                 color = AppColors.Muted,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
@@ -209,14 +209,6 @@ fun StatsScreen(modifier: Modifier = Modifier) {
             }
         }
 
-        Text(
-            "Страница здесь — около 1000 знаков текста, примерно как в бумажной книге. Если на одной странице больше " +
-                "5 минут без действий, засчитывается только минута — телефон, скорее всего, отложили.",
-            color = AppColors.Faint,
-            fontSize = 12.sp,
-            lineHeight = 17.sp,
-            modifier = Modifier.padding(horizontal = 4.dp),
-        )
     }
 }
 
@@ -326,9 +318,13 @@ fun GoalRing(todayMs: Long, goalMinutes: Int, size: androidx.compose.ui.unit.Dp,
             }
         }
         if (showText) {
+            // Sized by the ring itself (not the text-size setting), so it always fits inside.
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val big = with(density) { (size * 0.27f).toSp() }
+            val small = with(density) { (size * 0.13f).toSp() }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("${todayMs / 60_000}", color = AppColors.Text, fontSize = (size.value * 0.26f).sp, fontWeight = FontWeight.SemiBold)
-                Text("мин", color = AppColors.Faint, fontSize = (size.value * 0.13f).sp)
+                Text("${todayMs / 60_000}", color = AppColors.Text, fontSize = big, lineHeight = big, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                if (size >= 64.dp) Text("мин", color = AppColors.Faint, fontSize = small, lineHeight = small, maxLines = 1)
             }
         }
     }

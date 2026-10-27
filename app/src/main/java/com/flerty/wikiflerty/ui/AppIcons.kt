@@ -113,6 +113,8 @@ object AppIcons {
     val Calendar by lazy { icon("calendar", "M5 6h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z", "M4 10h16", "M8 3.5v4M16 3.5v4") }
     val Sliders by lazy { icon("sliders", "M4 6h16M4 12h16M4 18h16", "M9 4v4M15 10v4M7 16v4") }
     val Length by lazy { icon("length", "M4 7h16M4 12h11M4 17h7") }
+    val Star by lazy { icon("star", "M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z") }
+    val StarFilled by lazy { icon("star-filled", "M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z", fills = listOf("M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z")) }
     val Bookmark by lazy { icon("bookmark", "M7 3h10v18l-5-3.6L7 21z") }
     val Sparkle by lazy {
         icon("sparkle", fills = listOf("M12 2l2.1 6.1L20 10l-5.9 1.9L12 18l-2.1-6.1L4 10l5.9-1.9z"))

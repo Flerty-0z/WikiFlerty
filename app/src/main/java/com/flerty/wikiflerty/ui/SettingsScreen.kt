@@ -115,17 +115,10 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
 
 @Composable
 private fun SettingsHome(onOpen: (SettingsPage) -> Unit) {
-    SettingsNavRow(AppIcons.Sparkle, "ИИ-помощник", "Нейросети, ключи, модели, язык перевода") { onOpen(SettingsPage.Ai) }
-    SettingsNavRow(AppIcons.Theme, "Кастомизация", "Цвета, стиль, форма, шрифт и фон интерфейса") { onOpen(SettingsPage.Custom) }
-    SettingsNavRow(AppIcons.Sound, "Звук и отклик", "Звуки кнопок, громкость, вибрация") { onOpen(SettingsPage.Sound) }
-    SettingsNavRow(AppIcons.Backup, "Резервная копия", "Экспорт и импорт: перенос на другой телефон") { onOpen(SettingsPage.Backup) }
-    Text(
-        "Настройки чтения (шрифт книги, темы страницы, листание, жесты) — внутри книги: тап по центру страницы → «Опции».",
-        color = AppColors.Faint,
-        fontSize = 12.sp,
-        lineHeight = 17.sp,
-        modifier = Modifier.padding(top = 6.dp, start = 4.dp, end = 4.dp),
-    )
+    SettingsNavRow(AppIcons.Sparkle, "ИИ-помощник", "Ключи, модели, перевод") { onOpen(SettingsPage.Ai) }
+    SettingsNavRow(AppIcons.Theme, "Кастомизация", "Цвета, форма, шрифт, фон") { onOpen(SettingsPage.Custom) }
+    SettingsNavRow(AppIcons.Sound, "Звук и отклик", "Звуки и вибрация") { onOpen(SettingsPage.Sound) }
+    SettingsNavRow(AppIcons.Backup, "Резервная копия", "Экспорт и импорт") { onOpen(SettingsPage.Backup) }
 }
 
 @Composable
@@ -146,7 +139,7 @@ private fun SoundContent() {
     val app = LocalContext.current.applicationContext as App
     val settings by app.readerSettings.settings.collectAsStateWithLifecycle()
     SettingsGroup(null) {
-        SettingSwitch("Звуки кнопок", settings.sounds, hint = "Тихие мягкие щелчки при нажатиях", icon = AppIcons.Sound) { v ->
+        SettingSwitch("Звуки кнопок", settings.sounds, hint = null, icon = AppIcons.Sound) { v ->
             app.readerSettings.update { it.copy(sounds = v) }
         }
         SettingSlider(
@@ -160,7 +153,7 @@ private fun SoundContent() {
             app.readerSettings.update { it.copy(soundVolume = v.toDouble()) }
             app.feedback.play(FeedbackSound.Tap)
         }
-        SettingSwitch("Лёгкая вибрация", settings.haptics, hint = "Короткий отклик при нажатии", icon = AppIcons.Vibration) { v ->
+        SettingSwitch("Лёгкая вибрация", settings.haptics, hint = null, icon = AppIcons.Vibration) { v ->
             app.readerSettings.update { it.copy(haptics = v) }
         }
     }
@@ -319,10 +312,10 @@ private fun CustomizationContent() {
             },
             selectedId = ButtonLook.of(style.buttons).id,
         ) { id -> store.update { it.copy(buttons = id) } }
-        SettingSwitch("Контур панелей", style.outline, hint = "Тонкая светлая рамка вокруг панелей", icon = AppIcons.Outline) { v ->
+        SettingSwitch("Контур панелей", style.outline, hint = null, icon = AppIcons.Outline) { v ->
             store.update { it.copy(outline = v) }
         }
-        SettingSwitch("Эффект нажатия", style.pressEffect, hint = "Кнопки слегка проседают под пальцем", icon = AppIcons.Gesture) { v ->
+        SettingSwitch("Эффект нажатия", style.pressEffect, hint = null, icon = AppIcons.Gesture) { v ->
             store.update { it.copy(pressEffect = v) }
         }
     }
@@ -422,12 +415,6 @@ private fun CustomizationContent() {
                     store.update { it.copy(backgroundBlur = v) }
                 }
             }
-            Text(
-                if (kind == BackgroundKind.Video) "Видео играет без звука по кругу на главных экранах." else "Картинка видна на главных экранах приложения.",
-                color = AppColors.Faint,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(bottom = 6.dp),
-            )
         }
     }
 

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
@@ -96,7 +97,7 @@ fun SettingsNavRow(icon: ImageVector, title: String, subtitle: String, onClick: 
         ) { Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(22.dp)) }
         Column(Modifier.weight(1f)) {
             Text(title, color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, color = AppColors.Muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(20.dp))
     }
@@ -131,8 +132,8 @@ fun SettingSwitch(
             Spacer(Modifier.width(12.dp))
         }
         Column(Modifier.weight(1f).padding(end = 8.dp)) {
-            Text(label, color = AppColors.Text, fontSize = 15.sp)
-            if (hint != null) Text(hint, color = AppColors.Faint, fontSize = 12.sp, lineHeight = 16.sp)
+            Text(label, color = AppColors.Text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (hint != null) Text(hint, color = AppColors.Faint, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         Switch(
             checked = checked,
@@ -168,7 +169,7 @@ fun SettingSlider(
                 SettingIcon(icon)
                 Spacer(Modifier.width(12.dp))
             }
-            Text(label, color = if (icon != null) AppColors.Text else AppColors.Muted, fontSize = if (icon != null) 15.sp else 13.sp, modifier = Modifier.weight(1f))
+            Text(label, color = if (icon != null) AppColors.Text else AppColors.Muted, fontSize = if (icon != null) 15.sp else 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 8.dp))
             Text(format(current), color = AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
         Slider(
@@ -285,21 +286,23 @@ fun PickerRow(
             SettingIcon(icon)
             Spacer(Modifier.width(12.dp))
         }
-        Text(label, color = AppColors.Text, fontSize = 15.sp, maxLines = 2, modifier = Modifier.weight(1f).padding(end = 10.dp))
-        if (selected != null && (selected.swatch != null || selected.icon != null)) {
-            OptionLead(selected, AppColors.Accent)
-            Spacer(Modifier.width(6.dp))
+        Text(label, color = AppColors.Text, fontSize = 15.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(end = 12.dp))
+        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            if (selected != null && (selected.swatch != null || selected.icon != null)) {
+                OptionLead(selected, AppColors.Accent)
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(
+                selected?.title ?: selectedId,
+                color = AppColors.Accent,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = selected?.font,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
         }
-        Text(
-            selected?.title ?: selectedId,
-            color = AppColors.Accent,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold,
-            fontFamily = selected?.font,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = 170.dp),
-        )
         Icon(AppIcons.Chevron, null, tint = AppColors.Accent, modifier = Modifier.padding(start = 2.dp).size(18.dp).rotate(90f))
     }
     if (open) {
@@ -319,13 +322,20 @@ fun PickerSheet(
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     val shown = options.filter { query.isBlank() || it.title.contains(query, true) }
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = (options.indexOfFirst { it.id == selectedId } - 2).coerceAtLeast(0),
+    )
+    val close: () -> Unit = { scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() } }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        // Dragging the sheet is off, so a swipe always scrolls the list; close with ✕, back or a tap outside.
+        sheetGesturesEnabled = false,
+        dragHandle = null,
         containerColor = AppColors.Panel,
         shape = androidx.compose.foundation.shape.RoundedCornerShape(
             topStart = (26 * AppStyle.current.corners).dp,
@@ -333,7 +343,7 @@ fun PickerSheet(
         ),
     ) {
         Column(Modifier.padding(horizontal = 16.dp).navigationBarsPadding()) {
-            Text(title, color = AppColors.Text, fontSize = 19.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
+            SheetHeader(title, close)
             if (searchable) {
                 BasicTextField(
                     value = query,
@@ -358,7 +368,7 @@ fun PickerSheet(
                 )
                 Spacer(Modifier.height(8.dp))
             }
-            LazyColumn(Modifier.heightIn(max = 520.dp)) {
+            LazyColumn(Modifier.heightIn(max = 520.dp), state = listState) {
                 items(shown, key = { it.id }) { option ->
                     val isSelected = option.id == selectedId
                     Row(
@@ -449,3 +459,26 @@ private fun GradientTrack(label: String, value: Float, range: ClosedFloatingPoin
 }
 
 fun percent(value: Float): String = "${(value * 100).roundToInt()}%"
+
+/** Title of a pull-up sheet with a close button on the right. */
+@Composable
+fun SheetHeader(title: String, onClose: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            title,
+            color = AppColors.Text,
+            fontSize = 19.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).padding(start = 4.dp),
+        )
+        Box(
+            Modifier.size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onClose).background(AppColors.Field),
+            contentAlignment = Alignment.Center,
+        ) { Icon(AppIcons.Close, "Закрыть", tint = AppColors.Muted, modifier = Modifier.size(18.dp)) }
+    }
+}

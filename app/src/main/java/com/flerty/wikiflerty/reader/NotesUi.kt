@@ -169,7 +169,7 @@ fun BookNotesList(
         Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Пока нет заметок", color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Text(
-                "Выдели текст в книге, удерживая палец на слове, и выбери «Заметка» или «Маркер».",
+                "Выдели текст → «Заметка» или «Маркер».",
                 color = AppColors.Muted,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
@@ -367,7 +367,7 @@ fun NoteEditor(
                 }
             }
             Text(
-                "Нажми на выбранный цвет ещё раз, чтобы изменить или удалить его.",
+                "Повторное нажатие — изменить цвет.",
                 color = AppColors.Faint,
                 fontSize = 12.sp,
                 lineHeight = 16.sp,

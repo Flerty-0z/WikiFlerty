@@ -136,7 +136,7 @@ fun AiMenuContent(bridge: AiBridge, onSetup: () -> Unit, onStarted: () -> Unit, 
             ) {
                 Text("Нейросеть не подключена", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "Вставь API-ключ Claude, ChatGPT, Gemini или DeepSeek — один раз, и ИИ будет объяснять слова прямо в книге.",
+                    "Добавь ключ Claude, ChatGPT, Gemini или DeepSeek.",
                     color = AppColors.Muted,
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
