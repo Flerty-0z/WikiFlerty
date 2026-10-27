@@ -68,6 +68,7 @@ import com.flerty.wikiflerty.ai.AiManager
 import com.flerty.wikiflerty.ai.AiPrompts
 import com.flerty.wikiflerty.ai.AiProvider
 import com.flerty.wikiflerty.ui.AppColors
+import com.flerty.wikiflerty.ui.appCorner
 import com.flerty.wikiflerty.ui.AppIcons
 import com.flerty.wikiflerty.ui.FeedbackSound
 import com.flerty.wikiflerty.ui.fieldSurface
@@ -126,7 +127,7 @@ fun AiMenuContent(bridge: AiBridge, onSetup: () -> Unit, onStarted: () -> Unit, 
 
         if (provider == null || keys.isEmpty()) {
             Column(
-                Modifier.fillMaxWidth().fieldSurface(RoundedCornerShape(16.dp)).padding(14.dp),
+                Modifier.fillMaxWidth().fieldSurface(appCorner(16)).padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text("Нейросеть не подключена", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
@@ -142,7 +143,7 @@ fun AiMenuContent(bridge: AiBridge, onSetup: () -> Unit, onStarted: () -> Unit, 
         }
 
         AiAction.entries.forEach { action ->
-            val shape = RoundedCornerShape(14.dp)
+            val shape = appCorner(14)
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -162,8 +163,8 @@ fun AiMenuContent(bridge: AiBridge, onSetup: () -> Unit, onStarted: () -> Unit, 
                 Box(
                     Modifier
                         .size(38.dp)
-                        .clip(RoundedCornerShape(11.dp))
-                        .background(Brush.linearGradient(listOf(Color(0x478FB3FF), Color(0x1A8FB3FF)))),
+                        .clip(appCorner(11))
+                        .background(Brush.linearGradient(listOf(AppColors.Accent.copy(alpha = 0.28f), AppColors.Accent.copy(alpha = 0.1f)))),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(action.mark, color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -234,8 +235,8 @@ fun AiChatContent(bridge: AiBridge, modifier: Modifier = Modifier) {
             chat.error?.let { error ->
                 item {
                     Column(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0x22F08A8A))
-                            .border(1.dp, Color(0x55F08A8A), RoundedCornerShape(14.dp)).padding(12.dp),
+                        Modifier.fillMaxWidth().clip(appCorner(14)).background(Color(0x22F08A8A))
+                            .border(1.dp, Color(0x55F08A8A), appCorner(14)).padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(error, color = Color(0xFFF5B4B4), fontSize = 13.sp, lineHeight = 18.sp)
@@ -244,7 +245,7 @@ fun AiChatContent(bridge: AiBridge, modifier: Modifier = Modifier) {
                             color = AppColors.Accent,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.liveClick(RoundedCornerShape(8.dp), onClick = bridge.onRetry).padding(vertical = 4.dp),
+                            modifier = Modifier.liveClick(appCorner(8), onClick = bridge.onRetry).padding(vertical = 4.dp),
                         )
                     }
                 }
@@ -256,7 +257,7 @@ fun AiChatContent(bridge: AiBridge, modifier: Modifier = Modifier) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AiPrompts.followUps.forEach { (label, prompt) ->
-                        val shape = RoundedCornerShape(18.dp)
+                        val shape = appCorner(18)
                         Box(
                             Modifier.height(34.dp)
                                 .liveClick(shape, sound = FeedbackSound.Tap) { bridge.onFollowUp(prompt) }
@@ -305,7 +306,7 @@ private fun ModelChip(bridge: AiBridge) {
     var open by remember { mutableStateOf(false) }
     val chat = bridge.chat
     Box {
-        val shape = RoundedCornerShape(16.dp)
+        val shape = appCorner(16)
         Row(
             Modifier.height(32.dp)
                 .liveClick(shape, sound = FeedbackSound.Open) { open = true }
@@ -446,9 +447,9 @@ private fun MessageInput(
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
+            .clip(appCorner(24))
             .background(AppColors.Field)
-            .border(1.dp, AppColors.Line, RoundedCornerShape(24.dp))
+            .border(1.dp, AppColors.Line, appCorner(24))
             .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -475,7 +476,7 @@ private fun MessageInput(
             contentAlignment = Alignment.Center,
         ) {
             if (streaming) {
-                Box(Modifier.size(12.dp).clip(RoundedCornerShape(2.dp)).background(AppColors.OnAccent))
+                Box(Modifier.size(12.dp).clip(appCorner(2)).background(AppColors.OnAccent))
             } else {
                 Icon(AppIcons.Send, null, tint = AppColors.OnAccent, modifier = Modifier.size(18.dp))
             }
@@ -486,7 +487,7 @@ private fun MessageInput(
 @Composable
 private fun QuoteBox(text: String, maxLines: Int) {
     Row(
-        Modifier.fillMaxWidth().height(IntrinsicSize.Min).clip(RoundedCornerShape(12.dp)).background(AppColors.Field),
+        Modifier.fillMaxWidth().height(IntrinsicSize.Min).clip(appCorner(12)).background(AppColors.Field),
     ) {
         Box(Modifier.width(4.dp).fillMaxHeight().background(AppColors.Accent))
         Text(
@@ -504,13 +505,13 @@ private fun QuoteBox(text: String, maxLines: Int) {
 
 @Composable
 private fun AccentButton(text: String, enabled: Boolean = true, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = appCorner(14)
     Box(
         modifier
             .fillMaxWidth()
             .height(46.dp)
             .liveClick(shape, sound = FeedbackSound.Toggle, enabled = enabled, onClick = onClick)
-            .background(if (enabled) Brush.verticalGradient(listOf(Color(0xFFA3C1FF), AppColors.Accent)) else SolidColor(Color(0xFF26324A))),
+            .background(if (enabled) Brush.verticalGradient(listOf(AppColors.AccentLight, AppColors.Accent)) else SolidColor(AppColors.AccentTintStrong)),
         contentAlignment = Alignment.Center,
     ) {
         Text(text, color = if (enabled) AppColors.OnAccent else AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -519,7 +520,7 @@ private fun AccentButton(text: String, enabled: Boolean = true, modifier: Modifi
 
 @Composable
 private fun OutlineButton(text: String, enabled: Boolean = true, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = appCorner(14)
     Box(
         modifier
             .fillMaxWidth()

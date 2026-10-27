@@ -60,8 +60,11 @@ private val Good = Color(0xFF7ED3A0)
 private val Bad = Color(0xFFF08A8A)
 
 private val TranslateLanguages = listOf(
-    "русский", "английский", "немецкий", "французский", "испанский",
-    "итальянский", "турецкий", "китайский", "японский", "корейский", "арабский",
+    "русский", "английский", "немецкий", "французский", "испанский", "итальянский", "португальский",
+    "польский", "чешский", "украинский", "белорусский", "казахский", "узбекский", "киргизский",
+    "татарский", "азербайджанский", "армянский", "грузинский", "турецкий", "арабский", "персидский",
+    "иврит", "хинди", "китайский", "японский", "корейский", "вьетнамский", "индонезийский",
+    "нидерландский", "шведский", "норвежский", "финский", "греческий", "латинский",
 )
 
 /** Connecting AI providers: keys, checking them, choosing a model; plus answer options. */
@@ -98,33 +101,17 @@ fun AiSettingsContent(ai: AiManager, modifier: Modifier = Modifier) {
         }
 
         Spacer(Modifier.height(4.dp))
-        Text("Ответы", color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-        Text("Подробность", color = AppColors.Muted, fontSize = 13.sp)
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(AppColors.Field)
-                .border(1.dp, AppColors.PanelBorder, RoundedCornerShape(14.dp)).padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            listOf("short" to "Кратко", "detailed" to "Подробно").forEach { (id, title) ->
-                val selected = settings.style == id
-                val bg by animateColorAsState(if (selected) Color(0xFF30343B) else Color.Transparent, label = "style")
-                Box(
-                    Modifier.weight(1f).height(40.dp)
-                        .liveClick(RoundedCornerShape(10.dp), sound = FeedbackSound.Toggle) { ai.store.update { it.copy(style = id) } }
-                        .background(bg),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(title, color = if (selected) AppColors.Text else AppColors.Muted, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                }
-            }
-        }
-        Text("Переводить на", color = AppColors.Muted, fontSize = 13.sp)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            TranslateLanguages.forEach { language ->
-                Chip(language, selected = settings.translateTo == language) {
-                    ai.store.update { it.copy(translateTo = language) }
-                }
-            }
+        SettingsGroup("Ответы") {
+            SettingSegmented(
+                label = "Подробность",
+                options = listOf("Кратко", "Подробно"),
+                selected = if (settings.style == "detailed") 1 else 0,
+            ) { i -> ai.store.update { it.copy(style = if (i == 1) "detailed" else "short") } }
+            PickerRow(
+                label = "Переводить на",
+                options = TranslateLanguages.map { PickerOption(it, it.replaceFirstChar { c -> c.uppercase() }) },
+                selectedId = settings.translateTo,
+            ) { language -> ai.store.update { it.copy(translateTo = language) } }
         }
     }
 }
@@ -146,8 +133,8 @@ private fun ProviderCard(
     val uri = LocalUriHandler.current
     var keyInput by remember(provider, hasKey) { mutableStateOf("") }
     var showKey by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(18.dp)
-    val border by animateColorAsState(if (isDefault) Color(0x668FB3FF) else AppColors.PanelBorder, label = "card")
+    val shape = appCorner(18)
+    val border by animateColorAsState(if (isDefault) AppColors.Accent.copy(alpha = 0.4f) else AppColors.PanelBorder, label = "card")
 
     Column(
         Modifier
@@ -165,8 +152,8 @@ private fun ProviderCard(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Box(
-                Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(AppColors.AccentSoft)
-                    .border(1.dp, Color(0x338FB3FF), RoundedCornerShape(11.dp)),
+                Modifier.size(38.dp).clip(appCorner(11)).background(AppColors.AccentSoft)
+                    .border(1.dp, AppColors.Accent.copy(alpha = 0.2f), appCorner(11)),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(provider.title.take(1), color = AppColors.Accent, fontSize = 17.sp, fontWeight = FontWeight.Bold)
@@ -214,9 +201,9 @@ private fun ProviderCard(
                     Modifier
                         .fillMaxWidth()
                         .height(48.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(appCorner(12))
                         .background(Color(0xFF121316))
-                        .border(1.dp, AppColors.Line, RoundedCornerShape(12.dp))
+                        .border(1.dp, AppColors.Line, appCorner(12))
                         .padding(start = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -252,7 +239,7 @@ private fun ProviderCard(
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val buttonShape = RoundedCornerShape(12.dp)
+                    val buttonShape = appCorner(12)
                     Box(
                         Modifier
                             .weight(1f)
@@ -301,7 +288,7 @@ private fun ProviderCard(
                     "Получить ключ на сайте ${provider.company} ›",
                     color = AppColors.Accent,
                     fontSize = 13.sp,
-                    modifier = Modifier.liveClick(RoundedCornerShape(6.dp), pressedScale = 0.98f) {
+                    modifier = Modifier.liveClick(appCorner(6), pressedScale = 0.98f) {
                         runCatching { uri.openUri(provider.keyUrl) }
                     }.padding(vertical = 4.dp),
                 )
@@ -312,10 +299,10 @@ private fun ProviderCard(
                             Modifier
                                 .fillMaxWidth()
                                 .height(42.dp)
-                                .liveClick(RoundedCornerShape(12.dp), sound = FeedbackSound.Toggle) {
+                                .liveClick(appCorner(12), sound = FeedbackSound.Toggle) {
                                     ai.store.update { it.copy(provider = provider.id) }
                                 }
-                                .border(1.dp, Color(0x558FB3FF), RoundedCornerShape(12.dp)),
+                                .border(1.dp, AppColors.Accent.copy(alpha = 0.33f), appCorner(12)),
                             contentAlignment = Alignment.Center,
                         ) {
                             Text("Сделать основной", color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
@@ -330,7 +317,7 @@ private fun ProviderCard(
                         Modifier
                             .fillMaxWidth()
                             .heightIn(max = 260.dp)
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(appCorner(12))
                             .background(Color(0xFF121316))
                             .verticalScroll(rememberScrollState()),
                     ) {
@@ -339,10 +326,10 @@ private fun ProviderCard(
                             Row(
                                 Modifier
                                     .fillMaxWidth()
-                                    .liveClick(RoundedCornerShape(0.dp), sound = FeedbackSound.Toggle, pressedScale = 0.99f) {
+                                    .liveClick(appCorner(0), sound = FeedbackSound.Toggle, pressedScale = 0.99f) {
                                         ai.store.update { it.copy(models = it.models + (provider.id to model.id)) }
                                     }
-                                    .background(if (selected) Color(0xFF1A2232) else Color.Transparent)
+                                    .background(if (selected) AppColors.AccentTint else Color.Transparent)
                                     .padding(horizontal = 12.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
@@ -367,7 +354,7 @@ private fun ProviderCard(
 
 @Composable
 fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(18.dp)
+    val shape = appCorner(18)
     val bg by animateColorAsState(if (selected) AppColors.Accent else Color.Transparent, label = "chip")
     Box(
         Modifier

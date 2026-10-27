@@ -58,6 +58,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.flerty.wikiflerty.data.Note
 import com.flerty.wikiflerty.ui.AppColors
+import com.flerty.wikiflerty.ui.appCorner
+import com.flerty.wikiflerty.ui.accentContent
+import com.flerty.wikiflerty.ui.accentHighlight
 import com.flerty.wikiflerty.ui.AppIcons
 import com.flerty.wikiflerty.ui.FeedbackSound
 import com.flerty.wikiflerty.ui.fieldSurface
@@ -101,34 +104,34 @@ class NoteActions(
 
 @Composable
 fun SelectionMenu(markerColor: Long, actions: NoteActions, modifier: Modifier = Modifier) {
-    // A small pill with icons only, centered over the selected text.
+    // A pill with icons only, centered over the selected text.
     Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Row(
             modifier = Modifier
-                .panelSurface(RoundedCornerShape(26.dp), elevation = 16.dp)
-                .padding(5.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                .panelSurface(appCorner(30), elevation = 16.dp)
+                .padding(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             MenuAction("Заметка", onClick = actions.onSelectionNote) {
-                Icon(AppIcons.Note, null, tint = AppColors.Text, modifier = Modifier.size(21.dp))
+                Icon(AppIcons.Note, null, tint = AppColors.Text, modifier = Modifier.size(24.dp))
             }
             MenuAction("Спросить ИИ", highlighted = true, onClick = actions.onSelectionAi) {
-                Icon(AppIcons.Sparkle, null, tint = AppColors.Accent, modifier = Modifier.size(21.dp))
+                Icon(AppIcons.Sparkle, null, tint = accentContent, modifier = Modifier.size(24.dp))
             }
             MenuAction("Маркер", sound = FeedbackSound.Toggle, onClick = actions.onSelectionMarker) {
                 Box(
                     Modifier
-                        .size(18.dp)
+                        .size(22.dp)
                         .clip(CircleShape)
                         .background(Color(markerColor))
                         .border(1.dp, Color(0x55FFFFFF), CircleShape),
                 )
             }
             MenuAction("Копировать", onClick = actions.onSelectionCopy) {
-                Icon(AppIcons.Copy, null, tint = AppColors.Text, modifier = Modifier.size(20.dp))
+                Icon(AppIcons.Copy, null, tint = AppColors.Text, modifier = Modifier.size(23.dp))
             }
             MenuAction("Закрыть", sound = FeedbackSound.Close, onClick = actions.onSelectionClose) {
-                Icon(AppIcons.Close, null, tint = AppColors.Muted, modifier = Modifier.size(18.dp))
+                Icon(AppIcons.Close, null, tint = AppColors.Muted, modifier = Modifier.size(21.dp))
             }
         }
     }
@@ -142,12 +145,12 @@ private fun MenuAction(
     onClick: () -> Unit,
     icon: @Composable () -> Unit,
 ) {
-    val shape = RoundedCornerShape(21.dp)
+    val shape = appCorner(24)
     Box(
         modifier = Modifier
-            .size(width = 46.dp, height = 42.dp)
+            .size(width = 54.dp, height = 50.dp)
             .liveClick(shape, sound = sound, pressedScale = 0.88f, onClick = onClick)
-            .background(if (highlighted) AppColors.AccentSoft else Color.Transparent)
+            .then(if (highlighted) Modifier.accentHighlight(shape) else Modifier)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) { icon() }
@@ -190,7 +193,7 @@ fun NoteCard(
     editIcon: androidx.compose.ui.graphics.vector.ImageVector = AppIcons.Pencil,
     editLabel: String = "Изменить заметку",
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = appCorner(16)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -282,7 +285,7 @@ fun NoteEditor(
             Modifier
                 .fillMaxWidth()
                 .height(IntrinsicSize.Min)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(appCorner(12))
                 .background(AppColors.Field),
         ) {
             Box(Modifier.width(4.dp).fillMaxHeight().background(quoteBorder))
@@ -308,7 +311,7 @@ fun NoteEditor(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 96.dp)
-                    .fieldSurface(RoundedCornerShape(14.dp))
+                    .fieldSurface(appCorner(14))
                     .padding(12.dp),
                 decorationBox = { inner ->
                     Box {
@@ -412,7 +415,7 @@ fun NoteEditor(
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            val shape = RoundedCornerShape(14.dp)
+            val shape = appCorner(14)
             val id = draft.id
             Box(
                 Modifier
@@ -437,7 +440,7 @@ fun NoteEditor(
                         val finalColor = if (editing != null) edited else color
                         onSave(draft.copy(note = text, color = finalColor))
                     }
-                    .background(Brush.verticalGradient(listOf(Color(0xFFA3C1FF), AppColors.Accent))),
+                    .background(Brush.verticalGradient(listOf(AppColors.AccentLight, AppColors.Accent))),
                 contentAlignment = Alignment.Center,
             ) {
                 Text("Сохранить", color = AppColors.OnAccent, fontSize = 15.sp, fontWeight = FontWeight.Bold)
@@ -469,7 +472,7 @@ private fun ColorSettings(
     Column(
         Modifier
             .fillMaxWidth()
-            .fieldSurface(RoundedCornerShape(18.dp))
+            .fieldSurface(appCorner(18))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -513,7 +516,7 @@ private fun ColorSettings(
             onChange = onBrightness,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val shape = RoundedCornerShape(12.dp)
+            val shape = appCorner(12)
             if (canDelete) {
                 Row(
                     Modifier
@@ -534,8 +537,8 @@ private fun ColorSettings(
                     .weight(1f)
                     .height(44.dp)
                     .liveClick(shape, sound = FeedbackSound.Toggle, onClick = onDone)
-                    .background(Color(0xFF2C3446))
-                    .border(1.dp, Color(0x558FB3FF), shape),
+                    .background(AppColors.AccentTintStrong)
+                    .border(1.dp, AppColors.Accent.copy(alpha = 0.33f), shape),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(if (isNew) "Добавить" else "Готово", color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
@@ -561,7 +564,7 @@ private fun GradientSlider(
                     .fillMaxWidth()
                     .padding(horizontal = 10.dp)
                     .height(10.dp)
-                    .clip(RoundedCornerShape(5.dp))
+                    .clip(appCorner(5))
                     .background(Brush.horizontalGradient(colors)),
             )
             Slider(

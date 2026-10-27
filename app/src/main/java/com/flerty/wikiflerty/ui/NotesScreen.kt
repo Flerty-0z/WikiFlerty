@@ -104,7 +104,7 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
-                    .fieldSurface(RoundedCornerShape(24.dp))
+                    .fieldSurface(appCorner(24))
                     .padding(horizontal = 16.dp),
                 decorationBox = { inner ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -124,7 +124,7 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    val shape = RoundedCornerShape(18.dp)
+                    val shape = appCorner(18)
                     Box(
                         Modifier
                             .height(36.dp)

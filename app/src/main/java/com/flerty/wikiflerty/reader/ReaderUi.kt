@@ -83,6 +83,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.flerty.wikiflerty.ui.AppColors
+import com.flerty.wikiflerty.ui.appCorner
+import com.flerty.wikiflerty.ui.accentContent
+import com.flerty.wikiflerty.ui.accentHighlight
 import com.flerty.wikiflerty.ui.AppIcons
 import com.flerty.wikiflerty.ui.FeedbackSound
 import com.flerty.wikiflerty.ui.LocalFeedback
@@ -327,7 +330,7 @@ fun ReaderOverlay(
         selection?.let { last[0] = it }
         val info = last[0] ?: return@AnimatedVisibility
         val density = androidx.compose.ui.platform.LocalDensity.current
-        val menuHeight = with(density) { 54.dp.toPx() }
+        val menuHeight = with(density) { 64.dp.toPx() }
         val gap = with(density) { 12.dp.toPx() }
         val y = if (info.top - menuHeight - gap > with(density) { 24.dp.toPx() }) {
             info.top - menuHeight - gap
@@ -356,7 +359,7 @@ private fun progressText(state: ReaderUiState, settings: ReaderSettings): String
 
 @Composable
 private fun ProgressFlag(chapter: String?, progress: String, modifier: Modifier) {
-    val shape = RoundedCornerShape(12.dp)
+    val shape = appCorner(12)
     Row(
         modifier = modifier
             .height(FlagHeight.dp)
@@ -395,7 +398,7 @@ private fun TopPanel(
             .padding(start = 12.dp, end = 12.dp, top = PanelGap)
             .fillMaxWidth()
             .height(76.dp)
-            .panelSurface(RoundedCornerShape(22.dp))
+            .panelSurface(appCorner(22))
             .blockTaps()
             .padding(start = 4.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -405,9 +408,9 @@ private fun TopPanel(
         Box(
             Modifier
                 .size(width = 38.dp, height = 56.dp)
-                .clip(RoundedCornerShape(6.dp))
+                .clip(appCorner(6))
                 .background(Color(0xFF4A5A7A))
-                .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(6.dp)),
+                .border(1.dp, Color(0x33FFFFFF), appCorner(6)),
             contentAlignment = Alignment.Center,
         ) {
             if (cover != null) {
@@ -436,14 +439,14 @@ private fun TopPanel(
 @Composable
 private fun ThinProgress(progression: Double, modifier: Modifier) {
     val fraction = progression.toFloat().coerceIn(0f, 1f)
-    Box(modifier.height(4.dp).clip(RoundedCornerShape(2.dp)).background(AppColors.Line)) {
+    Box(modifier.height(4.dp).clip(appCorner(2)).background(AppColors.Line)) {
         if (fraction > 0f) {
             Box(
                 Modifier
                     .fillMaxWidth(fraction)
                     .fillMaxHeight()
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Brush.horizontalGradient(listOf(Color(0xFF6E93E6), AppColors.Accent))),
+                    .clip(appCorner(2))
+                    .background(Brush.horizontalGradient(listOf(AppColors.AccentDark, AppColors.Accent))),
             )
         }
     }
@@ -460,7 +463,7 @@ private fun BottomPanel(
             .padding(start = 12.dp, end = 12.dp, bottom = PanelGap)
             .fillMaxWidth()
             .height(68.dp)
-            .panelSurface(RoundedCornerShape(22.dp))
+            .panelSurface(appCorner(22))
             .blockTaps()
             .padding(horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -475,7 +478,7 @@ private fun BottomPanel(
             ) { QuickIcon(button, AppColors.Text) }
         }
         PanelButton("Опции", highlighted = true, sound = FeedbackSound.Open, onClick = onOptions, modifier = Modifier.weight(1f)) {
-            Icon(AppIcons.Options, contentDescription = null, tint = AppColors.Accent, modifier = Modifier.size(22.dp))
+            Icon(AppIcons.Options, contentDescription = null, tint = accentContent, modifier = Modifier.size(22.dp))
         }
     }
 }
@@ -489,13 +492,12 @@ private fun PanelButton(
     modifier: Modifier,
     icon: @Composable () -> Unit,
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = appCorner(16)
     Column(
         modifier = modifier
             .height(56.dp)
             .liveClick(shape, sound = sound, pressedScale = 0.9f, onClick = onClick)
-            .background(if (highlighted) AppColors.AccentSoft else Color.Transparent)
-            .then(if (highlighted) Modifier.border(1.dp, Color(0x408FB3FF), shape) else Modifier),
+            .then(if (highlighted) Modifier.accentHighlight(shape) else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -503,7 +505,7 @@ private fun PanelButton(
         Spacer(Modifier.height(3.dp))
         Text(
             label,
-            color = if (highlighted) AppColors.Accent else AppColors.Text,
+            color = if (highlighted) accentContent else AppColors.Text,
             fontSize = 11.sp,
             fontWeight = if (highlighted) FontWeight.SemiBold else FontWeight.Medium,
             maxLines = 1,
@@ -590,7 +592,7 @@ private fun BrightnessStrip(
 private fun BrightnessHint(percent: Int) {
     Row(
         Modifier
-            .panelSurface(RoundedCornerShape(20.dp))
+            .panelSurface(appCorner(20))
             .padding(horizontal = 18.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -610,7 +612,7 @@ private fun SheetFrame(content: @Composable () -> Unit) {
             .fillMaxWidth()
             .imePadding()
             .heightIn(max = 580.dp)
-            .panelSurface(RoundedCornerShape(26.dp), elevation = 20.dp)
+            .panelSurface(appCorner(26), elevation = 20.dp)
             .blockTaps(),
     ) {
         content()
@@ -643,7 +645,7 @@ private fun SheetContent(
             Modifier
                 .align(Alignment.CenterHorizontally)
                 .size(width = 36.dp, height = 4.dp)
-                .clip(RoundedCornerShape(2.dp))
+                .clip(appCorner(2))
                 .background(Color(0xFF3A3E45)),
         )
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -741,7 +743,7 @@ private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
         tiles.chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { tile ->
-                    val shape = RoundedCornerShape(18.dp)
+                    val shape = appCorner(18)
                     Column(
                         modifier = Modifier
                             .weight(1f)
@@ -754,9 +756,9 @@ private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
                         Box(
                             Modifier
                                 .size(36.dp)
-                                .clip(RoundedCornerShape(11.dp))
-                                .background(Brush.linearGradient(listOf(Color(0x478FB3FF), Color(0x1A8FB3FF))))
-                                .border(1.dp, Color(0x338FB3FF), RoundedCornerShape(11.dp)),
+                                .clip(appCorner(11))
+                                .background(Brush.linearGradient(listOf(AppColors.Accent.copy(alpha = 0.28f), AppColors.Accent.copy(alpha = 0.1f))))
+                                .border(1.dp, AppColors.Accent.copy(alpha = 0.2f), appCorner(11)),
                             contentAlignment = Alignment.Center,
                         ) {
                             if (tile.icon == null) {
@@ -786,7 +788,7 @@ private fun TextOptions(
 ) {
     val context = LocalContext.current
     val entry = FontCatalog.find(fonts, settings.font)
-    val shape = RoundedCornerShape(16.dp)
+    val shape = appCorner(16)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -877,7 +879,7 @@ private fun FontList(
             val chips = listOf<FontCategory?>(null) + FontCategory.entries.filter { c -> fonts.any { it.category == c } }
             chips.forEach { category ->
                 val selected = filter == category
-                val shape = RoundedCornerShape(18.dp)
+                val shape = appCorner(18)
                 val bg by animateColorAsState(if (selected) AppColors.Accent else AppColors.Field, label = "chip")
                 Box(
                     modifier = Modifier
@@ -900,7 +902,7 @@ private fun FontList(
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             items(shown, key = { it.id }) { entry ->
                 val selected = settings.font == entry.id
-                val shape = RoundedCornerShape(14.dp)
+                val shape = appCorner(14)
                 val border by animateColorAsState(if (selected) AppColors.Accent else AppColors.PanelBorder, label = "font")
                 val family = FontCatalog.preview(context, entry)
                 Row(
@@ -909,7 +911,7 @@ private fun FontList(
                         .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.98f) {
                             onSettingsChange { it.copy(font = entry.id) }
                         }
-                        .background(if (selected) Color(0xFF1A2232) else AppColors.Field)
+                        .background(if (selected) AppColors.AccentTint else AppColors.Field)
                         .border(if (selected) 2.dp else 1.dp, border, shape)
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -950,7 +952,7 @@ private fun ScrollOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSe
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { animation ->
                         val selected = settings.animation == animation
-                        val shape = RoundedCornerShape(14.dp)
+                        val shape = appCorner(14)
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -978,7 +980,7 @@ private fun ThemeOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { theme ->
                         val selected = settings.pageTheme == theme
-                        val shape = RoundedCornerShape(16.dp)
+                        val shape = appCorner(16)
                         Column(
                             modifier = Modifier
                                 .weight(1f)
@@ -1006,7 +1008,7 @@ private fun PanelOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
     }
     SwitchRow("Флажок внизу", settings.showFlag) { v -> onSettingsChange { it.copy(showFlag = v) } }
     Group("Кнопки панели") {
-        Column(Modifier.clip(RoundedCornerShape(16.dp)).background(AppColors.Field)) {
+        Column(Modifier.clip(appCorner(16)).background(AppColors.Field)) {
             QuickButton.entries.forEach { button ->
                 val checked = button.id in settings.quickButtons
                 val toggle = {
@@ -1019,7 +1021,7 @@ private fun PanelOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp)
-                        .liveClick(RoundedCornerShape(0.dp), sound = FeedbackSound.Toggle, pressedScale = 0.98f) { toggle() }
+                        .liveClick(appCorner(0), sound = FeedbackSound.Toggle, pressedScale = 0.98f) { toggle() }
                         .padding(start = 14.dp, end = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -1081,7 +1083,7 @@ private fun ScreenOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSe
     Segmented("Поворот", ScreenOrientation.entries.map { it.title }, ScreenOrientation.of(settings.orientation).ordinal) { i ->
         onSettingsChange { it.copy(orientation = ScreenOrientation.entries[i].id) }
     }
-    Column(Modifier.clip(RoundedCornerShape(16.dp)).background(AppColors.Field).padding(horizontal = 14.dp)) {
+    Column(Modifier.clip(appCorner(16)).background(AppColors.Field).padding(horizontal = 14.dp)) {
         SwitchRow("Не гасить экран", settings.keepScreenOn) { v -> onSettingsChange { it.copy(keepScreenOn = v) } }
         SwitchRow("Полный экран", settings.fullscreen) { v -> onSettingsChange { it.copy(fullscreen = v) } }
     }
@@ -1118,7 +1120,7 @@ private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: M
     }
     LazyColumn(modifier) {
         items(toc) { item ->
-            val shape = RoundedCornerShape(12.dp)
+            val shape = appCorner(12)
             Text(
                 item.title,
                 color = if (item.depth == 0) AppColors.Text else AppColors.Muted,
@@ -1153,7 +1155,7 @@ private fun Hint(text: String) {
 @Composable
 private fun CheckMark(checked: Boolean) {
     val bg by animateColorAsState(if (checked) AppColors.Accent else Color.Transparent, label = "check")
-    val shape = RoundedCornerShape(7.dp)
+    val shape = appCorner(7)
     Box(
         Modifier.size(24.dp).clip(shape).background(bg).border(2.dp, if (checked) AppColors.Accent else Color(0xFF4A4E56), shape),
         contentAlignment = Alignment.Center,
@@ -1209,16 +1211,16 @@ private fun Segmented(label: String, options: List<String>, selected: Int, onSel
         Row(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(appCorner(14))
                 .background(AppColors.Field)
-                .border(1.dp, AppColors.PanelBorder, RoundedCornerShape(14.dp))
+                .border(1.dp, AppColors.PanelBorder, appCorner(14))
                 .padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             options.forEachIndexed { i, option ->
                 val isSelected = i == selected
                 val bg by animateColorAsState(if (isSelected) SelectedSegment else Color.Transparent, label = "segment")
-                val shape = RoundedCornerShape(10.dp)
+                val shape = appCorner(10)
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -1283,14 +1285,14 @@ private fun ToggleTile(
     onClick: () -> Unit,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    val shape = RoundedCornerShape(12.dp)
+    val shape = appCorner(12)
     val border by animateColorAsState(if (selected) AppColors.Accent else AppColors.Line, label = "toggle")
     Box(
         modifier = modifier
             .height(48.dp)
             .alpha(if (enabled) 1f else 0.35f)
             .liveClick(shape, sound = FeedbackSound.Toggle, enabled = enabled, pressedScale = 0.92f, onClick = onClick)
-            .background(if (selected) Color(0xFF1A2232) else AppColors.Field)
+            .background(if (selected) AppColors.AccentTint else AppColors.Field)
             .border(if (selected) 2.dp else 1.dp, border, shape)
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,

@@ -10,6 +10,7 @@ import com.flerty.wikiflerty.reader.ReaderSession
 import com.flerty.wikiflerty.reader.ReaderSettingsStore
 import com.flerty.wikiflerty.reader.ReadiumServices
 import com.flerty.wikiflerty.ui.Feedback
+import com.flerty.wikiflerty.ui.StyleStore
 import org.json.JSONObject
 import org.readium.r2.shared.publication.Locator
 
@@ -19,6 +20,10 @@ class App : Application() {
         private set
 
     lateinit var library: LibraryRepository
+        private set
+
+    /** The look of the interface (colors, shapes, fonts, background). */
+    lateinit var style: StyleStore
         private set
 
     lateinit var readerSettings: ReaderSettingsStore
@@ -42,6 +47,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        style = StyleStore(this)
         readium = ReadiumServices(this)
         library = LibraryRepository(this, readium)
         readerSettings = ReaderSettingsStore(this)

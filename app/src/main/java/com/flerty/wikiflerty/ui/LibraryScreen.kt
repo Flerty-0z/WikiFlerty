@@ -139,7 +139,7 @@ private fun BookCard(
                 }
             }
         }
-        val shape = RoundedCornerShape(8.dp)
+        val shape = appCorner(8)
         Box(
             modifier = Modifier
                 .fillMaxWidth()

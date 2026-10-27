@@ -32,6 +32,9 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -120,11 +123,16 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
             }
         },
     ) {
+        Box(Modifier.fillMaxSize()) {
+        AppBackground()
+        val hasBackground = BackgroundKind.of(AppStyle.current.background) != BackgroundKind.None
         Scaffold(
+            containerColor = if (hasBackground) Color.Transparent else AppColors.Background,
             topBar = {
                 Column {
                     TopAppBar(
                         title = { Text(section.title) },
+                        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                         navigationIcon = {
                             IconButton(onClick = {
                                 feedback?.play(FeedbackSound.Open, view)
@@ -167,6 +175,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 Section.Settings -> SettingsScreen(modifier)
                 Section.About -> AboutScreen(modifier)
             }
+        }
         }
     }
 }

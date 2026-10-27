@@ -23,17 +23,28 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-private val PanelTop = Color(0xFF25282D)
-private val PanelBottom = Color(0xFF1C1E22)
-private val EdgeTop = Color(0xFF454952)
-private val EdgeBottom = Color(0xFF26292E)
-
 /** A floating panel: soft shadow, slight top-to-bottom shading and a thin outline lit from above. */
 fun Modifier.panelSurface(shape: Shape, elevation: Dp = 14.dp): Modifier = this
     .shadow(elevation, shape, ambientColor = Color.Black, spotColor = Color.Black)
     .clip(shape)
-    .background(Brush.verticalGradient(listOf(PanelTop, PanelBottom)))
-    .border(1.dp, Brush.verticalGradient(listOf(EdgeTop, EdgeBottom)), shape)
+    .background(Brush.verticalGradient(listOf(AppColors.PanelTop, AppColors.PanelBottom)))
+    .then(
+        if (AppStyle.current.outline) {
+            Modifier.border(1.dp, Brush.verticalGradient(listOf(AppColors.EdgeTop, AppColors.PanelBorder)), shape)
+        } else {
+            Modifier
+        },
+    )
+
+/** Background of a highlighted button, following the user's "button look" setting. */
+fun Modifier.accentHighlight(shape: Shape): Modifier = when (AppStyle.buttons) {
+    ButtonLook.Filled -> this.background(AppColors.Accent)
+    ButtonLook.Outline -> this.border(1.5.dp, AppColors.Accent, shape)
+    ButtonLook.Soft -> this.background(AppColors.AccentSoft).border(1.dp, AppColors.Accent.copy(alpha = 0.25f), shape)
+}
+
+/** Icon/text color on a highlighted button. */
+val accentContent: Color get() = if (AppStyle.buttons == ButtonLook.Filled) AppColors.OnAccent else AppColors.Accent
 
 /** A field inside a panel: a darker inset with a faint outline. */
 fun Modifier.fieldSurface(shape: Shape, selected: Boolean = false, accent: Color = AppColors.Accent): Modifier = this
@@ -57,7 +68,7 @@ fun Modifier.liveClick(
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed) pressedScale else 1f,
+        targetValue = if (pressed && AppStyle.current.pressEffect) pressedScale else 1f,
         animationSpec = spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMedium),
         label = "press",
     )

@@ -92,7 +92,7 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
-                    .fieldSurface(RoundedCornerShape(24.dp))
+                    .fieldSurface(appCorner(24))
                     .padding(horizontal = 16.dp),
                 decorationBox = { inner ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -107,7 +107,7 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
         }
         items(filtered, key = { it.id }) { entry ->
             val open = openId == entry.id
-            val shape = RoundedCornerShape(16.dp)
+            val shape = appCorner(16)
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -148,17 +148,17 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
                         entry.bookTitle?.let { Text(it, color = AppColors.Faint, fontSize = 12.sp) }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (entry.bookId != null && entry.locator != null) {
-                                val buttonShape = RoundedCornerShape(12.dp)
+                                val buttonShape = appCorner(12)
                                 Box(
                                     Modifier
                                         .weight(1f)
                                         .height(42.dp)
                                         .liveClick(buttonShape, sound = FeedbackSound.Open) { viewModel.openDictionaryEntry(entry) }
-                                        .border(1.dp, Color(0x558FB3FF), buttonShape),
+                                        .border(1.dp, AppColors.Accent.copy(alpha = 0.33f), buttonShape),
                                     contentAlignment = Alignment.Center,
                                 ) { Text("Открыть в книге", color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
                             }
-                            val deleteShape = RoundedCornerShape(12.dp)
+                            val deleteShape = appCorner(12)
                             Box(
                                 Modifier
                                     .height(42.dp)
