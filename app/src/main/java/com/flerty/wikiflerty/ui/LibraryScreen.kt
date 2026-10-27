@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,6 +55,8 @@ fun LibraryScreen(
 ) {
     val books by viewModel.books.collectAsStateWithLifecycle()
     var bookToDelete by remember { mutableStateOf<Book?>(null) }
+    val feedback = LocalFeedback.current
+    val view = LocalView.current
 
     if (books.isEmpty()) {
         EmptyLibrary(onAddBook, modifier)
@@ -69,8 +72,14 @@ fun LibraryScreen(
                 BookCard(
                     book = book,
                     coverFile = viewModel.coverFile(book),
-                    onClick = { viewModel.open(book) },
-                    onLongClick = { bookToDelete = book },
+                    onClick = {
+                        feedback?.play(FeedbackSound.Open, view)
+                        viewModel.open(book)
+                    },
+                    onLongClick = {
+                        feedback?.play(FeedbackSound.Toggle, view)
+                        bookToDelete = book
+                    },
                 )
             }
         }

@@ -8,6 +8,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.runtime.CompositionLocalProvider
+import com.flerty.wikiflerty.App
 
 class MainActivity : ComponentActivity() {
 
@@ -17,8 +19,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            WikiFlertyTheme {
-                MainScreen(libraryViewModel)
+            CompositionLocalProvider(LocalFeedback provides (application as App).feedback) {
+                WikiFlertyTheme {
+                    MainScreen(libraryViewModel)
+                }
             }
         }
         if (savedInstanceState == null) handleIncomingBook(intent)

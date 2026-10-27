@@ -44,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -70,6 +71,8 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
     val snackbar = remember { SnackbarHostState() }
     var section by rememberSaveable { mutableStateOf(Section.Library) }
     val busy by libraryViewModel.busy.collectAsStateWithLifecycle()
+    val feedback = LocalFeedback.current
+    val view = LocalView.current
 
     val pickBook = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) libraryViewModel.import(uri)
@@ -107,6 +110,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                         icon = { Icon(item.icon, contentDescription = null) },
                         selected = item == section,
                         onClick = {
+                            feedback?.play(FeedbackSound.Tap, view)
                             section = item
                             scope.launch { drawerState.close() }
                         },
@@ -122,7 +126,10 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                     TopAppBar(
                         title = { Text(section.title) },
                         navigationIcon = {
-                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            IconButton(onClick = {
+                                feedback?.play(FeedbackSound.Open, view)
+                                scope.launch { drawerState.open() }
+                            }) {
                                 Icon(Icons.Filled.Menu, contentDescription = "Меню")
                             }
                         },
@@ -133,7 +140,10 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
             floatingActionButton = {
                 if (section == Section.Library) {
                     ExtendedFloatingActionButton(
-                        onClick = { pickBook.launch(arrayOf("application/epub+zip", "application/octet-stream")) },
+                        onClick = {
+                            feedback?.play(FeedbackSound.Open, view)
+                            pickBook.launch(arrayOf("application/epub+zip", "application/octet-stream"))
+                        },
                         icon = { Icon(Icons.Filled.Add, contentDescription = null) },
                         text = { Text("Книга") },
                     )

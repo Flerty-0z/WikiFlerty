@@ -2,28 +2,47 @@ package com.flerty.wikiflerty.reader
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Rect
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.KeyEvent
+import android.view.PixelCopy
+import android.view.View
+import android.view.ViewGroup
+import android.view.ViewOutlineProvider
+import android.view.WindowManager
+import android.view.animation.DecelerateInterpolator
+import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.ComposeView
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.drawToBitmap
 import androidx.fragment.app.commitNow
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.compose.runtime.collectAsState
 import com.flerty.wikiflerty.App
 import com.flerty.wikiflerty.R
+import com.flerty.wikiflerty.ui.FeedbackSound
+import com.flerty.wikiflerty.ui.LocalFeedback
 import com.flerty.wikiflerty.ui.WikiFlertyTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -34,7 +53,6 @@ import org.readium.r2.navigator.epub.css.FontStyle
 import org.readium.r2.navigator.epub.css.FontWeight
 import org.readium.r2.navigator.input.InputListener
 import org.readium.r2.navigator.input.TapEvent
-import org.readium.r2.navigator.util.DirectionalNavigationAdapter
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.services.positions
 import org.readium.r2.shared.util.AbsoluteUrl
@@ -46,27 +64,40 @@ import org.readium.r2.shared.util.AbsoluteUrl
 class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private val app: App get() = application as App
+    private val settings: ReaderSettings get() = app.readerSettings.settings.value
     private val ui = ReaderUiState()
     private lateinit var navigator: EpubNavigatorFragment
-    private lateinit var fonts: List<ReaderFont>
+    private lateinit var fonts: List<FontEntry>
+    private lateinit var bookArea: View
+    private lateinit var snapshot: ImageView
 
-    private var edgeAdapter: DirectionalNavigationAdapter? = null
-    private var appliedEdgeTaps: Boolean? = null
-    private var appliedAnimated: Boolean? = null
+    private var systemBars: Insets = Insets.NONE
+    private var turning = false
 
-    /** First tap while panels are open just closes them. */
-    private val closePanelsListener = object : InputListener {
+    private val tapListener = object : InputListener {
         override fun onTap(event: TapEvent): Boolean {
-            if (!ui.panelsVisible && ui.sheet == null) return false
-            ui.hideAll()
-            return true
-        }
-    }
-
-    /** A tap that was not on a page edge shows the panels. */
-    private val showPanelsListener = object : InputListener {
-        override fun onTap(event: TapEvent): Boolean {
+            // While panels are open, any tap on the page just closes them.
+            if (ui.panelsVisible || ui.sheet != null) {
+                ui.hideAll()
+                return true
+            }
+            val s = settings
+            if (s.edgeTaps && !s.scroll) {
+                val width = navigator.publicationView.width.toFloat()
+                if (width > 0f) {
+                    val x = event.point.x
+                    if (x < width * s.edgeZone) {
+                        turn(forward = s.leftTapForward)
+                        return true
+                    }
+                    if (x > width * (1 - s.edgeZone)) {
+                        turn(forward = true)
+                        return true
+                    }
+                }
+            }
             ui.panelsVisible = true
+            app.feedback.play(FeedbackSound.Open)
             return true
         }
     }
@@ -83,22 +114,33 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             return
         }
 
-        fonts = ReaderFont.available(this)
-        val settings = app.readerSettings.settings.value
+        fonts = FontCatalog.available(this)
+        val initial = settings
 
         // IMPORTANT: the fragment factory must be set before super.onCreate().
         supportFragmentManager.fragmentFactory = EpubNavigatorFactory(session.publication)
             .createFragmentFactory(
                 initialLocator = session.initialLocator,
-                initialPreferences = settings.toEpubPreferences(fonts),
+                initialPreferences = initial.toEpubPreferences(fonts),
                 listener = this,
                 configuration = navigatorConfiguration(),
             )
 
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_reader)
-        hideSystemBars()
-        applyPageBackground(settings)
+        bookArea = findViewById(R.id.book_area)
+        snapshot = findViewById(R.id.page_snapshot)
+        snapshot.outlineProvider = ViewOutlineProvider.BOUNDS
+        snapshot.elevation = 16 * resources.displayMetrics.density
+
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val root = findViewById<View>(R.id.reader_root)
+        ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
+            systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            applyBookMargins(settings)
+            insets
+        }
+        applyWindowSettings(initial)
 
         if (savedInstanceState == null) {
             supportFragmentManager.commitNow {
@@ -106,7 +148,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             }
         }
         navigator = supportFragmentManager.findFragmentByTag(NAVIGATOR_TAG) as EpubNavigatorFragment
-        applyInputListeners(settings)
+        navigator.addInputListener(tapListener)
 
         val book = app.library.books.value.firstOrNull { it.id == session.bookId }
         val title = book?.title ?: session.publication.metadata.title.orEmpty()
@@ -114,22 +156,26 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         var cover by mutableStateOf<ImageBitmap?>(null)
 
         findViewById<ComposeView>(R.id.reader_overlay).setContent {
-            WikiFlertyTheme {
-                val current by app.readerSettings.settings.collectAsState()
-                ReaderOverlay(
-                    state = ui,
-                    settings = current,
-                    fonts = fonts,
-                    title = title,
-                    cover = cover,
-                    toc = toc,
-                    onSettingsChange = { transform -> app.readerSettings.update(transform) },
-                    onTocSelect = { item -> navigator.go(item.link, animated = false) },
-                    onBack = { finish() },
-                    onNotes = {
-                        Toast.makeText(this, "Заметки появятся в следующем обновлении", Toast.LENGTH_SHORT).show()
-                    },
-                )
+            CompositionLocalProvider(LocalFeedback provides app.feedback) {
+                WikiFlertyTheme {
+                    val current by app.readerSettings.settings.collectAsState()
+                    ReaderOverlay(
+                        state = ui,
+                        settings = current,
+                        fonts = fonts,
+                        title = title,
+                        cover = cover,
+                        toc = toc,
+                        onSettingsChange = { transform -> app.readerSettings.update(transform) },
+                        onTocSelect = { item -> navigator.go(item.link, animated = false) },
+                        onBack = { finish() },
+                        onNotes = {
+                            Toast.makeText(this, "Заметки появятся в следующем обновлении", Toast.LENGTH_SHORT).show()
+                        },
+                        onEdgeTap = { left -> onStripTap(left) },
+                        onBrightnessPreview = { value -> setWindowBrightness(value) },
+                    )
+                }
             }
         }
 
@@ -160,8 +206,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 launch {
                     app.readerSettings.settings.collect { s ->
                         navigator.submitPreferences(s.toEpubPreferences(fonts))
-                        applyPageBackground(s)
-                        applyInputListeners(s)
+                        applyWindowSettings(s)
                     }
                 }
             }
@@ -171,79 +216,225 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     /** Lets the book use the fonts bundled in assets/fonts. */
     private fun navigatorConfiguration() = EpubNavigatorFragment.Configuration {
         servedAssets += "fonts/.*"
-        if (ReaderFont.Literata in fonts) {
-            addFontFamilyDeclaration(ReaderFont.Literata.family!!) {
+        fonts.filter { it.bundled && it.css != null }.forEach { entry ->
+            val regular = "fonts/${entry.regular}"
+            val italic = entry.italic?.let { "fonts/$it" }
+            val bold = entry.bold?.let { "fonts/$it" }
+
+            addFontFamilyDeclaration(org.readium.r2.navigator.preferences.FontFamily(entry.css!!)) {
                 addFontFace {
-                    addSource("fonts/Literata.ttf", preload = true)
+                    addSource(regular)
                     setFontStyle(FontStyle.NORMAL)
-                    setFontWeight(200..900)
+                    if (entry.variable) setFontWeight(100..900) else setFontWeight(FontWeight.NORMAL)
                 }
-                addFontFace {
-                    addSource("fonts/Literata-Italic.ttf")
-                    setFontStyle(FontStyle.ITALIC)
-                    setFontWeight(200..900)
+                if (bold != null) {
+                    addFontFace {
+                        addSource(bold)
+                        setFontStyle(FontStyle.NORMAL)
+                        setFontWeight(FontWeight.BOLD)
+                    }
+                }
+                if (italic != null) {
+                    addFontFace {
+                        addSource(italic)
+                        setFontStyle(FontStyle.ITALIC)
+                        if (entry.variable) setFontWeight(100..900) else setFontWeight(FontWeight.NORMAL)
+                    }
                 }
             }
-        }
-        if (ReaderFont.PtSerif in fonts) {
-            addFontFamilyDeclaration(ReaderFont.PtSerif.family!!) {
-                addFontFace {
-                    addSource("fonts/PTSerif-Regular.ttf", preload = true)
-                    setFontStyle(FontStyle.NORMAL)
-                    setFontWeight(FontWeight.NORMAL)
-                }
-                addFontFace {
-                    addSource("fonts/PTSerif-Bold.ttf")
-                    setFontStyle(FontStyle.NORMAL)
-                    setFontWeight(FontWeight.BOLD)
-                }
-                addFontFace {
-                    addSource("fonts/PTSerif-Italic.ttf")
-                    setFontStyle(FontStyle.ITALIC)
-                    setFontWeight(FontWeight.NORMAL)
+
+            // "Курсив" for the whole book: a family whose normal style is the italic file.
+            if (italic != null) {
+                addFontFamilyDeclaration(org.readium.r2.navigator.preferences.FontFamily(entry.italicFamilyName)) {
+                    addFontFace {
+                        addSource(italic)
+                        setFontStyle(FontStyle.NORMAL)
+                        if (entry.variable) setFontWeight(100..900) else setFontWeight(FontWeight.NORMAL)
+                    }
+                    addFontFace {
+                        addSource(italic)
+                        setFontStyle(FontStyle.ITALIC)
+                        if (entry.variable) setFontWeight(100..900) else setFontWeight(FontWeight.NORMAL)
+                    }
                 }
             }
         }
     }
 
-    /** Re-adds the tap handlers when "tap the edges" or the animation setting changes. */
-    private fun applyInputListeners(settings: ReaderSettings) {
-        if (appliedEdgeTaps == settings.edgeTaps && appliedAnimated == settings.animatedTurns) return
-        if (appliedEdgeTaps != null) {
-            navigator.removeInputListener(closePanelsListener)
-            edgeAdapter?.let { navigator.removeInputListener(it) }
-            navigator.removeInputListener(showPanelsListener)
-        }
-        navigator.addInputListener(closePanelsListener)
-        edgeAdapter = if (settings.edgeTaps) {
-            DirectionalNavigationAdapter(navigator, animatedTransition = settings.animatedTurns)
-                .also { navigator.addInputListener(it) }
+    // ------------------------------------------------------------ page turning
+
+    /** A tap on the narrow brightness strip at the left edge. */
+    private fun onStripTap(left: Boolean) {
+        val s = settings
+        if (s.edgeTaps && !s.scroll) {
+            turn(forward = !left || s.leftTapForward)
         } else {
-            null
+            ui.panelsVisible = true
         }
-        navigator.addInputListener(showPanelsListener)
-        appliedEdgeTaps = settings.edgeTaps
-        appliedAnimated = settings.animatedTurns
     }
 
-    private fun applyPageBackground(settings: ReaderSettings) {
-        val color = settings.pageTheme.background.toInt()
-        findViewById<android.view.View>(R.id.reader_root)?.setBackgroundColor(color)
-        window.decorView.setBackgroundColor(color)
+    private fun go(forward: Boolean, animated: Boolean): Boolean =
+        if (forward) navigator.goForward(animated = animated) else navigator.goBackward(animated = animated)
+
+    private fun turn(forward: Boolean) {
+        when (settings.animation) {
+            PageAnimation.Slide -> go(forward, animated = true)
+            PageAnimation.None -> go(forward, animated = false)
+            PageAnimation.Fade, PageAnimation.Cover -> animatedTurn(forward, settings.animation)
+        }
     }
+
+    /**
+     * Fade and cover effects: take a picture of the current page, put it on top,
+     * turn the page underneath, then fade or slide the picture away.
+     */
+    private fun animatedTurn(forward: Boolean, animation: PageAnimation) {
+        if (turning) {
+            go(forward, animated = false)
+            return
+        }
+        turning = true
+        capturePage { bitmap ->
+            if (bitmap == null) {
+                turning = false
+                go(forward, animated = false)
+                return@capturePage
+            }
+            snapshot.animate().cancel()
+            snapshot.setImageBitmap(bitmap)
+            snapshot.alpha = 1f
+            snapshot.translationX = 0f
+            snapshot.visibility = View.VISIBLE
+            if (!go(forward, animated = false)) {
+                hideSnapshot()
+                return@capturePage
+            }
+            val width = bookArea.width.toFloat()
+            val animator = snapshot.animate()
+                .setStartDelay(60)
+                .setInterpolator(DecelerateInterpolator(1.4f))
+                .withEndAction { hideSnapshot() }
+            when (animation) {
+                PageAnimation.Fade -> animator.alpha(0f).setDuration(280)
+                else -> animator.translationX(if (forward) -width else width).setDuration(320)
+            }
+            animator.start()
+        }
+    }
+
+    private fun hideSnapshot() {
+        snapshot.visibility = View.GONE
+        snapshot.setImageDrawable(null)
+        snapshot.translationX = 0f
+        snapshot.alpha = 1f
+        turning = false
+    }
+
+    private fun capturePage(onReady: (Bitmap?) -> Unit) {
+        val view = bookArea
+        if (view.width == 0 || view.height == 0) {
+            onReady(null)
+            return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+            val location = IntArray(2)
+            view.getLocationInWindow(location)
+            val rect = Rect(location[0], location[1], location[0] + view.width, location[1] + view.height)
+            try {
+                PixelCopy.request(
+                    window,
+                    rect,
+                    bitmap,
+                    { result -> onReady(if (result == PixelCopy.SUCCESS) bitmap else null) },
+                    Handler(Looper.getMainLooper()),
+                )
+            } catch (e: IllegalArgumentException) {
+                onReady(null)
+            }
+        } else {
+            onReady(runCatching { view.drawToBitmap() }.getOrNull())
+        }
+    }
+
+    // ------------------------------------------------------------ window
+
+    private fun applyWindowSettings(s: ReaderSettings) {
+        val background = s.pageTheme.background.toInt()
+        findViewById<View>(R.id.reader_root)?.setBackgroundColor(background)
+        window.decorView.setBackgroundColor(background)
+
+        setWindowBrightness(s.brightness)
+
+        if (s.keepScreenOn) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+
+        val orientation = when (ScreenOrientation.of(s.orientation)) {
+            ScreenOrientation.Auto -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            ScreenOrientation.Portrait -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+            ScreenOrientation.Landscape -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+        if (requestedOrientation != orientation) requestedOrientation = orientation
+
+        applySystemBars(s)
+        applyBookMargins(s)
+    }
+
+    private fun setWindowBrightness(value: Double) {
+        val attributes = window.attributes
+        attributes.screenBrightness = if (value < 0) {
+            WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+        } else {
+            value.toFloat().coerceIn(0.01f, 1f)
+        }
+        window.attributes = attributes
+    }
+
+    private fun applySystemBars(s: ReaderSettings) {
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = s.pageTheme.isLight
+            isAppearanceLightNavigationBars = s.pageTheme.isLight
+            if (s.fullscreen) {
+                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                hide(WindowInsetsCompat.Type.systemBars())
+            } else {
+                show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+    }
+
+    /** Leaves room above the text and, at the bottom, for the progress flag. */
+    private fun applyBookMargins(s: ReaderSettings) {
+        if (!::bookArea.isInitialized) return
+        val density = resources.displayMetrics.density
+        val params = bookArea.layoutParams as ViewGroup.MarginLayoutParams
+        val top = systemBars.top + (20 * density).toInt()
+        val bottom = systemBars.bottom + ((if (s.showFlag) 46 else 18) * density).toInt()
+        if (params.topMargin != top || params.bottomMargin != bottom) {
+            params.topMargin = top
+            params.bottomMargin = bottom
+            bookArea.layoutParams = params
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && app.readerSession != null) applySystemBars(settings)
+    }
+
+    // ------------------------------------------------------------ keys, links
 
     /** Volume keys turn pages when that option is on. */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        val settings = app.readerSettings.settings.value
-        if (settings.volumeKeys && ::navigator.isInitialized &&
+        val s = settings
+        if (s.volumeKeys && ::navigator.isInitialized &&
             (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || event.keyCode == KeyEvent.KEYCODE_VOLUME_UP)
         ) {
-            if (event.action == KeyEvent.ACTION_DOWN) {
-                if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-                    navigator.goForward(animated = settings.animatedTurns)
-                } else {
-                    navigator.goBackward(animated = settings.animatedTurns)
-                }
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                turn(forward = event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN)
             }
             return true
         }
@@ -256,19 +447,6 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             val self = if (title.isNotEmpty()) listOf(TocItem(title, depth, link)) else emptyList()
             self + flattenToc(link.children, depth + 1)
         }
-
-    private fun hideSystemBars() {
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        WindowCompat.getInsetsController(window, window.decorView).apply {
-            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            hide(WindowInsetsCompat.Type.systemBars())
-        }
-    }
-
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) hideSystemBars()
-    }
 
     override fun onDestroy() {
         super.onDestroy()

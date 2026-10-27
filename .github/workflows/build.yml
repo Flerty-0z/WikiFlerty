@@ -27,18 +27,17 @@ jobs:
 
       # Reading fonts (SIL Open Font License) are downloaded at build time
       # from the Google Fonts repository instead of being stored in git.
+      # The list lives in app/fonts.txt.
       - name: Download reading fonts
         run: |
           mkdir -p app/src/main/assets/fonts
-          cd app/src/main/assets/fonts
-          base=https://github.com/google/fonts/raw/main/ofl
-          get() { curl -fsSL --retry 3 -o "$1" "$2" || { echo "::warning::Font not downloaded: $1"; rm -f "$1"; }; }
-          get Literata.ttf          "$base/literata/Literata%5Bopsz,wght%5D.ttf"
-          get Literata-Italic.ttf   "$base/literata/Literata-Italic%5Bopsz,wght%5D.ttf"
-          get PTSerif-Regular.ttf   "$base/ptserif/PT_Serif-Web-Regular.ttf"
-          get PTSerif-Bold.ttf      "$base/ptserif/PT_Serif-Web-Bold.ttf"
-          get PTSerif-Italic.ttf    "$base/ptserif/PT_Serif-Web-Italic.ttf"
-          ls -la
+          grep -v '^#' app/fonts.txt | while read -r name path; do
+            [ -z "$name" ] && continue
+            url="https://github.com/google/fonts/raw/main/$(echo "$path" | sed 's/\[/%5B/g; s/\]/%5D/g')"
+            curl -fsSL --retry 3 -o "app/src/main/assets/fonts/$name" "$url" \
+              || { echo "::warning::Font not downloaded: $name"; rm -f "app/src/main/assets/fonts/$name"; }
+          done
+          ls app/src/main/assets/fonts | wc -l
 
       - name: Build
         run: |

@@ -5,13 +5,29 @@
     android:layout_height="match_parent"
     android:background="@color/background">
 
-    <!-- The book. Space at the bottom is left for the progress flag. -->
-    <androidx.fragment.app.FragmentContainerView
-        android:id="@+id/navigator_container"
+    <!-- The book page. Margins are set in code: room at the top and for the progress flag. -->
+    <FrameLayout
+        android:id="@+id/book_area"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_marginTop="20dp"
-        android:layout_marginBottom="40dp" />
+        android:layout_marginBottom="46dp">
+
+        <androidx.fragment.app.FragmentContainerView
+            android:id="@+id/navigator_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <!-- Picture of the previous page, used by the "Плавно" and "Накрытие" turn animations. -->
+        <ImageView
+            android:id="@+id/page_snapshot"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:importantForAccessibility="no"
+            android:scaleType="fitXY"
+            android:visibility="gone" />
+    </FrameLayout>
 
     <!-- Panels, options and table of contents, drawn over the book. -->
     <androidx.compose.ui.platform.ComposeView
