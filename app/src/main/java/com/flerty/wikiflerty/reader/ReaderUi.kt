@@ -133,6 +133,7 @@ enum class ReaderSheet(val title: String, val depth: Int) {
     AiMenu("ИИ", 0),
     AiChat("ИИ", 0),
     AiSetup("Нейросети", 1),
+    Search("Поиск", 0),
 }
 
 class ReaderUiState {
@@ -144,6 +145,7 @@ class ReaderUiState {
     var chapter by mutableStateOf<String?>(null)
     var brightnessHint by mutableStateOf<Int?>(null)
     var selection by mutableStateOf<SelectionInfo?>(null)
+    var footnote by mutableStateOf<FootnoteInfo?>(null)
     var editor by mutableStateOf<NoteDraft?>(null)
     var aiSetupFromMenu by mutableStateOf(false)
     var ttsActive by mutableStateOf(false)
@@ -192,14 +194,17 @@ fun ReaderOverlay(
     bookLanguage: String?,
     onInstallVoices: () -> Unit,
     onSeek: (Double) -> Unit = {},
+    search: SearchActions,
+    onFootnoteGo: (String) -> Unit = {},
 ) {
     val progressText = progressText(state, settings)
     val feedback = LocalFeedback.current
     val view = LocalView.current
 
-    BackHandler(enabled = state.sheet != null || state.panelsVisible || state.selection != null) {
+    BackHandler(enabled = state.sheet != null || state.panelsVisible || state.selection != null || state.footnote != null) {
         val sheet = state.sheet
         when {
+            state.footnote != null -> state.footnote = null
             state.selection != null && sheet == null -> noteActions.onSelectionClose()
             sheet == null -> state.panelsVisible = false
             sheet == ReaderSheet.Fonts -> state.sheet = ReaderSheet.Text
@@ -299,6 +304,7 @@ fun ReaderOverlay(
                 totalPositions = state.totalPositions,
                 onBack = onBack,
                 onListen = { state.sheet = ReaderSheet.Listen },
+                onSearch = { state.sheet = ReaderSheet.Search },
                 onSeek = onSeek,
             )
         }
@@ -320,6 +326,7 @@ fun ReaderOverlay(
                         QuickButton.Screen -> state.sheet = ReaderSheet.Screen
                         QuickButton.Notes -> state.sheet = ReaderSheet.Notes
                         QuickButton.Listen -> state.sheet = ReaderSheet.Listen
+                        QuickButton.Search -> state.sheet = ReaderSheet.Search
                     }
                 },
                 onOptions = { state.sheet = ReaderSheet.Options },
@@ -352,6 +359,7 @@ fun ReaderOverlay(
                         ttsPlaying = state.ttsPlaying,
                         ttsSleep = state.ttsSleep,
                         bookLanguage = bookLanguage,
+                        search = search,
                         sheet = sheet,
                         settings = settings,
                         fonts = fonts,
@@ -378,6 +386,39 @@ fun ReaderOverlay(
                     )
                 }
             }
+        }
+    }
+
+    val searchState = search.state
+    AnimatedVisibility(
+        visible = searchState.current >= 0 && searchState.results.isNotEmpty() && state.sheet == null &&
+            state.selection == null && state.footnote == null && !state.panelsVisible,
+        enter = fadeIn(tween(200)) + slideInVertically(tween(240)) { it / 2 },
+        exit = fadeOut(tween(160)),
+        modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.systemBars).padding(bottom = 56.dp),
+    ) {
+        SearchNavBar(search, onReopen = { state.sheet = ReaderSheet.Search }, modifier = Modifier)
+    }
+
+    AnimatedVisibility(
+        visible = state.footnote != null && state.sheet == null,
+        enter = fadeIn(tween(200)) + slideInVertically(tween(260)) { it / 3 },
+        exit = fadeOut(tween(160)) + slideOutVertically(tween(200)) { it / 3 },
+        modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.systemBars).padding(bottom = 16.dp),
+    ) {
+        val last = remember { arrayOf<FootnoteInfo?>(null) }
+        state.footnote?.let { last[0] = it }
+        val note = last[0]
+        if (note != null) {
+            FootnotePopup(
+                note = note,
+                onGo = {
+                    state.footnote = null
+                    onFootnoteGo(note.url)
+                },
+                onClose = { state.footnote = null },
+                modifier = Modifier.blockTaps(),
+            )
         }
     }
 
@@ -457,6 +498,7 @@ private fun TopPanel(
     totalPositions: Int,
     onBack: () -> Unit,
     onListen: () -> Unit,
+    onSearch: () -> Unit,
     onSeek: (Double) -> Unit,
 ) {
     var preview by remember { mutableStateOf<Double?>(null) }
@@ -508,6 +550,7 @@ private fun TopPanel(
                 )
             }
         }
+        RoundIconButton(AppIcons.Search, "Поиск по книге", sound = FeedbackSound.Open, onClick = onSearch)
         RoundIconButton(AppIcons.Headphones, "Чтение вслух", sound = FeedbackSound.Open, onClick = onListen)
     }
 }
@@ -684,6 +727,7 @@ private fun quickIconVector(button: QuickButton): ImageVector = when (button) {
     QuickButton.Screen -> AppIcons.Screen
     QuickButton.Notes -> AppIcons.Note
     QuickButton.Listen -> AppIcons.Headphones
+    QuickButton.Search -> AppIcons.Search
 }
 
 @Composable
@@ -803,6 +847,7 @@ private fun SheetContent(
     ttsPlaying: Boolean,
     ttsSleep: com.flerty.wikiflerty.tts.SleepTimer?,
     bookLanguage: String?,
+    search: SearchActions,
 ) {
     Column(
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
@@ -845,6 +890,7 @@ private fun SheetContent(
 
         when (sheet) {
             ReaderSheet.Toc -> TocList(toc, onTocSelect, Modifier.weight(1f, fill = false))
+            ReaderSheet.Search -> SearchContent(search, Modifier.weight(1f, fill = false))
             ReaderSheet.Fonts -> FontList(fonts, settings, onSettingsChange, Modifier.weight(1f, fill = false))
             ReaderSheet.AiMenu -> AiMenuContent(
                 bridge = ai,

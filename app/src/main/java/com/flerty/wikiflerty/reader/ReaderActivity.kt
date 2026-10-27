@@ -31,6 +31,10 @@ import androidx.appcompat.app.AppCompatActivity
 import com.flerty.wikiflerty.tts.ReadAloud
 import com.flerty.wikiflerty.tts.ReadAloudSession
 import org.readium.r2.shared.publication.Locator
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.NonCancellable
+import org.readium.r2.shared.publication.services.search.search
+import org.readium.r2.shared.publication.services.search.SearchService
 import org.readium.r2.shared.publication.services.locateProgression
 import kotlin.math.roundToInt
 import org.readium.r2.shared.publication.Publication
@@ -331,8 +335,108 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         )
     }
 
+    private val search = SearchState()
+    private var searchJob: Job? = null
+
+    private val searchActions by lazy {
+        SearchActions(
+            state = search,
+            onSearch = ::runSearch,
+            onOpen = ::openSearchHit,
+            onClear = ::clearSearch,
+        )
+    }
+
+    private fun runSearch(query: String) {
+        val publication = app.readerSession?.publication ?: return
+        searchJob?.cancel()
+        navigator.applyDecorations(emptyList(), SEARCH_GROUP)
+        search.results.clear()
+        search.current = -1
+        search.error = null
+        search.limited = false
+        search.searched = false
+        search.running = true
+        searchJob = lifecycleScope.launch {
+            val iterator = runCatching {
+                publication.search(query, SearchService.Options(caseSensitive = false, diacriticSensitive = false))
+            }.getOrNull()
+            if (iterator == null) {
+                search.error = "В этой книге поиск недоступен"
+                search.running = false
+                return@launch
+            }
+            try {
+                while (isActive) {
+                    val page = iterator.next().getOrNull() ?: break
+                    page.locators.forEach { locator ->
+                        if (search.results.size < SEARCH_LIMIT) {
+                            search.results.add(
+                                SearchHit(
+                                    locator = locator,
+                                    chapter = locator.title,
+                                    before = locator.text.before.orEmpty(),
+                                    match = locator.text.highlight.orEmpty(),
+                                    after = locator.text.after.orEmpty(),
+                                ),
+                            )
+                        }
+                    }
+                    if (search.results.size >= SEARCH_LIMIT) {
+                        search.limited = true
+                        break
+                    }
+                }
+            } finally {
+                withContext(NonCancellable) { runCatching { iterator.close() } }
+                search.running = false
+                search.searched = true
+            }
+        }
+    }
+
+    private fun openSearchHit(index: Int) {
+        val hit = search.results.getOrNull(index) ?: return
+        search.current = index
+        ui.sheet = null
+        ui.panelsVisible = false
+        endSelection()
+        navigator.go(hit.locator, animated = false)
+        navigator.applyDecorations(
+            listOf(Decoration("search-$index", hit.locator, Decoration.Style.Highlight(tint = selectionAccent(), isActive = true))),
+            SEARCH_GROUP,
+        )
+        resyncListening()
+    }
+
+    private fun clearSearch() {
+        searchJob?.cancel()
+        search.current = -1
+        search.results.clear()
+        search.searched = false
+        search.limited = false
+        search.error = null
+        navigator.applyDecorations(emptyList(), SEARCH_GROUP)
+    }
+
+    private fun showFootnote(raw: String, url: String) {
+        endSelection()
+        val cleaned = raw.trim()
+            .replace(Regex("^[\\[(]?\\d{1,4}[\\])]?[.)]?\\s+"), "")
+            .replace(Regex("\\n{3,}"), "\n\n")
+            .trim()
+            .ifBlank { raw.trim() }
+        if (cleaned.isBlank()) return
+        ui.panelsVisible = false
+        ui.footnote = FootnoteInfo(cleaned, url)
+    }
+
     private val tapListener = object : InputListener {
         override fun onTap(event: TapEvent): Boolean {
+            if (ui.footnote != null) {
+                ui.footnote = null
+                return true
+            }
             if (ui.selection != null) {
                 endSelection()
                 return true
@@ -462,6 +566,12 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         bookLanguage = session.publication.metadata.language?.code,
                         onInstallVoices = { ReadAloud.installVoices(this@ReaderActivity) },
                         onSeek = ::seekTo,
+                        search = searchActions,
+                        onFootnoteGo = { url ->
+                            lifecycleScope.launch {
+                                runCatching { navigator.evaluateJavascript("window.__wfGo && window.__wfGo(${org.json.JSONObject.quote(url)})") }
+                            }
+                        },
                     )
                 }
             }
@@ -594,7 +704,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         servedAssets += "fonts/.*"
         selectionActionModeCallback = selectionCallback
         registerJavascriptInterface(TextSelection.BRIDGE) {
-            TextSelectionBridge { type -> runOnUiThread { onSelectionEvent(type) } }
+            TextSelectionBridge(
+                onEvent = { type -> runOnUiThread { onSelectionEvent(type) } },
+                onFootnote = { text, url -> runOnUiThread { showFootnote(text, url) } },
+            )
         }
         val accent = selectionAccent()
         readiumCssRsProperties = RsProperties(
@@ -1023,5 +1136,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         const val NAVIGATOR_TAG = "navigator"
         const val NOTES_GROUP = "notes"
         const val TTS_GROUP = "tts"
+        const val SEARCH_GROUP = "search"
+        const val SEARCH_LIMIT = 500
     }
 }

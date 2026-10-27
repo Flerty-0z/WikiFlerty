@@ -2,15 +2,118 @@ package com.flerty.wikiflerty.reader
 
 import android.webkit.JavascriptInterface
 
-class TextSelectionBridge(private val onEvent: (String) -> Unit) {
+class TextSelectionBridge(
+    private val onEvent: (String) -> Unit,
+    private val onFootnote: (String, String) -> Unit,
+) {
     @JavascriptInterface
     fun onEvent(type: String) = onEvent.invoke(type)
+
+    @JavascriptInterface
+    fun onFootnote(text: String, url: String) = onFootnote.invoke(text, url)
 }
 
 internal object TextSelection {
     const val BRIDGE = "WikiFlertySelection"
 
-    fun script(accent: String): String = SCRIPT.replace("__ACCENT__", accent)
+    fun script(accent: String): String = SCRIPT.replace("__ACCENT__", accent) + "\n" + NOTES
+
+    private val NOTES = """
+        (function () {
+          if (window.__wfNotes) return;
+          window.__wfNotes = true;
+          var OPS = "http://www.idpf.org/2007/ops";
+          function attr(a, name) {
+            return (a.getAttribute(name) || "") + " " + (a.getAttributeNS ? a.getAttributeNS(OPS, name.replace("epub:", "")) || "" : "");
+          }
+          function looksLikeNote(a) {
+            var kind = attr(a, "epub:type") + " " + (a.getAttribute("role") || "") + " " + (a.getAttribute("class") || "");
+            if (/noteref|footnote|endnote|doc-noteref|note-?ref|fn/i.test(kind)) return true;
+            var text = (a.textContent || "").replace(/\s+/g, "");
+            if (!text) return false;
+            if (text.length <= 6 && (a.closest("sup") || a.querySelector("sup"))) return true;
+            return /^[\[\(\{]?(\d{1,4}|[*†‡§¶]{1,3}|[a-zа-я])[\]\)\}]?$/i.test(text);
+          }
+          function blockOf(el) {
+            var block = el;
+            var inline = /^(A|SPAN|SUP|SUB|EM|I|B|STRONG|SMALL)$/i;
+            if (inline.test(block.tagName) || (block.textContent || "").trim().length < 3) {
+              block = el.closest("aside, li, dd, p, section, div, td, blockquote") || el.parentElement || el;
+            }
+            var text = (block.innerText || block.textContent || "").trim();
+            if (text.replace(/\s+/g, "").length < 6) {
+              var parts = [text];
+              var next = block.nextElementSibling;
+              for (var i = 0; next && i < 6; i++) {
+                if (next.id && i > 0) break;
+                if (/^H[1-6]$/i.test(next.tagName) && i > 0) break;
+                parts.push((next.innerText || next.textContent || "").trim());
+                next = next.nextElementSibling;
+              }
+              text = parts.join("\n").trim();
+            }
+            return text.replace(/\n{3,}/g, "\n\n").slice(0, 4000);
+          }
+          function findIn(doc, id) {
+            var el = doc.getElementById(id);
+            if (!el) {
+              var named = doc.getElementsByName ? doc.getElementsByName(id) : [];
+              el = named && named.length ? named[0] : null;
+            }
+            return el;
+          }
+          function show(text, url) {
+            try { window.${BRIDGE}.onFootnote(text, url); } catch (e) { location.href = url; }
+          }
+          window.addEventListener("click", function (e) {
+            var a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+            if (!a) return;
+            var href = a.getAttribute("href") || "";
+            if (href.indexOf("#") < 0 || /^[a-z]+:/i.test(href) && href.indexOf(location.origin) !== 0) return;
+            if (!looksLikeNote(a)) return;
+            var url = a.href;
+            var id = decodeURIComponent(url.split("#")[1] || "");
+            if (!id) return;
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            var base = url.split("#")[0];
+            if (base === location.href.split("#")[0]) {
+              var el = findIn(document, id);
+              if (el) show(blockOf(el), url); else location.href = url;
+              return;
+            }
+            fetch(base).then(function (r) { return r.text(); }).then(function (html) {
+              var doc = new DOMParser().parseFromString(html, "application/xhtml+xml");
+              if (doc.getElementsByTagName("parsererror").length) doc = new DOMParser().parseFromString(html, "text/html");
+              var el = findIn(doc, id);
+              if (!el) { location.href = url; return; }
+              var holder = document.createElement("div");
+              holder.style.cssText = "position:absolute;left:-99999px;top:0;width:600px";
+              var block = el;
+              var inline = /^(A|SPAN|SUP|SUB|EM|I|B|STRONG|SMALL)$/i;
+              if (inline.test(block.tagName) || (block.textContent || "").trim().length < 3) {
+                block = el.closest("aside, li, dd, p, section, div, td, blockquote") || el.parentNode || el;
+              }
+              var copy = document.importNode(block, true);
+              var wrap = document.createElement("div");
+              wrap.appendChild(copy);
+              var sib = block.nextElementSibling;
+              for (var i = 0; sib && i < 6; i++) {
+                if ((block.textContent || "").replace(/\s+/g, "").length >= 6) break;
+                if (sib.id || /^H[1-6]$/i.test(sib.tagName)) break;
+                wrap.appendChild(document.importNode(sib, true));
+                sib = sib.nextElementSibling;
+              }
+              holder.appendChild(wrap);
+              document.body.appendChild(holder);
+              var text = (wrap.innerText || wrap.textContent || "").trim().replace(/\n{3,}/g, "\n\n").slice(0, 4000);
+              holder.remove();
+              if (text) show(text, url); else location.href = url;
+            }).catch(function () { location.href = url; });
+          }, true);
+          window.__wfGo = function (url) { location.href = url; };
+        })();
+    """.trimIndent()
 
     private val SCRIPT = """
         (function () {

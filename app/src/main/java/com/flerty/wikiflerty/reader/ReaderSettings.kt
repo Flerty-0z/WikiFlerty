@@ -66,6 +66,7 @@ enum class QuickButton(val id: String, val title: String) {
     Screen("screen", "Экран"),
     Notes("notes", "Заметки"),
     Listen("listen", "Слушать"),
+    Search("search", "Поиск"),
     ;
 
     companion object {
