@@ -1,0 +1,63 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Download reading fonts
+        run: |
+          mkdir -p app/src/main/assets/fonts
+          grep -v '^#' app/fonts.txt | while read -r name path; do
+            [ -z "$name" ] && continue
+            url="https://github.com/google/fonts/raw/main/$(echo "$path" | sed 's/\[/%5B/g; s/\]/%5D/g')"
+            curl -fsSL --retry 3 -o "app/src/main/assets/fonts/$name" "$url" \
+              || { echo "::warning::Font not downloaded: $name"; rm -f "app/src/main/assets/fonts/$name"; }
+          done
+          ls app/src/main/assets/fonts | wc -l
+
+      - name: Build
+        run: |
+          set -o pipefail
+          ./gradlew assembleRelease --stacktrace 2>&1 | tee build.log
+
+      - name: Report build errors
+        if: failure()
+        run: |
+          grep -E "^e: |error:|ERROR:|Missing class|What went wrong" -A3 build.log | head -60 | while IFS= read -r line; do
+            [ -n "$line" ] && echo "::error::${line}"
+          done
+
+      - name: Rename APK
+        run: |
+          mkdir -p out
+          cp app/build/outputs/apk/release/app-release.apk "out/WikiFlerty-0.1.${{ github.run_number }}.apk"
+
+      - name: Publish release with the APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v0.1.${{ github.run_number }}" out/*.apk \
+            --title "WikiFlerty 0.1.${{ github.run_number }}" \
+            --notes "$(git log -1 --pretty=%s)" \
+            --target "${{ github.sha }}"
