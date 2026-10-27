@@ -25,6 +25,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -207,7 +208,7 @@ fun ReaderOverlay(
 
     Box(Modifier.fillMaxSize()) {
     Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)) {
-        if (settings.brightnessSwipe && !settings.scroll && state.sheet == null) {
+        if (settings.brightnessSwipe && !settings.scroll && state.sheet == null && state.selection == null) {
             BrightnessStrip(
                 settings = settings,
                 state = state,
@@ -375,19 +376,25 @@ fun ReaderOverlay(
         val last = remember { arrayOf<SelectionInfo?>(null) }
         selection?.let { last[0] = it }
         val info = last[0] ?: return@AnimatedVisibility
-        val density = androidx.compose.ui.platform.LocalDensity.current
-        val menuHeight = with(density) { 58.dp.toPx() }
-        val gap = with(density) { 12.dp.toPx() }
-        val y = if (info.top - menuHeight - gap > with(density) { 24.dp.toPx() }) {
-            info.top - menuHeight - gap
-        } else {
-            info.bottom + gap
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val menuHeight = with(density) { 58.dp.toPx() }
+            val gap = with(density) { 12.dp.toPx() }
+            val minY = with(density) { 24.dp.toPx() }
+            val maxY = with(density) { maxHeight.toPx() } - menuHeight - with(density) { 72.dp.toPx() }
+            val above = info.top - menuHeight - gap
+            val below = info.bottom + gap
+            val y = when {
+                above >= minY -> above
+                below <= maxY -> below
+                else -> maxY
+            }.coerceIn(minY, maxOf(minY, maxY))
+            SelectionMenu(
+                markerColor = settings.markerColor,
+                actions = noteActions,
+                modifier = Modifier.fillMaxWidth().offset { androidx.compose.ui.unit.IntOffset(0, y.roundToInt()) },
+            )
         }
-        SelectionMenu(
-            markerColor = settings.markerColor,
-            actions = noteActions,
-            modifier = Modifier.offset { androidx.compose.ui.unit.IntOffset(0, y.roundToInt()) },
-        )
     }
     }
 }

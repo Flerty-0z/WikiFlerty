@@ -96,6 +96,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private var systemBars: Insets = Insets.NONE
     private var turning = false
+    private var selectionJob: Job? = null
     private var actionMode: ActionMode? = null
     private var bookId: String = ""
     private var pendingLocator: org.readium.r2.shared.publication.Locator? = null
@@ -190,7 +191,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private fun refreshSelection() {
-        lifecycleScope.launch {
+        selectionJob?.cancel()
+        selectionJob = lifecycleScope.launch {
             val selection = navigator.currentSelection() ?: return@launch
             val text = selection.locator.text.highlight?.trim().orEmpty()
             if (text.isEmpty()) return@launch
@@ -198,7 +200,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             val rootLocation = IntArray(2).also { findViewById<View>(R.id.reader_root).getLocationInWindow(it) }
             val offsetY = (pageLocation[1] - rootLocation[1]).toFloat()
             val rect = selection.rect
-            ui.hideAll()
+            if (ui.panelsVisible || ui.sheet != null) ui.hideAll()
             ui.selection = SelectionInfo(
                 locator = selection.locator,
                 text = text,
@@ -209,6 +211,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private fun endSelection() {
+        selectionJob?.cancel()
         ui.selection = null
         actionMode?.finish()
         navigator.clearSelection()
@@ -440,6 +443,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
                     navigator.currentLocator.collect { locator ->
+                        launch { runCatching { navigator.evaluateJavascript(SelectionGuard.script) } }
                         ui.progression = locator.locations.totalProgression ?: ui.progression
                         ui.position = locator.locations.position
                         ui.chapter = locator.title
@@ -723,6 +727,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private fun onStripTap(left: Boolean) {
+        if (ui.selection != null) {
+            endSelection()
+            return
+        }
         val s = settings
         if (s.edgeTaps && !s.scroll) {
             turn(forward = !left || s.leftTapForward)
