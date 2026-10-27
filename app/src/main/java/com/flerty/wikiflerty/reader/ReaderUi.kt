@@ -20,6 +20,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.MarqueeSpacing
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -187,6 +191,7 @@ fun ReaderOverlay(
     tts: TtsActions,
     bookLanguage: String?,
     onInstallVoices: () -> Unit,
+    onSeek: (Double) -> Unit = {},
 ) {
     val progressText = progressText(state, settings)
     val feedback = LocalFeedback.current
@@ -286,7 +291,16 @@ fun ReaderOverlay(
             exit = fadeOut(tween(180)) + slideOutVertically(tween(220)) { -it / 2 },
             modifier = Modifier.align(Alignment.TopCenter),
         ) {
-            TopPanel(title, cover, state.progression, progressText, onBack, onListen = { state.sheet = ReaderSheet.Listen })
+            TopPanel(
+                title = title,
+                cover = cover,
+                progression = state.progression,
+                progressText = progressText,
+                totalPositions = state.totalPositions,
+                onBack = onBack,
+                onListen = { state.sheet = ReaderSheet.Listen },
+                onSeek = onSeek,
+            )
         }
 
         AnimatedVisibility(
@@ -422,12 +436,10 @@ private fun ProgressFlag(chapter: String?, progress: String, modifier: Modifier)
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (!chapter.isNullOrBlank()) {
-            Text(
+            MarqueeText(
                 chapter,
                 color = AppColors.Muted,
                 fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.widthIn(max = 200.dp),
             )
             Box(Modifier.size(3.dp).clip(CircleShape).background(Color(0xFF5A5E66)))
@@ -442,9 +454,12 @@ private fun TopPanel(
     cover: ImageBitmap?,
     progression: Double,
     progressText: String,
+    totalPositions: Int,
     onBack: () -> Unit,
     onListen: () -> Unit,
+    onSeek: (Double) -> Unit,
 ) {
+    var preview by remember { mutableStateOf<Double?>(null) }
     Row(
         modifier = Modifier
             .padding(start = 12.dp, end = 12.dp, top = PanelGap)
@@ -455,54 +470,139 @@ private fun TopPanel(
             .blockTaps()
             .padding(start = 4.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         RoundIconButton(AppIcons.Back, "Назад в библиотеку", sound = FeedbackSound.Close, onClick = onBack)
         Box(
             Modifier
-                .size(width = 38.dp, height = 56.dp)
-                .clip(appCorner(6))
+                .size(width = 32.dp, height = 46.dp)
+                .clip(appCorner(5))
                 .background(Color(0xFF4A5A7A))
-                .border(1.dp, Color(0x33FFFFFF), appCorner(6)),
+                .border(1.dp, Color(0x33FFFFFF), appCorner(5)),
             contentAlignment = Alignment.Center,
         ) {
             if (cover != null) {
                 Image(cover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             } else {
-                Text(title.take(1), color = AppColors.Text, fontFamily = FontFamily.Serif, fontSize = 18.sp)
+                Text(title.take(1), color = AppColors.Text, fontFamily = FontFamily.Serif, fontSize = 16.sp)
             }
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text(
-                title,
-                color = AppColors.Text,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+        Column(Modifier.weight(1f).padding(start = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            MarqueeText(title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ThinProgress(progression, Modifier.weight(1f))
-                Text(progressText, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1)
+                SeekBar(
+                    progression = progression,
+                    onPreview = { preview = it },
+                    onSeek = onSeek,
+                    modifier = Modifier.weight(1f),
+                )
+                val label = preview?.let { f ->
+                    if (totalPositions > 0) "стр. ${(f * (totalPositions - 1)).roundToInt() + 1}" else "${(f * 100).roundToInt()}%"
+                } ?: progressText
+                Text(
+                    label,
+                    color = if (preview != null) AppColors.Accent else AppColors.Muted,
+                    fontSize = 12.sp,
+                    fontWeight = if (preview != null) FontWeight.SemiBold else FontWeight.Normal,
+                    maxLines = 1,
+                )
             }
         }
         RoundIconButton(AppIcons.Headphones, "Чтение вслух", sound = FeedbackSound.Open, onClick = onListen)
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ThinProgress(progression: Double, modifier: Modifier) {
-    val fraction = progression.toFloat().coerceIn(0f, 1f)
-    Box(modifier.height(4.dp).clip(appCorner(2)).background(AppColors.Line)) {
-        if (fraction > 0f) {
-            Box(
-                Modifier
-                    .fillMaxWidth(fraction)
-                    .fillMaxHeight()
-                    .clip(appCorner(2))
-                    .background(Brush.horizontalGradient(listOf(AppColors.AccentDark, AppColors.Accent))),
-            )
+fun MarqueeText(
+    text: String,
+    color: Color,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+    modifier: Modifier = Modifier,
+    fontWeight: FontWeight? = null,
+) {
+    Text(
+        text,
+        color = color,
+        fontSize = fontSize,
+        fontWeight = fontWeight,
+        maxLines = 1,
+        softWrap = false,
+        modifier = modifier.basicMarquee(
+            iterations = Int.MAX_VALUE,
+            repeatDelayMillis = 1800,
+            initialDelayMillis = 1800,
+            spacing = MarqueeSpacing(36.dp),
+            velocity = 26.dp,
+        ),
+    )
+}
+
+@Composable
+private fun SeekBar(
+    progression: Double,
+    onPreview: (Double?) -> Unit,
+    onSeek: (Double) -> Unit,
+    modifier: Modifier,
+) {
+    var drag by remember { mutableStateOf<Float?>(null) }
+    val preview by rememberUpdatedState(onPreview)
+    val seek by rememberUpdatedState(onSeek)
+    val fraction = drag ?: progression.toFloat().coerceIn(0f, 1f)
+    val active = drag != null
+    val thumb by androidx.compose.animation.core.animateDpAsState(if (active) 16.dp else 11.dp, label = "thumb")
+    BoxWithConstraints(
+        modifier
+            .height(30.dp)
+            .pointerInput(Unit) {
+                detectTapGestures { o ->
+                    val f = (o.x / size.width).coerceIn(0f, 1f)
+                    seek(f.toDouble())
+                }
+            }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = { o ->
+                        drag = (o.x / size.width).coerceIn(0f, 1f)
+                        preview(drag?.toDouble())
+                    },
+                    onDragEnd = {
+                        drag?.let { seek(it.toDouble()) }
+                        drag = null
+                        preview(null)
+                    },
+                    onDragCancel = {
+                        drag = null
+                        preview(null)
+                    },
+                ) { change, _ ->
+                    change.consume()
+                    drag = (change.position.x / size.width).coerceIn(0f, 1f)
+                    preview(drag?.toDouble())
+                },
+            },
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        val width = maxWidth
+        Box(Modifier.fillMaxWidth().height(if (active) 6.dp else 4.dp).clip(appCorner(3)).background(AppColors.Line)) {
+            if (fraction > 0f) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(fraction)
+                        .fillMaxHeight()
+                        .clip(appCorner(3))
+                        .background(Brush.horizontalGradient(listOf(AppColors.AccentDark, AppColors.Accent))),
+                )
+            }
         }
+        Box(
+            Modifier
+                .offset(x = (width * fraction - thumb / 2).coerceIn(0.dp, maxOf(0.dp, width - thumb)))
+                .size(thumb)
+                .clip(CircleShape)
+                .background(AppColors.Accent)
+                .border(2.dp, Color(0x55FFFFFF), CircleShape),
+        )
     }
 }
 

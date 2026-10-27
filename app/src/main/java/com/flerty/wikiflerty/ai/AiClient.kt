@@ -42,7 +42,7 @@ data class AiProvider(
         val Gemini = AiProvider(
             "gemini", "Gemini", "Google", "https://aistudio.google.com/apikey",
             listOf("gemini-3-flash-preview", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite"),
-            ApiFormat.Gemini, "https://generativelanguage.googleapis.com/v1beta", listOf("AIza"),
+            ApiFormat.Gemini, "https://generativelanguage.googleapis.com/v1beta", listOf("AIza", "AQ."),
         )
         val DeepSeek = AiProvider(
             "deepseek", "DeepSeek", "DeepSeek", "https://platform.deepseek.com/api_keys",
@@ -89,7 +89,7 @@ data class AiProvider(
                 k.startsWith("sk-") -> listOf(ChatGpt, DeepSeek, Kimi, Qwen)
                 Regex("^[0-9a-f]{32}\\.[A-Za-z0-9]+$").matches(k) -> listOf(Glm)
                 Regex("^[A-Za-z0-9]{32}$").matches(k) -> listOf(Mistral)
-                else -> emptyList()
+                else -> builtIn
             }
         }
 

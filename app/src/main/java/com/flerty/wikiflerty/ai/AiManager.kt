@@ -64,6 +64,7 @@ class AiManager(context: Context) {
         }
         val message = when {
             errors.all { it.startsWith("Нет связи") } -> errors.first()
+            candidates.size == AiProvider.builtIn.size -> "Ключ не подошёл ни к одной нейросети. Проверь его или выбери «Другое»"
             candidates.size > 1 -> "Ключ не подошёл. Проверены: ${candidates.joinToString { it.title }}"
             else -> "${candidates.first().title}: ${errors.first()}"
         }

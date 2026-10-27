@@ -31,6 +31,8 @@ import androidx.appcompat.app.AppCompatActivity
 import com.flerty.wikiflerty.tts.ReadAloud
 import com.flerty.wikiflerty.tts.ReadAloudSession
 import org.readium.r2.shared.publication.Locator
+import org.readium.r2.shared.publication.services.locateProgression
+import kotlin.math.roundToInt
 import org.readium.r2.shared.publication.Publication
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -106,6 +108,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private var visible = false
     private var lastActivity = 0L
     private var lastPosition: Int? = null
+    private var positions: List<Locator> = emptyList()
     private var pagesSinceTrack = 0
     private var askedFinished = false
 
@@ -207,6 +210,46 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 top = (rect?.top ?: 200f) + offsetY,
                 bottom = (rect?.bottom ?: 240f) + offsetY,
             )
+        }
+    }
+
+    private val selectionScript by lazy {
+        val accent = selectionAccent()
+        TextSelection.script(
+            "rgb(${android.graphics.Color.red(accent)}, ${android.graphics.Color.green(accent)}, ${android.graphics.Color.blue(accent)})",
+        )
+    }
+
+    private fun onSelectionEvent(type: String) {
+        when (type) {
+            "start" -> {
+                navigator.publicationView.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                selectionJob?.cancel()
+                ui.selection = null
+            }
+            "drag" -> {
+                selectionJob?.cancel()
+                ui.selection = null
+            }
+            "done" -> refreshSelection()
+            "clear" -> {
+                selectionJob?.cancel()
+                ui.selection = null
+            }
+        }
+    }
+
+    private fun seekTo(fraction: Double) {
+        val f = fraction.coerceIn(0.0, 1.0)
+        lifecycleScope.launch {
+            val target = if (positions.isNotEmpty()) {
+                positions[(f * (positions.size - 1)).roundToInt().coerceIn(0, positions.size - 1)]
+            } else {
+                app.readerSession?.publication?.locateProgression(f)
+            } ?: return@launch
+            endSelection()
+            navigator.go(target, animated = false)
+            resyncListening()
         }
     }
 
@@ -418,6 +461,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         tts = ttsActions,
                         bookLanguage = session.publication.metadata.language?.code,
                         onInstallVoices = { ReadAloud.installVoices(this@ReaderActivity) },
+                        onSeek = ::seekTo,
                     )
                 }
             }
@@ -432,9 +476,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
 
         lifecycleScope.launch {
-            ui.totalPositions = withContext(Dispatchers.Default) {
-                runCatching { session.publication.positions().size }.getOrDefault(0)
+            positions = withContext(Dispatchers.Default) {
+                runCatching { session.publication.positions() }.getOrDefault(emptyList())
             }
+            ui.totalPositions = positions.size
             val total = ui.totalPositions
             app.appScope.launch { app.library.setPositions(session.bookId, total) }
         }
@@ -443,7 +488,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
                     navigator.currentLocator.collect { locator ->
-                        launch { runCatching { navigator.evaluateJavascript(SelectionGuard.script) } }
+                        launch { runCatching { navigator.evaluateJavascript(selectionScript) } }
                         ui.progression = locator.locations.totalProgression ?: ui.progression
                         ui.position = locator.locations.position
                         ui.chapter = locator.title
@@ -548,6 +593,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private fun navigatorConfiguration() = EpubNavigatorFragment.Configuration {
         servedAssets += "fonts/.*"
         selectionActionModeCallback = selectionCallback
+        registerJavascriptInterface(TextSelection.BRIDGE) {
+            TextSelectionBridge { type -> runOnUiThread { onSelectionEvent(type) } }
+        }
         val accent = selectionAccent()
         readiumCssRsProperties = RsProperties(
             selectionBackgroundColor = CssColor(

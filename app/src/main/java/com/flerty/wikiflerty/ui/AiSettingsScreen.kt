@@ -1,6 +1,11 @@
 package com.flerty.wikiflerty.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.Image
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -74,6 +79,7 @@ fun AiSettingsContent(ai: AiManager, modifier: Modifier = Modifier) {
     val keys by ai.vault.keys.collectAsStateWithLifecycle()
     val checks by ai.checks.collectAsStateWithLifecycle()
     var expanded by remember { mutableStateOf<String?>(null) }
+    var showAll by remember { mutableStateOf(false) }
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
@@ -87,7 +93,6 @@ fun AiSettingsContent(ai: AiManager, modifier: Modifier = Modifier) {
 
         val all = settings.allProviders
         val connected = all.filter { !keys[it.id].isNullOrBlank() }
-        val others = all.filter { keys[it.id].isNullOrBlank() }
 
         val card: @Composable (AiProvider) -> Unit = { provider ->
             ProviderCard(
@@ -108,9 +113,20 @@ fun AiSettingsContent(ai: AiManager, modifier: Modifier = Modifier) {
             SectionLabel("Подключены")
             connected.forEach { card(it) }
         }
-        SectionLabel(if (connected.isEmpty()) "Нейросети" else "Ещё нейросети")
-        others.forEach { card(it) }
-        CustomCard(ai, expanded == "custom") { expanded = if (expanded == "custom") null else "custom" }
+        AllProvidersRow(all, connected.size) { showAll = true }
+
+        if (showAll) {
+            AppSheet(onDismiss = { showAll = false }, title = "Нейросети") {
+                all.forEach { card(it) }
+                CustomCard(ai, expanded == "custom") { expanded = if (expanded == "custom") null else "custom" }
+                Text(
+                    "Нажми на нейросеть, вставь ключ и проверь",
+                    color = AppColors.Faint,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(start = 4.dp),
+                )
+            }
+        }
 
         Spacer(Modifier.height(4.dp))
         SettingsGroup("Ответы") {
@@ -168,13 +184,7 @@ private fun ProviderCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Box(
-                Modifier.size(38.dp).clip(appCorner(11)).background(AppColors.AccentSoft)
-                    .border(1.dp, AppColors.Accent.copy(alpha = 0.2f), appCorner(11)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(provider.title.take(1), color = AppColors.Accent, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            }
+            ProviderIcon(provider, 38.dp)
             Column(Modifier.weight(1f)) {
                 Text(provider.title, color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 val status = when {
@@ -363,6 +373,68 @@ private fun ProviderCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun ProviderIcon(provider: AiProvider, size: androidx.compose.ui.unit.Dp) {
+    val context = LocalContext.current
+    val res = remember(provider.id) {
+        if (provider.custom) 0 else context.resources.getIdentifier("ai_${provider.id}", "drawable", context.packageName)
+    }
+    val shape = appCorner((size.value * 0.29f).toInt())
+    Box(
+        Modifier.size(size).clip(shape)
+            .background(if (res != 0) Color.White else AppColors.AccentSoft)
+            .border(1.dp, AppColors.Accent.copy(alpha = 0.2f), shape),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (res != 0) {
+            Image(
+                painterResource(res),
+                contentDescription = provider.title,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize().padding(size * 0.16f),
+            )
+        } else {
+            Text(
+                provider.title.take(1).uppercase(),
+                color = AppColors.Accent,
+                fontSize = (size.value * 0.45f).sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AllProvidersRow(all: List<AiProvider>, connected: Int, onClick: () -> Unit) {
+    val shape = appCorner(18)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(AppColors.Field)
+            .border(1.dp, AppColors.PanelBorder, shape)
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                if (connected == 0) "Все нейросети" else "Ещё нейросети",
+                color = AppColors.Text,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                all.take(7).forEach { ProviderIcon(it, 26.dp) }
+            }
+        }
+        Text("${all.size + 1}", color = AppColors.Muted, fontSize = 14.sp, maxLines = 1)
+        Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(20.dp))
     }
 }
 
