@@ -17,21 +17,21 @@ android {
         versionName = "0.1.$buildNumber"
     }
 
+    val releaseKeystore = file("release.keystore")
     signingConfigs {
         create("app") {
-            storeFile = file("debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            if (releaseKeystore.exists()) {
+                storeFile = releaseKeystore
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = "wikiflerty"
+                keyPassword = System.getenv("KEYSTORE_PASSWORD")
+            }
         }
     }
 
     buildTypes {
-        debug {
-            signingConfig = signingConfigs.getByName("app")
-        }
         release {
-            signingConfig = signingConfigs.getByName("app")
+            if (releaseKeystore.exists()) signingConfig = signingConfigs.getByName("app")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

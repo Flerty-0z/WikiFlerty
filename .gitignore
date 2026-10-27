@@ -7,3 +7,5 @@ local.properties
 captures/
 .kotlin/
 app/src/main/assets/fonts/
+*.keystore
+*.jks

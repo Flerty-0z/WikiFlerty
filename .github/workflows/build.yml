@@ -36,7 +36,19 @@ jobs:
           done
           ls app/src/main/assets/fonts | wc -l
 
+      - name: Signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Add the KEYSTORE_BASE64 and KEYSTORE_PASSWORD secrets in Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | tr -d ' \n\r' | base64 -d > app/release.keystore
+
       - name: Build
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
           set -o pipefail
           ./gradlew assembleRelease --stacktrace 2>&1 | tee build.log
