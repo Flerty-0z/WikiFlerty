@@ -106,6 +106,9 @@ import org.readium.r2.shared.publication.Link
 /** Space between a floating panel and the screen edge, the same at the top and the bottom. */
 private val PanelGap = 52.dp
 private const val FlagHeight = 24
+/** Widest a floating panel or sheet gets (tablets). */
+internal val PanelMaxWidth = 620.dp
+
 private val FlagBottom = ((52 - FlagHeight) / 2).dp
 
 enum class ReaderSheet(val title: String, val depth: Int) {
@@ -452,6 +455,8 @@ private fun TopPanel(
     Row(
         modifier = Modifier
             .padding(start = 12.dp, end = 12.dp, top = PanelGap)
+            // On tablets panels stay phone-sized and centered; on phones nothing changes.
+            .widthIn(max = PanelMaxWidth)
             .fillMaxWidth()
             .height(76.dp)
             .panelSurface(appCorner(22))
@@ -518,6 +523,8 @@ private fun BottomPanel(
     Row(
         modifier = Modifier
             .padding(start = 12.dp, end = 12.dp, bottom = PanelGap)
+            // On tablets panels stay phone-sized and centered; on phones nothing changes.
+            .widthIn(max = PanelMaxWidth)
             .fillMaxWidth()
             .height(68.dp)
             .panelSurface(appCorner(22))
@@ -668,6 +675,8 @@ private fun SheetFrame(content: @Composable () -> Unit) {
     Box(
         modifier = Modifier
             .padding(start = 12.dp, end = 12.dp, bottom = PanelGap)
+            // On tablets panels stay phone-sized and centered; on phones nothing changes.
+            .widthIn(max = PanelMaxWidth)
             .fillMaxWidth()
             .imePadding()
             .heightIn(max = 580.dp)
@@ -928,6 +937,16 @@ private fun TextOptions(
         Text("У этого шрифта нет курсива", color = AppColors.Faint, fontSize = 12.sp)
     }
     SwitchRow("Переносы", settings.hyphens, icon = AppIcons.Wrap) { v -> onSettingsChange { it.copy(hyphens = v) } }
+    Segmented(
+        "Колонки",
+        listOf("Авто", "Одна", "Две"),
+        when (settings.columns) {
+            "1" -> 1
+            "2" -> 2
+            else -> 0
+        },
+        icon = AppIcons.Pages,
+    ) { i -> onSettingsChange { it.copy(columns = listOf("auto", "1", "2")[i]) } }
 }
 
 @Composable

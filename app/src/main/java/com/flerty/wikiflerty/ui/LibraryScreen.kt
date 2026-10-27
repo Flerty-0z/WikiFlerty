@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -190,16 +191,19 @@ fun LibraryScreen(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 40.dp),
             )
         } else if (prefs.view == LibraryView.Grid) {
+            // Tablets (600dp and wider) get larger covers; phones keep the usual sizes.
+            val tablet = LocalConfiguration.current.screenWidthDp >= 600
+            val scale = if (tablet) 1.35f else 1f
             val minSize = when (prefs.coverSize) {
                 0 -> 88.dp
                 2 -> 150.dp
                 else -> 110.dp
-            }
+            } * scale
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = minSize),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(if (tablet) 16.dp else 10.dp),
+                verticalArrangement = Arrangement.spacedBy(if (tablet) 16.dp else 10.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
                 if (current != null) {

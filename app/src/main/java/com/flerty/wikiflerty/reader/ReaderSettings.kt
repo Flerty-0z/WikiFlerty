@@ -9,6 +9,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.readium.r2.navigator.epub.EpubPreferences
 import org.readium.r2.navigator.preferences.Color
+import org.readium.r2.navigator.preferences.ColumnCount
 import org.readium.r2.navigator.preferences.TextAlign
 import org.readium.r2.navigator.preferences.Theme as ReadiumTheme
 
@@ -90,6 +91,8 @@ data class ReaderSettings(
     val italic: Boolean = false,
     val justify: Boolean = true,
     val hyphens: Boolean = true,
+    /** Text columns on wide screens: "auto", "1" or "2". */
+    val columns: String = "auto",
     // Theme
     val theme: String = PageTheme.Dark.id,
     // Page turning
@@ -157,6 +160,11 @@ data class ReaderSettings(
             backgroundColor = Color(page.background.toInt()),
             textColor = Color(page.text.toInt()),
             scroll = scroll,
+            columnCount = when (columns) {
+                "1" -> ColumnCount.ONE
+                "2" -> ColumnCount.TWO
+                else -> ColumnCount.AUTO
+            },
         )
     }
 
@@ -170,6 +178,7 @@ data class ReaderSettings(
         put("italic", italic)
         put("justify", justify)
         put("hyphens", hyphens)
+        put("columns", columns)
         put("theme", theme)
         put("scroll", scroll)
         put("pageAnimation", pageAnimation)
@@ -220,6 +229,7 @@ data class ReaderSettings(
                 italic = json.optBoolean("italic", d.italic),
                 justify = json.optBoolean("justify", d.justify),
                 hyphens = json.optBoolean("hyphens", d.hyphens),
+                columns = json.optString("columns", d.columns).takeIf { it in listOf("auto", "1", "2") } ?: d.columns,
                 theme = json.optString("theme", d.theme),
                 scroll = json.optBoolean("scroll", d.scroll),
                 pageAnimation = animation,

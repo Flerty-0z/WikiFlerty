@@ -58,6 +58,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -168,18 +169,26 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 },
                 snackbarHost = { SnackbarHost(snackbar) },
             ) { padding ->
-                val modifier = Modifier.fillMaxSize().padding(padding)
-                when (section) {
-                    Section.Library -> LibraryScreen(
+                if (section == Section.Library) {
+                    // The library uses the whole width: tablets just get more books per row.
+                    LibraryScreen(
                         viewModel = libraryViewModel,
                         onAddBook = { pickBook.launch(arrayOf("application/epub+zip", "application/octet-stream")) },
-                        modifier = modifier,
+                        modifier = Modifier.fillMaxSize().padding(padding),
                     )
-                    Section.Notes -> NotesScreen(libraryViewModel, modifier)
-                    Section.Dictionary -> DictionaryScreen(libraryViewModel, modifier)
-                    Section.Stats -> StatsScreen(modifier)
-                    Section.Settings -> SettingsScreen(modifier)
-                    Section.About -> AboutScreen(modifier)
+                } else {
+                    // Other screens keep a comfortable reading width and stay centered on tablets.
+                    Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
+                        val modifier = Modifier.widthIn(max = 720.dp).fillMaxSize()
+                        when (section) {
+                            Section.Notes -> NotesScreen(libraryViewModel, modifier)
+                            Section.Dictionary -> DictionaryScreen(libraryViewModel, modifier)
+                            Section.Stats -> StatsScreen(modifier)
+                            Section.Settings -> SettingsScreen(modifier)
+                            Section.About -> AboutScreen(modifier)
+                            Section.Library -> Unit
+                        }
+                    }
                 }
             }
         }
