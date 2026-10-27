@@ -61,7 +61,7 @@ object Backup {
             put("books", JSONArray().apply {
                 books.filter { it.fingerprint != null }.forEach { b ->
                     put(
-                        ForeignBook(b.fingerprint!!, b.title, b.author, b.progress, b.locatorJson, b.lastReadAt ?: 0).toJson(),
+                        ForeignBook(b.fingerprint!!, b.title, b.author, b.progress, b.locatorJson, b.lastReadAt ?: 0, b.metaJson().toString()).toJson(),
                     )
                 }
                 state.foreignBooks.forEach { put(it.toJson()) }
@@ -77,6 +77,7 @@ object Backup {
                     put(e.toJson().put("bookId", JSONObject.NULL).put("book", ref(e.bookId) ?: JSONObject.NULL))
                 }
             })
+            put("stats", app.stats.toJson())
             put("deletedNotes", JSONObject(state.deletedNotes))
             put("deletedWords", JSONObject(state.deletedWords))
             put("settings", JSONObject().apply {
@@ -143,11 +144,18 @@ object Backup {
                     app.library.applyProgress(local.id, fb.locatorJson, fb.progress, fb.lastReadAt)
                     progressChanged++
                 }
+                fb.meta?.let { app.library.applyMeta(local.id, JSONObject(it)) }
             } else {
                 val known = foreign[fb.fingerprint]
-                if (known == null || fb.lastReadAt > known.lastReadAt) foreign[fb.fingerprint] = fb
+                val metaTime = { f: ForeignBook? -> f?.meta?.let { JSONObject(it).optLong("metaChangedAt") } ?: 0L }
+                if (known == null || fb.lastReadAt > known.lastReadAt || metaTime(fb) > metaTime(known)) {
+                    foreign[fb.fingerprint] = if (known != null && fb.lastReadAt < known.lastReadAt) known.copy(meta = fb.meta) else fb
+                }
             }
         }
+
+        // Reading statistics
+        app.stats.merge(remote.optJSONObject("stats"))
 
         // Settings and look
         var settingsApplied = false
@@ -178,6 +186,7 @@ object Backup {
         app.dictionary.remapBook(FOREIGN + fp, book.id)
         val foreign = app.sync.store.state.value.foreignBooks.firstOrNull { it.fingerprint == fp } ?: return
         app.library.applyProgress(book.id, foreign.locatorJson, foreign.progress, foreign.lastReadAt)
+        foreign.meta?.let { app.library.applyMeta(book.id, JSONObject(it)) }
         app.sync.store.update { s -> s.copy(foreignBooks = s.foreignBooks.filterNot { it.fingerprint == fp }) }
     }
 

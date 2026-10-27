@@ -78,6 +78,7 @@ enum class Section(val title: String, val icon: ImageVector) {
     Library("Библиотека", Icons.Filled.Home),
     Notes("Заметки", AppIcons.Note),
     Dictionary("Словарь", Icons.Filled.Search),
+    Stats("Статистика", AppIcons.Chart),
     Settings("Настройки", AppIcons.Options),
     About("О приложении", Icons.Filled.Info),
 }
@@ -176,6 +177,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                     )
                     Section.Notes -> NotesScreen(libraryViewModel, modifier)
                     Section.Dictionary -> DictionaryScreen(libraryViewModel, modifier)
+                    Section.Stats -> StatsScreen(modifier)
                     Section.Settings -> SettingsScreen(modifier)
                     Section.About -> AboutScreen(modifier)
                 }

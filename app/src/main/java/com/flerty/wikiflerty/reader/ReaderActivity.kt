@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.view.ActionMode
@@ -55,6 +56,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.flerty.wikiflerty.ai.AiAction
+import com.flerty.wikiflerty.data.ReadStatus
 import com.flerty.wikiflerty.ai.AiBusyException
 import com.flerty.wikiflerty.ai.AiException
 import com.flerty.wikiflerty.ai.AiPrompts
@@ -98,6 +100,14 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private var pendingLocator: org.readium.r2.shared.publication.Locator? = null
     private var saveTimer: Job? = null
     private var lastSave: Job? = null
+
+    // Reading time: the time between page turns while the book is on screen,
+    // with long pauses (phone put down) cut short.
+    private var visible = false
+    private var lastActivity = 0L
+    private var lastPosition: Int? = null
+    private var pagesSinceTrack = 0
+    private var askedFinished = false
     private var bookTitle: String = ""
     private var bookAuthor: String = ""
     private val chat = AiChatState()
@@ -363,6 +373,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         ai = aiBridge,
                         onEdgeTap = { left -> onStripTap(left) },
                         onBrightnessPreview = { value -> setWindowBrightness(value) },
+                        onMarkFinished = {
+                            ui.askFinished = false
+                            app.appScope.launch { app.library.setStatus(bookId, ReadStatus.Finished) }
+                        },
                     )
                 }
             }
@@ -380,6 +394,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             ui.totalPositions = withContext(Dispatchers.Default) {
                 runCatching { session.publication.positions().size }.getOrDefault(0)
             }
+            val total = ui.totalPositions
+            app.appScope.launch { app.library.setPositions(session.bookId, total) }
         }
 
         lifecycleScope.launch {
@@ -389,6 +405,15 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         ui.progression = locator.locations.totalProgression ?: ui.progression
                         ui.position = locator.locations.position
                         ui.chapter = locator.title
+                        val position = locator.locations.position
+                        val previous = lastPosition
+                        // Count pages read forward one by one; jumps through the contents do not count.
+                        if (position != null && previous != null && position > previous && position - previous <= 3) {
+                            pagesSinceTrack += position - previous
+                        }
+                        if (position != null) lastPosition = position
+                        trackReading()
+                        maybeAskFinished(locator.locations.totalProgression ?: 0.0)
                         pendingLocator = locator
                         saveTimer?.cancel()
                         saveTimer = launch {
@@ -812,6 +837,40 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             previous?.join()
             app.library.saveProgress(id, locator)
         }
+    }
+
+    private fun trackReading() {
+        val now = SystemClock.elapsedRealtime()
+        if (visible && lastActivity > 0) {
+            val gap = now - lastActivity
+            // Over 5 minutes on one page means the phone was most likely put down: count only a minute of it.
+            val counted = if (gap <= 5 * 60_000L) gap else 60_000L
+            val key = app.library.books.value.firstOrNull { it.id == bookId }?.statsKey ?: bookId
+            app.stats.add(key, counted, pagesSinceTrack)
+            pagesSinceTrack = 0
+        }
+        lastActivity = now
+    }
+
+    /** Near the end of a book that is not marked as read, offer to mark it. */
+    private fun maybeAskFinished(progression: Double) {
+        if (askedFinished || progression < 0.985) return
+        val book = app.library.books.value.firstOrNull { it.id == bookId } ?: return
+        askedFinished = true
+        if (book.status != ReadStatus.Finished) ui.askFinished = true
+    }
+
+    override fun onResume() {
+        super.onResume()
+        visible = true
+        lastActivity = SystemClock.elapsedRealtime()
+    }
+
+    override fun onPause() {
+        trackReading()
+        visible = false
+        app.appScope.launch(Dispatchers.IO) { app.stats.save() }
+        super.onPause()
     }
 
     override fun onStop() {

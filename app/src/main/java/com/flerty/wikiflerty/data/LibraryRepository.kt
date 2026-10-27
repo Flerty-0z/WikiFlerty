@@ -22,8 +22,8 @@ import org.readium.r2.shared.publication.services.cover
 /**
  * Keeps the list of books and their reading progress.
  *
- * Everything is stored in one JSON file (library.json). Later, the same data
- * becomes the base for sync with Google Drive / Dropbox and for export/import.
+ * Everything is stored in one JSON file (library.json), which is also the base
+ * for export/import.
  */
 class LibraryRepository(
     private val context: Context,
@@ -117,7 +117,12 @@ class LibraryRepository(
         update { list ->
             list.map {
                 if (it.id == bookId && lastReadAt > (it.lastReadAt ?: 0L)) {
-                    it.copy(locatorJson = locatorJson ?: it.locatorJson, progress = progress, lastReadAt = lastReadAt)
+                    it.copy(
+                        locatorJson = locatorJson ?: it.locatorJson,
+                        progress = progress,
+                        lastReadAt = lastReadAt,
+                        status = if (it.status == ReadStatus.New && progress > 0.0) ReadStatus.Reading else it.status,
+                    )
                 } else {
                     it
                 }
@@ -151,19 +156,65 @@ class LibraryRepository(
 
     suspend fun saveProgress(bookId: String, locator: Locator) {
         val json = locator.toJSON().toString()
+        val now = System.currentTimeMillis()
         update { list ->
             list.map {
                 if (it.id != bookId) {
                     it
                 } else {
+                    val started = it.status == ReadStatus.New || it.status == ReadStatus.Planned
                     it.copy(
                         locatorJson = json,
                         progress = locator.locations.totalProgression ?: it.progress,
-                        lastReadAt = System.currentTimeMillis(),
+                        lastReadAt = now,
+                        // Opening a book and turning pages makes it "Читаю".
+                        status = if (started) ReadStatus.Reading else it.status,
+                        metaChangedAt = if (started) now else it.metaChangedAt,
                     )
                 }
             }
         }
+    }
+
+    suspend fun setStatus(bookId: String, status: ReadStatus) = editMeta(bookId) {
+        it.copy(status = status, finishedAt = if (status == ReadStatus.Finished) System.currentTimeMillis() else it.finishedAt)
+    }
+
+    suspend fun setFavorite(bookId: String, favorite: Boolean) = editMeta(bookId) { it.copy(favorite = favorite) }
+
+    suspend fun setShelves(bookId: String, shelves: List<String>) = editMeta(bookId) { it.copy(shelves = shelves.distinct()) }
+
+    /** Renames a shelf on every book (or removes it when [to] is null). */
+    suspend fun renameShelf(from: String, to: String?) {
+        val now = System.currentTimeMillis()
+        update { list ->
+            list.map { b ->
+                if (from !in b.shelves) b else b.copy(
+                    shelves = b.shelves.mapNotNull { if (it == from) to else it }.distinct(),
+                    metaChangedAt = now,
+                )
+            }
+        }
+    }
+
+    /** Remembers the book's length the first time it is opened. */
+    suspend fun setPositions(bookId: String, positions: Int) {
+        if (positions <= 0 || _books.value.firstOrNull { it.id == bookId }?.positions == positions) return
+        update { list -> list.map { if (it.id == bookId) it.copy(positions = positions) else it } }
+    }
+
+    /** Takes status, favorite and shelves from another phone if they changed there later. */
+    suspend fun applyMeta(bookId: String, meta: org.json.JSONObject) {
+        update { list ->
+            list.map {
+                if (it.id == bookId && meta.optLong("metaChangedAt") > it.metaChangedAt) it.withMeta(meta) else it
+            }
+        }
+    }
+
+    private suspend fun editMeta(bookId: String, change: (Book) -> Book) {
+        val now = System.currentTimeMillis()
+        update { list -> list.map { if (it.id == bookId) change(it).copy(metaChangedAt = now) else it } }
     }
 
     private suspend fun update(transform: (List<Book>) -> List<Book>) = withContext(Dispatchers.IO) {

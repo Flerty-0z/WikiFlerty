@@ -7,6 +7,7 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.Composable
@@ -63,6 +64,7 @@ fun Modifier.liveClick(
     sound: FeedbackSound = FeedbackSound.Tap,
     enabled: Boolean = true,
     pressedScale: Float = 0.95f,
+    onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit,
 ): Modifier {
     val interaction = remember { MutableInteractionSource() }
@@ -80,12 +82,30 @@ fun Modifier.liveClick(
             scaleY = scale
         }
         .clip(shape)
-        .clickable(
-            interactionSource = interaction,
-            indication = LocalIndication.current,
-            enabled = enabled,
-        ) {
-            feedback?.play(sound, view)
-            onClick()
-        }
+        .then(
+            if (onLongClick == null) {
+                Modifier.clickable(
+                    interactionSource = interaction,
+                    indication = LocalIndication.current,
+                    enabled = enabled,
+                ) {
+                    feedback?.play(sound, view)
+                    onClick()
+                }
+            } else {
+                Modifier.combinedClickable(
+                    interactionSource = interaction,
+                    indication = LocalIndication.current,
+                    enabled = enabled,
+                    onLongClick = {
+                        // The system already gives a long-press vibration.
+                        feedback?.play(FeedbackSound.Toggle)
+                        onLongClick()
+                    },
+                ) {
+                    feedback?.play(sound, view)
+                    onClick()
+                }
+            },
+        )
 }

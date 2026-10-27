@@ -135,6 +135,8 @@ class ReaderUiState {
     var editor by mutableStateOf<NoteDraft?>(null)
     /** "Нейросети" was opened from the AI menu, so "back" returns there. */
     var aiSetupFromMenu by mutableStateOf(false)
+    /** The end of the book is reached: offer to mark it as read. */
+    var askFinished by mutableStateOf(false)
 
     fun hideAll() {
         sheet = null
@@ -172,6 +174,7 @@ fun ReaderOverlay(
     ai: AiBridge,
     onEdgeTap: (left: Boolean) -> Unit,
     onBrightnessPreview: (Double) -> Unit,
+    onMarkFinished: () -> Unit = {},
 ) {
     val progressText = progressText(state, settings)
     val feedback = LocalFeedback.current
@@ -226,6 +229,15 @@ fun ReaderOverlay(
                 progress = progressText,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = FlagBottom),
             )
+        }
+
+        AnimatedVisibility(
+            visible = state.askFinished && state.sheet == null && !state.panelsVisible,
+            enter = fadeIn(tween(260)) + slideInVertically(tween(300)) { it / 2 },
+            exit = fadeOut(tween(180)),
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = FlagBottom + 44.dp, start = 16.dp, end = 16.dp),
+        ) {
+            FinishedPrompt(onMark = onMarkFinished, onDismiss = { state.askFinished = false })
         }
 
         AnimatedVisibility(
@@ -1314,5 +1326,33 @@ private fun AlignIcon(justify: Boolean) {
                 cap = androidx.compose.ui.graphics.StrokeCap.Round,
             )
         }
+    }
+}
+
+/** "Книга дочитана?" with a button to mark it as read. */
+@Composable
+private fun FinishedPrompt(onMark: () -> Unit, onDismiss: () -> Unit) {
+    val shape = appCorner(22)
+    Row(
+        Modifier.blockTaps().panelSurface(shape).padding(start = 16.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("Книга дочитана?", color = AppColors.Text, fontSize = 14.sp)
+        val button = appCorner(16)
+        Box(
+            Modifier
+                .heightIn(min = 38.dp)
+                .liveClick(button, sound = FeedbackSound.Toggle, onClick = onMark)
+                .accentHighlight(button)
+                .padding(horizontal = 14.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("Прочитано", color = accentContent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        }
+        Box(
+            Modifier.size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onDismiss),
+            contentAlignment = Alignment.Center,
+        ) { Icon(AppIcons.Close, "Закрыть", tint = AppColors.Muted, modifier = Modifier.size(18.dp)) }
     }
 }

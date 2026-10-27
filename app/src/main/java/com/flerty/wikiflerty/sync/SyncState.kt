@@ -16,6 +16,8 @@ data class ForeignBook(
     val progress: Double,
     val locatorJson: String?,
     val lastReadAt: Long,
+    /** Status, favorite and shelves (Book.metaJson) as JSON text. */
+    val meta: String? = null,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("fingerprint", fingerprint)
@@ -24,6 +26,7 @@ data class ForeignBook(
         put("progress", progress)
         put("locator", locatorJson)
         put("lastReadAt", lastReadAt)
+        meta?.let { put("meta", JSONObject(it)) }
     }
 
     companion object {
@@ -34,6 +37,7 @@ data class ForeignBook(
             progress = j.optDouble("progress", 0.0).takeUnless { it.isNaN() } ?: 0.0,
             locatorJson = if (j.isNull("locator")) null else j.optString("locator").takeIf { it.isNotEmpty() },
             lastReadAt = j.optLong("lastReadAt"),
+            meta = j.optJSONObject("meta")?.toString(),
         )
     }
 }

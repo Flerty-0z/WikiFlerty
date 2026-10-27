@@ -49,6 +49,12 @@ class App : Application() {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /** AI providers, keys and requests. */
+    /** Reading time and pages, day by day. */
+    val stats: com.flerty.wikiflerty.data.ReadingStatsStore by lazy { com.flerty.wikiflerty.data.ReadingStatsStore(this) }
+
+    /** How the library is shown and the user's shelves. */
+    val libraryPrefs: com.flerty.wikiflerty.data.LibraryPrefsStore by lazy { com.flerty.wikiflerty.data.LibraryPrefsStore(this) }
+
     val ai: AiManager by lazy { AiManager(this) }
 
     /** Soft button sounds and vibration, shared by all screens. */
