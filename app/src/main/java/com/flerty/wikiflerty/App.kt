@@ -4,6 +4,8 @@ import android.app.Application
 import com.flerty.wikiflerty.data.Book
 import com.flerty.wikiflerty.data.LibraryRepository
 import com.flerty.wikiflerty.data.NotesRepository
+import com.flerty.wikiflerty.data.DictionaryRepository
+import com.flerty.wikiflerty.ai.AiManager
 import com.flerty.wikiflerty.reader.ReaderSession
 import com.flerty.wikiflerty.reader.ReaderSettingsStore
 import com.flerty.wikiflerty.reader.ReadiumServices
@@ -25,6 +27,12 @@ class App : Application() {
     lateinit var notes: NotesRepository
         private set
 
+    lateinit var dictionary: DictionaryRepository
+        private set
+
+    /** AI providers, keys and requests. */
+    val ai: AiManager by lazy { AiManager(this) }
+
     /** Soft button sounds and vibration, shared by all screens. */
     val feedback: Feedback by lazy { Feedback(this, readerSettings.settings) }
 
@@ -38,6 +46,7 @@ class App : Application() {
         library = LibraryRepository(this, readium)
         readerSettings = ReaderSettingsStore(this)
         notes = NotesRepository(this)
+        dictionary = DictionaryRepository(this)
     }
 
     /**

@@ -66,6 +66,7 @@ object AppIcons {
     }
     val Pencil by lazy { icon("pencil", "M4 20h4L19 9l-4-4L4 16v4z", "M13.5 6.5l4 4") }
     val Trash by lazy { icon("trash", "M4 7h16", "M10 11v6M14 11v6", "M6 7l1 13h10l1-13", "M9 7V4h6v3") }
+    val Send by lazy { icon("send", "M12 19V5M5 12l7-7 7 7", width = 2.4f) }
     val Search by lazy { icon("search", "M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14z", "M20 20l-4-4") }
     val Sun by lazy { icon("sun", "M12 7a5 5 0 1 0 0 10a5 5 0 1 0 0-10z", "M12 1v2M12 21v2M1 12h2M21 12h2") }
 }

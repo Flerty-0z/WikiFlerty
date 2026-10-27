@@ -159,18 +159,12 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                     modifier = modifier,
                 )
                 Section.Notes -> NotesScreen(libraryViewModel, modifier)
-                Section.Dictionary -> PlaceholderScreen(
-                    "Твой словарь. Выделяешь непонятное слово при чтении, ИИ объясняет его простым языком, и слово сохраняется сюда вместе с определением и цитатой из книги.",
-                    modifier,
-                )
+                Section.Dictionary -> DictionaryScreen(libraryViewModel, modifier)
                 Section.Sync -> PlaceholderScreen(
-                    "Синхронизация прогресса и заметок с Google Drive и Dropbox, а также экспорт и импорт всех данных одним файлом.",
+                    "Синхронизация прогресса, заметок и словаря с Google Drive и Dropbox, а также экспорт и импорт всех данных одним файлом.",
                     modifier,
                 )
-                Section.Settings -> PlaceholderScreen(
-                    "Темы, шрифты, отступы, жесты и ключи API для ИИ-помощника.",
-                    modifier,
-                )
+                Section.Settings -> SettingsScreen(modifier)
                 Section.About -> AboutScreen(modifier)
             }
         }

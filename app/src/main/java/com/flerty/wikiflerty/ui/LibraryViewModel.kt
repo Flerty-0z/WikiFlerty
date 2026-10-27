@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.flerty.wikiflerty.App
 import com.flerty.wikiflerty.data.Book
 import com.flerty.wikiflerty.data.Note
+import com.flerty.wikiflerty.data.DictionaryEntry
 import org.readium.r2.shared.publication.Locator
 import java.io.File
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -74,6 +75,22 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             return
         }
         open(book, note.locator)
+    }
+
+    /** Words saved to the dictionary. */
+    val dictionary: StateFlow<List<DictionaryEntry>> = app.dictionary.entries
+
+    fun openDictionaryEntry(entry: DictionaryEntry) {
+        val book = app.library.books.value.firstOrNull { it.id == entry.bookId }
+        if (book == null) {
+            _messages.tryEmit("Книга этого слова удалена")
+            return
+        }
+        open(book, entry.locator)
+    }
+
+    fun deleteDictionaryEntry(entry: DictionaryEntry) {
+        viewModelScope.launch { app.dictionary.delete(entry.id) }
     }
 
     fun deleteNote(note: Note) {

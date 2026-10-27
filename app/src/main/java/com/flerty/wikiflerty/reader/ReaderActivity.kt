@@ -52,7 +52,14 @@ import com.flerty.wikiflerty.ui.WikiFlertyTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.flerty.wikiflerty.ai.AiAction
+import com.flerty.wikiflerty.ai.AiException
+import com.flerty.wikiflerty.ai.AiPrompts
+import com.flerty.wikiflerty.ai.AiProvider
+import com.flerty.wikiflerty.ai.ChatMessage
 import com.flerty.wikiflerty.data.Note
+import kotlinx.coroutines.CancellationException
+import org.readium.r2.navigator.epub.css.RsProperties
 import kotlinx.coroutines.flow.map
 import org.readium.r2.navigator.Decoration
 import org.readium.r2.navigator.DecorableNavigator
@@ -84,6 +91,23 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private var turning = false
     private var actionMode: ActionMode? = null
     private var bookId: String = ""
+    private var bookTitle: String = ""
+    private var bookAuthor: String = ""
+    private val chat = AiChatState()
+
+    private val aiBridge by lazy {
+        AiBridge(
+            manager = app.ai,
+            chat = chat,
+            onStart = ::startAi,
+            onFollowUp = ::followUpAi,
+            onStop = { chat.job?.cancel() },
+            onRetry = ::retryAi,
+            onModel = ::switchModel,
+            onSaveDictionary = ::saveToDictionary,
+            onSaveNote = ::saveAnswerAsNote,
+        )
+    }
 
     /**
      * Replaces Android's own text selection toolbar with our menu:
@@ -193,7 +217,16 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 }
             },
             onSelectionAi = {
-                Toast.makeText(this, "ИИ подключим на следующем шаге", Toast.LENGTH_SHORT).show()
+                val selection = ui.selection
+                if (selection != null) {
+                    chat.job?.cancel()
+                    chat.fragment = selection.text
+                    chat.locator = selection.locator
+                    chat.context = contextAround(selection.locator)
+                    endSelection()
+                    ui.panelsVisible = false
+                    ui.sheet = ReaderSheet.AiMenu
+                }
             },
             onSelectionClose = { endSelection() },
         )
@@ -245,6 +278,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
         fonts = FontCatalog.available(this)
         bookId = session.bookId
+        bookAuthor = session.publication.metadata.authors.joinToString(", ") { it.name }
         val initial = settings
 
         // IMPORTANT: the fragment factory must be set before super.onCreate().
@@ -298,6 +332,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
         val book = app.library.books.value.firstOrNull { it.id == session.bookId }
         val title = book?.title ?: session.publication.metadata.title.orEmpty()
+        bookTitle = title
         val toc = flattenToc(session.publication.tableOfContents)
         var cover by mutableStateOf<ImageBitmap?>(null)
 
@@ -318,6 +353,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         onBack = { finish() },
                         notes = notes,
                         noteActions = noteActions,
+                        ai = aiBridge,
                         onEdgeTap = { left -> onStripTap(left) },
                         onBrightnessPreview = { value -> setWindowBrightness(value) },
                     )
@@ -379,6 +415,14 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private fun navigatorConfiguration() = EpubNavigatorFragment.Configuration {
         servedAssets += "fonts/.*"
         selectionActionModeCallback = selectionCallback
+        // Selected text: a see-through system accent color, the text itself keeps its color.
+        val accent = selectionAccent()
+        readiumCssRsProperties = RsProperties(
+            selectionBackgroundColor = CssColor(
+                "rgba(${android.graphics.Color.red(accent)}, ${android.graphics.Color.green(accent)}, " +
+                    "${android.graphics.Color.blue(accent)}, 0.38)",
+            ),
+        )
         fonts.filter { it.bundled && it.css != null }.forEach { entry ->
             val regular = "fonts/${entry.regular}"
             val italic = entry.italic?.let { "fonts/$it" }
@@ -421,6 +465,125 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     }
                 }
             }
+        }
+    }
+
+    /** The phone's own accent color (Android 12+), or the app accent on older phones. */
+    private fun selectionAccent(): Int =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            getColor(android.R.color.system_accent1_300)
+        } else {
+            0xFF8FB3FF.toInt()
+        }
+
+    private class CssColor(private val css: String) : org.readium.r2.navigator.epub.css.Color {
+        override fun toCss(): String = css
+    }
+
+    // ------------------------------------------------------------ AI
+
+    /** The sentence(s) around the selected text, so the AI understands how the word is used. */
+    private fun contextAround(locator: org.readium.r2.shared.publication.Locator): String {
+        val before = locator.text.before.orEmpty().takeLast(280)
+        val after = locator.text.after.orEmpty().take(280)
+        val highlight = locator.text.highlight.orEmpty()
+        return (before + highlight + after).replace(Regex("\\s+"), " ").trim()
+    }
+
+    private fun startAi(action: AiAction, question: String?) {
+        chat.job?.cancel()
+        chat.bubbles.clear()
+        chat.error = null
+        chat.savedToDictionary = false
+        chat.savedToNotes = false
+        chat.action = action
+        val provider = app.ai.current() ?: return
+        val settings = app.ai.settings.value
+        chat.provider = provider
+        chat.model = settings.modelFor(provider)
+        val prompt = AiPrompts.first(action, chat.fragment, chat.context, settings, question)
+        val shown = if (action == AiAction.Ask) question.orEmpty().trim() else action.title
+        chat.bubbles.add(AiBubble(fromUser = true, shown = shown, sent = prompt))
+        sendAi()
+    }
+
+    private fun followUpAi(text: String) {
+        if (chat.streaming || chat.provider == null) return
+        chat.bubbles.add(AiBubble(fromUser = true, shown = text, sent = text))
+        chat.savedToDictionary = false
+        chat.savedToNotes = false
+        sendAi()
+    }
+
+    private fun retryAi() {
+        if (chat.streaming) return
+        if (chat.bubbles.lastOrNull()?.fromUser == false) chat.bubbles.removeAt(chat.bubbles.lastIndex)
+        if (chat.bubbles.isNotEmpty()) sendAi()
+    }
+
+    /** Switching the model re-asks the last question with the new one. */
+    private fun switchModel(provider: AiProvider, model: String) {
+        chat.job?.cancel()
+        chat.provider = provider
+        chat.model = model
+        app.ai.store.update { it.copy(models = it.models + (provider.id to model), provider = provider.id) }
+        lifecycleScope.launch {
+            chat.job?.join()
+            if (chat.bubbles.lastOrNull()?.fromUser == false) chat.bubbles.removeAt(chat.bubbles.lastIndex)
+            if (chat.bubbles.isNotEmpty()) sendAi()
+        }
+    }
+
+    private fun sendAi() {
+        val provider = chat.provider ?: return
+        chat.error = null
+        val history = chat.bubbles.map { ChatMessage(it.fromUser, it.sent) }
+        val system = AiPrompts.system(bookTitle, bookAuthor, app.ai.settings.value)
+        chat.bubbles.add(AiBubble(fromUser = false, shown = "", sent = ""))
+        chat.streaming = true
+        chat.job = lifecycleScope.launch {
+            val answer = StringBuilder()
+            try {
+                app.ai.chat(provider, chat.model, system, history).collect { piece ->
+                    answer.append(piece)
+                    val text = answer.toString()
+                    if (chat.bubbles.isNotEmpty()) chat.bubbles[chat.bubbles.lastIndex] = AiBubble(false, text, text)
+                }
+                if (answer.isEmpty()) throw AiException("Модель вернула пустой ответ. Попробуй другую модель.")
+            } catch (e: CancellationException) {
+                if (answer.isEmpty()) dropEmptyAnswer()
+                throw e
+            } catch (e: Exception) {
+                if (answer.isEmpty()) dropEmptyAnswer()
+                chat.error = e.message ?: "Не удалось получить ответ"
+            } finally {
+                chat.streaming = false
+            }
+        }
+    }
+
+    private fun dropEmptyAnswer() {
+        val last = chat.bubbles.lastOrNull()
+        if (last != null && !last.fromUser && last.shown.isEmpty()) chat.bubbles.removeAt(chat.bubbles.lastIndex)
+    }
+
+    private fun saveToDictionary() {
+        val answer = chat.lastAnswer ?: return
+        val word = chat.fragment.trim().let { if (it.length > 80) it.take(80) + "…" else it }
+        lifecycleScope.launch {
+            app.dictionary.add(word, answer, chat.context.take(400), bookId, bookTitle, chat.locator)
+            chat.savedToDictionary = true
+            Toast.makeText(this@ReaderActivity, "Добавлено в словарь", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun saveAnswerAsNote() {
+        val answer = chat.lastAnswer ?: return
+        val locator = chat.locator ?: return
+        lifecycleScope.launch {
+            app.notes.create(bookId, locator, chat.fragment, answer, settings.markerColor, ui.chapter)
+            chat.savedToNotes = true
+            Toast.makeText(this@ReaderActivity, "Сохранено в заметки", Toast.LENGTH_SHORT).show()
         }
     }
 

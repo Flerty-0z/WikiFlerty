@@ -111,6 +111,9 @@ enum class ReaderSheet(val title: String, val depth: Int) {
     Fonts("Шрифт", 2),
     Notes("Заметки", 0),
     NoteEditor("Заметка", 3),
+    AiMenu("ИИ", 0),
+    AiChat("ИИ", 0),
+    AiSetup("Нейросети", 1),
 }
 
 /** What the reading screen shows right now. Changed by taps and by the book position. */
@@ -127,6 +130,8 @@ class ReaderUiState {
     var selection by mutableStateOf<SelectionInfo?>(null)
     /** The note open in the editor sheet. */
     var editor by mutableStateOf<NoteDraft?>(null)
+    /** "Нейросети" was opened from the AI menu, so "back" returns there. */
+    var aiSetupFromMenu by mutableStateOf(false)
 
     fun hideAll() {
         sheet = null
@@ -161,6 +166,7 @@ fun ReaderOverlay(
     onBack: () -> Unit,
     notes: List<com.flerty.wikiflerty.data.Note>,
     noteActions: NoteActions,
+    ai: AiBridge,
     onEdgeTap: (left: Boolean) -> Unit,
     onBrightnessPreview: (Double) -> Unit,
 ) {
@@ -175,6 +181,7 @@ fun ReaderOverlay(
             sheet == null -> state.panelsVisible = false
             sheet == ReaderSheet.Fonts -> state.sheet = ReaderSheet.Text
             sheet == ReaderSheet.NoteEditor -> state.sheet = if (state.editor?.fromList == true) ReaderSheet.Notes else null
+            sheet == ReaderSheet.AiSetup -> state.sheet = if (state.aiSetupFromMenu) ReaderSheet.AiMenu else ReaderSheet.Options
             sheet.depth == 0 -> state.sheet = null
             else -> state.sheet = ReaderSheet.Options
         }
@@ -287,8 +294,13 @@ fun ReaderOverlay(
                         notes = notes,
                         editor = state.editor,
                         noteActions = noteActions,
+                        ai = ai,
+                        aiSetupFromMenu = state.aiSetupFromMenu,
                         onSettingsChange = onSettingsChange,
-                        onOpen = { state.sheet = it },
+                        onOpen = {
+                            if (it == ReaderSheet.AiSetup) state.aiSetupFromMenu = state.sheet == ReaderSheet.AiMenu
+                            state.sheet = it
+                        },
                         onClose = { state.sheet = null },
                         onEditNote = { note ->
                             state.editor = NoteDraft(note.id, note.locator, note.text, note.note, note.color, fromList = true)
@@ -614,6 +626,8 @@ private fun SheetContent(
     notes: List<com.flerty.wikiflerty.data.Note>,
     editor: NoteDraft?,
     noteActions: NoteActions,
+    ai: AiBridge,
+    aiSetupFromMenu: Boolean,
     onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit,
     onOpen: (ReaderSheet) -> Unit,
     onClose: () -> Unit,
@@ -636,6 +650,7 @@ private fun SheetContent(
             val parent = when {
                 sheet == ReaderSheet.Fonts -> ReaderSheet.Text
                 sheet == ReaderSheet.NoteEditor -> if (editor?.fromList == true) ReaderSheet.Notes else null
+                sheet == ReaderSheet.AiSetup -> if (aiSetupFromMenu) ReaderSheet.AiMenu else ReaderSheet.Options
                 sheet.depth > 0 -> ReaderSheet.Options
                 else -> null
             }
@@ -646,6 +661,7 @@ private fun SheetContent(
                 when {
                     sheet == ReaderSheet.NoteEditor && editor?.id == null -> "Новая заметка"
                     sheet == ReaderSheet.Notes && notes.isNotEmpty() -> "Заметки · ${notes.size}"
+                    sheet == ReaderSheet.AiChat -> ai.chat.action.title
                     else -> sheet.title
                 },
                 color = AppColors.Text,
@@ -661,6 +677,16 @@ private fun SheetContent(
         when (sheet) {
             ReaderSheet.Toc -> TocList(toc, onTocSelect, Modifier.weight(1f, fill = false))
             ReaderSheet.Fonts -> FontList(fonts, settings, onSettingsChange, Modifier.weight(1f, fill = false))
+            ReaderSheet.AiMenu -> AiMenuContent(
+                bridge = ai,
+                onSetup = { onOpen(ReaderSheet.AiSetup) },
+                onStarted = { onOpen(ReaderSheet.AiChat) },
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            ReaderSheet.AiChat -> AiChatContent(ai, Modifier.weight(1f))
+            ReaderSheet.AiSetup -> Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                com.flerty.wikiflerty.ui.AiSettingsContent(ai.manager)
+            }
             ReaderSheet.Notes -> BookNotesList(
                 notes = notes,
                 onOpen = noteActions.onGoTo,
@@ -709,6 +735,7 @@ private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
         Tile(ReaderSheet.Gestures, "Тапы, свайпы", AppIcons.Gesture),
         Tile(ReaderSheet.Screen, "Яркость, поворот", AppIcons.Screen),
         Tile(ReaderSheet.Sound, "Звуки, вибрация", AppIcons.Sound),
+        Tile(ReaderSheet.AiSetup, "Нейросети, модели", AppIcons.Sparkle),
     )
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         tiles.chunked(2).forEach { row ->

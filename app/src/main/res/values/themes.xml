@@ -6,5 +6,12 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 
-    <style name="Theme.WikiFlerty.Reader" parent="Theme.WikiFlerty" />
+    <!-- Selection handles in the book use the phone's accent color (see values-v31). -->
+    <style name="Theme.WikiFlerty.Reader" parent="Theme.WikiFlerty">
+        <item name="colorPrimary">@color/selection_accent</item>
+        <item name="colorControlActivated">@color/selection_accent</item>
+        <item name="android:colorControlActivated">@color/selection_accent</item>
+        <item name="android:colorAccent">@color/selection_accent</item>
+        <item name="android:textColorHighlight">@color/selection_highlight</item>
+    </style>
 </resources>

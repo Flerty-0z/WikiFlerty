@@ -3,4 +3,6 @@
     <color name="background">#101113</color>
     <color name="icon_background">#1F2125</color>
     <color name="icon_foreground">#8FB3FF</color>
+    <color name="selection_accent">#8FB3FF</color>
+    <color name="selection_highlight">#618FB3FF</color>
 </resources>
