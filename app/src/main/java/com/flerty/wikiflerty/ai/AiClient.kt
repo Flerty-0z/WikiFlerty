@@ -15,42 +15,94 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-enum class AiProvider(
+enum class ApiFormat { Anthropic, Gemini, OpenAi }
+
+data class AiProvider(
     val id: String,
     val title: String,
     val company: String,
     val keyUrl: String,
     val fallbackModels: List<String>,
+    val format: ApiFormat = ApiFormat.OpenAi,
+    val baseUrl: String = "",
+    val keyPrefixes: List<String> = emptyList(),
+    val custom: Boolean = false,
 ) {
-    Claude(
-        "claude", "Claude", "Anthropic",
-        "https://console.anthropic.com/settings/keys",
-        listOf("claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5", "claude-fable-5-1"),
-    ),
-    ChatGpt(
-        "openai", "ChatGPT", "OpenAI",
-        "https://platform.openai.com/api-keys",
-        listOf("gpt-6.1-sol", "gpt-6-luna", "gpt-5.5"),
-    ),
-    Gemini(
-        "gemini", "Gemini", "Google",
-        "https://aistudio.google.com/apikey",
-        listOf("gemini-3-flash-preview", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite"),
-    ),
-    DeepSeek(
-        "deepseek", "DeepSeek", "DeepSeek",
-        "https://platform.deepseek.com/api_keys",
-        listOf("deepseek-v4-flash", "deepseek-v4-pro"),
-    ),
-    OpenRouter(
-        "openrouter", "OpenRouter", "OpenRouter",
-        "https://openrouter.ai/settings/keys",
-        listOf("openrouter/auto"),
-    ),
-    ;
-
     companion object {
-        fun of(id: String?) = entries.firstOrNull { it.id == id }
+        val Claude = AiProvider(
+            "claude", "Claude", "Anthropic", "https://console.anthropic.com/settings/keys",
+            listOf("claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5", "claude-fable-5-1"),
+            ApiFormat.Anthropic, "https://api.anthropic.com/v1", listOf("sk-ant-"),
+        )
+        val ChatGpt = AiProvider(
+            "openai", "ChatGPT", "OpenAI", "https://platform.openai.com/api-keys",
+            listOf("gpt-6.1-sol", "gpt-6-luna", "gpt-5.5"),
+            ApiFormat.OpenAi, "https://api.openai.com/v1", listOf("sk-proj-", "sk-svcacct-", "sk-admin-", "sk-"),
+        )
+        val Gemini = AiProvider(
+            "gemini", "Gemini", "Google", "https://aistudio.google.com/apikey",
+            listOf("gemini-3-flash-preview", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite"),
+            ApiFormat.Gemini, "https://generativelanguage.googleapis.com/v1beta", listOf("AIza"),
+        )
+        val DeepSeek = AiProvider(
+            "deepseek", "DeepSeek", "DeepSeek", "https://platform.deepseek.com/api_keys",
+            listOf("deepseek-v4-flash", "deepseek-v4-pro"),
+            ApiFormat.OpenAi, "https://api.deepseek.com", listOf("sk-"),
+        )
+        val OpenRouter = AiProvider(
+            "openrouter", "OpenRouter", "OpenRouter", "https://openrouter.ai/settings/keys",
+            listOf("openrouter/auto"),
+            ApiFormat.OpenAi, "https://openrouter.ai/api/v1", listOf("sk-or-"),
+        )
+        val Grok = AiProvider(
+            "xai", "Grok", "xAI", "https://console.x.ai",
+            emptyList(), ApiFormat.OpenAi, "https://api.x.ai/v1", listOf("xai-"),
+        )
+        val Mistral = AiProvider(
+            "mistral", "Mistral", "Mistral AI", "https://console.mistral.ai/api-keys",
+            listOf("mistral-large-latest", "mistral-small-latest"), ApiFormat.OpenAi, "https://api.mistral.ai/v1",
+        )
+        val Groq = AiProvider(
+            "groq", "Groq", "Groq", "https://console.groq.com/keys",
+            emptyList(), ApiFormat.OpenAi, "https://api.groq.com/openai/v1", listOf("gsk_"),
+        )
+        val Qwen = AiProvider(
+            "qwen", "Qwen", "Alibaba Cloud", "https://bailian.console.alibabacloud.com/?apiKey=1",
+            listOf("qwen-plus", "qwen-max", "qwen-turbo"), ApiFormat.OpenAi, "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", listOf("sk-"),
+        )
+        val Kimi = AiProvider(
+            "kimi", "Kimi", "Moonshot AI", "https://platform.moonshot.ai/console/api-keys",
+            emptyList(), ApiFormat.OpenAi, "https://api.moonshot.ai/v1", listOf("sk-"),
+        )
+        val Glm = AiProvider(
+            "glm", "GLM", "Zhipu AI", "https://z.ai/manage-apikey/apikey-list",
+            listOf("glm-4.6", "glm-4.5-air"), ApiFormat.OpenAi, "https://api.z.ai/api/paas/v4",
+        )
+
+        val builtIn = listOf(Claude, ChatGpt, Gemini, DeepSeek, OpenRouter, Grok, Mistral, Groq, Qwen, Kimi, Glm)
+
+        fun candidates(key: String): List<AiProvider> {
+            val k = key.trim()
+            val specific = builtIn.filter { p -> p.keyPrefixes.any { it != "sk-" && k.startsWith(it) } }
+            if (specific.isNotEmpty()) return specific.sortedByDescending { p -> p.keyPrefixes.maxOf { if (k.startsWith(it)) it.length else 0 } }.take(1)
+            return when {
+                k.startsWith("sk-") -> listOf(ChatGpt, DeepSeek, Kimi, Qwen)
+                Regex("^[0-9a-f]{32}\\.[A-Za-z0-9]+$").matches(k) -> listOf(Glm)
+                Regex("^[A-Za-z0-9]{32}$").matches(k) -> listOf(Mistral)
+                else -> emptyList()
+            }
+        }
+
+        fun custom(id: String, title: String, baseUrl: String, model: String?) = AiProvider(
+            id = id,
+            title = title,
+            company = baseUrl.removePrefix("https://").removePrefix("http://").substringBefore('/'),
+            keyUrl = "",
+            fallbackModels = listOfNotNull(model?.takeIf { it.isNotBlank() }),
+            format = ApiFormat.OpenAi,
+            baseUrl = baseUrl.trimEnd('/'),
+            custom = true,
+        )
     }
 }
 
@@ -68,26 +120,15 @@ object AiClient {
     private const val ANTHROPIC_VERSION = "2023-06-01"
 
     suspend fun listModels(provider: AiProvider, key: String): List<AiModel> = withContext(Dispatchers.IO) {
-        when (provider) {
-            AiProvider.Claude -> {
-                val json = getJson("https://api.anthropic.com/v1/models?limit=100", anthropicHeaders(key))
+        when (provider.format) {
+            ApiFormat.Anthropic -> {
+                val json = getJson("${provider.baseUrl}/models?limit=100", anthropicHeaders(key))
                 json.optJSONArray("data").objects().map {
                     AiModel(it.getString("id"), it.optString("display_name").ifBlank { it.getString("id") })
                 }
             }
-            AiProvider.ChatGpt -> {
-                val json = getJson("https://api.openai.com/v1/models", bearer(key))
-                json.optJSONArray("data").objects()
-                    .sortedByDescending { it.optLong("created") }
-                    .map { it.getString("id") }
-                    .filter { isOpenAiChatModel(it) }
-                    .map { AiModel(it, it) }
-            }
-            AiProvider.Gemini -> {
-                val json = getJson(
-                    "https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=${enc(key)}",
-                    emptyMap(),
-                )
+            ApiFormat.Gemini -> {
+                val json = getJson("${provider.baseUrl}/models?pageSize=200&key=${enc(key)}", emptyMap())
                 json.optJSONArray("models").objects()
                     .filter { m ->
                         val methods = m.optJSONArray("supportedGenerationMethods")
@@ -103,22 +144,41 @@ object AiClient {
                     }
                     .reversed()
             }
-            AiProvider.DeepSeek -> {
-                val json = getJson("https://api.deepseek.com/models", bearer(key))
-                json.optJSONArray("data").objects().map { AiModel(it.getString("id"), it.getString("id")) }
-            }
-            AiProvider.OpenRouter -> {
-                getJson("https://openrouter.ai/api/v1/key", bearer(key))
-                val json = getJson("https://openrouter.ai/api/v1/models", bearer(key))
-                json.optJSONArray("data").objects()
-                    .filter { m ->
-                        val outputs = m.optJSONObject("architecture")?.optJSONArray("output_modalities")
-                        outputs == null || (0 until outputs.length()).any { outputs.optString(it) == "text" }
-                    }
-                    .sortedByDescending { it.optLong("created") }
-                    .map { AiModel(it.getString("id"), it.optString("name").ifBlank { it.getString("id") }) }
-            }
+            ApiFormat.OpenAi -> openAiModels(provider, key)
         }.ifEmpty { throw AiException("Список моделей пуст") }
+    }
+
+    private fun openAiModels(provider: AiProvider, key: String): List<AiModel> {
+        if (provider.id == AiProvider.OpenRouter.id) getJson("${provider.baseUrl}/key", bearer(key))
+        val list = try {
+            getJsonAny("${provider.baseUrl}/models", bearer(key))
+        } catch (e: AiException) {
+            if (e.message?.startsWith("Модель не найдена") == true) {
+                if (provider.fallbackModels.isNotEmpty()) return provider.fallbackModels.map { AiModel(it, it) }
+                throw AiException("Сервер не отдал список моделей. Укажи модель вручную")
+            }
+            throw e
+        }
+        val items = when (list) {
+            is JSONArray -> list.objects()
+            is JSONObject -> (list.optJSONArray("data") ?: list.optJSONArray("models")).objects()
+            else -> emptyList()
+        }
+        return when (provider.id) {
+            AiProvider.ChatGpt.id -> items.sortedByDescending { it.optLong("created") }.map { it.getString("id") }
+                .filter { isOpenAiChatModel(it) }.map { AiModel(it, it) }
+            AiProvider.OpenRouter.id -> items
+                .filter { m ->
+                    val outputs = m.optJSONObject("architecture")?.optJSONArray("output_modalities")
+                    outputs == null || (0 until outputs.length()).any { outputs.optString(it) == "text" }
+                }
+                .sortedByDescending { it.optLong("created") }
+                .map { AiModel(it.getString("id"), it.optString("name").ifBlank { it.getString("id") }) }
+            else -> items
+                .filter { m -> listOf("embed", "whisper", "tts", "moderation", "rerank", "image").none { m.optString("id").contains(it) } }
+                .sortedByDescending { it.optLong("created") }
+                .mapNotNull { m -> m.optString("id").takeIf { it.isNotBlank() }?.let { AiModel(it, m.optString("name").ifBlank { it }) } }
+        }
     }
 
     private fun isOpenAiChatModel(id: String): Boolean {
@@ -140,8 +200,8 @@ object AiClient {
     ): Flow<String> = flow {
         val connection: HttpURLConnection
         val parse: (JSONObject) -> String?
-        when (provider) {
-            AiProvider.Claude -> {
+        when (provider.format) {
+            ApiFormat.Anthropic -> {
                 val body = JSONObject().apply {
                     put("model", model)
                     put("max_tokens", 2048)
@@ -153,7 +213,7 @@ object AiClient {
                         }
                     })
                 }
-                connection = post("https://api.anthropic.com/v1/messages", anthropicHeaders(key), body)
+                connection = post("${provider.baseUrl}/messages", anthropicHeaders(key), body)
                 parse = { event ->
                     if (event.optString("type") == "content_block_delta") {
                         event.optJSONObject("delta")?.optString("text")
@@ -165,12 +225,8 @@ object AiClient {
                     }
                 }
             }
-            AiProvider.ChatGpt, AiProvider.DeepSeek, AiProvider.OpenRouter -> {
-                val url = when (provider) {
-                    AiProvider.ChatGpt -> "https://api.openai.com/v1/chat/completions"
-                    AiProvider.OpenRouter -> "https://openrouter.ai/api/v1/chat/completions"
-                    else -> "https://api.deepseek.com/chat/completions"
-                }
+            ApiFormat.OpenAi -> {
+                val url = "${provider.baseUrl}/chat/completions"
                 val body = JSONObject().apply {
                     put("model", model)
                     put("stream", true)
@@ -188,7 +244,7 @@ object AiClient {
                         ?.let { if (it.isNull("content")) null else it.optString("content") }
                 }
             }
-            AiProvider.Gemini -> {
+            ApiFormat.Gemini -> {
                 val body = JSONObject().apply {
                     put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", system))))
                     put("contents", JSONArray().apply {
@@ -202,7 +258,7 @@ object AiClient {
                     })
                 }
                 connection = post(
-                    "https://generativelanguage.googleapis.com/v1beta/models/${enc(model)}:streamGenerateContent?alt=sse&key=${enc(key)}",
+                    "${provider.baseUrl}/models/${enc(model)}:streamGenerateContent?alt=sse&key=${enc(key)}",
                     emptyMap(),
                     body,
                 )
@@ -237,6 +293,21 @@ object AiClient {
     private fun bearer(key: String) = mapOf("Authorization" to "Bearer $key")
 
     private fun enc(value: String) = URLEncoder.encode(value, "UTF-8")
+
+    private fun getJsonAny(url: String, headers: Map<String, String>): Any {
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 15_000
+            readTimeout = 30_000
+            headers.forEach { (k, v) -> setRequestProperty(k, v) }
+        }
+        try {
+            checkStatus(connection)
+            val text = connection.inputStream.bufferedReader().readText().trim()
+            return if (text.startsWith("[")) JSONArray(text) else JSONObject(text)
+        } finally {
+            connection.disconnect()
+        }
+    }
 
     private fun getJson(url: String, headers: Map<String, String>): JSONObject {
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {

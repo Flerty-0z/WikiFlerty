@@ -77,26 +77,40 @@ fun AiSettingsContent(ai: AiManager, modifier: Modifier = Modifier) {
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
-            "Нужен ключ хотя бы одной нейросети. Хранится зашифрованным только на телефоне.",
+            "Вставь ключ любой нейросети — приложение само поймёт, чья она. Ключ хранится зашифрованным только на телефоне.",
             color = AppColors.Muted,
             fontSize = 13.sp,
             lineHeight = 18.sp,
         )
 
-        AiProvider.entries.forEach { provider ->
+        QuickConnectCard(ai) { expanded = it.id }
+
+        val all = settings.allProviders
+        val connected = all.filter { !keys[it.id].isNullOrBlank() }
+        val others = all.filter { keys[it.id].isNullOrBlank() }
+
+        val card: @Composable (AiProvider) -> Unit = { provider ->
             ProviderCard(
-                ai = ai,
-                provider = provider,
-                hasKey = !keys[provider.id].isNullOrBlank(),
-                isDefault = ai.current() == provider && !keys[provider.id].isNullOrBlank(),
-                check = checks[provider.id],
-                selectedModel = settings.modelFor(provider),
-                models = settings.modelsFor(provider),
-                loadedModels = settings.modelLists[provider.id] != null,
-                expanded = expanded == provider.id,
-                onExpand = { expanded = if (expanded == provider.id) null else provider.id },
+            ai = ai,
+            provider = provider,
+            hasKey = !keys[provider.id].isNullOrBlank(),
+            isDefault = ai.current() == provider && !keys[provider.id].isNullOrBlank(),
+            check = checks[provider.id],
+            selectedModel = settings.modelFor(provider),
+            models = settings.modelsFor(provider),
+            loadedModels = settings.modelLists[provider.id] != null,
+            expanded = expanded == provider.id,
+            onExpand = { expanded = if (expanded == provider.id) null else provider.id },
             )
         }
+
+        if (connected.isNotEmpty()) {
+            SectionLabel("Подключены")
+            connected.forEach { card(it) }
+        }
+        SectionLabel(if (connected.isEmpty()) "Нейросети" else "Ещё нейросети")
+        others.forEach { card(it) }
+        CustomCard(ai, expanded == "custom") { expanded = if (expanded == "custom") null else "custom" }
 
         Spacer(Modifier.height(4.dp))
         SettingsGroup("Ответы") {
@@ -273,11 +287,13 @@ private fun ProviderCard(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                         )
                     }
-                    if (hasKey) {
+                    if (hasKey || provider.custom) {
                         Box(
                             Modifier
                                 .heightIn(min = 44.dp)
-                                .liveClick(buttonShape, sound = FeedbackSound.Close) { scope.launch { ai.saveKey(provider, "") } }
+                                .liveClick(buttonShape, sound = FeedbackSound.Close) {
+                                    if (provider.custom) ai.removeCustom(provider.id) else scope.launch { ai.saveKey(provider, "") }
+                                }
                                 .border(1.dp, Color(0x55F08A8A), buttonShape)
                                 .padding(horizontal = 14.dp),
                             contentAlignment = Alignment.Center,
@@ -293,14 +309,26 @@ private fun ProviderCard(
                     else -> Unit
                 }
 
-                Text(
-                    "Получить ключ на сайте ${provider.company} ›",
-                    color = AppColors.Accent,
-                    fontSize = 13.sp,
-                    modifier = Modifier.liveClick(appCorner(6), pressedScale = 0.98f) {
-                        runCatching { uri.openUri(provider.keyUrl) }
-                    }.padding(vertical = 4.dp),
-                )
+                if (provider.custom) {
+                    Text(
+                        provider.baseUrl,
+                        color = AppColors.Faint,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                } else {
+                    Text(
+                        "Получить ключ на сайте ${provider.company} ›",
+                        color = AppColors.Accent,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.liveClick(appCorner(6), pressedScale = 0.98f) {
+                            runCatching { uri.openUri(provider.keyUrl) }
+                        }.padding(vertical = 4.dp),
+                    )
+                }
 
                 if (hasKey) {
                     if (!isDefault) {
@@ -324,7 +352,7 @@ private fun ProviderCard(
                         selectedId = selectedModel,
                         searchable = models.size > 8,
                     ) { id -> ai.store.update { it.copy(models = it.models + (provider.id to id)) } }
-                    if (!loadedModels) {
+                    if (!loadedModels && !provider.custom) {
                         Text(
                             "Полный список — после «Проверить ключ»",
                             color = AppColors.Faint,
@@ -333,6 +361,217 @@ private fun ProviderCard(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text,
+        color = AppColors.Muted,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+    )
+}
+
+@Composable
+private fun InputField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    secret: Boolean = false,
+    monospace: Boolean = false,
+) {
+    var show by remember { mutableStateOf(false) }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(appCorner(12))
+            .background(Color(0xFF121316))
+            .border(1.dp, AppColors.Line, appCorner(12))
+            .padding(start = 12.dp, end = if (secret) 0.dp else 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            textStyle = TextStyle(
+                color = AppColors.Text,
+                fontSize = 14.sp,
+                fontFamily = if (monospace || secret) FontFamily.Monospace else FontFamily.Default,
+            ),
+            cursorBrush = SolidColor(AppColors.Accent),
+            visualTransformation = if (secret && !show) PasswordVisualTransformation() else VisualTransformation.None,
+            modifier = Modifier.weight(1f),
+            decorationBox = { inner ->
+                Box {
+                    if (value.isEmpty()) {
+                        Text(placeholder, color = AppColors.Faint, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    inner()
+                }
+            },
+        )
+        if (secret) {
+            Box(
+                Modifier.size(44.dp).liveClick(CircleShape, sound = FeedbackSound.Toggle) { show = !show },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (show) AppIcons.EyeOff else AppIcons.Eye,
+                    contentDescription = if (show) "Скрыть ключ" else "Показать ключ",
+                    tint = AppColors.Muted,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActionButton(text: String, enabled: Boolean, busy: Boolean, onClick: () -> Unit) {
+    val shape = appCorner(12)
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(46.dp)
+            .liveClick(shape, sound = FeedbackSound.Toggle, enabled = enabled && !busy, onClick = onClick)
+            .background(if (enabled) AppColors.Accent else AppColors.Line),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (busy) {
+            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = AppColors.OnAccent)
+        } else {
+            Text(text, color = AppColors.OnAccent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun QuickConnectCard(ai: AiManager, onConnected: (AiProvider) -> Unit) {
+    val scope = rememberCoroutineScope()
+    var key by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
+    val shape = appCorner(18)
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(AppColors.AccentSoft)
+            .border(1.dp, AppColors.Accent.copy(alpha = 0.3f), shape)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Icon(AppIcons.Sparkle, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp))
+            Text("Подключить нейросеть", color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+        InputField(
+            value = key,
+            onValueChange = { key = it.trim(); result = null },
+            placeholder = "Вставь API-ключ",
+            secret = true,
+        )
+        ActionButton("Подключить", enabled = key.isNotBlank(), busy = busy) {
+            busy = true
+            result = null
+            scope.launch {
+                ai.detect(key)
+                    .onSuccess {
+                        result = true to "Подключено: ${it.title}"
+                        key = ""
+                        onConnected(it)
+                    }
+                    .onFailure { result = false to (it.message ?: "Не получилось") }
+                busy = false
+            }
+        }
+        result?.let { (ok, message) ->
+            Text(message, color = if (ok) Good else Bad, fontSize = 13.sp, lineHeight = 18.sp)
+        }
+    }
+}
+
+@Composable
+private fun CustomCard(ai: AiManager, expanded: Boolean, onExpand: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var title by remember { mutableStateOf("") }
+    var url by remember { mutableStateOf("") }
+    var key by remember { mutableStateOf("") }
+    var model by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val shape = appCorner(18)
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(AppColors.Field)
+            .border(1.dp, AppColors.PanelBorder, shape),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onExpand)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                Modifier.size(38.dp).clip(appCorner(11)).background(AppColors.AccentSoft)
+                    .border(1.dp, AppColors.Accent.copy(alpha = 0.2f), appCorner(11)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("+", color = AppColors.Accent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+            Column(Modifier.weight(1f)) {
+                Text("Другое", color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text("Своя нейросеть по адресу", color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Icon(
+                AppIcons.Chevron,
+                null,
+                tint = AppColors.Muted,
+                modifier = Modifier.size(20.dp).rotate(if (expanded) 90f else 0f),
+            )
+        }
+        AnimatedVisibility(visible = expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            Column(
+                Modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                InputField(url, { url = it.trim(); error = null }, "Адрес: api.example.com/v1", monospace = true)
+                InputField(key, { key = it.trim(); error = null }, "API-ключ", secret = true)
+                InputField(title, { title = it }, "Название (необязательно)")
+                InputField(model, { model = it.trim() }, "Модель (необязательно)", monospace = true)
+                ActionButton("Подключить", enabled = url.isNotBlank(), busy = busy) {
+                    busy = true
+                    error = null
+                    scope.launch {
+                        ai.connectCustom(title, url, model, key)
+                            .onSuccess {
+                                title = ""; url = ""; key = ""; model = ""
+                                onExpand()
+                            }
+                            .onFailure { error = it.message ?: "Не получилось" }
+                        busy = false
+                    }
+                }
+                error?.let { Text(it, color = Bad, fontSize = 13.sp, lineHeight = 18.sp) }
+                Text(
+                    "Подойдёт любой сервис с OpenAI-совместимым API",
+                    color = AppColors.Faint,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                )
             }
         }
     }

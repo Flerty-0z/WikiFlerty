@@ -80,20 +80,29 @@ class KeyVault(context: Context, fileName: String = "ai_keys.bin", private val a
     }
 }
 
+data class CustomAi(val id: String, val title: String, val baseUrl: String, val model: String = "") {
+    fun provider() = AiProvider.custom(id, title, baseUrl, model)
+}
+
 data class AiSettings(
     val provider: String? = null,
+    val custom: List<CustomAi> = emptyList(),
     val models: Map<String, String> = emptyMap(),
     val modelLists: Map<String, List<AiModel>> = emptyMap(),
     val translateTo: String = "русский",
     val style: String = "short",
 ) {
-    val activeProvider: AiProvider? get() = AiProvider.of(provider)
+    val allProviders: List<AiProvider> get() = AiProvider.builtIn + custom.map { it.provider() }
+
+    val activeProvider: AiProvider? get() = providerOf(provider)
+
+    fun providerOf(id: String?): AiProvider? = allProviders.firstOrNull { it.id == id }
 
     fun modelsFor(provider: AiProvider): List<AiModel> =
         modelLists[provider.id]?.takeIf { it.isNotEmpty() } ?: provider.fallbackModels.map { AiModel(it, it) }
 
     fun modelFor(provider: AiProvider): String =
-        models[provider.id] ?: modelsFor(provider).first().id
+        models[provider.id] ?: modelsFor(provider).firstOrNull()?.id.orEmpty()
 
     fun toJson(): JSONObject = JSONObject().apply {
         put("version", 1)
@@ -103,6 +112,9 @@ data class AiSettings(
             modelLists.forEach { (id, list) ->
                 put(id, JSONArray().apply { list.forEach { put(JSONObject().put("id", it.id).put("name", it.name)) } })
             }
+        })
+        put("custom", JSONArray().apply {
+            custom.forEach { put(JSONObject().put("id", it.id).put("title", it.title).put("baseUrl", it.baseUrl).put("model", it.model)) }
         })
         put("translateTo", translateTo)
         put("style", style)
@@ -120,8 +132,15 @@ data class AiSettings(
                     }
                 }
             }
+            val custom = json.optJSONArray("custom")?.let { arr ->
+                (0 until arr.length()).mapNotNull { i ->
+                    val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                    CustomAi(o.getString("id"), o.optString("title", "Другое"), o.getString("baseUrl"), o.optString("model"))
+                }
+            }
             return AiSettings(
                 provider = if (json.isNull("provider")) null else json.optString("provider"),
+                custom = custom.orEmpty(),
                 models = models.orEmpty(),
                 modelLists = lists.orEmpty(),
                 translateTo = json.optString("translateTo", "русский"),
