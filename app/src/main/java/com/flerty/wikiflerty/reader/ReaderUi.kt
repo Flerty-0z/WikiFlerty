@@ -35,6 +35,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.size
@@ -107,6 +109,8 @@ enum class ReaderSheet(val title: String, val depth: Int) {
     Screen("Экран", 1),
     Sound("Звук", 1),
     Fonts("Шрифт", 2),
+    Notes("Заметки", 0),
+    NoteEditor("Заметка", 3),
 }
 
 /** What the reading screen shows right now. Changed by taps and by the book position. */
@@ -119,10 +123,20 @@ class ReaderUiState {
     var chapter by mutableStateOf<String?>(null)
     /** Shown while the brightness is being changed by a swipe, 0..100. */
     var brightnessHint by mutableStateOf<Int?>(null)
+    /** Text selected in the book; shows the selection menu. */
+    var selection by mutableStateOf<SelectionInfo?>(null)
+    /** The note open in the editor sheet. */
+    var editor by mutableStateOf<NoteDraft?>(null)
 
     fun hideAll() {
         sheet = null
         panelsVisible = false
+    }
+
+    fun openEditor(draft: NoteDraft) {
+        editor = draft
+        panelsVisible = false
+        sheet = ReaderSheet.NoteEditor
     }
 }
 
@@ -145,7 +159,8 @@ fun ReaderOverlay(
     onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit,
     onTocSelect: (TocItem) -> Unit,
     onBack: () -> Unit,
-    onNotes: () -> Unit,
+    notes: List<com.flerty.wikiflerty.data.Note>,
+    noteActions: NoteActions,
     onEdgeTap: (left: Boolean) -> Unit,
     onBrightnessPreview: (Double) -> Unit,
 ) {
@@ -153,17 +168,20 @@ fun ReaderOverlay(
     val feedback = LocalFeedback.current
     val view = LocalView.current
 
-    BackHandler(enabled = state.sheet != null || state.panelsVisible) {
+    BackHandler(enabled = state.sheet != null || state.panelsVisible || state.selection != null) {
         val sheet = state.sheet
         when {
+            state.selection != null && sheet == null -> noteActions.onSelectionClose()
             sheet == null -> state.panelsVisible = false
             sheet == ReaderSheet.Fonts -> state.sheet = ReaderSheet.Text
+            sheet == ReaderSheet.NoteEditor -> state.sheet = if (state.editor?.fromList == true) ReaderSheet.Notes else null
             sheet.depth == 0 -> state.sheet = null
             else -> state.sheet = ReaderSheet.Options
         }
         feedback?.play(FeedbackSound.Close, view)
     }
 
+    Box(Modifier.fillMaxSize()) {
     Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)) {
         // Swipe up/down at the left edge changes the brightness; a tap there still turns the page.
         if (settings.brightnessSwipe && !settings.scroll && state.sheet == null) {
@@ -233,7 +251,7 @@ fun ReaderOverlay(
                         QuickButton.Theme -> state.sheet = ReaderSheet.Theme
                         QuickButton.Scroll -> state.sheet = ReaderSheet.Scroll
                         QuickButton.Screen -> state.sheet = ReaderSheet.Screen
-                        QuickButton.Notes -> onNotes()
+                        QuickButton.Notes -> state.sheet = ReaderSheet.Notes
                     }
                 },
                 onOptions = { state.sheet = ReaderSheet.Options },
@@ -266,9 +284,16 @@ fun ReaderOverlay(
                         settings = settings,
                         fonts = fonts,
                         toc = toc,
+                        notes = notes,
+                        editor = state.editor,
+                        noteActions = noteActions,
                         onSettingsChange = onSettingsChange,
                         onOpen = { state.sheet = it },
                         onClose = { state.sheet = null },
+                        onEditNote = { note ->
+                            state.editor = NoteDraft(note.id, note.locator, note.text, note.note, note.color, fromList = true)
+                            state.sheet = ReaderSheet.NoteEditor
+                        },
                         onTocSelect = {
                             state.hideAll()
                             onTocSelect(it)
@@ -277,6 +302,32 @@ fun ReaderOverlay(
                 }
             }
         }
+    }
+
+    // Menu for the selected text, just above it (or below if there is no room).
+    val selection = state.selection
+    AnimatedVisibility(
+        visible = selection != null && state.sheet == null,
+        enter = fadeIn(tween(160)) + scaleIn(initialScale = 0.92f),
+        exit = fadeOut(tween(120)),
+    ) {
+        val last = remember { arrayOf<SelectionInfo?>(null) }
+        selection?.let { last[0] = it }
+        val info = last[0] ?: return@AnimatedVisibility
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val menuHeight = with(density) { 84.dp.toPx() }
+        val gap = with(density) { 12.dp.toPx() }
+        val y = if (info.top - menuHeight - gap > with(density) { 24.dp.toPx() }) {
+            info.top - menuHeight - gap
+        } else {
+            info.bottom + gap
+        }
+        SelectionMenu(
+            markerColor = settings.markerColor,
+            actions = noteActions,
+            modifier = Modifier.offset { androidx.compose.ui.unit.IntOffset(0, y.roundToInt()) },
+        )
+    }
     }
 }
 
@@ -406,7 +457,7 @@ private fun BottomPanel(
             PanelButton(
                 label = button.title,
                 highlighted = false,
-                sound = if (button == QuickButton.Notes) FeedbackSound.Tap else FeedbackSound.Open,
+                sound = FeedbackSound.Open,
                 onClick = { onButton(button) },
                 modifier = Modifier.weight(1f),
             ) { QuickIcon(button, AppColors.Text) }
@@ -545,6 +596,7 @@ private fun SheetFrame(content: @Composable () -> Unit) {
         modifier = Modifier
             .padding(start = 12.dp, end = 12.dp, bottom = PanelGap)
             .fillMaxWidth()
+            .imePadding()
             .heightIn(max = 580.dp)
             .panelSurface(RoundedCornerShape(26.dp), elevation = 20.dp)
             .blockTaps(),
@@ -559,9 +611,13 @@ private fun SheetContent(
     settings: ReaderSettings,
     fonts: List<FontEntry>,
     toc: List<TocItem>,
+    notes: List<com.flerty.wikiflerty.data.Note>,
+    editor: NoteDraft?,
+    noteActions: NoteActions,
     onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit,
     onOpen: (ReaderSheet) -> Unit,
     onClose: () -> Unit,
+    onEditNote: (com.flerty.wikiflerty.data.Note) -> Unit,
     onTocSelect: (TocItem) -> Unit,
 ) {
     Column(
@@ -579,6 +635,7 @@ private fun SheetContent(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             val parent = when {
                 sheet == ReaderSheet.Fonts -> ReaderSheet.Text
+                sheet == ReaderSheet.NoteEditor -> if (editor?.fromList == true) ReaderSheet.Notes else null
                 sheet.depth > 0 -> ReaderSheet.Options
                 else -> null
             }
@@ -586,7 +643,11 @@ private fun SheetContent(
                 RoundIconButton(AppIcons.Back, "Назад", sound = FeedbackSound.Close) { onOpen(parent) }
             }
             Text(
-                sheet.title,
+                when {
+                    sheet == ReaderSheet.NoteEditor && editor?.id == null -> "Новая заметка"
+                    sheet == ReaderSheet.Notes && notes.isNotEmpty() -> "Заметки · ${notes.size}"
+                    else -> sheet.title
+                },
                 color = AppColors.Text,
                 fontSize = 19.sp,
                 fontWeight = FontWeight.Bold,
@@ -600,6 +661,21 @@ private fun SheetContent(
         when (sheet) {
             ReaderSheet.Toc -> TocList(toc, onTocSelect, Modifier.weight(1f, fill = false))
             ReaderSheet.Fonts -> FontList(fonts, settings, onSettingsChange, Modifier.weight(1f, fill = false))
+            ReaderSheet.Notes -> BookNotesList(
+                notes = notes,
+                onOpen = noteActions.onGoTo,
+                onEdit = onEditNote,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            ReaderSheet.NoteEditor -> if (editor != null) {
+                NoteEditor(
+                    draft = editor,
+                    onSave = noteActions.onSave,
+                    onDelete = noteActions.onDelete,
+                    onCancel = onClose,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+            }
             else -> Column(
                 modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(18.dp),

@@ -38,6 +38,7 @@
             android:name=".reader.ReaderActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-            android:theme="@style/Theme.WikiFlerty.Reader" />
+            android:theme="@style/Theme.WikiFlerty.Reader"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 </manifest>

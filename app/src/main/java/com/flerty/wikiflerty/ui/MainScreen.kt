@@ -158,10 +158,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                     onAddBook = { pickBook.launch(arrayOf("application/epub+zip", "application/octet-stream")) },
                     modifier = modifier,
                 )
-                Section.Notes -> PlaceholderScreen(
-                    "Все заметки и выделения из всех книг в одном месте: поиск, фильтр по книге и цвету, переход к месту в тексте.",
-                    modifier,
-                )
+                Section.Notes -> NotesScreen(libraryViewModel, modifier)
                 Section.Dictionary -> PlaceholderScreen(
                     "Твой словарь. Выделяешь непонятное слово при чтении, ИИ объясняет его простым языком, и слово сохраняется сюда вместе с определением и цитатой из книги.",
                     modifier,

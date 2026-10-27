@@ -11,7 +11,12 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.view.ActionMode
 import android.view.KeyEvent
+import android.view.Menu
+import android.view.MenuItem
 import android.view.PixelCopy
 import android.view.View
 import android.view.ViewGroup
@@ -47,6 +52,10 @@ import com.flerty.wikiflerty.ui.WikiFlertyTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.flerty.wikiflerty.data.Note
+import kotlinx.coroutines.flow.map
+import org.readium.r2.navigator.Decoration
+import org.readium.r2.navigator.DecorableNavigator
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.epub.css.FontStyle
@@ -73,9 +82,129 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private var systemBars: Insets = Insets.NONE
     private var turning = false
+    private var actionMode: ActionMode? = null
+    private var bookId: String = ""
+
+    /**
+     * Replaces Android's own text selection toolbar with our menu:
+     * the system menu stays empty, and our panel appears next to the selected text.
+     */
+    private val selectionCallback = object : ActionMode.Callback {
+        override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+            actionMode = mode
+            menu.clear()
+            refreshSelection()
+            return true
+        }
+
+        override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean {
+            menu.clear()
+            refreshSelection()
+            return true
+        }
+
+        override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean = false
+
+        override fun onDestroyActionMode(mode: ActionMode) {
+            actionMode = null
+            ui.selection = null
+        }
+    }
+
+    private fun refreshSelection() {
+        lifecycleScope.launch {
+            val selection = navigator.currentSelection() ?: return@launch
+            val text = selection.locator.text.highlight?.trim().orEmpty()
+            if (text.isEmpty()) return@launch
+            // Selection rect is in the page view's coordinates; convert to the whole screen.
+            val pageLocation = IntArray(2).also { navigator.publicationView.getLocationInWindow(it) }
+            val rootLocation = IntArray(2).also { findViewById<View>(R.id.reader_root).getLocationInWindow(it) }
+            val offsetY = (pageLocation[1] - rootLocation[1]).toFloat()
+            val rect = selection.rect
+            ui.hideAll()
+            ui.selection = SelectionInfo(
+                locator = selection.locator,
+                text = text,
+                top = (rect?.top ?: 200f) + offsetY,
+                bottom = (rect?.bottom ?: 240f) + offsetY,
+            )
+        }
+    }
+
+    private fun endSelection() {
+        ui.selection = null
+        actionMode?.finish()
+        navigator.clearSelection()
+    }
+
+    private val noteActions by lazy {
+        NoteActions(
+            onSave = { draft ->
+                lifecycleScope.launch {
+                    val id = draft.id
+                    if (id == null) {
+                        val locator = draft.locator ?: return@launch
+                        app.notes.create(bookId, locator, draft.text, draft.note, draft.color, ui.chapter)
+                    } else {
+                        app.notes.edit(id, draft.note, draft.color)
+                    }
+                    app.readerSettings.update { it.copy(markerColor = draft.color) }
+                    ui.sheet = if (draft.fromList) ReaderSheet.Notes else null
+                    ui.editor = null
+                }
+            },
+            onDelete = { id ->
+                lifecycleScope.launch {
+                    app.notes.delete(id)
+                    ui.sheet = if (ui.editor?.fromList == true) ReaderSheet.Notes else null
+                    ui.editor = null
+                    Toast.makeText(this@ReaderActivity, "Заметка удалена", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onGoTo = { note ->
+                ui.hideAll()
+                note.locator?.let { navigator.go(it, animated = false) }
+            },
+            onSelectionNote = {
+                val selection = ui.selection
+                if (selection != null) {
+                    endSelection()
+                    ui.openEditor(
+                        NoteDraft(null, selection.locator, selection.text, "", settings.markerColor, fromList = false),
+                    )
+                }
+            },
+            onSelectionMarker = {
+                val selection = ui.selection
+                if (selection != null) {
+                    endSelection()
+                    lifecycleScope.launch {
+                        app.notes.create(bookId, selection.locator, selection.text, "", settings.markerColor, ui.chapter)
+                    }
+                }
+            },
+            onSelectionCopy = {
+                val selection = ui.selection
+                if (selection != null) {
+                    val clipboard = getSystemService(ClipboardManager::class.java)
+                    clipboard?.setPrimaryClip(ClipData.newPlainText("WikiFlerty", selection.text))
+                    endSelection()
+                    Toast.makeText(this, "Скопировано", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onSelectionAi = {
+                Toast.makeText(this, "ИИ подключим на следующем шаге", Toast.LENGTH_SHORT).show()
+            },
+            onSelectionClose = { endSelection() },
+        )
+    }
 
     private val tapListener = object : InputListener {
         override fun onTap(event: TapEvent): Boolean {
+            if (ui.selection != null) {
+                endSelection()
+                return true
+            }
             // While panels are open, any tap on the page just closes them.
             if (ui.panelsVisible || ui.sheet != null) {
                 ui.hideAll()
@@ -115,6 +244,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
 
         fonts = FontCatalog.available(this)
+        bookId = session.bookId
         val initial = settings
 
         // IMPORTANT: the fragment factory must be set before super.onCreate().
@@ -150,6 +280,22 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         navigator = supportFragmentManager.findFragmentByTag(NAVIGATOR_TAG) as EpubNavigatorFragment
         navigator.addInputListener(tapListener)
 
+        // Tapping a highlight opens its note.
+        navigator.addDecorationListener(
+            NOTES_GROUP,
+            object : DecorableNavigator.Listener {
+                override fun onDecorationActivated(event: DecorableNavigator.OnActivatedEvent): Boolean {
+                    val note = app.notes.notes.value.firstOrNull { it.id == event.decoration.id } ?: return false
+                    ui.openEditor(NoteDraft(note.id, note.locator, note.text, note.note, note.color, fromList = false))
+                    app.feedback.play(FeedbackSound.Open)
+                    return true
+                }
+            },
+        )
+        val bookNotes = app.notes.notes.map { list ->
+            list.filter { it.bookId == session.bookId }.sortedBy { it.progression }
+        }
+
         val book = app.library.books.value.firstOrNull { it.id == session.bookId }
         val title = book?.title ?: session.publication.metadata.title.orEmpty()
         val toc = flattenToc(session.publication.tableOfContents)
@@ -159,6 +305,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             CompositionLocalProvider(LocalFeedback provides app.feedback) {
                 WikiFlertyTheme {
                     val current by app.readerSettings.settings.collectAsState()
+                    val notes by bookNotes.collectAsState(initial = emptyList())
                     ReaderOverlay(
                         state = ui,
                         settings = current,
@@ -169,9 +316,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         onSettingsChange = { transform -> app.readerSettings.update(transform) },
                         onTocSelect = { item -> navigator.go(item.link, animated = false) },
                         onBack = { finish() },
-                        onNotes = {
-                            Toast.makeText(this, "Заметки появятся в следующем обновлении", Toast.LENGTH_SHORT).show()
-                        },
+                        notes = notes,
+                        noteActions = noteActions,
                         onEdgeTap = { left -> onStripTap(left) },
                         onBrightnessPreview = { value -> setWindowBrightness(value) },
                     )
@@ -204,6 +350,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     }
                 }
                 launch {
+                    bookNotes.collect { notes -> showHighlights(notes) }
+                }
+                launch {
                     app.readerSettings.settings.collect { s ->
                         navigator.submitPreferences(s.toEpubPreferences(fonts))
                         applyWindowSettings(s)
@@ -213,9 +362,23 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
     }
 
-    /** Lets the book use the fonts bundled in assets/fonts. */
+    /** Draws every note of this book as a colored highlight. */
+    private suspend fun showHighlights(notes: List<Note>) {
+        val decorations = notes.mapNotNull { note ->
+            val locator = note.locator ?: return@mapNotNull null
+            Decoration(
+                id = note.id,
+                locator = locator,
+                style = Decoration.Style.Highlight(tint = note.color.toInt()),
+            )
+        }
+        navigator.applyDecorations(decorations, NOTES_GROUP)
+    }
+
+    /** Lets the book use the fonts bundled in assets/fonts, and shows our menu for selected text. */
     private fun navigatorConfiguration() = EpubNavigatorFragment.Configuration {
         servedAssets += "fonts/.*"
+        selectionActionModeCallback = selectionCallback
         fonts.filter { it.bundled && it.css != null }.forEach { entry ->
             val regular = "fonts/${entry.regular}"
             val italic = entry.italic?.let { "fonts/$it" }
@@ -462,5 +625,6 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private companion object {
         const val NAVIGATOR_TAG = "navigator"
+        const val NOTES_GROUP = "notes"
     }
 }

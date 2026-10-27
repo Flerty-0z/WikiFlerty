@@ -6,6 +6,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.flerty.wikiflerty.App
 import com.flerty.wikiflerty.data.Book
+import com.flerty.wikiflerty.data.Note
+import org.readium.r2.shared.publication.Locator
 import java.io.File
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,19 +53,37 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun open(book: Book) {
+    /** Notes of all books, for the "Заметки" section. */
+    val notes: StateFlow<List<Note>> = app.notes.notes
+
+    fun open(book: Book, startAt: Locator? = null) {
         viewModelScope.launch {
             _busy.value = "Открываю…"
-            app.prepareReader(book)
+            app.prepareReader(book, startAt)
                 .onSuccess { _openReader.emit(Unit) }
                 .onFailure { _messages.emit(it.message ?: "Не удалось открыть книгу") }
             _busy.value = null
         }
     }
 
+    /** Opens the book of a note right at the note. */
+    fun openNote(note: Note) {
+        val book = app.library.books.value.firstOrNull { it.id == note.bookId }
+        if (book == null) {
+            _messages.tryEmit("Книга этой заметки удалена")
+            return
+        }
+        open(book, note.locator)
+    }
+
+    fun deleteNote(note: Note) {
+        viewModelScope.launch { app.notes.delete(note.id) }
+    }
+
     fun delete(book: Book) {
         viewModelScope.launch {
             app.library.delete(book)
+            app.notes.deleteForBook(book.id)
             _messages.emit("Удалено: ${book.title}")
         }
     }

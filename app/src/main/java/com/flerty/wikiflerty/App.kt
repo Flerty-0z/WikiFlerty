@@ -3,6 +3,7 @@ package com.flerty.wikiflerty
 import android.app.Application
 import com.flerty.wikiflerty.data.Book
 import com.flerty.wikiflerty.data.LibraryRepository
+import com.flerty.wikiflerty.data.NotesRepository
 import com.flerty.wikiflerty.reader.ReaderSession
 import com.flerty.wikiflerty.reader.ReaderSettingsStore
 import com.flerty.wikiflerty.reader.ReadiumServices
@@ -21,6 +22,9 @@ class App : Application() {
     lateinit var readerSettings: ReaderSettingsStore
         private set
 
+    lateinit var notes: NotesRepository
+        private set
+
     /** Soft button sounds and vibration, shared by all screens. */
     val feedback: Feedback by lazy { Feedback(this, readerSettings.settings) }
 
@@ -33,13 +37,17 @@ class App : Application() {
         readium = ReadiumServices(this)
         library = LibraryRepository(this, readium)
         readerSettings = ReaderSettingsStore(this)
+        notes = NotesRepository(this)
     }
 
-    /** Opens the book file and prepares everything the reader screen needs. */
-    suspend fun prepareReader(book: Book): Result<Unit> {
+    /**
+     * Opens the book file and prepares everything the reader screen needs.
+     * [startAt] opens the book at a given place (a note) instead of the last read position.
+     */
+    suspend fun prepareReader(book: Book, startAt: Locator? = null): Result<Unit> {
         closeReader()
         val publication = readium.open(library.bookFile(book)).getOrElse { return Result.failure(it) }
-        val locator = book.locatorJson?.let {
+        val locator = startAt ?: book.locatorJson?.let {
             runCatching { Locator.fromJSON(JSONObject(it)) }.getOrNull()
         }
         readerSession = ReaderSession(book.id, publication, locator)

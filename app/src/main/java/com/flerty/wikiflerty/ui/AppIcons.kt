@@ -54,5 +54,18 @@ object AppIcons {
     }
     val Sound by lazy { icon("sound", "M4 10v4h4l5 4V6L8 10H4z", "M16 9a4 4 0 0 1 0 6", "M18.5 6.5a8 8 0 0 1 0 11") }
     val Bookmark by lazy { icon("bookmark", "M7 3h10v18l-5-3.6L7 21z") }
+    val Sparkle by lazy {
+        icon("sparkle", fills = listOf("M12 2l2.1 6.1L20 10l-5.9 1.9L12 18l-2.1-6.1L4 10l5.9-1.9z"))
+    }
+    val Copy by lazy {
+        icon(
+            "copy",
+            "M10 8h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z",
+            "M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3",
+        )
+    }
+    val Pencil by lazy { icon("pencil", "M4 20h4L19 9l-4-4L4 16v4z", "M13.5 6.5l4 4") }
+    val Trash by lazy { icon("trash", "M4 7h16", "M10 11v6M14 11v6", "M6 7l1 13h10l1-13", "M9 7V4h6v3") }
+    val Search by lazy { icon("search", "M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14z", "M20 20l-4-4") }
     val Sun by lazy { icon("sun", "M12 7a5 5 0 1 0 0 10a5 5 0 1 0 0-10z", "M12 1v2M12 21v2M1 12h2M21 12h2") }
 }

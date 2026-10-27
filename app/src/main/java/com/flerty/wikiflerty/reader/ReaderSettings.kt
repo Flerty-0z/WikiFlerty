@@ -118,6 +118,9 @@ data class ReaderSettings(
     val sounds: Boolean = true,
     val soundVolume: Double = 0.35,
     val haptics: Boolean = true,
+    // Notes
+    /** Color used by the quick "Маркер" action; the last color chosen for a note. */
+    val markerColor: Long = 0xFFE9C84A,
 ) {
     val pageTheme: PageTheme get() = PageTheme.of(theme)
     val animation: PageAnimation get() = PageAnimation.of(pageAnimation)
@@ -170,6 +173,7 @@ data class ReaderSettings(
         put("sounds", sounds)
         put("soundVolume", soundVolume)
         put("haptics", haptics)
+        put("markerColor", String.format("#%08X", markerColor))
     }
 
     companion object {
@@ -211,6 +215,8 @@ data class ReaderSettings(
                 sounds = json.optBoolean("sounds", d.sounds),
                 soundVolume = json.optDouble("soundVolume", d.soundVolume).coerceIn(0.05, 1.0),
                 haptics = json.optBoolean("haptics", d.haptics),
+                markerColor = runCatching { json.getString("markerColor").removePrefix("#").toLong(16) }
+                    .getOrDefault(d.markerColor),
             )
         }
     }
