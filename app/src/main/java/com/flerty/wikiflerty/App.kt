@@ -49,6 +49,9 @@ class App : Application() {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /** AI providers, keys and requests. */
+    /** Reading the open book aloud. */
+    val readAloud: com.flerty.wikiflerty.tts.ReadAloud by lazy { com.flerty.wikiflerty.tts.ReadAloud(this) }
+
     /** Reading time and pages, day by day. */
     val stats: com.flerty.wikiflerty.data.ReadingStatsStore by lazy { com.flerty.wikiflerty.data.ReadingStatsStore(this) }
 

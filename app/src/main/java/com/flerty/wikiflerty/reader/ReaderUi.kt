@@ -118,6 +118,7 @@ enum class ReaderSheet(val title: String, val depth: Int) {
     Gestures("Жесты", 1),
     Screen("Экран", 1),
     Sound("Звук", 1),
+    Listen("Чтение вслух", 1),
     Fonts("Шрифт", 2),
     Notes("Заметки", 0),
     NoteEditor("Заметка", 3),
@@ -142,6 +143,11 @@ class ReaderUiState {
     var editor by mutableStateOf<NoteDraft?>(null)
     /** "Нейросети" was opened from the AI menu, so "back" returns there. */
     var aiSetupFromMenu by mutableStateOf(false)
+    /** Reading aloud: is it running for this book, is it playing, a problem to show, the sleep timer. */
+    var ttsActive by mutableStateOf(false)
+    var ttsPlaying by mutableStateOf(false)
+    var ttsProblem by mutableStateOf<com.flerty.wikiflerty.tts.ReadAloud.Problem?>(null)
+    var ttsSleep by mutableStateOf<com.flerty.wikiflerty.tts.SleepTimer?>(null)
     /** The end of the book is reached: offer to mark it as read. */
     var askFinished by mutableStateOf(false)
 
@@ -182,6 +188,9 @@ fun ReaderOverlay(
     onEdgeTap: (left: Boolean) -> Unit,
     onBrightnessPreview: (Double) -> Unit,
     onMarkFinished: () -> Unit = {},
+    tts: TtsActions,
+    bookLanguage: String?,
+    onInstallVoices: () -> Unit,
 ) {
     val progressText = progressText(state, settings)
     val feedback = LocalFeedback.current
@@ -239,6 +248,27 @@ fun ReaderOverlay(
         }
 
         AnimatedVisibility(
+            visible = state.ttsActive && state.sheet == null && !state.panelsVisible,
+            enter = fadeIn(tween(220)) + slideInVertically(tween(260)) { it / 2 },
+            exit = fadeOut(tween(180)) + slideOutVertically(tween(220)) { it / 2 },
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = PanelGap),
+        ) {
+            TtsBar(state.ttsPlaying, settings.ttsSpeed, tts)
+        }
+
+        val problem = state.ttsProblem
+        AnimatedVisibility(
+            visible = problem != null && state.sheet == null,
+            enter = fadeIn(tween(220)),
+            exit = fadeOut(tween(160)),
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = PanelGap + 80.dp),
+        ) {
+            val last = remember { arrayOf<com.flerty.wikiflerty.tts.ReadAloud.Problem?>(null) }
+            problem?.let { last[0] = it }
+            last[0]?.let { TtsProblemPrompt(it, onInstall = { state.ttsProblem = null; onInstallVoices() }, onDismiss = { state.ttsProblem = null }) }
+        }
+
+        AnimatedVisibility(
             visible = state.askFinished && state.sheet == null && !state.panelsVisible,
             enter = fadeIn(tween(260)) + slideInVertically(tween(300)) { it / 2 },
             exit = fadeOut(tween(180)),
@@ -262,7 +292,7 @@ fun ReaderOverlay(
             exit = fadeOut(tween(180)) + slideOutVertically(tween(220)) { -it / 2 },
             modifier = Modifier.align(Alignment.TopCenter),
         ) {
-            TopPanel(title, cover, state.progression, progressText, onBack)
+            TopPanel(title, cover, state.progression, progressText, onBack, onListen = { state.sheet = ReaderSheet.Listen })
         }
 
         AnimatedVisibility(
@@ -281,6 +311,7 @@ fun ReaderOverlay(
                         QuickButton.Scroll -> state.sheet = ReaderSheet.Scroll
                         QuickButton.Screen -> state.sheet = ReaderSheet.Screen
                         QuickButton.Notes -> state.sheet = ReaderSheet.Notes
+                        QuickButton.Listen -> state.sheet = ReaderSheet.Listen
                     }
                 },
                 onOptions = { state.sheet = ReaderSheet.Options },
@@ -309,6 +340,11 @@ fun ReaderOverlay(
                     label = "sheet",
                 ) { sheet ->
                     SheetContent(
+                        tts = tts,
+                        ttsActive = state.ttsActive,
+                        ttsPlaying = state.ttsPlaying,
+                        ttsSleep = state.ttsSleep,
+                        bookLanguage = bookLanguage,
                         sheet = sheet,
                         settings = settings,
                         fonts = fonts,
@@ -411,6 +447,7 @@ private fun TopPanel(
     progression: Double,
     progressText: String,
     onBack: () -> Unit,
+    onListen: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -419,7 +456,7 @@ private fun TopPanel(
             .height(76.dp)
             .panelSurface(appCorner(22))
             .blockTaps()
-            .padding(start = 4.dp, end = 16.dp),
+            .padding(start = 4.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -452,6 +489,7 @@ private fun TopPanel(
                 Text(progressText, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1)
             }
         }
+        RoundIconButton(AppIcons.Headphones, "Чтение вслух", sound = FeedbackSound.Open, onClick = onListen)
     }
 }
 
@@ -549,10 +587,11 @@ private fun quickIconVector(button: QuickButton): ImageVector = when (button) {
     QuickButton.Scroll -> AppIcons.Pages
     QuickButton.Screen -> AppIcons.Screen
     QuickButton.Notes -> AppIcons.Note
+    QuickButton.Listen -> AppIcons.Headphones
 }
 
 @Composable
-private fun RoundIconButton(
+internal fun RoundIconButton(
     icon: ImageVector,
     description: String,
     filled: Boolean = false,
@@ -655,6 +694,11 @@ private fun SheetContent(
     onClose: () -> Unit,
     onEditNote: (com.flerty.wikiflerty.data.Note) -> Unit,
     onTocSelect: (TocItem) -> Unit,
+    tts: TtsActions,
+    ttsActive: Boolean,
+    ttsPlaying: Boolean,
+    ttsSleep: com.flerty.wikiflerty.tts.SleepTimer?,
+    bookLanguage: String?,
 ) {
     Column(
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
@@ -739,6 +783,7 @@ private fun SheetContent(
                     ReaderSheet.Gestures -> GestureOptions(settings, onSettingsChange)
                     ReaderSheet.Screen -> ScreenOptions(settings, onSettingsChange)
                     ReaderSheet.Sound -> SoundOptions(settings, onSettingsChange)
+                    ReaderSheet.Listen -> TtsOptions(settings, bookLanguage, ttsActive, ttsPlaying, ttsSleep, tts, onSettingsChange)
                     else -> Unit
                 }
             }
@@ -756,6 +801,7 @@ private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
         Tile(ReaderSheet.Panel, "Кнопки, прогресс", AppIcons.Panel),
         Tile(ReaderSheet.Gestures, "Тапы, свайпы", AppIcons.Gesture),
         Tile(ReaderSheet.Screen, "Яркость, поворот", AppIcons.Screen),
+        Tile(ReaderSheet.Listen, "Голос, скорость", AppIcons.Headphones),
         Tile(ReaderSheet.Sound, "Звуки, вибрация", AppIcons.Sound),
         Tile(ReaderSheet.AiSetup, "Нейросети, модели", AppIcons.Sparkle),
     )
@@ -1182,7 +1228,7 @@ private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: M
 // ---------------------------------------------------------------- small controls
 
 @Composable
-private fun Group(label: String, icon: ImageVector? = null, content: @Composable () -> Unit) {
+internal fun Group(label: String, icon: ImageVector? = null, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (icon != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1198,7 +1244,7 @@ private fun Group(label: String, icon: ImageVector? = null, content: @Composable
 }
 
 @Composable
-private fun Hint(text: String) {
+internal fun Hint(text: String) {
     Text(text, color = AppColors.Faint, fontSize = 12.sp, lineHeight = 17.sp)
 }
 
@@ -1215,7 +1261,7 @@ private fun CheckMark(checked: Boolean) {
 }
 
 @Composable
-private fun StepSlider(
+internal fun StepSlider(
     label: String,
     value: Double,
     range: ClosedFloatingPointRange<Double>,
@@ -1261,7 +1307,7 @@ private fun StepSlider(
 }
 
 @Composable
-private fun Segmented(label: String, options: List<String>, selected: Int, icon: ImageVector? = null, onSelect: (Int) -> Unit) {
+internal fun Segmented(label: String, options: List<String>, selected: Int, icon: ImageVector? = null, onSelect: (Int) -> Unit) {
     Group(label, icon) {
         Row(
             Modifier
@@ -1300,7 +1346,7 @@ private fun Segmented(label: String, options: List<String>, selected: Int, icon:
 }
 
 @Composable
-private fun SwitchRow(label: String, checked: Boolean, enabled: Boolean = true, icon: ImageVector? = null, onChange: (Boolean) -> Unit) {
+internal fun SwitchRow(label: String, checked: Boolean, enabled: Boolean = true, icon: ImageVector? = null, onChange: (Boolean) -> Unit) {
     val feedback = LocalFeedback.current
     val view = LocalView.current
     val change: (Boolean) -> Unit = { v ->

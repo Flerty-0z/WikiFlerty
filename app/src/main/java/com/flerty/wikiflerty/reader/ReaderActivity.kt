@@ -26,7 +26,12 @@ import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import android.widget.ImageView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import com.flerty.wikiflerty.tts.ReadAloud
+import com.flerty.wikiflerty.tts.ReadAloudSession
+import org.readium.r2.shared.publication.Locator
+import org.readium.r2.shared.publication.Publication
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -54,6 +59,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.withContext
 import com.flerty.wikiflerty.ai.AiAction
 import com.flerty.wikiflerty.data.ReadStatus
@@ -108,6 +115,53 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private var lastPosition: Int? = null
     private var pagesSinceTrack = 0
     private var askedFinished = false
+
+    // Reading aloud
+    private var publication: Publication? = null
+    private var lastTtsHighlight: Locator? = null
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    private val ttsActions by lazy {
+        TtsActions(
+            onStart = { startListening() },
+            onToggle = { app.readAloud.toggle() },
+            onPrevious = { app.readAloud.previous() },
+            onNext = { app.readAloud.next() },
+            onStop = { app.readAloud.stop() },
+            onSleep = { app.readAloud.setSleep(it) },
+            onOpenSettings = { ui.sheet = ReaderSheet.Listen },
+        )
+    }
+
+    /** Reads aloud from the top of the visible page. */
+    private fun startListening() {
+        val pub = publication ?: return
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            // The notification holds the player controls; reading works even if the user says no.
+            notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+        lifecycleScope.launch {
+            val start = runCatching { navigator.firstVisibleElementLocator() }.getOrNull() ?: navigator.currentLocator.value
+            ui.sheet = null
+            ui.panelsVisible = false
+            app.readAloud.start(pub, bookId, start, settings)
+        }
+    }
+
+    /** The reading-aloud session of this book, if one is running. */
+    private val mySession: ReadAloudSession? get() = app.readAloud.session.value?.takeIf { it.bookId == bookId }
+
+    /** After the user moved through the book by hand, continue reading from the new page. */
+    private fun resyncListening() {
+        val session = mySession ?: return
+        if (!session.navigator.playback.value.playWhenReady) return
+        lifecycleScope.launch {
+            delay(350)
+            runCatching { navigator.firstVisibleElementLocator() }.getOrNull()?.let { app.readAloud.go(it) }
+        }
+    }
     private var bookTitle: String = ""
     private var bookAuthor: String = ""
     private val chat = AiChatState()
@@ -294,6 +348,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
 
         fonts = FontCatalog.available(this)
+        publication = session.publication
         bookId = session.bookId
         bookAuthor = session.publication.metadata.authors.joinToString(", ") { it.name }
         val initial = settings
@@ -366,7 +421,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         cover = cover,
                         toc = toc,
                         onSettingsChange = { transform -> app.readerSettings.update(transform) },
-                        onTocSelect = { item -> navigator.go(item.link, animated = false) },
+                        onTocSelect = { item ->
+                            navigator.go(item.link, animated = false)
+                            resyncListening()
+                        },
                         onBack = { finish() },
                         notes = notes,
                         noteActions = noteActions,
@@ -377,6 +435,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                             ui.askFinished = false
                             app.appScope.launch { app.library.setStatus(bookId, ReadStatus.Finished) }
                         },
+                        tts = ttsActions,
+                        bookLanguage = session.publication.metadata.language?.code,
+                        onInstallVoices = { ReadAloud.installVoices(this@ReaderActivity) },
                     )
                 }
             }
@@ -425,14 +486,73 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 launch {
                     bookNotes.collect { notes -> showHighlights(notes) }
                 }
+                launch { followListening() }
+                launch {
+                    app.readAloud.problems.collect { problem -> ui.ttsProblem = problem }
+                }
+                launch {
+                    app.readAloud.sleep.collect { ui.ttsSleep = it }
+                }
                 launch {
                     app.readerSettings.settings.collect { s ->
                         navigator.submitPreferences(s.toEpubPreferences(fonts))
                         applyWindowSettings(s)
+                        applyListeningSettings(s)
                     }
                 }
             }
         }
+    }
+
+    /** Highlights the sentence being read and turns pages to follow it. */
+    private suspend fun followListening() {
+        app.readAloud.session.collectLatest { session ->
+            if (session == null || session.bookId != bookId) {
+                ui.ttsActive = false
+                ui.ttsPlaying = false
+                lastTtsHighlight = null
+                navigator.applyDecorations(emptyList(), TTS_GROUP)
+                return@collectLatest
+            }
+            ui.ttsActive = true
+            coroutineScope {
+                launch {
+                    session.navigator.playback.collect { ui.ttsPlaying = it.playWhenReady }
+                }
+                launch {
+                    session.navigator.location.collect { location ->
+                        val locator = location.utteranceLocator
+                        if (locator == lastTtsHighlight) return@collect
+                        lastTtsHighlight = locator
+                        navigator.applyDecorations(
+                            listOf(Decoration("tts", locator, Decoration.Style.Highlight(tint = settings.ttsColor.toInt()))),
+                            TTS_GROUP,
+                        )
+                        if (settings.ttsFollow) navigator.go(locator, animated = false)
+                    }
+                }
+            }
+        }
+    }
+
+    private var ttsSettingsSeen: ReaderSettings? = null
+
+    /** New speed, pitch or voice apply right away; a new engine restarts reading from the same sentence. */
+    private fun applyListeningSettings(s: ReaderSettings) {
+        val before = ttsSettingsSeen
+        ttsSettingsSeen = s
+        val session = mySession ?: return
+        if (before == null) return
+        if (before.ttsEngine != s.ttsEngine) {
+            val pub = publication ?: return
+            val from = session.navigator.location.value.utteranceLocator
+            app.readAloud.start(pub, bookId, from, s)
+            return
+        }
+        if (before.ttsVoice != s.ttsVoice || before.ttsSpeed != s.ttsSpeed || before.ttsPitch != s.ttsPitch) {
+            app.readAloud.apply(s)
+        }
+        if (before.ttsColor != s.ttsColor) lastTtsHighlight = null
     }
 
     /** Draws every note of this book as a colored highlight. */
@@ -659,6 +779,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             PageAnimation.None -> go(forward, animated = false)
             PageAnimation.Fade, PageAnimation.Cover -> animatedTurn(forward, settings.animation)
         }
+        resyncListening()
     }
 
     /**
@@ -882,6 +1003,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         flushProgress()
         super.onDestroy()
         if (isFinishing) {
+            // Leaving the book stops reading it aloud (the book file is closed right after).
+            if (mySession != null) app.readAloud.stop()
             app.closeReader()
         }
     }
@@ -896,5 +1019,6 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private companion object {
         const val NAVIGATOR_TAG = "navigator"
         const val NOTES_GROUP = "notes"
+        const val TTS_GROUP = "tts"
     }
 }

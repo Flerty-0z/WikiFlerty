@@ -67,6 +67,7 @@ enum class QuickButton(val id: String, val title: String) {
     Scroll("scroll", "Листание"),
     Screen("screen", "Экран"),
     Notes("notes", "Заметки"),
+    Listen("listen", "Слушать"),
     ;
 
     companion object {
@@ -123,6 +124,18 @@ data class ReaderSettings(
     val markerColor: Long = 0xFFE9C84A,
     /** The user's highlight colors; can be edited, added and deleted. */
     val noteColors: List<Long> = com.flerty.wikiflerty.data.NoteColors.presets.map { it.second },
+    // Reading aloud
+    /** Package of the text-to-speech engine; empty = the phone's default. */
+    val ttsEngine: String = "",
+    /** Chosen voice name and its language tag; empty = picked automatically for the book's language. */
+    val ttsVoice: String = "",
+    val ttsVoiceLanguage: String = "",
+    val ttsSpeed: Double = 1.0,
+    val ttsPitch: Double = 1.0,
+    /** Color of the sentence being read. */
+    val ttsColor: Long = 0xFFF2C46B,
+    /** Turn pages to follow the voice. */
+    val ttsFollow: Boolean = true,
 ) {
     val pageTheme: PageTheme get() = PageTheme.of(theme)
     val animation: PageAnimation get() = PageAnimation.of(pageAnimation)
@@ -177,6 +190,13 @@ data class ReaderSettings(
         put("haptics", haptics)
         put("markerColor", String.format("#%08X", markerColor))
         put("noteColors", JSONArray(noteColors.map { String.format("#%08X", it) }))
+        put("ttsEngine", ttsEngine)
+        put("ttsVoice", ttsVoice)
+        put("ttsVoiceLanguage", ttsVoiceLanguage)
+        put("ttsSpeed", ttsSpeed)
+        put("ttsPitch", ttsPitch)
+        put("ttsColor", String.format("#%08X", ttsColor))
+        put("ttsFollow", ttsFollow)
     }
 
     companion object {
@@ -225,6 +245,13 @@ data class ReaderSettings(
                         runCatching { arr.getString(i).removePrefix("#").toLong(16) }.getOrNull()
                     }
                 }?.takeIf { it.isNotEmpty() } ?: d.noteColors,
+                ttsEngine = json.optString("ttsEngine", d.ttsEngine),
+                ttsVoice = json.optString("ttsVoice", d.ttsVoice),
+                ttsVoiceLanguage = json.optString("ttsVoiceLanguage", d.ttsVoiceLanguage),
+                ttsSpeed = json.optDouble("ttsSpeed", d.ttsSpeed).coerceIn(0.3, 4.0),
+                ttsPitch = json.optDouble("ttsPitch", d.ttsPitch).coerceIn(0.3, 3.0),
+                ttsColor = runCatching { json.getString("ttsColor").removePrefix("#").toLong(16) }.getOrDefault(d.ttsColor),
+                ttsFollow = json.optBoolean("ttsFollow", d.ttsFollow),
             )
         }
     }

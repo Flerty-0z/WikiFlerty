@@ -115,6 +115,17 @@ object AppIcons {
     val Length by lazy { icon("length", "M4 7h16M4 12h11M4 17h7") }
     val Star by lazy { icon("star", "M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z") }
     val StarFilled by lazy { icon("star-filled", "M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z", fills = listOf("M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z")) }
+    val Headphones by lazy {
+        icon("headphones", "M4 15v-3a8 8 0 0 1 16 0v3", "M4 15h3.5v5.5H5.5A1.5 1.5 0 0 1 4 19z", "M20 15h-3.5v5.5h2A1.5 1.5 0 0 0 20 19z")
+    }
+    val Play by lazy { icon("play", fills = listOf("M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z")) }
+    val Pause by lazy { icon("pause", fills = listOf("M7 5h3.5v14H7z", "M13.5 5H17v14h-3.5z")) }
+    val SkipNext by lazy { icon("skip-next", "M18 6v12", fills = listOf("M6 6.5v11a1 1 0 0 0 1.55.83l8-5.5a1 1 0 0 0 0-1.66l-8-5.5A1 1 0 0 0 6 6.5z")) }
+    val SkipPrev by lazy { icon("skip-prev", "M6 6v12", fills = listOf("M18 6.5v11a1 1 0 0 1-1.55.83l-8-5.5a1 1 0 0 1 0-1.66l8-5.5A1 1 0 0 1 18 6.5z")) }
+    val Stop by lazy { icon("stop", fills = listOf("M7.5 6h9A1.5 1.5 0 0 1 18 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 16.5v-9A1.5 1.5 0 0 1 7.5 6z")) }
+    val Speed by lazy { icon("speed", "M4 16a8 8 0 1 1 16 0", "M12 16l4-5", "M4 16h2M18 16h2") }
+    val Voice by lazy { icon("voice", "M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z", "M6 11a6 6 0 0 0 12 0", "M12 17v4") }
+    val Engine by lazy { icon("engine", "M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2") }
     val Bookmark by lazy { icon("bookmark", "M7 3h10v18l-5-3.6L7 21z") }
     val Sparkle by lazy {
         icon("sparkle", fills = listOf("M12 2l2.1 6.1L20 10l-5.9 1.9L12 18l-2.1-6.1L4 10l5.9-1.9z"))

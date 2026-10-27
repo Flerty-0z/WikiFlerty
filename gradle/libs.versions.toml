@@ -15,11 +15,15 @@ compose = "1.12.0"
 compose-material3 = "1.4.0"
 compose-icons = "1.7.8"
 google-material = "1.14.0"
+media3 = "1.11.0"
 
 [libraries]
 readium-shared = { group = "org.readium.kotlin-toolkit", name = "readium-shared", version.ref = "readium" }
 readium-streamer = { group = "org.readium.kotlin-toolkit", name = "readium-streamer", version.ref = "readium" }
 readium-navigator = { group = "org.readium.kotlin-toolkit", name = "readium-navigator", version.ref = "readium" }
+readium-navigator-media-tts = { group = "org.readium.kotlin-toolkit", name = "readium-navigator-media-tts", version.ref = "readium" }
+media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }
+media3-common = { group = "androidx.media3", name = "media3-common-ktx", version.ref = "media3" }
 
 desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugar" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }

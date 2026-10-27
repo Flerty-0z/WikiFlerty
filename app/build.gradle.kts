@@ -74,6 +74,9 @@ dependencies {
     implementation(libs.readium.shared)
     implementation(libs.readium.streamer)
     implementation(libs.readium.navigator)
+    implementation(libs.readium.navigator.media.tts)
+    implementation(libs.media3.session)
+    implementation(libs.media3.common)
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.core)
