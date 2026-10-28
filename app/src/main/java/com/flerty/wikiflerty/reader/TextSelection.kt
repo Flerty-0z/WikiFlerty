@@ -167,7 +167,7 @@ internal object TextSelection {
           var st = {
             anchor: null, word: null, mode: null, locked: null, timer: 0, edgeTimer: 0, pressing: false,
             startX: 0, startY: 0, lastX: 0, lastY: 0, grabX: 0, grabY: 0, programmatic: false,
-            swallow: false, turnX: 0, turnY: 0, afterTurn: false, scrollTimer: 0
+            swallow: false, turnX: 0, turnY: 0, afterTurn: false, scrollTimer: 0, chapterTimer: 0
           };
           var css = document.createElement("style");
           css.textContent =
@@ -365,6 +365,10 @@ internal object TextSelection {
             if (scrollMode()) return;
             var w = window.innerWidth;
             var target = (st.locked === null ? root.scrollLeft : st.locked) + dir * w;
+            if (dir > 0 && target > root.scrollWidth - w + 1) {
+              nextChapter();
+              return;
+            }
             if (target < 0 || target > root.scrollWidth - w + 1) return;
             st.locked = target;
             root.scrollLeft = target;
@@ -381,13 +385,51 @@ internal object TextSelection {
             }
             place();
           }
+          function nextChapter() {
+            if (!ends()) return;
+            stopEdges();
+            st.mode = null;
+            st.word = null;
+            st.afterTurn = false;
+            st.swallow = true;
+            setTimeout(function () { st.swallow = false; }, 600);
+            notify("chapter-next");
+          }
+          function atBottom() {
+            return root.scrollTop >= root.scrollHeight - window.innerHeight - 2;
+          }
           function autoScroll(dy) {
             clearInterval(st.scrollTimer);
             st.scrollTimer = setInterval(function () {
               if (!st.mode) { clearInterval(st.scrollTimer); return; }
               window.scrollBy(0, dy);
               extend(st.lastX, st.lastY - st.grabY);
+              if (dy > 0 && atBottom() && !st.chapterTimer) {
+                st.chapterTimer = setTimeout(function () {
+                  st.chapterTimer = 0;
+                  if (st.mode) nextChapter();
+                }, 650);
+              }
             }, 40);
+          }
+          function startTop() {
+            var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+            var n;
+            var h = window.innerHeight;
+            while ((n = walker.nextNode())) {
+              if (!/\S/.test(n.data)) continue;
+              var parent = n.parentElement;
+              if (!parent || parent.closest(".wf-h, script, style, head")) continue;
+              var i = n.data.search(/\S/);
+              var r = rectAt(n, i);
+              if (!r || !onPage(r) || r.bottom <= 0 || r.top >= h) continue;
+              var w = wordAround({ node: n, offset: i }) || { start: { node: n, offset: i }, end: { node: n, offset: Math.min(n.data.length, i + 1) } };
+              lock();
+              select(w.start, w.end);
+              notify("done");
+              return true;
+            }
+            return false;
           }
           function edges() {
             var x = st.lastX, y = st.lastY;
@@ -398,6 +440,10 @@ internal object TextSelection {
             var atStart = y < 22 || x < 14 || (!c && y < h * 0.4);
             if (scrollMode()) {
               clearInterval(st.scrollTimer);
+              if (!(fwd && y > h - 48)) {
+                clearTimeout(st.chapterTimer);
+                st.chapterTimer = 0;
+              }
               if (fwd && y > h - 48) autoScroll(10);
               else if (!fwd && y < 48) autoScroll(-10);
               return;
@@ -413,6 +459,8 @@ internal object TextSelection {
           function stopEdges() {
             clearTimeout(st.edgeTimer);
             st.edgeTimer = 0;
+            clearTimeout(st.chapterTimer);
+            st.chapterTimer = 0;
             clearInterval(st.scrollTimer);
           }
           function longPress() {
@@ -529,7 +577,7 @@ internal object TextSelection {
           document.addEventListener("touchend", function (e) { finish(e, false); }, { capture: true, passive: false });
           document.addEventListener("touchcancel", function (e) { finish(null, true); }, true);
 
-          window.__wfSel = { place: place, clear: clearSelection };
+          window.__wfSel = { place: place, clear: clearSelection, startTop: startTop };
         })();
     """.trimIndent()
 }

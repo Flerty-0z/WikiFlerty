@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -75,6 +76,7 @@ data class SelectionInfo(
     val text: String,
     val top: Float,
     val bottom: Float,
+    val parts: Int = 1,
 )
 
 data class NoteDraft(
@@ -99,8 +101,16 @@ class NoteActions(
 )
 
 @Composable
-fun SelectionMenu(markerColor: Long, actions: NoteActions, modifier: Modifier = Modifier) {
+fun SelectionMenu(markerColor: Long, actions: NoteActions, modifier: Modifier = Modifier, parts: Int = 1) {
     Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        if (parts > 1) {
+            com.flerty.wikiflerty.ui.InfoChip(
+                "Из $parts глав",
+                AppColors.Accent,
+                AppIcons.Book,
+                Modifier.align(Alignment.TopCenter).offset(y = (-30).dp).panelSurface(androidx.compose.foundation.shape.CircleShape, elevation = 8.dp),
+            )
+        }
         Row(
             modifier = Modifier
                 .panelSurface(appCorner(28), elevation = 16.dp)

@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.runtime.setValue
+
 import androidx.compose.animation.togetherWith
 
 import com.flerty.wikiflerty.data.Achievements

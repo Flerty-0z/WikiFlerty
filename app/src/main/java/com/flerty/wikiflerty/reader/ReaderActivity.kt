@@ -228,22 +228,61 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
     }
 
-    private fun refreshSelection() {
+    private class SelectionCarry(val locator: Locator, val text: String, val parts: Int)
+
+    private var carry: SelectionCarry? = null
+    private var continueFrom: String? = null
+
+    private fun carryToNextChapter() {
         selectionJob?.cancel()
         selectionJob = lifecycleScope.launch {
             val selection = navigator.currentSelection() ?: return@launch
             val text = selection.locator.text.highlight?.trim().orEmpty()
             if (text.isEmpty()) return@launch
+            val previous = carry
+            carry = SelectionCarry(
+                locator = previous?.locator ?: selection.locator,
+                text = if (previous != null) previous.text + "\n\n" + text else text,
+                parts = (previous?.parts ?: 0) + 1,
+            )
+            ui.selection = null
+            continueFrom = selection.locator.href.toString()
+            navigator.clearSelection()
+            if (!navigator.goForward(animated = false)) {
+                continueFrom = null
+                carry = null
+            }
+        }
+    }
+
+    private suspend fun continueSelection() {
+        repeat(4) {
+            delay(250)
+            val ok = runCatching { navigator.evaluateJavascript("window.__wfSel ? window.__wfSel.startTop() : false") }.getOrNull()
+            if (ok == "true") return
+        }
+        carry = null
+    }
+
+    private fun refreshSelection() {
+        selectionJob?.cancel()
+        selectionJob = lifecycleScope.launch {
+            val selection = navigator.currentSelection() ?: return@launch
+            val own = selection.locator.text.highlight?.trim().orEmpty()
+            if (own.isEmpty()) return@launch
+            val carried = carry
+            val text = if (carried != null) carried.text + "\n\n" + own else own
             val pageLocation = IntArray(2).also { navigator.publicationView.getLocationInWindow(it) }
             val rootLocation = IntArray(2).also { findViewById<View>(R.id.reader_root).getLocationInWindow(it) }
             val offsetY = (pageLocation[1] - rootLocation[1]).toFloat()
             val rect = selection.rect
             if (ui.panelsVisible || ui.sheet != null) ui.hideAll()
             ui.selection = SelectionInfo(
-                locator = selection.locator,
+                locator = carried?.locator ?: selection.locator,
                 text = text,
                 top = (rect?.top ?: 200f) + offsetY,
                 bottom = (rect?.bottom ?: 240f) + offsetY,
+                parts = (carried?.parts ?: 0) + 1,
             )
         }
     }
@@ -259,6 +298,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         when (type) {
             "start" -> {
                 navigator.publicationView.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                carry = null
                 selectionJob?.cancel()
                 ui.selection = null
             }
@@ -268,9 +308,11 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             }
             "done" -> refreshSelection()
             "clear" -> {
+                if (continueFrom == null) carry = null
                 selectionJob?.cancel()
                 ui.selection = null
             }
+            "chapter-next" -> carryToNextChapter()
             "auto-end" -> onAutoEnd()
         }
     }
@@ -290,6 +332,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private fun endSelection() {
+        carry = null
+        continueFrom = null
         selectionJob?.cancel()
         ui.selection = null
         actionMode?.finish()
@@ -749,9 +793,14 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
                     navigator.currentLocator.collect { locator ->
+                        val from = continueFrom
                         launch {
                             runCatching { navigator.evaluateJavascript(selectionScript) }
                             applyColumns(settings)
+                            if (from != null && from != locator.href.toString() && continueFrom == from) {
+                                continueFrom = null
+                                continueSelection()
+                            }
                         }
                         val href = locator.href.toString()
                         if (href != autoHref) {
