@@ -428,9 +428,9 @@ fun ReaderOverlay(
 
     AnimatedVisibility(
         visible = state.autoActive && state.autoCollapsed && state.sheet == null && state.footnote == null && state.selection == null,
-        enter = fadeIn(Motion.fade(200)) + slideInHorizontally(Motion.tween(260)) { it },
-        exit = fadeOut(Motion.fade(160)) + slideOutHorizontally(Motion.tween(220)) { it },
-        modifier = Modifier.align(Alignment.CenterEnd).padding(end = 6.dp).offset(y = 140.dp),
+        enter = fadeIn(Motion.fade(200)) + slideInHorizontally(Motion.tween(260)) { -it },
+        exit = fadeOut(Motion.fade(160)) + slideOutHorizontally(Motion.tween(220)) { -it },
+        modifier = Modifier.align(Alignment.BottomStart).windowInsetsPadding(WindowInsets.systemBars).padding(start = 16.dp, bottom = 8.dp),
     ) {
         AutoMini(
             paused = state.autoPaused,
@@ -1020,7 +1020,13 @@ private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
                         }
                         Column {
                             Text(tile.target.title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                            Text(tile.hint, color = AppColors.Muted, fontSize = 12.sp, lineHeight = 16.sp)
+                            Text(
+                                tile.hint,
+                                color = AppColors.Muted,
+                                maxLines = 1,
+                                softWrap = false,
+                                autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 12.sp, stepSize = 0.5.sp),
+                            )
                         }
                     }
                 }
@@ -1770,8 +1776,8 @@ private fun AutoStepButton(symbol: String, description: String, onClick: () -> U
 private fun AutoMini(paused: Boolean, progress: Float?, onExpand: () -> Unit) {
     Box(
         Modifier
-            .size(46.dp)
-            .alpha(0.85f)
+            .size(36.dp)
+            .alpha(0.9f)
             .panelSurface(CircleShape, elevation = 8.dp)
             .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.85f, onClick = onExpand)
             .semantics { contentDescription = "Показать автопрокрутку" },
@@ -1780,13 +1786,13 @@ private fun AutoMini(paused: Boolean, progress: Float?, onExpand: () -> Unit) {
         if (progress != null) {
             androidx.compose.material3.CircularProgressIndicator(
                 progress = { progress },
-                modifier = Modifier.size(38.dp),
+                modifier = Modifier.size(30.dp),
                 color = AppColors.Accent,
                 trackColor = AppColors.Line,
-                strokeWidth = 2.5.dp,
+                strokeWidth = 2.dp,
                 gapSize = 0.dp,
             )
         }
-        Icon(if (paused) AppIcons.Play else AppIcons.Pause, null, tint = AppColors.Text, modifier = Modifier.size(16.dp))
+        Icon(if (paused) AppIcons.Play else AppIcons.Pause, null, tint = AppColors.Text, modifier = Modifier.size(13.dp))
     }
 }

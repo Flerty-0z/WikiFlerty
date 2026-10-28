@@ -95,7 +95,13 @@ fun SettingsNavRow(icon: ImageVector, title: String, subtitle: String, onClick: 
         ) { Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(22.dp)) }
         Column(Modifier.weight(1f)) {
             Text(title, color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, color = AppColors.Muted, fontSize = 12.sp, lineHeight = 16.sp)
+            Text(
+                subtitle,
+                color = AppColors.Muted,
+                maxLines = 1,
+                softWrap = false,
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 12.sp, stepSize = 0.5.sp),
+            )
         }
         Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(20.dp))
     }
@@ -281,7 +287,7 @@ fun PickerRow(
         }
         Text(label, color = AppColors.Text, fontSize = 15.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(end = 12.dp))
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-            if (selected != null && (selected.swatch != null || selected.icon != null)) {
+            if (selected?.swatch != null) {
                 OptionLead(selected, AppColors.Accent)
                 Spacer(Modifier.width(6.dp))
             }
@@ -291,10 +297,10 @@ fun PickerRow(
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = selected?.font,
-                maxLines = 2,
-                lineHeight = 19.sp,
+                maxLines = 1,
+                softWrap = false,
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 15.sp, stepSize = 0.5.sp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
             )
         }
