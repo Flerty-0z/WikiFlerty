@@ -58,6 +58,7 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
     var studying by rememberSaveable { mutableStateOf(false) }
     var cardSettings by remember { mutableStateOf(false) }
     var exporting by remember { mutableStateOf(false) }
+    var wordFilter by rememberSaveable { mutableStateOf("all") }
 
     if (studying && entries.isNotEmpty()) {
         FlashcardSession(onClose = { studying = false }, modifier = modifier)
@@ -84,7 +85,14 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
     }
 
     val filtered = entries.filter {
-        query.isBlank() || it.word.contains(query, true) || it.definition.contains(query, true)
+        (query.isBlank() || it.word.contains(query, true) || it.definition.contains(query, true)) &&
+            when (wordFilter) {
+                "new" -> it.srs.isNew
+                "learn" -> it.srs.isLearning
+                "review" -> it.srs.isReview
+                "done" -> it.srs.isMastered
+                else -> true
+            }
     }
 
     LazyColumn(
@@ -94,6 +102,32 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
     ) {
         item(key = "study") {
             StudyCard(entries, onStart = { studying = true }, onSettings = { cardSettings = true })
+        }
+        item(key = "filters") {
+            androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+                val chips = listOf(
+                    "all" to "Все ${entries.size}",
+                    "new" to "Новые ${entries.count { it.srs.isNew }}",
+                    "learn" to "Учу ${entries.count { it.srs.isLearning }}",
+                    "review" to "Повтор ${entries.count { it.srs.isReview }}",
+                    "done" to "Выучено ${entries.count { it.srs.isMastered }}",
+                )
+                items(chips, key = { it.first }) { (id, title) ->
+                    val on = id == wordFilter
+                    Text(
+                        title,
+                        color = if (on) AppColors.Background else AppColors.Text,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .height(36.dp)
+                            .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.93f) { wordFilter = id }
+                            .then(if (on) Modifier.background(AppColors.Text) else Modifier.fieldSurface(CircleShape))
+                            .padding(horizontal = 14.dp, vertical = 9.dp),
+                    )
+                }
+            }
         }
         item(key = "search") {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -143,9 +177,8 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
                     Text(
                         entry.word,
                         color = AppColors.Text,
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = FontFamily.Serif,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.ExtraBold,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f).padding(end = 8.dp),
@@ -157,7 +190,7 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
-                        modifier = Modifier.clip(appCorner(8)).background(badgeColor.copy(alpha = 0.14f)).padding(horizontal = 8.dp, vertical = 3.dp),
+                        modifier = Modifier.clip(CircleShape).background(badgeColor.copy(alpha = 0.14f)).padding(horizontal = 9.dp, vertical = 3.dp),
                     )
                 }
                 if (open) {

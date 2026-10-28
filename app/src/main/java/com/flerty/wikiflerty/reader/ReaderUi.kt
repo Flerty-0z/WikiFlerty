@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty.reader
 
+import androidx.compose.ui.draw.shadow
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -119,7 +121,7 @@ internal val PanelMaxWidth = 620.dp
 private val FlagBottom = ((52 - FlagHeight) / 2).dp
 
 enum class ReaderSheet(val title: String, val depth: Int) {
-    Options("Опции", 0),
+    Options("Оформление", 0),
     Toc("Главы", 0),
     Text("Текст", 1),
     Scroll("Листание", 1),
@@ -877,16 +879,9 @@ private fun SheetFrame(content: @Composable () -> Unit) {
             .fillMaxWidth()
             .imePadding()
             .heightIn(max = 580.dp)
-            .panelSurface(appCorner(26), elevation = 20.dp)
-            .drawBehind {
-                val glow = AppStyle.base.ambience?.spots?.firstOrNull()?.color?.let { Color(it) } ?: AppColors.Accent
-                val center = androidx.compose.ui.geometry.Offset(size.width * 0.1f, 0f)
-                drawCircle(
-                    Brush.radialGradient(listOf(glow.copy(alpha = 0.22f), glow.copy(alpha = 0f)), center = center, radius = size.width * 0.8f),
-                    radius = size.width * 0.8f,
-                    center = center,
-                )
-            }
+            .shadow(20.dp, appCorner(28), ambientColor = Color(0x66503010), spotColor = Color(0x66503010))
+            .clip(appCorner(28))
+            .background(AppColors.Background)
             .blockTaps(),
     ) {
         content()
@@ -1019,7 +1014,7 @@ private fun SheetContent(
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
                 when (sheet) {
-                    ReaderSheet.Options -> OptionsHome(onOpen)
+                    ReaderSheet.Options -> OptionsHome(settings, onSettingsChange, onOpen)
                     ReaderSheet.Text -> TextOptions(settings, fonts, onSettingsChange, onOpen)
                     ReaderSheet.Scroll -> ScrollOptions(settings, onSettingsChange, auto.onStart)
                     ReaderSheet.Theme -> ThemeOptions(settings, onSettingsChange)
@@ -1036,51 +1031,112 @@ private fun SheetContent(
 }
 
 @Composable
-private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
-    data class Tile(val target: ReaderSheet, val hint: String, val icon: ImageVector, val from: Long, val to: Long, val dark: Boolean = false)
+private fun OptionsHome(
+    settings: ReaderSettings,
+    onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit,
+    onOpen: (ReaderSheet) -> Unit,
+) {
+    data class Tile(val target: ReaderSheet, val hint: String, val icon: ImageVector, val strong: Boolean = false)
     val tiles = listOf(
-        Tile(ReaderSheet.Text, "Шрифт, размер", AppIcons.TextSize, 0xFF6E8EFF, 0xFF4C63D9),
-        Tile(ReaderSheet.Scroll, "Режим, анимация", AppIcons.Pages, 0xFFA78BFA, 0xFF7653E0),
-        Tile(ReaderSheet.Theme, "Фон страницы", AppIcons.Theme, 0xFFF6C770, 0xFFD9922B, dark = true),
-        Tile(ReaderSheet.Panel, "Кнопки, прогресс", AppIcons.Panel, 0xFF5EEAD4, 0xFF1FA392, dark = true),
-        Tile(ReaderSheet.Gestures, "Тапы, свайпы", AppIcons.Gesture, 0xFFF49AC1, 0xFFD45A93),
-        Tile(ReaderSheet.Screen, "Яркость, поворот", AppIcons.Screen, 0xFFF7D774, 0xFFD9A92B, dark = true),
-        Tile(ReaderSheet.Listen, "Голос, скорость", AppIcons.Headphones, 0xFF8BD3A5, 0xFF3E9E66, dark = true),
-        Tile(ReaderSheet.Sound, "Звуки, вибрация", AppIcons.Sound, 0xFFF6A26B, 0xFFD9692B),
-        Tile(ReaderSheet.AiChapter, "Пересказ, тест", AppIcons.Book, 0xFF7DD3FC, 0xFF3B82C4),
-        Tile(ReaderSheet.AiSetup, "Нейросети, модели", AppIcons.Sparkle, 0xFF8AB4F8, 0xFF7653E0),
+        Tile(ReaderSheet.Text, "Шрифт, отступы", AppIcons.TextSize),
+        Tile(ReaderSheet.Scroll, "Режим, анимация", AppIcons.Pages),
+        Tile(ReaderSheet.Theme, "Фон страницы", AppIcons.Theme),
+        Tile(ReaderSheet.Panel, "Кнопки, прогресс", AppIcons.Panel),
+        Tile(ReaderSheet.Gestures, "Тапы, свайпы", AppIcons.Gesture),
+        Tile(ReaderSheet.Screen, "Яркость, поворот", AppIcons.Screen),
+        Tile(ReaderSheet.Listen, "Голос, скорость", AppIcons.Headphones),
+        Tile(ReaderSheet.Sound, "Звуки, вибрация", AppIcons.Sound),
+        Tile(ReaderSheet.AiChapter, "Пересказ, тест", AppIcons.Book, strong = true),
+        Tile(ReaderSheet.AiSetup, "Нейросети, модели", AppIcons.Sparkle, strong = true),
     )
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(
+            Modifier.fillMaxWidth().fieldSurface(appCorner(20)).padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            var size by remember(settings.fontSize) { mutableFloatStateOf(settings.fontSize.toFloat()) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Размер текста", color = AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text("${(size * 100).roundToInt()}%", color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("A", color = AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Slider(
+                    value = size,
+                    onValueChange = { size = it },
+                    onValueChangeFinished = {
+                        val snapped = (Math.round(size * 10) / 10.0).coerceIn(0.6, 2.0)
+                        onSettingsChange { it.copy(fontSize = snapped) }
+                    },
+                    valueRange = 0.6f..2.0f,
+                    steps = 13,
+                    colors = SliderDefaults.colors(
+                        thumbColor = Color.White,
+                        activeTrackColor = AppColors.Accent,
+                        inactiveTrackColor = AppColors.Line,
+                        activeTickColor = Color.Transparent,
+                        inactiveTickColor = Color.Transparent,
+                    ),
+                    modifier = Modifier.weight(1f),
+                )
+                Text("A", color = AppColors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(PageTheme.Light, PageTheme.Paper, PageTheme.Dark).forEach { theme ->
+                    val selected = settings.dayTheme == theme
+                    val shape = CircleShape
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(40.dp)
+                            .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.94f) { onSettingsChange { it.copy(theme = theme.id) } }
+                            .background(Color(theme.background))
+                            .border(if (selected) 2.dp else 1.dp, if (selected) AppColors.Accent else AppColors.Line, shape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(theme.title, color = Color(theme.text), fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    }
+                }
+            }
+        }
         tiles.chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { tile ->
                     val shape = appCorner(18)
-                    Column(
+                    Row(
                         modifier = Modifier
                             .weight(1f)
-                            .heightIn(min = 96.dp)
-                            .liveClick(shape, sound = FeedbackSound.Open) { onOpen(tile.target) }
+                            .heightIn(min = 64.dp)
+                            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.96f) { onOpen(tile.target) }
                             .fieldSurface(shape)
-                            .padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         Box(
                             Modifier
-                                .size(38.dp)
-                                .clip(appCorner(12))
-                                .background(Brush.linearGradient(listOf(Color(tile.from), Color(tile.to)))),
+                                .size(36.dp)
+                                .clip(appCorner(11))
+                                .background(if (tile.strong) AppColors.Accent else AppColors.AccentSoft),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Icon(tile.icon, null, tint = if (tile.dark) Color(0xFF1A1405) else Color.White, modifier = Modifier.size(20.dp))
+                            Icon(tile.icon, null, tint = if (tile.strong) AppColors.OnAccent else AppColors.Accent, modifier = Modifier.size(19.dp))
                         }
-                        Column {
-                            Text(tile.target.title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                tile.target.title,
+                                color = AppColors.Text,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false,
+                                autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 14.sp, stepSize = 0.5.sp),
+                            )
                             Text(
                                 tile.hint,
                                 color = AppColors.Muted,
                                 maxLines = 1,
                                 softWrap = false,
-                                autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 12.sp, stepSize = 0.5.sp),
+                                autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 11.sp, stepSize = 0.5.sp),
                             )
                         }
                     }

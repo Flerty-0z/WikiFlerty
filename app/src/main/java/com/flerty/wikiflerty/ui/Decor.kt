@@ -39,8 +39,6 @@ fun SectionHeader(
         modifier.fillMaxWidth().heightIn(min = 34.dp).padding(start = 2.dp, end = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.width(3.dp).height(18.dp).clip(CircleShape).background(AppColors.Accent))
-        Spacer(Modifier.width(10.dp))
         if (icon != null) {
             Box(
                 Modifier.size(26.dp).clip(CircleShape).background(AppColors.AccentSoft),
@@ -52,10 +50,10 @@ fun SectionHeader(
             Text(
                 title,
                 color = AppColors.Text,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.ExtraBold,
                 maxLines = 1,
                 softWrap = false,
-                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 15.sp, stepSize = 0.5.sp),
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 17.sp, stepSize = 0.5.sp),
                 modifier = Modifier.weight(1f, fill = false),
             )
             if (count != null) {
@@ -74,10 +72,11 @@ fun SectionHeader(
 fun CountBadge(count: Int) {
     Box(
         Modifier
-            .heightIn(min = 20.dp)
+            .heightIn(min = 22.dp)
+            .widthIn(min = 22.dp)
             .clip(CircleShape)
             .background(AppColors.AccentSoft)
-            .padding(horizontal = 8.dp, vertical = 2.dp),
+            .padding(horizontal = 7.dp, vertical = 2.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text("$count", color = AppColors.Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)

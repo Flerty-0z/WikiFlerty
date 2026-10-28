@@ -335,7 +335,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.StudyBody(
                 GradeButton("Снова", Srs.label(current.srs, Grade.Again, now), AppColors.Bad, Modifier.weight(1f)) { onAnswer(current, Grade.Again) }
                 GradeButton("Трудно", Srs.label(current.srs, Grade.Hard, now), AppColors.Warn, Modifier.weight(1f)) { onAnswer(current, Grade.Hard) }
                 GradeButton("Хорошо", Srs.label(current.srs, Grade.Good, now), AppColors.Good, Modifier.weight(1f)) { onAnswer(current, Grade.Good) }
-                GradeButton("Легко", Srs.label(current.srs, Grade.Easy, now), AppColors.Info, Modifier.weight(1f)) { onAnswer(current, Grade.Easy) }
+                GradeButton("Легко", Srs.label(current.srs, Grade.Easy, now), AppColors.Accent, Modifier.weight(1f), filled = true) { onAnswer(current, Grade.Easy) }
             }
         }
     }
@@ -352,7 +352,7 @@ private fun RoundButton(icon: ImageVector, description: String, onClick: () -> U
 @Composable
 private fun CountChip(label: String, count: Int, color: Color) {
     Row(
-        Modifier.clip(appCorner(10)).background(color.copy(alpha = 0.14f)).padding(horizontal = 10.dp, vertical = 5.dp),
+        Modifier.clip(CircleShape).background(color.copy(alpha = 0.13f)).padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -362,20 +362,26 @@ private fun CountChip(label: String, count: Int, color: Color) {
 }
 
 @Composable
-private fun GradeButton(title: String, wait: String, color: Color, modifier: Modifier, onClick: () -> Unit) {
-    val shape = appCorner(16)
+private fun GradeButton(title: String, wait: String, color: Color, modifier: Modifier, filled: Boolean = false, onClick: () -> Unit) {
+    val shape = appCorner(18)
     Column(
         modifier
             .heightIn(min = 60.dp)
             .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.93f, onClick = onClick)
-            .background(color.copy(alpha = 0.14f))
-            .border(1.dp, color.copy(alpha = 0.35f), shape)
+            .background(if (filled) color else color.copy(alpha = 0.14f))
             .padding(vertical = 8.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(title, color = color, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-        Text(wait, color = AppColors.Muted, fontSize = 11.sp, maxLines = 1)
+        Text(
+            title,
+            color = if (filled) AppColors.OnAccent else color,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            softWrap = false,
+            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 14.sp, stepSize = 0.5.sp),
+        )
+        Text(wait, color = if (filled) AppColors.OnAccent.copy(alpha = 0.8f) else AppColors.Muted, fontSize = 11.sp, maxLines = 1)
     }
 }
 
@@ -391,8 +397,7 @@ private fun FlipCard(entry: DictionaryEntry, flipped: Boolean, reverse: Boolean,
                 cameraDistance = 14f * density
             }
             .liveClick(shape, sound = FeedbackSound.Tap, pressedScale = 0.99f, onClick = onFlip)
-            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(AppColors.PanelTop, AppColors.Panel)))
-            .border(1.dp, AppColors.PanelBorder, shape),
+            .fieldSurface(shape),
     ) {
         if (rotation <= 90f) {
             CardFront(entry, reverse, onSpeak)
@@ -590,15 +595,13 @@ fun StudyCard(entries: List<DictionaryEntry>, onStart: () -> Unit, onSettings: (
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(AppColors.Accent.copy(alpha = 0.20f).compositeOverField(), AppColors.Field)))
-            .border(1.dp, AppColors.Accent.copy(alpha = 0.28f), shape)
+            .fieldSurface(shape)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Карточки", color = AppColors.Text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Сегодня повторить", color = AppColors.Text, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
                 Text(
                     "Выучено $mastered из ${entries.size}" + if (today > 0) " · сегодня $today" else "",
                     color = AppColors.Muted,

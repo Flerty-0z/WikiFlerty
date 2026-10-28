@@ -262,7 +262,9 @@ fun WikiFlertyTheme(content: @Composable () -> Unit) {
     val view = androidx.compose.ui.platform.LocalView.current
     val light = AppStyle.light
     androidx.compose.runtime.SideEffect {
-        val window = (view.context as? android.app.Activity)?.window ?: return@SideEffect
+        val activity = view.context as? android.app.Activity ?: return@SideEffect
+        if (activity is com.flerty.wikiflerty.reader.ReaderActivity) return@SideEffect
+        val window = activity.window
         androidx.core.view.WindowCompat.getInsetsController(window, view).apply {
             isAppearanceLightStatusBars = light
             isAppearanceLightNavigationBars = light
