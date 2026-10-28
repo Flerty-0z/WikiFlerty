@@ -6,6 +6,7 @@ import android.os.Build
 import com.flerty.wikiflerty.App
 import com.flerty.wikiflerty.ai.AiSettings
 import com.flerty.wikiflerty.data.Book
+import com.flerty.wikiflerty.data.Bookmark
 import com.flerty.wikiflerty.data.DictionaryEntry
 import com.flerty.wikiflerty.data.Note
 import com.flerty.wikiflerty.reader.ReaderSettings
@@ -19,14 +20,21 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class MergeReport(val notes: Int = 0, val words: Int = 0, val progress: Int = 0, val settings: Boolean = false) {
+data class MergeReport(
+    val notes: Int = 0,
+    val words: Int = 0,
+    val progress: Int = 0,
+    val settings: Boolean = false,
+    val bookmarks: Int = 0,
+) {
     operator fun plus(o: MergeReport) =
-        MergeReport(notes + o.notes, words + o.words, progress + o.progress, settings || o.settings)
+        MergeReport(notes + o.notes, words + o.words, progress + o.progress, settings || o.settings, bookmarks + o.bookmarks)
 
     fun describe(): String {
         val parts = buildList {
             if (progress > 0) add("прогресс книг: $progress")
             if (notes > 0) add("заметок: $notes")
+            if (bookmarks > 0) add("закладок: $bookmarks")
             if (words > 0) add("слов: $words")
             if (settings) add("настройки")
         }
@@ -65,14 +73,22 @@ object Backup {
                     put(n.toJson().put("bookId", JSONObject.NULL).put("book", book))
                 }
             })
+            put("bookmarks", JSONArray().apply {
+                app.bookmarks.bookmarks.value.forEach { b ->
+                    val book = ref(b.bookId) ?: return@forEach
+                    put(b.toJson().put("bookId", JSONObject.NULL).put("book", book))
+                }
+            })
             put("dictionary", JSONArray().apply {
                 app.dictionary.entries.value.forEach { e ->
                     put(e.toJson().put("bookId", JSONObject.NULL).put("book", ref(e.bookId) ?: JSONObject.NULL))
                 }
             })
             put("stats", app.stats.toJson())
+            put("achievements", app.achievements.toJson())
             put("deletedNotes", JSONObject(state.deletedNotes))
             put("deletedWords", JSONObject(state.deletedWords))
+            put("deletedBookmarks", JSONObject(state.deletedBookmarks))
             put("settings", JSONObject().apply {
                 put("changedAt", state.settingsChangedAt)
                 put("reader", app.readerSettings.settings.value.toJson())
@@ -91,6 +107,7 @@ object Backup {
         val state = app.sync.store.state.value
         val deletedNotes = maxMerge(state.deletedNotes, remote.optJSONObject("deletedNotes").toLongMap())
         val deletedWords = maxMerge(state.deletedWords, remote.optJSONObject("deletedWords").toLongMap())
+        val deletedBookmarks = maxMerge(state.deletedBookmarks, remote.optJSONObject("deletedBookmarks").toLongMap())
 
         val localNotes = app.notes.notes.value.associateBy { it.id }.toMutableMap()
         var notesChanged = 0
@@ -107,6 +124,20 @@ object Backup {
         }
         val notesAfter = localNotes.values.filter { n -> deletedNotes[n.id]?.let { it < n.updatedAt } ?: true }
         if (notesChanged > 0 || notesAfter.size != app.notes.notes.value.size) app.notes.replaceAll(notesAfter)
+
+        val localMarks = app.bookmarks.bookmarks.value.associateBy { it.id }.toMutableMap()
+        var marksChanged = 0
+        remote.optJSONArray("bookmarks").objects().forEach { j ->
+            val bookId = localBookId(j.optString("book").takeIf { it.isNotEmpty() }) ?: return@forEach
+            val mark = runCatching { Bookmark.fromJson(j.put("bookId", bookId)) }.getOrNull() ?: return@forEach
+            if (deletedBookmarks.containsKey(mark.id)) return@forEach
+            if (localMarks[mark.id] == null) {
+                localMarks[mark.id] = mark
+                marksChanged++
+            }
+        }
+        val marksAfter = localMarks.values.filterNot { deletedBookmarks.containsKey(it.id) }
+        if (marksChanged > 0 || marksAfter.size != app.bookmarks.bookmarks.value.size) app.bookmarks.replaceAll(marksAfter)
 
         val localWords = app.dictionary.entries.value.associateBy { it.id }.toMutableMap()
         var wordsChanged = 0
@@ -151,6 +182,7 @@ object Backup {
         }
 
         app.stats.merge(remote.optJSONObject("stats"))
+        app.achievements.merge(remote.optJSONObject("achievements"))
 
         var settingsApplied = false
         val remoteSettings = remote.optJSONObject("settings")
@@ -166,16 +198,18 @@ object Backup {
             it.copy(
                 deletedNotes = deletedNotes,
                 deletedWords = deletedWords,
+                deletedBookmarks = deletedBookmarks,
                 foreignBooks = foreign.values.toList(),
                 settingsChangedAt = if (settingsApplied) remoteChangedAt else it.settingsChangedAt,
             )
         }
-        return MergeReport(notesChanged, wordsChanged, progressChanged, settingsApplied)
+        return MergeReport(notesChanged, wordsChanged, progressChanged, settingsApplied, marksChanged)
     }
 
     suspend fun onBookAdded(app: App, book: Book) {
         val fp = book.fingerprint ?: return
         app.notes.remapBook(FOREIGN + fp, book.id)
+        app.bookmarks.remapBook(FOREIGN + fp, book.id)
         app.dictionary.remapBook(FOREIGN + fp, book.id)
         val foreign = app.sync.store.state.value.foreignBooks.firstOrNull { it.fingerprint == fp } ?: return
         app.library.applyProgress(book.id, foreign.locatorJson, foreign.progress, foreign.lastReadAt)

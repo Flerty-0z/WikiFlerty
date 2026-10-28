@@ -127,6 +127,21 @@ object AppIcons {
     val Engine by lazy { icon("engine", "M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2") }
     val ShelfAdd by lazy { icon("shelf-add", "M5 5v15M9.5 5v15", "M3 20h10", "M17.5 8v8M13.5 12h8") }
     val Bookmark by lazy { icon("bookmark", "M7 3h10v18l-5-3.6L7 21z") }
+    val BookmarkFilled by lazy { icon("bookmark-filled", "M7 3h10v18l-5-3.6L7 21z", fills = listOf("M7 3h10v18l-5-3.6L7 21z")) }
+    val Quote by lazy {
+        icon(
+            "quote",
+            fills = listOf(
+                "M4 18v-5.5C4 8.4 6.2 5.6 9.6 5l.6 1.9C8.4 7.6 7.4 9 7.3 11H10v7z",
+                "M13.5 18v-5.5c0-4.1 2.2-6.9 5.6-7.5l.6 1.9c-1.8.7-2.8 2.1-2.9 4.1h2.7v7z",
+            ),
+        )
+    }
+    val Share by lazy { icon("share", "M12 3v12", "M7.5 7.5L12 3l4.5 4.5", "M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7") }
+    val Trophy by lazy {
+        icon("trophy", "M8 4h8v6a4 4 0 0 1-8 0z", "M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4", "M12 14v4", "M8.5 21h7", "M10 18h4")
+    }
+    val Lock by lazy { icon("lock", "M7 11h10a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z", "M9 11V8a3 3 0 0 1 6 0v3") }
     val Sparkle by lazy {
         icon("sparkle", fills = listOf("M12 2l2.1 6.1L20 10l-5.9 1.9L12 18l-2.1-6.1L4 10l5.9-1.9z"))
     }

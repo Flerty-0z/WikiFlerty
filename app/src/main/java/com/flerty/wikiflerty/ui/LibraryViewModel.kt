@@ -99,6 +99,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             app.library.delete(book)
             app.notes.deleteForBook(book.id)
+            app.bookmarks.deleteForBook(book.id)
             _messages.emit("Удалено: ${book.title}")
         }
     }

@@ -154,6 +154,10 @@ fun StatsScreen(modifier: Modifier = Modifier) {
         val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
         GoalCard(prefs.dailyGoalMinutes, perDay) { minutes -> app.libraryPrefs.update { it.copy(dailyGoalMinutes = minutes) } }
 
+        val yearStart = today.withDayOfYear(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val finishedThisYear = books.count { it.status == ReadStatus.Finished && (it.finishedAt ?: 0) >= yearStart }
+        YearGoalCard(prefs.yearGoalBooks, finishedThisYear) { n -> app.libraryPrefs.update { it.copy(yearGoalBooks = n) } }
+
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatTile("Сегодня", StatsCalc.duration(perDay[today]?.ms ?: 0), Modifier.weight(1f), icon = AppIcons.Clock)
             StatTile("За неделю", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(6)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
@@ -164,8 +168,6 @@ fun StatsScreen(modifier: Modifier = Modifier) {
         }
 
         val (current, best) = StatsCalc.streaks(perDay, today)
-        val yearStart = today.withDayOfYear(1).toEpochDay() * 86_400_000L
-        val finishedThisYear = books.count { it.status == ReadStatus.Finished && (it.finishedAt ?: 0) >= yearStart }
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatTile("Серия", StatsCalc.days(current), Modifier.weight(1f), hint = "Лучшая: ${StatsCalc.days(best)}", icon = AppIcons.Fire)
             StatTile(
@@ -191,6 +193,10 @@ fun StatsScreen(modifier: Modifier = Modifier) {
         }
 
         ChartCard("Последние 30 дней", StatsCalc.series(perDay, 30, today))
+
+        val unlocked by app.achievements.unlocked.collectAsStateWithLifecycle()
+        val progress = remember(days, books) { com.flerty.wikiflerty.data.AchievementProgress.of(days, books) }
+        AchievementsSection(progress, unlocked)
 
         val top = remember(days, books) {
             books.map { it to StatsCalc.book(days, it.statsKey) }.filter { it.second.ms >= 60_000 }.sortedByDescending { it.second.ms }.take(5)

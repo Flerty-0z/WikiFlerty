@@ -39,6 +39,9 @@ class App : Application() {
     lateinit var dictionary: DictionaryRepository
         private set
 
+    lateinit var bookmarks: com.flerty.wikiflerty.data.BookmarksRepository
+        private set
+
     lateinit var sync: SyncManager
         private set
 
@@ -49,6 +52,8 @@ class App : Application() {
     val flashcards: com.flerty.wikiflerty.data.FlashcardStore by lazy { com.flerty.wikiflerty.data.FlashcardStore(this) }
 
     val stats: com.flerty.wikiflerty.data.ReadingStatsStore by lazy { com.flerty.wikiflerty.data.ReadingStatsStore(this) }
+
+    val achievements: com.flerty.wikiflerty.data.AchievementStore by lazy { com.flerty.wikiflerty.data.AchievementStore(this) }
 
     val libraryPrefs: com.flerty.wikiflerty.data.LibraryPrefsStore by lazy { com.flerty.wikiflerty.data.LibraryPrefsStore(this) }
 
@@ -74,16 +79,19 @@ class App : Application() {
         readerSettings = ReaderSettingsStore(this)
         notes = NotesRepository(this)
         dictionary = DictionaryRepository(this)
+        bookmarks = com.flerty.wikiflerty.data.BookmarksRepository(this)
         sync = SyncManager(this)
 
         notes.onDeleted = { sync.noteDeleted(it) }
         dictionary.onDeleted = { sync.wordDeleted(it) }
+        bookmarks.onDeleted = { sync.bookmarkDeleted(it) }
         readerSettings.onChanged = { sync.settingsChanged() }
         style.onChanged = { sync.settingsChanged() }
         ai.store.onChanged = { sync.settingsChanged() }
         library.onBookAdded = { book -> Backup.onBookAdded(this, book) }
         appScope.launch { library.ensureFingerprints() }
         backgroundAudio.install()
+        achievements.start(appScope)
     }
 
     suspend fun prepareReader(book: Book, startAt: Locator? = null): Result<Unit> {

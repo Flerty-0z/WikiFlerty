@@ -65,6 +65,7 @@ enum class QuickButton(val id: String, val title: String) {
     Scroll("scroll", "Листание"),
     Screen("screen", "Экран"),
     Notes("notes", "Заметки"),
+    Bookmarks("bookmarks", "Закладки"),
     Listen("listen", "Слушать"),
     Search("search", "Поиск"),
     Auto("auto", "Авто"),
