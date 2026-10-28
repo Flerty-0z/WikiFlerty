@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.ui.draw.shadow
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
@@ -402,34 +404,21 @@ private fun ToastCard(achievement: Achievement, count: Int, onClick: () -> Unit)
 
 @Composable
 fun AchievementsButton(earned: Int, total: Int, onClick: () -> Unit) {
-    val shape = appCorner(18)
-    Box(
+    val shape = appCorner(20)
+    Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 64.dp)
+            .heightIn(min = 62.dp)
+            .shadow(6.dp, shape, ambientColor = Color(0x55503010), spotColor = Color(0x55503010))
             .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onClick = onClick)
-            .fieldSurface(shape)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        contentAlignment = Alignment.Center,
+            .background(AppColors.Text)
+            .padding(horizontal = 18.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(Modifier.align(Alignment.CenterStart), horizontalArrangement = Arrangement.spacedBy((-10).dp)) {
-            listOf(AchievementKind.Streak, AchievementKind.Books, AchievementKind.Time).forEach { kind ->
-                val style = medalStyle(kind)
-                Box(
-                    Modifier
-                        .size(30.dp)
-                        .clip(CircleShape)
-                        .background(Brush.linearGradient(listOf(Color(style.from), Color(style.to))))
-                        .border(1.5.dp, AppColors.Field, CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) { Icon(style.icon, null, tint = Color.White, modifier = Modifier.size(14.dp)) }
-            }
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Достижения", color = AppColors.Text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-            Text("$earned из $total", color = AppColors.Muted, fontSize = 12.sp, maxLines = 1)
-        }
-        Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.align(Alignment.CenterEnd).size(20.dp))
+        Icon(AppIcons.Trophy, null, tint = AppColors.Accent, modifier = Modifier.size(22.dp))
+        Text("Достижения", color = AppColors.Background, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, modifier = Modifier.weight(1f))
+        Text("$earned / $total", color = AppColors.Accent, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
     }
 }
 

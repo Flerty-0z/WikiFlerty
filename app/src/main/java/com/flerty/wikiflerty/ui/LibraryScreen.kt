@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.ui.graphics.drawOutline
+
 import androidx.compose.foundation.layout.width
 
 import androidx.compose.ui.draw.drawBehind
@@ -551,7 +553,7 @@ private fun ProgressWithPercent(book: Book, modifier: Modifier = Modifier) {
         Box(Modifier.weight(1f).height(5.dp).clip(CircleShape).background(AppColors.Line)) {
             Box(Modifier.fillMaxHeight().fillMaxWidth(book.progress.toFloat().coerceIn(0f, 1f)).clip(CircleShape).background(AppColors.Accent))
         }
-        Text(percent(book), color = AppColors.Accent, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+        Text("${(book.progress * 100).toInt()}%", color = AppColors.Accent, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
     }
 }
 
@@ -785,5 +787,17 @@ private fun SectionTitle(title: String, hint: String?) {
             modifier = Modifier.weight(1f),
         )
         if (hint != null) Text(hint, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1)
+    }
+}
+
+fun relativeDay(time: Long): String {
+    val day = java.time.Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault()).toLocalDate()
+    val today = LocalDate.now()
+    val diff = today.toEpochDay() - day.toEpochDay()
+    return when {
+        diff <= 0L -> "сегодня"
+        diff == 1L -> "вчера"
+        diff < 7L -> "${diff} " + StatsCalc.plural(diff.toInt(), "день", "дня", "дней") + " назад"
+        else -> StatsCalc.date(day)
     }
 }

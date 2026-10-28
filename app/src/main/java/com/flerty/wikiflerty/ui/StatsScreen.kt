@@ -1,5 +1,11 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.ui.graphics.Color
+
+import androidx.compose.foundation.layout.Spacer
+
+import androidx.compose.foundation.shape.CircleShape
+
 import androidx.compose.runtime.setValue
 
 import androidx.compose.animation.togetherWith
@@ -188,18 +194,23 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
         val finishedThisYear = books.count { it.status == ReadStatus.Finished && (it.finishedAt ?: 0) >= yearStart }
         YearGoalCard(prefs.yearGoalBooks, finishedThisYear) { n -> app.libraryPrefs.update { it.copy(yearGoalBooks = n) } }
 
-        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("Сегодня", StatsCalc.duration(perDay[today]?.ms ?: 0), Modifier.weight(1f), icon = AppIcons.Clock)
-            StatTile("За неделю", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(6)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
-        }
-        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("За месяц", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(29)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
-            StatTile("За год", StatsCalc.duration(StatsCalc.sumSince(perDay, today.withDayOfYear(1)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
-        }
+        MinutesCard(perDay, today)
+
+        StatusCard(books)
 
         val (current, best) = StatsCalc.streaks(perDay, today)
+        val total = perDay.values.fold(DayEntry()) { a, b -> a + b }
+        val readingDays = perDay.values.count { it.ms >= 60_000 }
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile("Сегодня", StatsCalc.duration(perDay[today]?.ms ?: 0), Modifier.weight(1f), icon = AppIcons.Clock)
             StatTile("Серия", StatsCalc.days(current), Modifier.weight(1f), hint = "Лучшая: ${StatsCalc.days(best)}", icon = AppIcons.Fire)
+        }
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile("За неделю", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(6)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
+            StatTile("За месяц", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(29)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
+        }
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile("За год", StatsCalc.duration(StatsCalc.sumSince(perDay, today.withDayOfYear(1)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
             StatTile(
                 "Прочитано",
                 "$finishedThisYear " + StatsCalc.plural(finishedThisYear, "книга", "книги", "книг"),
@@ -208,9 +219,6 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
                 icon = AppIcons.Book,
             )
         }
-
-        val total = perDay.values.fold(DayEntry()) { a, b -> a + b }
-        val readingDays = perDay.values.count { it.ms >= 60_000 }
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatTile("Всего", StatsCalc.duration(total.ms), Modifier.weight(1f), hint = "${total.pages} стр.", icon = AppIcons.Pages)
             StatTile(
@@ -221,8 +229,6 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
                 icon = AppIcons.Chart,
             )
         }
-
-        ChartCard("Последние 30 дней", StatsCalc.series(perDay, 30, today))
 
         val unlocked by app.achievements.unlocked.collectAsStateWithLifecycle()
         val progress = remember(days, books) { com.flerty.wikiflerty.data.AchievementProgress.of(days, books) }
@@ -261,14 +267,25 @@ private fun TopBookRow(app: App, book: Book, stats: BookStats) {
 @Composable
 fun StatTile(label: String, value: String, modifier: Modifier = Modifier, hint: String? = null, icon: ImageVector? = null) {
     Column(
-        modifier.fillMaxHeight().heightIn(min = 76.dp).fieldSurface(appCorner(16)).padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        modifier.fillMaxHeight().heightIn(min = 76.dp).fieldSurface(appCorner(18)).padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (icon != null) Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(15.dp))
-            Text(label, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (icon != null) {
+                Box(Modifier.size(26.dp).clip(CircleShape).background(AppColors.AccentSoft), contentAlignment = Alignment.Center) {
+                    Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(14.dp))
+                }
+            }
+            Text(label, color = AppColors.Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Text(value, color = AppColors.Text, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            value,
+            color = AppColors.Text,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            softWrap = false,
+            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 20.sp, stepSize = 0.5.sp),
+        )
         if (hint != null) Text(hint, color = AppColors.Faint, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
@@ -390,5 +407,119 @@ private fun GoalCard(goalMinutes: Int, perDay: Map<LocalDate, DayEntry>, onGoal:
             },
             selectedId = goalMinutes.toString(),
         ) { id -> onGoal(id.toInt()) }
+    }
+}
+
+private val DayLetters = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
+
+@Composable
+private fun MinutesCard(perDay: Map<LocalDate, DayEntry>, today: LocalDate) {
+    var month by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    val count = if (month) 30 else 7
+    val values = StatsCalc.series(perDay, count, today)
+    val max = values.maxOrNull()?.takeIf { it > 0 } ?: 1L
+    Column(
+        Modifier.fillMaxWidth().fieldSurface(appCorner(20)).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Минуты по дням", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f), maxLines = 1)
+            Row(Modifier.clip(CircleShape).background(AppColors.Line.copy(alpha = 0.6f)).padding(3.dp)) {
+                listOf(false to "Неделя", true to "30 дней").forEach { (m, title) ->
+                    val on = m == month
+                    Text(
+                        title,
+                        color = if (on) AppColors.OnAccent else AppColors.Muted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.93f) { month = m }
+                            .background(if (on) AppColors.Accent else Color.Transparent)
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                    )
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth().height(130.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(if (month) 3.dp else 10.dp)) {
+            values.forEachIndexed { i, v ->
+                val last = i == values.lastIndex
+                Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Bottom, horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (!month && v > 0) {
+                        Text("${v / 60_000}", color = if (last) AppColors.Accent else AppColors.Muted, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                        Spacer(Modifier.height(4.dp))
+                    }
+                    val fraction = if (v > 0) (v.toFloat() / max).coerceIn(0.06f, 1f) else 0f
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .then(if (fraction > 0f) Modifier.fillMaxHeight(fraction * 0.82f) else Modifier.height(6.dp))
+                            .clip(appCorner(if (month) 3 else 6))
+                            .background(if (v <= 0) AppColors.Line else if (last) AppColors.Accent else AppColors.Accent.copy(alpha = 0.45f)),
+                    )
+                }
+            }
+        }
+        if (!month) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                values.indices.forEach { i ->
+                    val day = today.minusDays((values.size - 1 - i).toLong())
+                    val last = i == values.lastIndex
+                    Text(
+                        DayLetters[day.dayOfWeek.value - 1],
+                        color = if (last) AppColors.Accent else AppColors.Faint,
+                        fontSize = 11.sp,
+                        fontWeight = if (last) FontWeight.ExtraBold else FontWeight.SemiBold,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        } else {
+            Row {
+                Text("30 дн. назад", color = AppColors.Faint, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                Text("сегодня", color = AppColors.Faint, fontSize = 11.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusCard(books: List<Book>) {
+    if (books.isEmpty()) return
+    val parts = listOf(
+        Triple("Читаю", books.count { it.status == ReadStatus.Reading }, AppColors.Accent),
+        Triple("В планах", books.count { it.status == ReadStatus.Planned }, Color(0xFFF2C14E)),
+        Triple("Прочитано", books.count { it.status == ReadStatus.Finished }, AppColors.Good),
+        Triple("Новые", books.count { it.status == ReadStatus.New }, AppColors.Line),
+    )
+    val total = parts.sumOf { it.second }.coerceAtLeast(1)
+    Row(
+        Modifier.fillMaxWidth().fieldSurface(appCorner(20)).padding(18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(22.dp),
+    ) {
+        Canvas(Modifier.size(84.dp)) {
+            val stroke = this.size.minDimension * 0.2f
+            val inset = stroke / 2
+            val arc = Size(this.size.width - stroke, this.size.height - stroke)
+            var start = -90f
+            parts.forEach { (_, n, color) ->
+                if (n > 0) {
+                    val sweep = 360f * n / total
+                    drawArc(color, start, sweep, false, Offset(inset, inset), arc, style = Stroke(stroke))
+                    start += sweep
+                }
+            }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            parts.forEach { (title, n, color) ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.size(9.dp).clip(CircleShape).background(color))
+                    Text("$title · $n", color = AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                }
+            }
+        }
     }
 }
