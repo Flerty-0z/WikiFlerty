@@ -617,7 +617,6 @@ private fun TopPanel(
         }
         BookmarkButton(bookmarked, onBookmark)
         RoundIconButton(AppIcons.Search, "Поиск по книге", sound = FeedbackSound.Open, onClick = onSearch)
-        RoundIconButton(AppIcons.Headphones, "Чтение вслух", sound = FeedbackSound.Open, onClick = onListen)
     }
 }
 
@@ -742,7 +741,7 @@ private fun BottomPanel(
         }
         Box(Modifier.padding(horizontal = 4.dp).width(1.dp).height(34.dp).background(AppColors.Line))
         PanelButton("Опции", sound = FeedbackSound.Open, onClick = onOptions, modifier = Modifier.weight(1f)) {
-            Icon(AppIcons.Options, contentDescription = null, tint = AppColors.Text, modifier = Modifier.size(22.dp))
+            Icon(AppIcons.Options, contentDescription = null, tint = AppColors.Text, modifier = Modifier.size(24.dp))
         }
     }
 }
@@ -756,32 +755,22 @@ private fun PanelButton(
     icon: @Composable () -> Unit,
 ) {
     val shape = appCorner(16)
-    Column(
+    Box(
         modifier = modifier
-            .height(56.dp)
-            .liveClick(shape, sound = sound, pressedScale = 0.9f, onClick = onClick)
-            .padding(horizontal = 2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+            .height(52.dp)
+            .liveClick(shape, sound = sound, pressedScale = 0.88f, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) { icon() }
-        Spacer(Modifier.height(3.dp))
-        BasicText(
-            label,
-            style = TextStyle(color = AppColors.Text, fontSize = 11.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center),
-            maxLines = 1,
-            softWrap = false,
-            autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 11.sp, stepSize = 0.5.sp),
-            modifier = Modifier.fillMaxWidth(),
-        )
+        Box(Modifier.size(26.dp), contentAlignment = Alignment.Center) { icon() }
     }
 }
 
 @Composable
 private fun QuickIcon(button: QuickButton, tint: Color) {
     when (button) {
-        QuickButton.Font -> Icon(AppIcons.TextSize, null, tint = tint, modifier = Modifier.size(23.dp))
-        else -> Icon(quickIconVector(button), null, tint = tint, modifier = Modifier.size(22.dp))
+        QuickButton.Font -> Icon(AppIcons.TextSize, null, tint = tint, modifier = Modifier.size(25.dp))
+        else -> Icon(quickIconVector(button), null, tint = tint, modifier = Modifier.size(24.dp))
     }
 }
 

@@ -109,16 +109,18 @@ internal fun NavTabs(current: ReaderSheet, onSelect: (ReaderSheet) -> Unit, modi
                     Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .liveClick(inner, sound = FeedbackSound.Toggle, pressedScale = 0.95f) { if (!selected) onSelect(sheet) },
+                        .liveClick(inner, sound = FeedbackSound.Toggle, pressedScale = 0.9f) { if (!selected) onSelect(sheet) },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        sheet.title,
-                        color = color,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        softWrap = false,
-                        autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 14.sp, stepSize = 0.5.sp),
+                    androidx.compose.material3.Icon(
+                        when (sheet) {
+                            ReaderSheet.Notes -> if (selected) AppIcons.StarFilled else AppIcons.Star
+                            ReaderSheet.Bookmarks -> AppIcons.Bookmark
+                            else -> AppIcons.Toc
+                        },
+                        contentDescription = sheet.title,
+                        tint = if (selected) AppColors.Accent else color,
+                        modifier = Modifier.size(22.dp),
                     )
                 }
             }

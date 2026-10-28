@@ -143,13 +143,11 @@ internal fun QuoteContent(draft: QuoteDraft, actions: QuoteActions, modifier: Mo
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(AppIcons.Backup, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Сохранить", color = AppColors.Accent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Icon(AppIcons.Backup, "Сохранить в галерею", tint = AppColors.Accent, modifier = Modifier.size(24.dp))
             }
             Row(
                 Modifier
-                    .weight(1.4f)
+                    .weight(1f)
                     .height(50.dp)
                     .liveClick(shape, sound = FeedbackSound.Open, enabled = !actions.busy) { actions.onShare(draft, look, format) }
                     .background(Brush.verticalGradient(listOf(AppColors.AccentLight, AppColors.Accent))),
@@ -157,12 +155,10 @@ internal fun QuoteContent(draft: QuoteDraft, actions: QuoteActions, modifier: Mo
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (actions.busy) {
-                    CircularProgressIndicator(color = AppColors.OnAccent, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                    CircularProgressIndicator(color = AppColors.OnAccent, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
                 } else {
-                    Icon(AppIcons.Share, null, tint = AppColors.OnAccent, modifier = Modifier.size(18.dp))
+                    Icon(AppIcons.Share, "Поделиться", tint = AppColors.OnAccent, modifier = Modifier.size(24.dp))
                 }
-                Spacer(Modifier.width(8.dp))
-                Text("Поделиться", color = AppColors.OnAccent, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             }
         }
     }

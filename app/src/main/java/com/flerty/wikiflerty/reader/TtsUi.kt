@@ -165,9 +165,7 @@ fun TtsOptions(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
             ) {
-                Icon(if (playing) AppIcons.Pause else AppIcons.Play, null, tint = accentContent, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(if (playing) "Пауза" else "Продолжить", color = accentContent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Icon(if (playing) AppIcons.Pause else AppIcons.Play, if (playing) "Пауза" else "Продолжить", tint = accentContent, modifier = Modifier.size(24.dp))
             }
             Row(
                 Modifier.weight(1f).heightIn(min = 54.dp).liveClick(shape, sound = FeedbackSound.Close, onClick = actions.onStop)
@@ -175,9 +173,7 @@ fun TtsOptions(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
             ) {
-                Icon(AppIcons.Stop, null, tint = AppColors.Text, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Остановить", color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Icon(AppIcons.Stop, "Остановить", tint = AppColors.Text, modifier = Modifier.size(22.dp))
             }
         }
     }

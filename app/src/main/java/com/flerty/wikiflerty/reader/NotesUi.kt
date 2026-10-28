@@ -518,9 +518,7 @@ private fun ColorSettings(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(AppIcons.Trash, null, tint = Color(0xFFF08A8A), modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Удалить цвет", color = Color(0xFFF08A8A), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Icon(AppIcons.Trash, "Удалить цвет", tint = Color(0xFFF08A8A), modifier = Modifier.size(22.dp))
                 }
             }
             Box(
