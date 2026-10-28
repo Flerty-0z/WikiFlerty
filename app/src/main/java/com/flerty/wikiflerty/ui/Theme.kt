@@ -50,71 +50,14 @@ enum class UiBase(
     val ambience: Ambience? = null,
     val light: Boolean = false,
 ) {
-    Aurora(
-        "aurora", "Сияние", 0xFF0A0D18, 0xFF161B2E, 0xFF1B2240, 0xFF13172A, 0xFF262D48, 0xFF3C4670, 0xFF111528, 0xFF2A3150,
-        Ambience(
-            spots = listOf(
-                GlowSpot(0xFF466EFF, 0.42f, 0.23f, 0.08f, 0.60f),
-                GlowSpot(0xFF9262FF, 0.30f, 0.85f, 0.71f, 0.62f),
-                GlowSpot(0xFF3CAAFF, 0.18f, 0.38f, 1.01f, 0.55f),
-            ),
-        ),
-    ),
-    Lamp(
-        "lamp", "Ночная библиотека", 0xFF110D09, 0xFF1E1813, 0xFF261E17, 0xFF1A1510, 0xFF33291F, 0xFF4E3F30, 0xFF17120D, 0xFF3A2F24,
-        Ambience(
-            spots = listOf(
-                GlowSpot(0xFFE8A048, 0.34f, 0.77f, 0.08f, 0.62f),
-                GlowSpot(0xFFAA5A28, 0.26f, 0.08f, 0.78f, 0.60f),
-            ),
-        ),
-    ),
-    Deep(
-        "deep", "Глубина океана", 0xFF06141D, 0xFF0F2430, 0xFF123040, 0xFF0C1E28, 0xFF1C3A48, 0xFF2E5868, 0xFF0A1B24, 0xFF1F3C4A,
-        Ambience(
-            topColor = 0xFF072A33,
-            spots = listOf(
-                GlowSpot(0xFF2EC4B6, 0.36f, 0.26f, 0.09f, 0.57f),
-                GlowSpot(0xFF2878C8, 0.26f, 0.87f, 0.88f, 0.57f),
-            ),
-        ),
-    ),
-    Dusk(
-        "dusk", "Сумерки", 0xFF120A1F, 0xFF1E1530, 0xFF26193D, 0xFF1A1229, 0xFF30244A, 0xFF4A3970, 0xFF160F24, 0xFF372A52,
-        Ambience(
-            topColor = 0xFF1C1033,
-            spots = listOf(
-                GlowSpot(0xFFF26EAA, 0.34f, 0.77f, 0.08f, 0.57f),
-                GlowSpot(0xFF6E50F0, 0.30f, 0.13f, 0.64f, 0.62f),
-            ),
-        ),
-    ),
-    Neon(
-        "neon", "Графит и неон", 0xFF0B0C0E, 0xFF15171B, 0xFF1A1D22, 0xFF121418, 0xFF262A30, 0xFF3A3F47, 0xFF111316, 0xFF2A2E35,
-        Ambience(topColor = 0xFFC6F432, topAlpha = 0.10f, topHeight = 0.31f, dots = true),
-    ),
-    Forest(
-        "forest", "Лес", 0xFF08130E, 0xFF122219, 0xFF16291F, 0xFF0F1D15, 0xFF20382B, 0xFF32543F, 0xFF0C1A12, 0xFF22392C,
-        Ambience(
-            topColor = 0xFF0D1F17,
-            spots = listOf(
-                GlowSpot(0xFF46AA6E, 0.32f, 0.18f, 0.13f, 0.60f),
-                GlowSpot(0xFFBED26E, 0.16f, 0.87f, 0.81f, 0.54f),
-            ),
-        ),
-    ),
     Cream(
         "cream", "Крем", 0xFFFBF7F1, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFBF7F1, 0xFFEFE6DA, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFEEE4D8,
         light = true,
     ),
-    Dark("dark", "Тёмная", 0xFF101113, 0xFF1F2125, 0xFF25282D, 0xFF1C1E22, 0xFF2C2F34, 0xFF454952, 0xFF16171A, 0xFF33363C),
-    Graphite("graphite", "Графит", 0xFF141414, 0xFF222222, 0xFF292929, 0xFF1F1F1F, 0xFF323232, 0xFF4A4A4A, 0xFF191919, 0xFF3A3A3A),
-    Ocean("ocean", "Океан", 0xFF0D1117, 0xFF161D27, 0xFF1B2431, 0xFF141B25, 0xFF243042, 0xFF3A4A63, 0xFF0F151E, 0xFF2A3546),
-    Oled("oled", "OLED", 0xFF000000, 0xFF121214, 0xFF18181B, 0xFF0F0F11, 0xFF26262B, 0xFF3A3A42, 0xFF0A0A0C, 0xFF2A2A30),
     ;
 
     companion object {
-        fun of(id: String) = entries.firstOrNull { it.id == id } ?: Aurora
+        fun of(id: String) = Cream
     }
 }
 
@@ -141,12 +84,12 @@ enum class BackgroundKind(val id: String, val title: String) {
 }
 
 data class UiStyle(
-    val base: String = UiBase.Aurora.id,
-    val accent: Long = 0xFF8AB4F8,
-    val corners: Float = 1f,
+    val base: String = UiBase.Cream.id,
+    val accent: Long = DefaultAccent,
+    val corners: Float = 1.1f,
     val outline: Boolean = true,
-    val buttons: String = ButtonLook.Soft.id,
-    val font: String = "onest",
+    val buttons: String = ButtonLook.Filled.id,
+    val font: String = "nunito",
     val textScale: Float = 1f,
     val pressEffect: Boolean = true,
     val background: String = BackgroundKind.None.id,
@@ -162,7 +105,7 @@ data class UiStyle(
     val navigation: String = "drawer",
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
-        put("version", 1)
+        put("version", 2)
         put("base", base)
         put("accent", String.format("#%08X", accent))
         put("corners", corners.toDouble())
@@ -187,6 +130,20 @@ data class UiStyle(
     companion object {
         fun fromJson(json: JSONObject): UiStyle {
             val d = UiStyle()
+            if (json.optInt("version", 1) < 2) {
+                return d.copy(
+                    textScale = json.optDouble("textScale", d.textScale.toDouble()).toFloat().coerceIn(0.8f, 1.3f),
+                    background = json.optString("background", d.background),
+                    backgroundDim = json.optDouble("backgroundDim", d.backgroundDim.toDouble()).toFloat().coerceIn(0f, 0.9f),
+                    backgroundBlur = json.optDouble("backgroundBlur", d.backgroundBlur.toDouble()).toFloat().coerceIn(0f, 30f),
+                    videoVolume = json.optDouble("videoVolume", d.videoVolume.toDouble()).toFloat().coerceIn(0f, 1f),
+                    readingSound = json.optString("readingSound", d.readingSound),
+                    animations = json.optBoolean("animations", d.animations),
+                    motionSpeed = json.optString("motionSpeed", d.motionSpeed),
+                    motionStyle = json.optString("motionStyle", d.motionStyle),
+                    press = json.optString("press", d.press),
+                )
+            }
             return UiStyle(
                 base = json.optString("base", d.base),
                 accent = runCatching { json.getString("accent").removePrefix("#").toLong(16) }.getOrDefault(d.accent),
@@ -215,47 +172,11 @@ data class UiStyle(
     }
 }
 
-data class StylePreset(
-    val title: String,
-    val base: UiBase,
-    val accent: Long,
-    val font: String? = null,
-    val buttons: ButtonLook? = null,
-    val corners: Float? = null,
-    val navigation: String? = null,
-) {
-    fun applyTo(style: UiStyle) = style.copy(
-        base = base.id,
-        accent = accent,
-        font = font ?: style.font,
-        buttons = buttons?.id ?: style.buttons,
-        corners = corners ?: style.corners,
-        navigation = navigation ?: "drawer",
-        ambience = true,
-    )
+const val DefaultAccent = 0xFFD9772AL
 
-    fun matches(style: UiStyle) = style.base == base.id && style.accent == accent && (font == null || style.font == font)
-}
-
-val StyleTemplates = listOf(
-    StylePreset("Крем", UiBase.Cream, 0xFFD9772A, font = "nunito", buttons = ButtonLook.Filled, corners = 1.1f, navigation = "bottom"),
-    StylePreset("Сияние", UiBase.Aurora, 0xFF8AB4F8, font = "onest", buttons = ButtonLook.Soft, corners = 1f),
-    StylePreset("Ночная библиотека", UiBase.Lamp, 0xFFF2C46B, font = "lora", buttons = ButtonLook.Soft, corners = 0.8f),
-    StylePreset("Глубина океана", UiBase.Deep, 0xFF5EEAD4, font = "manrope", buttons = ButtonLook.Filled, corners = 1.1f),
-    StylePreset("Сумерки", UiBase.Dusk, 0xFFF28BB8, font = "nunito", buttons = ButtonLook.Soft, corners = 1.2f),
-    StylePreset("Графит и неон", UiBase.Neon, 0xFFC6F432, font = "onest", buttons = ButtonLook.Outline, corners = 0.6f),
-    StylePreset("Лес", UiBase.Forest, 0xFF8BD3A5, font = "rubik", buttons = ButtonLook.Soft, corners = 1f),
-)
-
-val StylePresets = listOf(
-    StylePreset("Полночь", UiBase.Dark, 0xFF8FB3FF),
-    StylePreset("Графит", UiBase.Graphite, 0xFFE8A33D),
-    StylePreset("Изумруд", UiBase.Dark, 0xFF6FD3A6),
-    StylePreset("Закат", UiBase.Graphite, 0xFFF28B6B),
-    StylePreset("Аметист", UiBase.Ocean, 0xFFB79CFF),
-    StylePreset("Бирюза", UiBase.Oled, 0xFF5FD4C0),
-    StylePreset("Роза", UiBase.Dark, 0xFFF08FA8),
-    StylePreset("Лёд", UiBase.Ocean, 0xFF7FD1F5),
+val AccentChoices = listOf(
+    0xFFD9772A, 0xFFE0A04A, 0xFFC4553A, 0xFFD45D79, 0xFFB0603A,
+    0xFF6E8B3D, 0xFF2E8B6F, 0xFF3E7CB1, 0xFF6C5BC7, 0xFF8A6A4F,
 )
 
 object AppStyle {
@@ -264,7 +185,7 @@ object AppStyle {
 
     val base: UiBase get() = UiBase.of(current.base)
     val light: Boolean get() = base.light
-    val bottomNav: Boolean get() = current.navigation == "bottom"
+    val bottomNav: Boolean get() = true
     val buttons: ButtonLook get() = ButtonLook.of(current.buttons)
 }
 

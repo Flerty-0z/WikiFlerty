@@ -63,7 +63,7 @@ fun AppBackground() {
             BackgroundKind.Video -> LoopingVideo(app.style.backgroundVideo, Modifier.fillMaxSize())
             BackgroundKind.None -> Unit
         }
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = style.backgroundDim)))
+        Box(Modifier.fillMaxSize().background(AppColors.Background.copy(alpha = style.backgroundDim)))
     }
 }
 

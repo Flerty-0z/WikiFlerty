@@ -160,11 +160,6 @@ private fun SoundContent() {
     }
 }
 
-private val AccentChoices = listOf(
-    0xFF8FB3FF, 0xFF7FD1F5, 0xFF5FD4C0, 0xFF6FD3A6, 0xFFB5D96A,
-    0xFFE8C14A, 0xFFE8A33D, 0xFFF28B6B, 0xFFF08FA8, 0xFFB79CFF,
-)
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CustomizationContent() {
@@ -207,57 +202,8 @@ private fun CustomizationContent() {
 
     StylePreview()
 
-    Text("Шаблоны оформления", color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp))
-    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        StyleTemplates.forEach { template ->
-            TemplateCard(template, selected = template.matches(style)) { store.update { template.applyTo(it) } }
-        }
-    }
-    SettingsGroup(null) {
-        SettingSwitch("Свечение фона", style.ambience, hint = "Мягкий цветной фон шаблона", icon = AppIcons.Sun) { v ->
-            store.update { it.copy(ambience = v) }
-        }
-        SettingSwitch("Нижняя панель", style.navigation == "bottom", hint = "Разделы внизу вместо бокового меню", icon = AppIcons.Panel) { v ->
-            store.update { it.copy(navigation = if (v) "bottom" else "drawer") }
-        }
-    }
-
-    Text("Цветовые пары", color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp))
-    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        StylePresets.forEach { preset ->
-            val selected = style.base == preset.base.id && style.accent == preset.accent
-            val shape = appCorner(16)
-            Column(
-                Modifier
-                    .width(92.dp)
-                    .liveClick(shape, sound = FeedbackSound.Toggle) {
-                        store.update { it.copy(base = preset.base.id, accent = preset.accent) }
-                    }
-                    .background(Color(preset.base.background))
-                    .border(if (selected) 2.dp else 1.dp, if (selected) Color(preset.accent) else AppColors.PanelBorder, shape)
-                    .padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Box(
-                    Modifier.fillMaxWidth().height(22.dp).clip(appCorner(8)).background(Color(preset.base.panel)),
-                    contentAlignment = Alignment.CenterEnd,
-                ) {
-                    Box(Modifier.padding(end = 6.dp).size(10.dp).clip(CircleShape).background(Color(preset.accent)))
-                }
-                Box(Modifier.width(44.dp).height(6.dp).clip(CircleShape).background(Color(preset.accent)))
-                Text(preset.title, color = if (preset.base.light) Color(0xFF2B2520) else Color(0xFFECEDEF), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            }
-        }
-    }
-
     SettingsGroup("Цвета") {
-        PickerRow(
-            label = "Основной фон",
-            icon = AppIcons.Palette,
-            options = UiBase.entries.map { PickerOption(it.id, it.title, swatch = Color(it.panel)) },
-            selectedId = UiBase.of(style.base).id,
-        ) { id -> store.update { it.copy(base = id) } }
-        Text("Акцентный цвет", color = AppColors.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+        Text("Акцентный цвет", color = AppColors.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
         FlowRow(
             Modifier.padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -447,7 +393,7 @@ private fun CustomizationContent() {
                     fontWeight = FontWeight.SemiBold,
                 )
             }
-            SettingSlider("Затемнение", style.backgroundDim, 0f..0.9f, ::percent, icon = AppIcons.Moon) { v ->
+            SettingSlider("Приглушение", style.backgroundDim, 0f..0.9f, ::percent, icon = AppIcons.Moon) { v ->
                 store.update { it.copy(backgroundDim = v) }
             }
             if (kind == BackgroundKind.Video) {
@@ -562,47 +508,6 @@ private fun copyImage(context: Context, uri: Uri, target: File): Boolean = runCa
     target.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it) }
     true
 }.getOrDefault(false)
-
-@Composable
-private fun TemplateCard(template: StylePreset, selected: Boolean, onClick: () -> Unit) {
-    val shape = appCorner(18)
-    val accent = Color(template.accent)
-    Box(
-        Modifier
-            .width(132.dp)
-            .height(176.dp)
-            .liveClick(shape, sound = FeedbackSound.Toggle, onClick = onClick)
-            .border(if (selected) 2.dp else 1.dp, if (selected) accent else AppColors.PanelBorder, shape),
-    ) {
-        template.base.ambience?.let { AmbienceBackground(template.base, it, Modifier.matchParentSize()) }
-            ?: Box(Modifier.matchParentSize().background(Color(template.base.background)))
-        Column(Modifier.matchParentSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(accent.copy(alpha = 0.18f).compositeOver(Color(template.base.field)))
-                    .border(1.dp, accent.copy(alpha = 0.3f), RoundedCornerShape(10.dp)).padding(6.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(Modifier.size(width = 18.dp, height = 26.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFFE0A548)))
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Box(Modifier.width(48.dp).height(5.dp).clip(CircleShape).background(if (template.base.light) Color(0x662B2520) else Color(0xCCFFFFFF)))
-                    Box(Modifier.width(36.dp).height(4.dp).clip(CircleShape).background(accent))
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                repeat(2) {
-                    Box(
-                        Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(8.dp)).background(Color(template.base.field))
-                            .border(1.dp, Color(template.base.border), RoundedCornerShape(8.dp)),
-                    )
-                }
-            }
-            Spacer(Modifier.weight(1f))
-            Text(template.title, color = if (template.base.light) Color(0xFF2B2520) else Color(0xFFF1F2F5), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, lineHeight = 16.sp)
-            Box(Modifier.width(40.dp).height(6.dp).clip(CircleShape).background(accent))
-        }
-    }
-}
 
 @Composable
 private fun MotionPreview() {

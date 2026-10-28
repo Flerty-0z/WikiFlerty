@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.foundation.layout.statusBarsPadding
+
 import androidx.compose.foundation.layout.navigationBarsPadding
 
 import androidx.compose.ui.graphics.RectangleShape
@@ -134,6 +136,14 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
     }
 
     val bottomNav = AppStyle.bottomNav
+    val statsDays by app.stats.days.collectAsStateWithLifecycle()
+    val libraryPrefsState by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
+    val todayMinutes = (statsDays[java.time.LocalDate.now().toString()]?.values?.sumOf { it.ms } ?: 0L) / 60_000
+    val greeting = if (libraryPrefsState.dailyGoalMinutes > 0) {
+        "Привет! Сегодня $todayMinutes из ${libraryPrefsState.dailyGoalMinutes} мин"
+    } else {
+        "Привет! Сегодня $todayMinutes мин"
+    }
     var addMenu by remember { mutableStateOf(false) }
     SideDrawer(
         open = drawerOpen && !bottomNav,
@@ -168,63 +178,23 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 containerColor = if (hasBackground) Color.Transparent else AppColors.Background,
                 topBar = {
                     Column {
-                        TopAppBar(
-                            title = {
-                                androidx.compose.animation.AnimatedContent(
-                                    targetState = section,
-                                    transitionSpec = {
-                                        (androidx.compose.animation.fadeIn(Motion.fade(220)) + androidx.compose.animation.slideInVertically(Motion.tween(260)) { it / 2 })
-                                            .togetherWith(androidx.compose.animation.fadeOut(Motion.fade(140)) + androidx.compose.animation.slideOutVertically(Motion.tween(200)) { -it / 2 })
-                                    },
-                                    label = "title",
-                                ) {
-                                    Text(
-                                        it.title,
-                                        maxLines = 1,
-                                        softWrap = false,
-                                        autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 14.sp, maxFontSize = 22.sp, stepSize = 0.5.sp),
-                                    )
-                                }
+                        MainHeader(
+                            section = section,
+                            greeting = if (section == Section.Library) greeting else null,
+                            onBack = when (section) {
+                                Section.Settings -> { { section = Section.Library } }
+                                Section.About -> { { section = Section.Settings } }
+                                else -> null
                             },
-                            actions = {
-                                if (section == Section.Library && libraryBooks.isNotEmpty()) LibraryTopActions(libraryControls)
-                                if (bottomNav && section == Section.Library) {
-                                    Box(
-                                        Modifier
-                                            .padding(end = 8.dp)
-                                            .size(44.dp)
-                                            .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.85f) { section = Section.Settings }
-                                            .fieldSurface(CircleShape),
-                                        contentAlignment = Alignment.Center,
-                                    ) { Icon(AppIcons.Options, "Настройки", tint = AppColors.Text, modifier = Modifier.size(20.dp)) }
+                        ) {
+                            if (section == Section.Library) {
+                                HeaderButton(if (libraryControls.searchOpen) AppIcons.Close else AppIcons.Search, "Поиск") {
+                                    libraryControls.searchOpen = !libraryControls.searchOpen
                                 }
-                            },
-                            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                            navigationIcon = {
-                                if (!bottomNav) {
-                                    Box(
-                                        Modifier
-                                            .padding(start = 4.dp)
-                                            .size(48.dp)
-                                            .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.85f) { drawerOpen = true },
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Icon(Icons.Filled.Menu, contentDescription = "Меню")
-                                    }
-                                } else if (section == Section.Settings || section == Section.About) {
-                                    Box(
-                                        Modifier
-                                            .padding(start = 4.dp)
-                                            .size(48.dp)
-                                            .liveClick(CircleShape, sound = FeedbackSound.Close, pressedScale = 0.85f) {
-                                                section = if (section == Section.About) Section.Settings else Section.Library
-                                            },
-                                        contentAlignment = Alignment.Center,
-                                    ) { Icon(AppIcons.Back, "Назад", tint = AppColors.Text, modifier = Modifier.size(22.dp)) }
-                                }
-                            },
-                        )
-                        if (busy != null) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                                HeaderButton(AppIcons.Options, "Настройки") { section = Section.Settings }
+                            }
+                        }
+                        if (busy != null) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = AppColors.Accent, trackColor = AppColors.Line)
                     }
                 },
                 bottomBar = {
@@ -620,4 +590,56 @@ private fun AddChoice(icon: androidx.compose.ui.graphics.vector.ImageVector, tit
             autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 14.sp, stepSize = 0.5.sp),
         )
     }
+}
+
+private fun sectionTitle(section: Section): String = when (section) {
+    Section.Library -> "Моя полка"
+    Section.Stats -> "Итоги"
+    else -> section.title
+}
+
+@Composable
+private fun MainHeader(section: Section, greeting: String?, onBack: (() -> Unit)?, actions: @Composable () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(start = if (onBack != null) 12.dp else 20.dp, end = 16.dp, top = 14.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        if (onBack != null) HeaderButton(AppIcons.Back, "Назад", onBack)
+        Column(Modifier.weight(1f)) {
+            if (greeting != null) {
+                Text(
+                    greeting,
+                    color = AppColors.Muted,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    softWrap = false,
+                    autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 13.sp, stepSize = 0.5.sp),
+                )
+            }
+            Text(
+                sectionTitle(section),
+                color = AppColors.Text,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+                softWrap = false,
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 16.sp, maxFontSize = 27.sp, stepSize = 0.5.sp),
+            )
+        }
+        actions()
+    }
+}
+
+@Composable
+private fun HeaderButton(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(44.dp)
+            .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.88f, onClick = onClick)
+            .fieldSurface(CircleShape),
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, description, tint = AppColors.Text, modifier = Modifier.size(20.dp)) }
 }

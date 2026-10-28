@@ -1,5 +1,11 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.foundation.layout.width
+
+import androidx.compose.ui.draw.drawBehind
+
+import androidx.compose.ui.draw.shadow
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -124,6 +130,7 @@ class LibraryControls {
     var showViewSheet by mutableStateOf(false)
     var shelfDialog by mutableStateOf<ShelfDialog?>(null)
     var scanFolder by mutableStateOf(false)
+    var searchOpen by mutableStateOf(false)
 }
 
 @Composable
@@ -178,65 +185,77 @@ fun LibraryScreen(
     val longPress = { book: Book -> menuBookId = book.id }
     val goalText = if (prefs.dailyGoalMinutes > 0) "Сегодня ${todayMs / 60_000} из ${prefs.dailyGoalMinutes} мин" else null
 
+    val reading = books.filter { it.status == ReadStatus.Reading }.sortedByDescending { it.lastReadAt ?: it.addedAt }
+    val showReading = active.id == "all" && q.isEmpty() && reading.isNotEmpty()
+    val counts = filters.associate { f -> f.id to books.count(f.matches) }
+    val tablet = LocalConfiguration.current.screenWidthDp >= 600
+    val grid = prefs.view == LibraryView.Grid
+    val minSize = when (prefs.coverSize) {
+        0 -> 88.dp
+        2 -> 150.dp
+        else -> 110.dp
+    } * (if (tablet) 1.35f else 1f)
+
     Column(modifier) {
-        SearchField(query, { query = it }, Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 10.dp))
-
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            FilterButton(active, books.count(active.matches)) { showFilterSheet = true }
+        androidx.compose.animation.AnimatedVisibility(visible = controls.searchOpen || query.isNotEmpty()) {
+            SearchField(query, { query = it }, Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 10.dp))
         }
+        FilterChips(
+            filters = filters,
+            counts = counts,
+            selectedId = active.id,
+            onSelect = { id -> app.libraryPrefs.update { it.copy(filter = id) } },
+            onEditShelf = { name -> controls.shelfDialog = ShelfDialog.Edit(name) },
+            onNewShelf = { controls.shelfDialog = ShelfDialog.Create(null) },
+        )
 
-        if (shown.isEmpty()) {
-            Text(
-                if (q.isNotEmpty()) "Ничего не нашлось" else "Здесь пока пусто",
-                color = AppColors.Muted,
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 40.dp),
-            )
-        } else if (prefs.view == LibraryView.Grid) {
-            val tablet = LocalConfiguration.current.screenWidthDp >= 600
-            val scale = if (tablet) 1.35f else 1f
-            val minSize = when (prefs.coverSize) {
-                0 -> 88.dp
-                2 -> 150.dp
-                else -> 110.dp
-            } * scale
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = minSize),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),
-                horizontalArrangement = Arrangement.spacedBy(if (tablet) 16.dp else 10.dp),
-                verticalArrangement = Arrangement.spacedBy(if (tablet) 16.dp else 10.dp),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                if (current != null) {
-                    item(key = "continue-title", span = { GridItemSpan(maxLineSpan) }) { SectionHeader("Продолжить", icon = AppIcons.Book, action = if (goalText != null) { { InfoChip(goalText, AppColors.Accent, AppIcons.Target) } } else null) }
-                    item(key = "continue", span = { GridItemSpan(maxLineSpan) }) {
-                        ContinueCard(current, viewModel.coverFile(current), todayMs, prefs.dailyGoalMinutes, prefs.progressInPages) { open(current) }
-                    }
+        LazyVerticalGrid(
+            columns = if (grid) GridCells.Adaptive(minSize = minSize) else GridCells.Fixed(1),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 110.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (grid) 12.dp else 0.dp),
+            verticalArrangement = Arrangement.spacedBy(if (grid) 16.dp else 10.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            if (showReading) {
+                item(key = "reading-title", span = { GridItemSpan(maxLineSpan) }) {
+                    ShelfTitle("Читаю сейчас", action = "Все") { app.libraryPrefs.update { it.copy(filter = ReadStatus.Reading.id) } }
                 }
-                item(key = "books-title", span = { GridItemSpan(maxLineSpan) }) { SectionHeader(active.sectionTitle, icon = AppIcons.Shelf, count = shown.size, action = { ActionPill(prefs.sort.title, AppIcons.Sort) { controls.showViewSheet = true } }) }
-                items(shown, key = { it.id }) { book ->
-                    Box(motionItem()) {
-                        BookCard(book, viewModel.coverFile(book), small = prefs.coverSize == 0, inPages = prefs.progressInPages, onClick = { open(book) }, onLongClick = { longPress(book) })
+                item(key = "reading", span = { GridItemSpan(maxLineSpan) }) {
+                    androidx.compose.foundation.lazy.LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        contentPadding = PaddingValues(bottom = 8.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        items(reading, key = { "r" + it.id }) { book ->
+                            ReadingCover(book, viewModel.coverFile(book), prefs.progressInPages, onClick = { open(book) }, onLongClick = { longPress(book) })
+                        }
+                        item(key = "reading-add") { AddCoverTile(onAddBook) }
                     }
                 }
             }
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                if (current != null) {
-                    item(key = "continue-title") { SectionHeader("Продолжить", icon = AppIcons.Book, action = if (goalText != null) { { InfoChip(goalText, AppColors.Accent, AppIcons.Target) } } else null) }
-                    item(key = "continue") {
-                        ContinueCard(current, viewModel.coverFile(current), todayMs, prefs.dailyGoalMinutes, prefs.progressInPages) { open(current) }
-                    }
+            item(key = "books-title", span = { GridItemSpan(maxLineSpan) }) {
+                ShelfTitle(
+                    if (active.id == "all") "Все книги" else active.title,
+                    action = "${shown.size} · ${prefs.sort.title.lowercase()}",
+                    muted = true,
+                ) { controls.showViewSheet = true }
+            }
+            if (shown.isEmpty()) {
+                item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        if (q.isNotEmpty()) "Ничего не нашлось" else "Здесь пока пусто",
+                        color = AppColors.Muted,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 40.dp),
+                    )
                 }
-                item(key = "books-title") { SectionHeader(active.sectionTitle, icon = AppIcons.Shelf, count = shown.size, action = { ActionPill(prefs.sort.title, AppIcons.Sort) { controls.showViewSheet = true } }) }
-                items(shown, key = { it.id }) { book ->
-                    Box(motionItem()) {
+            }
+            items(shown, key = { it.id }) { book ->
+                Box(motionItem()) {
+                    if (grid) {
+                        BookCard(book, viewModel.coverFile(book), small = prefs.coverSize == 0, inPages = prefs.progressInPages, onClick = { open(book) }, onLongClick = { longPress(book) })
+                    } else {
                         BookRow(book, viewModel.coverFile(book), inPages = prefs.progressInPages, onClick = { open(book) }, onLongClick = { longPress(book) })
                     }
                 }
@@ -418,21 +437,19 @@ private fun StatusBadge(book: Book, inPages: Boolean, compact: Boolean = false) 
     val color = statusColor(book.status)
     val text = when (book.status) {
         ReadStatus.Reading -> if (compact) progressLabel(book, false) else progressLabel(book, inPages)
-        ReadStatus.Planned -> "В планах"
+        ReadStatus.Planned -> "Хочу"
         ReadStatus.Finished -> "Прочитано"
         ReadStatus.New -> "Новая"
     }
-    Row(
-        Modifier.clip(appCorner(8)).background(color.copy(alpha = 0.14f)).padding(horizontal = 7.dp, vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Icon(statusIcon(book.status), null, tint = color, modifier = Modifier.size(12.dp))
-        Text(text, color = color, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
+    Text(
+        text,
+        color = color,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.ExtraBold,
+        maxLines = 1,
+        modifier = Modifier.clip(CircleShape).background(color.copy(alpha = 0.13f)).padding(horizontal = 9.dp, vertical = 3.dp),
+    )
 }
-
-private fun percent(book: Book) = "${(book.progress * 100).toInt()}%"
 
 @Composable
 private fun rememberCover(file: File?): ImageBitmap? {
@@ -471,39 +488,40 @@ private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean
 
 @Composable
 private fun BookCard(book: Book, coverFile: File?, small: Boolean, inPages: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
-    val shape = appCorner(14)
     Column(
         Modifier
             .fillMaxHeight()
-            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onLongClick = onLongClick, onClick = onClick)
-            .fieldSurface(shape)
-            .padding(if (small) 6.dp else 8.dp),
+            .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.96f, onLongClick = onLongClick, onClick = onClick),
     ) {
-        CoverBox(book, coverFile, Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(appCorner(8)), small)
-        if (book.status == ReadStatus.Reading || (book.status == ReadStatus.Planned && book.progress > 0)) {
-            ProgressLine(book.progress.toFloat(), Modifier.fillMaxWidth().padding(top = 7.dp))
-        }
+        CoverBox(
+            book,
+            coverFile,
+            Modifier.fillMaxWidth().aspectRatio(2f / 3f).coverShadow(appCorner(10)).clip(appCorner(10)),
+            small,
+        )
         Text(
             book.title,
             color = AppColors.Text,
-            fontSize = if (small) 12.sp else 14.sp,
-            lineHeight = if (small) 15.sp else 18.sp,
+            fontSize = if (small) 12.sp else 13.sp,
+            lineHeight = if (small) 15.sp else 17.sp,
+            fontWeight = FontWeight.Bold,
             maxLines = 2,
             minLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 6.dp),
+            modifier = Modifier.padding(top = 8.dp),
         )
-        if (!small) {
-            Text(book.author.ifBlank { " " }, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
         Spacer(Modifier.height(6.dp))
-        StatusBadge(book, inPages, compact = small)
+        if (book.status == ReadStatus.Reading) {
+            ProgressWithPercent(book)
+        } else {
+            StatusBadge(book, inPages, compact = small)
+        }
     }
 }
 
 @Composable
 private fun BookRow(book: Book, coverFile: File?, inPages: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
-    val shape = appCorner(16)
+    val shape = appCorner(18)
     Row(
         Modifier
             .fillMaxWidth()
@@ -511,34 +529,173 @@ private fun BookRow(book: Book, coverFile: File?, inPages: Boolean, onClick: () 
             .fieldSurface(shape)
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        CoverBox(book, coverFile, Modifier.size(width = 56.dp, height = 84.dp).clip(appCorner(6)), small = true)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(book.title, color = AppColors.Text, fontSize = 15.sp, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        CoverBox(book, coverFile, Modifier.size(width = 46.dp, height = 68.dp).coverShadow(appCorner(6)).clip(appCorner(6)), small = true)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(book.title, color = AppColors.Text, fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (book.author.isNotBlank()) {
-                Text(book.author, color = AppColors.Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(book.author, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 2.dp)) {
-                StatusBadge(book, inPages)
-                book.lastReadAt?.let { Text(relativeDay(it), color = AppColors.Faint, fontSize = 12.sp, maxLines = 1) }
+            if (book.status == ReadStatus.Reading) {
+                ProgressWithPercent(book, Modifier.padding(top = 6.dp))
             }
-            if (book.status == ReadStatus.Reading || (book.status == ReadStatus.Planned && book.progress > 0)) {
-                ProgressLine(book.progress.toFloat(), Modifier.fillMaxWidth().padding(top = 4.dp, end = 4.dp))
+        }
+        if (book.status != ReadStatus.Reading) StatusBadge(book, inPages)
+    }
+}
+
+@Composable
+private fun ProgressWithPercent(book: Book, modifier: Modifier = Modifier) {
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.weight(1f).height(5.dp).clip(CircleShape).background(AppColors.Line)) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth(book.progress.toFloat().coerceIn(0f, 1f)).clip(CircleShape).background(AppColors.Accent))
+        }
+        Text(percent(book), color = AppColors.Accent, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+    }
+}
+
+private fun Modifier.coverShadow(shape: androidx.compose.ui.graphics.Shape): Modifier =
+    this.shadow(6.dp, shape, ambientColor = Color(0x66503010), spotColor = Color(0x66503010))
+
+@Composable
+private fun ReadingCover(book: Book, coverFile: File?, inPages: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
+    Column(
+        Modifier
+            .width(128.dp)
+            .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.96f, onLongClick = onLongClick, onClick = onClick),
+    ) {
+        CoverBox(book, coverFile, Modifier.size(width = 128.dp, height = 188.dp).coverShadow(appCorner(10)).clip(appCorner(10)))
+        Text(
+            book.title,
+            color = AppColors.Text,
+            fontSize = 13.sp,
+            lineHeight = 17.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 2,
+            minLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 10.dp),
+        )
+        ProgressWithPercent(book, Modifier.padding(top = 6.dp))
+    }
+}
+
+@Composable
+private fun AddCoverTile(onClick: () -> Unit) {
+    val shape = appCorner(10)
+    Box(
+        Modifier
+            .size(width = 72.dp, height = 188.dp)
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.95f, onClick = onClick)
+            .dashedBorder(AppColors.PanelBorder, shape),
+        contentAlignment = Alignment.Center,
+    ) { Icon(AppIcons.Plus, "Добавить книгу", tint = AppColors.Faint, modifier = Modifier.size(26.dp)) }
+}
+
+private fun Modifier.dashedBorder(color: Color, shape: androidx.compose.ui.graphics.Shape): Modifier = drawBehind {
+    val outline = shape.createOutline(size, layoutDirection, this)
+    drawOutline(
+        outline,
+        color,
+        style = androidx.compose.ui.graphics.drawscope.Stroke(
+            width = 2.dp.toPx(),
+            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 8f)),
+        ),
+    )
+}
+
+@Composable
+private fun ShelfTitle(title: String, action: String?, muted: Boolean = false, onAction: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 2.dp, start = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            title,
+            color = AppColors.Text,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            softWrap = false,
+            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 18.sp, stepSize = 0.5.sp),
+            modifier = Modifier.weight(1f),
+        )
+        if (action != null) {
+            Row(
+                Modifier
+                    .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.92f, onClick = onAction)
+                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    action,
+                    color = if (muted) AppColors.Muted else AppColors.Accent,
+                    fontSize = 13.sp,
+                    fontWeight = if (muted) FontWeight.SemiBold else FontWeight.ExtraBold,
+                    maxLines = 1,
+                )
+                if (muted) Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(14.dp).rotate(90f))
             }
         }
     }
 }
 
-fun relativeDay(time: Long): String {
-    val day = java.time.Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault()).toLocalDate()
-    val today = LocalDate.now()
-    val diff = today.toEpochDay() - day.toEpochDay()
-    return when {
-        diff <= 0L -> "сегодня"
-        diff == 1L -> "вчера"
-        diff < 7L -> "${diff} " + StatsCalc.plural(diff.toInt(), "день", "дня", "дней") + " назад"
-        else -> StatsCalc.date(day)
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun FilterChips(
+    filters: List<LibraryFilter>,
+    counts: Map<String, Int>,
+    selectedId: String,
+    onSelect: (String) -> Unit,
+    onEditShelf: (String) -> Unit,
+    onNewShelf: () -> Unit,
+) {
+    androidx.compose.foundation.lazy.LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        items(filters, key = { it.id }) { f ->
+            val selected = f.id == selectedId
+            val count = counts[f.id] ?: 0
+            if (count == 0 && !f.isShelf && f.id != "all" && !selected) return@items
+            val shape = CircleShape
+            Row(
+                Modifier
+                    .height(38.dp)
+                    .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.93f, onLongClick = if (f.isShelf) { { onEditShelf(f.title) } } else null) { onSelect(f.id) }
+                    .then(if (selected) Modifier.background(AppColors.Text) else Modifier.fieldSurface(shape))
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                if (f.id == "favorite") Icon(AppIcons.StarFilled, null, tint = StarYellow, modifier = Modifier.size(14.dp))
+                if (f.isShelf) Icon(AppIcons.Shelf, null, tint = if (selected) AppColors.Background else AppColors.Muted, modifier = Modifier.size(14.dp))
+                Text(
+                    if (f.id == "all") "Все" else f.title,
+                    color = if (selected) AppColors.Background else AppColors.Text,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                )
+                Text("$count", color = if (selected) AppColors.Background.copy(alpha = 0.7f) else AppColors.Faint, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        item(key = "new-shelf") {
+            Row(
+                Modifier
+                    .height(38.dp)
+                    .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.93f, onClick = onNewShelf)
+                    .dashedBorder(AppColors.PanelBorder, CircleShape)
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(AppIcons.Plus, null, tint = AppColors.Muted, modifier = Modifier.size(14.dp))
+                Text("Полка", color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            }
+        }
     }
 }
 
