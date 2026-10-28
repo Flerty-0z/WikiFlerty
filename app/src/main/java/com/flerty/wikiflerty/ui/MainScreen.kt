@@ -58,6 +58,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.togetherWith
 import kotlinx.coroutines.flow.map
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.geometry.Offset
@@ -161,16 +162,28 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 topBar = {
                     Column {
                         TopAppBar(
-                            title = { Text(section.title) },
+                            title = {
+                                androidx.compose.animation.AnimatedContent(
+                                    targetState = section,
+                                    transitionSpec = {
+                                        (androidx.compose.animation.fadeIn(Motion.fade(220)) + androidx.compose.animation.slideInVertically(Motion.tween(260)) { it / 2 })
+                                            .togetherWith(androidx.compose.animation.fadeOut(Motion.fade(140)) + androidx.compose.animation.slideOutVertically(Motion.tween(200)) { -it / 2 })
+                                    },
+                                    label = "title",
+                                ) { Text(it.title) }
+                            },
                             actions = {
                                 if (section == Section.Library && libraryBooks.isNotEmpty()) LibraryTopActions(libraryControls)
                             },
                             colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                             navigationIcon = {
-                                IconButton(onClick = {
-                                    feedback?.play(FeedbackSound.Open, view)
-                                    drawerOpen = true
-                                }) {
+                                Box(
+                                    Modifier
+                                        .padding(start = 4.dp)
+                                        .size(48.dp)
+                                        .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.85f) { drawerOpen = true },
+                                    contentAlignment = Alignment.Center,
+                                ) {
                                     Icon(Icons.Filled.Menu, contentDescription = "Меню")
                                 }
                             },
@@ -192,7 +205,17 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 },
                 snackbarHost = { SnackbarHost(snackbar) },
             ) { padding ->
-                if (section == Section.Library) {
+                androidx.compose.animation.AnimatedContent(
+                    targetState = section,
+                    transitionSpec = {
+                        (androidx.compose.animation.fadeIn(Motion.fade(240), initialAlpha = 0f) +
+                            androidx.compose.animation.slideInVertically(Motion.tween(300)) { it / 28 } +
+                            androidx.compose.animation.scaleIn(Motion.tween(300), initialScale = 0.985f))
+                            .togetherWith(androidx.compose.animation.fadeOut(Motion.fade(160)))
+                    },
+                    label = "section",
+                ) { current ->
+                if (current == Section.Library) {
                     LibraryScreen(
                         viewModel = libraryViewModel,
                         onAddBook = { pickBook.launch(arrayOf("*/*")) },
@@ -202,7 +225,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 } else {
                     Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
                         val modifier = Modifier.widthIn(max = 720.dp).fillMaxSize()
-                        when (section) {
+                        when (current) {
                             Section.Notes -> NotesScreen(libraryViewModel, modifier)
                             Section.Dictionary -> DictionaryScreen(libraryViewModel, modifier)
                             Section.Stats -> StatsScreen(modifier)
@@ -211,6 +234,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                             Section.Library -> Unit
                         }
                     }
+                }
                 }
             }
             StartupPrompts()
@@ -322,7 +346,7 @@ private fun SideDrawer(
         val scope = rememberCoroutineScope()
         val anim = remember { Animatable(if (open) 1f else 0f) }
         LaunchedEffect(open) {
-            anim.animateTo(if (open) 1f else 0f, tween(durationMillis = 230, easing = FastOutSlowInEasing))
+            anim.animateTo(if (open) 1f else 0f, Motion.tween(durationMillis = 230, easing = FastOutSlowInEasing))
         }
         val visible = anim.value
 
@@ -380,7 +404,7 @@ private fun SideDrawer(
                                     if (anim.value < 0.75f) {
                                         onOpenChange(false)
                                     } else {
-                                        scope.launch { anim.animateTo(1f, tween(180)) }
+                                        scope.launch { anim.animateTo(1f, Motion.tween(180)) }
                                     }
                                 },
                             )

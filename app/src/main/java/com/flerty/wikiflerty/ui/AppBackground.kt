@@ -60,10 +60,7 @@ fun AppBackground() {
                     )
                 }
             }
-            BackgroundKind.Video -> {
-                val listening by app.readAloud.session.collectAsStateWithLifecycle()
-                LoopingVideo(app.style.backgroundVideo, if (listening != null) 0f else style.videoVolume, Modifier.fillMaxSize())
-            }
+            BackgroundKind.Video -> LoopingVideo(app.style.backgroundVideo, Modifier.fillMaxSize())
             BackgroundKind.None -> Unit
         }
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = style.backgroundDim)))
@@ -71,28 +68,14 @@ fun AppBackground() {
 }
 
 @Composable
-private fun LoopingVideo(file: File, volume: Float, modifier: Modifier) {
-    val currentVolume by androidx.compose.runtime.rememberUpdatedState(volume)
+private fun LoopingVideo(file: File, modifier: Modifier) {
     if (!file.exists()) return
+    val audio = (LocalContext.current.applicationContext as App).backgroundAudio
     key(file.path, file.lastModified()) {
-        val player = remember { MediaPlayer() }
-        val prepared = remember { booleanArrayOf(false) }
-        val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
-        androidx.compose.runtime.LaunchedEffect(volume) { runCatching { player.setVolume(volume, volume) } }
-        DisposableEffect(lifecycle) {
-            val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-                when (event) {
-                    androidx.lifecycle.Lifecycle.Event.ON_STOP -> runCatching { if (prepared[0] && player.isPlaying) player.pause() }
-                    androidx.lifecycle.Lifecycle.Event.ON_START -> runCatching { if (prepared[0] && !player.isPlaying) player.start() }
-                    else -> Unit
-                }
-            }
-            lifecycle.addObserver(observer)
-            onDispose { lifecycle.removeObserver(observer) }
-        }
+        val player = remember { MediaPlayer().also { audio.attach(it) } }
         DisposableEffect(Unit) {
             onDispose {
-                prepared[0] = false
+                audio.detach(player)
                 runCatching { player.release() }
             }
         }
@@ -107,11 +90,10 @@ private fun LoopingVideo(file: File, volume: Float, modifier: Modifier) {
                                 player.setDataSource(file.path)
                                 player.setSurface(Surface(texture))
                                 player.isLooping = true
-                                player.setVolume(currentVolume, currentVolume)
+                                player.setVolume(0f, 0f)
                                 player.setOnPreparedListener { mp ->
-                                    prepared[0] = true
                                     cropToFill(this@apply, mp.videoWidth, mp.videoHeight)
-                                    if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) mp.start()
+                                    audio.onPrepared(mp)
                                 }
                                 player.prepareAsync()
                             }
@@ -122,7 +104,7 @@ private fun LoopingVideo(file: File, volume: Float, modifier: Modifier) {
                         }
 
                         override fun onSurfaceTextureDestroyed(texture: SurfaceTexture): Boolean {
-                            prepared[0] = false
+                            audio.onReleased(player)
                             runCatching { player.stop() }
                             return true
                         }

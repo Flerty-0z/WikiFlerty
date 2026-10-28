@@ -68,6 +68,7 @@ import com.flerty.wikiflerty.ai.AiManager
 import com.flerty.wikiflerty.ai.AiPrompts
 import com.flerty.wikiflerty.ai.AiProvider
 import com.flerty.wikiflerty.ui.AppColors
+import com.flerty.wikiflerty.ui.Motion
 import com.flerty.wikiflerty.ui.appCorner
 import com.flerty.wikiflerty.ui.AppIcons
 import com.flerty.wikiflerty.ui.FeedbackSound
@@ -259,7 +260,7 @@ fun AiChatContent(bridge: AiBridge, modifier: Modifier = Modifier) {
         }
 
         val hasAnswer = chat.lastAnswer != null && !chat.streaming
-        AnimatedVisibility(visible = hasAnswer, enter = fadeIn(tween(220)) + expandVertically(), exit = fadeOut() + shrinkVertically()) {
+        AnimatedVisibility(visible = hasAnswer, enter = fadeIn(Motion.fade(220)) + expandVertically(), exit = fadeOut() + shrinkVertically()) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AiPrompts.followUps(bridge.manager.settings.value).forEach { (label, prompt) ->
@@ -433,7 +434,7 @@ private fun TypingDots() {
             val alpha by transition.animateFloat(
                 initialValue = 0.25f,
                 targetValue = 1f,
-                animationSpec = infiniteRepeatable(tween(520, delayMillis = i * 160), RepeatMode.Reverse),
+                animationSpec = infiniteRepeatable(Motion.tween(520, delayMillis = i * 160), RepeatMode.Reverse),
                 label = "dot$i",
             )
             Box(Modifier.size(7.dp).alpha(alpha).clip(CircleShape).background(AppColors.Accent))

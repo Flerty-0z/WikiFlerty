@@ -149,6 +149,11 @@ data class UiStyle(
     val backgroundBlur: Float = 0f,
     val ambience: Boolean = true,
     val videoVolume: Float = 0.5f,
+    val readingSound: String = ReadingSound.Normal.id,
+    val animations: Boolean = true,
+    val motionSpeed: String = MotionSpeed.Normal.id,
+    val motionStyle: String = MotionStyle.Soft.id,
+    val press: String = PressStrength.Normal.id,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("version", 1)
@@ -165,6 +170,11 @@ data class UiStyle(
         put("backgroundBlur", backgroundBlur.toDouble())
         put("ambience", ambience)
         put("videoVolume", videoVolume.toDouble())
+        put("readingSound", readingSound)
+        put("animations", animations)
+        put("motionSpeed", motionSpeed)
+        put("motionStyle", motionStyle)
+        put("press", press)
     }
 
     companion object {
@@ -184,6 +194,14 @@ data class UiStyle(
                 backgroundBlur = json.optDouble("backgroundBlur", d.backgroundBlur.toDouble()).toFloat().coerceIn(0f, 30f),
                 ambience = json.optBoolean("ambience", d.ambience),
                 videoVolume = json.optDouble("videoVolume", d.videoVolume.toDouble()).toFloat().coerceIn(0f, 1f),
+                readingSound = json.optString("readingSound", d.readingSound),
+                animations = json.optBoolean("animations", d.animations),
+                motionSpeed = json.optString("motionSpeed", d.motionSpeed),
+                motionStyle = json.optString("motionStyle", d.motionStyle),
+                press = json.optString(
+                    "press",
+                    if (json.has("pressEffect") && !json.optBoolean("pressEffect", true)) PressStrength.Off.id else d.press,
+                ),
             )
         }
     }

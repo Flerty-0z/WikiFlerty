@@ -60,25 +60,78 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.launch
+import androidx.compose.animation.togetherWith
 
 private val Danger = Color(0xFFF08A8A)
 
+val LocalSheetClose = androidx.compose.runtime.staticCompositionLocalOf<(() -> Unit)?> { null }
+
+@Composable
+fun sheetClose(fallback: () -> Unit): () -> Unit = LocalSheetClose.current ?: fallback
+
 @Composable
 fun AppSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable ColumnScope.() -> Unit) {
+    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    val latest by androidx.compose.runtime.rememberUpdatedState(onDismiss)
+    val close: () -> Unit = remember {
+        {
+            if (!Motion.enabled) {
+                latest()
+            } else {
+                scope.launch { runCatching { state.hide() } }.invokeOnCompletion { latest() }
+            }
+        }
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = state,
         sheetGesturesEnabled = false,
         dragHandle = null,
         containerColor = AppColors.Panel,
         shape = RoundedCornerShape(topStart = (26 * AppStyle.current.corners).dp, topEnd = (26 * AppStyle.current.corners).dp),
     ) {
-        Column(
-            Modifier.padding(horizontal = 16.dp).navigationBarsPadding().verticalScroll(rememberScrollState()).padding(top = if (title == null) 16.dp else 0.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            if (title != null) SheetHeader(title, onDismiss)
-            content()
+        androidx.compose.runtime.CompositionLocalProvider(LocalSheetClose provides close) {
+            Column(
+                Modifier.padding(horizontal = 16.dp).navigationBarsPadding().verticalScroll(rememberScrollState()).padding(top = if (title == null) 16.dp else 0.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (title != null) SheetHeader(title, close)
+                content()
+            }
+        }
+    }
+}
+
+@Composable
+fun ConfirmSheet(
+    title: String,
+    text: String,
+    confirm: String,
+    danger: Boolean = true,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AppSheet(onDismiss = onDismiss, title = title) {
+        val close = sheetClose(onDismiss)
+        Text(text, color = AppColors.Muted, fontSize = 14.sp, lineHeight = 20.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val shape = appCorner(12)
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(46.dp)
+                    .liveClick(shape, sound = if (danger) FeedbackSound.Close else FeedbackSound.Toggle) {
+                        onConfirm()
+                        close()
+                    }
+                    .background(if (danger) Danger.copy(alpha = 0.16f) else AppColors.Accent)
+                    .border(1.dp, if (danger) Danger.copy(alpha = 0.5f) else AppColors.Accent, shape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(confirm, color = if (danger) Danger else AppColors.OnAccent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            }
+            AppButton("Отмена", primary = false, modifier = Modifier.weight(1f), onClick = close)
         }
     }
 }
@@ -139,7 +192,7 @@ fun BookSheet(
                 )
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                RoundButton(AppIcons.Close, "Закрыть", AppColors.Muted, FeedbackSound.Close, onDismiss)
+                RoundButton(AppIcons.Close, "Закрыть", AppColors.Muted, FeedbackSound.Close, sheetClose(onDismiss))
                 RoundButton(
                     if (book.favorite) AppIcons.StarFilled else AppIcons.Star,
                     "Избранное",
@@ -149,31 +202,32 @@ fun BookSheet(
             }
         }
 
-        if (showStats) {
-            BookStatsContent(app, book, onBack = { showStats = false })
-        } else {
-            BookMainContent(app, book, shelves, onNewShelf, onStats = { showStats = true }, onDelete = { confirmDelete = true })
+        androidx.compose.animation.AnimatedContent(
+            targetState = showStats,
+            transitionSpec = {
+                val dir = if (targetState) 1 else -1
+                (androidx.compose.animation.slideInHorizontally(Motion.tween(260)) { dir * it / 5 } + androidx.compose.animation.fadeIn(Motion.fade(220)))
+                    .togetherWith(androidx.compose.animation.slideOutHorizontally(Motion.tween(220)) { -dir * it / 5 } + androidx.compose.animation.fadeOut(Motion.fade(160)))
+            },
+            label = "book-sheet",
+        ) { stats ->
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (stats) {
+                    BookStatsContent(app, book, onBack = { showStats = false })
+                } else {
+                    BookMainContent(app, book, shelves, onNewShelf, onStats = { showStats = true }, onDelete = { confirmDelete = true })
+                }
+            }
         }
     }
 
     if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            containerColor = AppColors.Panel,
-            title = { Text("Удалить книгу?", color = AppColors.Text) },
-            text = {
-                Text(
-                    "Книга и заметки к ней удалятся. Словарь и статистика останутся.",
-                    color = AppColors.Muted,
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmDelete = false
-                    onDelete()
-                }) { Text("Удалить", color = Danger) }
-            },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Отмена", color = AppColors.Accent) } },
+        ConfirmSheet(
+            title = "Удалить книгу?",
+            text = "Книга и заметки к ней удалятся. Словарь и статистика останутся.",
+            confirm = "Удалить",
+            onConfirm = onDelete,
+            onDismiss = { confirmDelete = false },
         )
     }
 }

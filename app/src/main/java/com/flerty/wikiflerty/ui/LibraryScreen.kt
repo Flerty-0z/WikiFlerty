@@ -215,7 +215,9 @@ fun LibraryScreen(
                 }
                 item(key = "books-title", span = { GridItemSpan(maxLineSpan) }) { SectionTitle(active.sectionTitle, prefs.sort.title) }
                 items(shown, key = { it.id }) { book ->
-                    BookCard(book, viewModel.coverFile(book), small = prefs.coverSize == 0, inPages = prefs.progressInPages, onClick = { open(book) }, onLongClick = { longPress(book) })
+                    Box(motionItem()) {
+                        BookCard(book, viewModel.coverFile(book), small = prefs.coverSize == 0, inPages = prefs.progressInPages, onClick = { open(book) }, onLongClick = { longPress(book) })
+                    }
                 }
             }
         } else {
@@ -232,7 +234,9 @@ fun LibraryScreen(
                 }
                 item(key = "books-title") { SectionTitle(active.sectionTitle, prefs.sort.title) }
                 items(shown, key = { it.id }) { book ->
-                    BookRow(book, viewModel.coverFile(book), inPages = prefs.progressInPages, onClick = { open(book) }, onLongClick = { longPress(book) })
+                    Box(motionItem()) {
+                        BookRow(book, viewModel.coverFile(book), inPages = prefs.progressInPages, onClick = { open(book) }, onLongClick = { longPress(book) })
+                    }
                 }
             }
         }

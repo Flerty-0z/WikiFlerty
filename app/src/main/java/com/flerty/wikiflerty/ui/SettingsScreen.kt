@@ -50,6 +50,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -86,8 +87,8 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         transitionSpec = {
             val deeper = targetState != null
             val dir = if (deeper) 1 else -1
-            (slideInHorizontally(tween(260)) { dir * it / 5 } + fadeIn(tween(220)))
-                .togetherWith(slideOutHorizontally(tween(220)) { -dir * it / 5 } + fadeOut(tween(160)))
+            (slideInHorizontally(Motion.tween(260)) { dir * it / 5 } + fadeIn(Motion.fade(220)))
+                .togetherWith(slideOutHorizontally(Motion.tween(220)) { -dir * it / 5 } + fadeOut(Motion.fade(160)))
         },
         label = "settings",
         modifier = modifier,
@@ -323,8 +324,35 @@ private fun CustomizationContent() {
         SettingSwitch("Контур панелей", style.outline, hint = null, icon = AppIcons.Outline) { v ->
             store.update { it.copy(outline = v) }
         }
-        SettingSwitch("Эффект нажатия", style.pressEffect, hint = null, icon = AppIcons.Gesture) { v ->
-            store.update { it.copy(pressEffect = v) }
+    }
+
+    SettingsGroup("Анимации") {
+        SettingSwitch(
+            "Анимации",
+            style.animations,
+            hint = if (style.animations) "Плавные переходы окон и кнопок" else "Всё появляется мгновенно",
+            icon = AppIcons.Animation,
+        ) { v -> store.update { it.copy(animations = v) } }
+        if (style.animations) {
+            PickerRow(
+                label = "Скорость",
+                icon = AppIcons.Speed,
+                options = MotionSpeed.entries.map { PickerOption(it.id, it.title, it.hint) },
+                selectedId = MotionSpeed.of(style.motionSpeed).id,
+            ) { id -> store.update { it.copy(motionSpeed = id) } }
+            PickerRow(
+                label = "Характер",
+                icon = AppIcons.Sparkle,
+                options = MotionStyle.entries.map { PickerOption(it.id, it.title, it.hint) },
+                selectedId = MotionStyle.of(style.motionStyle).id,
+            ) { id -> store.update { it.copy(motionStyle = id) } }
+            PickerRow(
+                label = "Отклик кнопок",
+                icon = AppIcons.Gesture,
+                options = PressStrength.entries.map { PickerOption(it.id, it.title, it.hint) },
+                selectedId = PressStrength.of(style.press).id,
+            ) { id -> store.update { it.copy(press = id) } }
+            MotionPreview()
         }
     }
 
@@ -426,6 +454,23 @@ private fun CustomizationContent() {
                     { if (it < 0.01f) "Без звука" else percent(it) },
                     icon = AppIcons.Sound,
                 ) { v -> store.update { it.copy(videoVolume = v) } }
+                PickerRow(
+                    label = "Во время чтения",
+                    icon = AppIcons.Book,
+                    options = ReadingSound.entries.map {
+                        PickerOption(
+                            it.id,
+                            it.title,
+                            it.hint,
+                            icon = when (it) {
+                                ReadingSound.Normal -> AppIcons.Sound
+                                ReadingSound.Quiet -> AppIcons.VolumeKeys
+                                ReadingSound.Off -> AppIcons.Close
+                            },
+                        )
+                    },
+                    selectedId = ReadingSound.of(style.readingSound).id,
+                ) { id -> store.update { it.copy(readingSound = id) } }
             }
             if (kind == BackgroundKind.Image && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 SettingSlider("Размытие", style.backgroundBlur, 0f..30f, { if (it < 0.5f) "Нет" else "${it.roundToInt()}" }, icon = AppIcons.Drop) { v ->
@@ -552,5 +597,38 @@ private fun TemplateCard(template: StylePreset, selected: Boolean, onClick: () -
             Text(template.title, color = Color(0xFFF1F2F5), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, lineHeight = 16.sp)
             Box(Modifier.width(40.dp).height(6.dp).clip(CircleShape).background(accent))
         }
+    }
+}
+
+@Composable
+private fun MotionPreview() {
+    var on by remember { mutableStateOf(false) }
+    val offset by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (on) 1f else 0f,
+        animationSpec = Motion.tween(420),
+        label = "preview",
+    )
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        androidx.compose.foundation.layout.BoxWithConstraints(
+            Modifier
+                .weight(1f)
+                .height(36.dp)
+                .fieldSurface(appCorner(18)),
+        ) {
+            val travel = maxWidth - 36.dp
+            Box(
+                Modifier
+                    .padding(4.dp)
+                    .offset(x = travel * offset)
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(AppColors.Accent),
+            )
+        }
+        AppButton("Проверить", primary = true, modifier = Modifier.width(120.dp)) { on = !on }
     }
 }

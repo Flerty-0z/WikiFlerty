@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.flerty.wikiflerty.data.Note
 import com.flerty.wikiflerty.ui.AppColors
+import com.flerty.wikiflerty.ui.Motion
 import com.flerty.wikiflerty.ui.appCorner
 import com.flerty.wikiflerty.ui.accentContent
 import com.flerty.wikiflerty.ui.accentHighlight
@@ -362,8 +363,8 @@ fun NoteEditor(
 
             AnimatedVisibility(
                 visible = editing != null,
-                enter = expandVertically(tween(260)) + fadeIn(tween(220)),
-                exit = shrinkVertically(tween(220)) + fadeOut(tween(160)),
+                enter = expandVertically(Motion.tween(260)) + fadeIn(Motion.fade(220)),
+                exit = shrinkVertically(Motion.tween(220)) + fadeOut(Motion.fade(160)),
             ) {
                 ColorSettings(
                     isNew = editing == -1,
@@ -579,7 +580,7 @@ private fun PaletteDot(value: Long, name: String, selected: Boolean, showSetting
         contentAlignment = Alignment.Center,
     ) {
         Box(Modifier.size(28.dp).clip(CircleShape).background(Color(value)), contentAlignment = Alignment.Center) {
-            AnimatedVisibility(visible = showSettings, enter = fadeIn(tween(220)), exit = fadeOut(tween(160))) {
+            AnimatedVisibility(visible = showSettings, enter = fadeIn(Motion.fade(220)), exit = fadeOut(Motion.fade(160))) {
                 Icon(AppIcons.Options, null, tint = Color(0x8C000000), modifier = Modifier.size(16.dp))
             }
         }

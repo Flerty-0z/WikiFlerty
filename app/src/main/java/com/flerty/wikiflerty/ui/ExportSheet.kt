@@ -49,11 +49,13 @@ fun ExportSheet(
                 context.contentResolver.openOutputStream(uri)?.use { it.write(format.build().toByteArray(Charsets.UTF_8)) }
             }.isSuccess
             Toast.makeText(context, if (ok) "Сохранено" else "Не удалось сохранить", Toast.LENGTH_SHORT).show()
-            if (ok) onDismiss()
+            if (ok) closeSheet()
         }
     }
 
+    var closeSheet by remember { mutableStateOf(onDismiss) }
     AppSheet(onDismiss = onDismiss, title = title) {
+        closeSheet = sheetClose(onDismiss)
         extra?.invoke()
         SettingsGroup(null) {
             PickerRow(

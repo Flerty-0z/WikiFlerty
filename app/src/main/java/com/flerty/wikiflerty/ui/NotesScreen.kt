@@ -192,13 +192,15 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
                 }
             }
             items(bookNotes.sortedBy { it.progression }, key = { it.id }) { note ->
-                NoteCard(
-                    note,
-                    onOpen = { viewModel.openNote(note) },
-                    onEdit = { toDelete = note },
-                    editIcon = AppIcons.Trash,
-                    editLabel = "Удалить заметку",
-                )
+                Box(motionItem()) {
+                    NoteCard(
+                        note,
+                        onOpen = { viewModel.openNote(note) },
+                        onEdit = { toDelete = note },
+                        editIcon = AppIcons.Trash,
+                        editLabel = "Удалить заметку",
+                    )
+                }
             }
         }
     }
@@ -234,17 +236,12 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
     }
 
     toDelete?.let { note ->
-        AlertDialog(
-            onDismissRequest = { toDelete = null },
-            title = { Text("Удалить заметку?") },
-            text = { Text("«${note.text.take(120)}»", maxLines = 4, overflow = TextOverflow.Ellipsis) },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteNote(note)
-                    toDelete = null
-                }) { Text("Удалить") }
-            },
-            dismissButton = { TextButton(onClick = { toDelete = null }) { Text("Отмена") } },
+        ConfirmSheet(
+            title = "Удалить заметку?",
+            text = "«${note.text.take(120)}»",
+            confirm = "Удалить",
+            onConfirm = { viewModel.deleteNote(note) },
+            onDismiss = { toDelete = null },
         )
     }
 }

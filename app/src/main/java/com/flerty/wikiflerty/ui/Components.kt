@@ -61,8 +61,8 @@ fun Modifier.liveClick(
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed && AppStyle.current.pressEffect) pressedScale else 1f,
-        animationSpec = spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMedium),
+        targetValue = if (pressed) Motion.pressScale(pressedScale) else 1f,
+        animationSpec = if (Motion.enabled) spring(dampingRatio = if (Motion.kind == MotionStyle.Strict) 0.9f else 0.5f, stiffness = Spring.StiffnessMedium) else androidx.compose.animation.core.snap(),
         label = "press",
     )
     val feedback = LocalFeedback.current

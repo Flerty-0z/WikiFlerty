@@ -58,6 +58,8 @@ class App : Application() {
 
     val updates: com.flerty.wikiflerty.system.Updates by lazy { com.flerty.wikiflerty.system.Updates(this) }
 
+    val backgroundAudio: com.flerty.wikiflerty.system.BackgroundAudio by lazy { com.flerty.wikiflerty.system.BackgroundAudio(this) }
+
     val feedback: Feedback by lazy { Feedback(this, readerSettings.settings) }
 
     var readerSession: ReaderSession? = null
@@ -81,6 +83,7 @@ class App : Application() {
         ai.store.onChanged = { sync.settingsChanged() }
         library.onBookAdded = { book -> Backup.onBookAdded(this, book) }
         appScope.launch { library.ensureFingerprints() }
+        backgroundAudio.install()
     }
 
     suspend fun prepareReader(book: Book, startAt: Locator? = null): Result<Unit> {

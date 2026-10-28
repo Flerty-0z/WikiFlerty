@@ -301,8 +301,8 @@ private fun androidx.compose.foundation.layout.ColumnScope.StudyBody(
         AnimatedContent(
             targetState = current.id,
             transitionSpec = {
-                (slideInHorizontally(tween(280)) { it / 3 } + fadeIn(tween(220)))
-                    .togetherWith(slideOutHorizontally(tween(240)) { -it / 3 } + fadeOut(tween(180)))
+                (slideInHorizontally(Motion.tween(280)) { it / 3 } + fadeIn(Motion.fade(220)))
+                    .togetherWith(slideOutHorizontally(Motion.tween(240)) { -it / 3 } + fadeOut(Motion.fade(180)))
             },
             label = "card",
             modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -381,7 +381,7 @@ private fun GradeButton(title: String, wait: String, color: Color, modifier: Mod
 
 @Composable
 private fun FlipCard(entry: DictionaryEntry, flipped: Boolean, reverse: Boolean, onFlip: () -> Unit, onSpeak: () -> Unit) {
-    val rotation by animateFloatAsState(if (flipped) 180f else 0f, tween(420), label = "flip")
+    val rotation by animateFloatAsState(if (flipped) 180f else 0f, Motion.tween(420), label = "flip")
     val shape = appCorner(26)
     Box(
         Modifier

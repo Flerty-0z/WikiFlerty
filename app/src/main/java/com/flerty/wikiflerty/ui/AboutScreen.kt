@@ -268,6 +268,7 @@ fun StartupPrompts() {
 
     if (crashPrompt) {
         AppSheet(onDismiss = { crashPrompt = false; app.crashLog.markSeen() }, title = "Приложение закрылось с ошибкой") {
+            val close = sheetClose { crashPrompt = false }
             Text(
                 "В прошлый раз WikiFlerty закрылось неожиданно. Отправь отчёт разработчику — в нём только техническая информация, без книг и ключей",
                 color = AppColors.Muted,
@@ -276,13 +277,13 @@ fun StartupPrompts() {
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AppButton("Отправить", primary = true, modifier = Modifier.weight(1f)) {
-                    crashPrompt = false
                     app.crashLog.markSeen()
                     shareText(context, app.crashLog.report(), "Отчёт о сбоях WikiFlerty")
+                    close()
                 }
                 AppButton("Не сейчас", primary = false, modifier = Modifier.weight(1f)) {
-                    crashPrompt = false
                     app.crashLog.markSeen()
+                    close()
                 }
             }
         }
@@ -301,7 +302,7 @@ fun StartupPrompts() {
             app.updates.dismissedCode = offered
         }
         AppSheet(onDismiss = dismiss, title = "Есть обновление") {
-            UpdatePanel(app, onLater = dismiss)
+            UpdatePanel(app, onLater = sheetClose(dismiss))
         }
     }
 }

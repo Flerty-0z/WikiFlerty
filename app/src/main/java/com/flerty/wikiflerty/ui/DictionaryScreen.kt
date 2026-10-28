@@ -131,11 +131,11 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
             val open = openId == entry.id
             val shape = appCorner(16)
             Column(
-                Modifier
+                motionItem()
                     .fillMaxWidth()
                     .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) { openId = if (open) null else entry.id }
                     .fieldSurface(shape)
-                    .animateContentSize()
+                    .animateContentSize(Motion.tween(260))
                     .padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
@@ -237,17 +237,15 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
     }
 
     toDelete?.let { entry ->
-        AlertDialog(
-            onDismissRequest = { toDelete = null },
-            title = { Text("Удалить «${entry.word}»?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteDictionaryEntry(entry)
-                    toDelete = null
-                    if (openId == entry.id) openId = null
-                }) { Text("Удалить") }
+        ConfirmSheet(
+            title = "Удалить слово?",
+            text = "«${entry.word}» и его карточка удалятся из словаря.",
+            confirm = "Удалить",
+            onConfirm = {
+                viewModel.deleteDictionaryEntry(entry)
+                if (openId == entry.id) openId = null
             },
-            dismissButton = { TextButton(onClick = { toDelete = null }) { Text("Отмена") } },
+            onDismiss = { toDelete = null },
         )
     }
 }

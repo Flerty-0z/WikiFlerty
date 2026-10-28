@@ -94,6 +94,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.flerty.wikiflerty.ui.AppColors
+import com.flerty.wikiflerty.ui.Motion
 import com.flerty.wikiflerty.ui.PickerOption
 import com.flerty.wikiflerty.ui.PickerRow
 import com.flerty.wikiflerty.ui.SettingIcon
@@ -257,8 +258,8 @@ fun ReaderOverlay(
 
         AnimatedVisibility(
             visible = state.ttsActive && state.sheet == null && !state.panelsVisible,
-            enter = fadeIn(tween(220)) + slideInVertically(tween(260)) { it / 2 },
-            exit = fadeOut(tween(180)) + slideOutVertically(tween(220)) { it / 2 },
+            enter = fadeIn(Motion.fade(220)) + slideInVertically(Motion.tween(260)) { it / 2 },
+            exit = fadeOut(Motion.fade(180)) + slideOutVertically(Motion.tween(220)) { it / 2 },
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = PanelGap),
         ) {
             TtsBar(state.ttsPlaying, settings.ttsSpeed, tts)
@@ -267,8 +268,8 @@ fun ReaderOverlay(
         val problem = state.ttsProblem
         AnimatedVisibility(
             visible = problem != null && state.sheet == null,
-            enter = fadeIn(tween(220)),
-            exit = fadeOut(tween(160)),
+            enter = fadeIn(Motion.fade(220)),
+            exit = fadeOut(Motion.fade(160)),
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = PanelGap + 80.dp),
         ) {
             val last = remember { arrayOf<com.flerty.wikiflerty.tts.ReadAloud.Problem?>(null) }
@@ -278,8 +279,8 @@ fun ReaderOverlay(
 
         AnimatedVisibility(
             visible = state.askFinished && state.sheet == null && !state.panelsVisible,
-            enter = fadeIn(tween(260)) + slideInVertically(tween(300)) { it / 2 },
-            exit = fadeOut(tween(180)),
+            enter = fadeIn(Motion.fade(260)) + slideInVertically(Motion.tween(300)) { it / 2 },
+            exit = fadeOut(Motion.fade(180)),
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = FlagBottom + 44.dp, start = 16.dp, end = 16.dp),
         ) {
             FinishedPrompt(onMark = onMarkFinished, onDismiss = { state.askFinished = false })
@@ -296,8 +297,8 @@ fun ReaderOverlay(
 
         AnimatedVisibility(
             visible = state.panelsVisible,
-            enter = fadeIn(tween(220)) + slideInVertically(tween(260)) { -it / 2 },
-            exit = fadeOut(tween(180)) + slideOutVertically(tween(220)) { -it / 2 },
+            enter = fadeIn(Motion.fade(220)) + slideInVertically(Motion.tween(260)) { -it / 2 },
+            exit = fadeOut(Motion.fade(180)) + slideOutVertically(Motion.tween(220)) { -it / 2 },
             modifier = Modifier.align(Alignment.TopCenter),
         ) {
             TopPanel(
@@ -315,8 +316,8 @@ fun ReaderOverlay(
 
         AnimatedVisibility(
             visible = state.panelsVisible && state.sheet == null,
-            enter = fadeIn(tween(220)) + slideInVertically(tween(260)) { it / 2 },
-            exit = fadeOut(tween(180)) + slideOutVertically(tween(220)) { it / 2 },
+            enter = fadeIn(Motion.fade(220)) + slideInVertically(Motion.tween(260)) { it / 2 },
+            exit = fadeOut(Motion.fade(180)) + slideOutVertically(Motion.tween(220)) { it / 2 },
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
             BottomPanel(
@@ -340,8 +341,8 @@ fun ReaderOverlay(
 
         AnimatedVisibility(
             visible = state.sheet != null,
-            enter = fadeIn(tween(200)) + slideInVertically(tween(280)) { it / 3 },
-            exit = fadeOut(tween(160)) + slideOutVertically(tween(220)) { it / 3 },
+            enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(280)) { it / 3 },
+            exit = fadeOut(Motion.fade(160)) + slideOutVertically(Motion.tween(220)) { it / 3 },
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
             val last = remember { arrayOf(ReaderSheet.Options) }
@@ -352,8 +353,8 @@ fun ReaderOverlay(
                     transitionSpec = {
                         val deeper = targetState.depth > initialState.depth
                         val dir = if (deeper) 1 else -1
-                        (slideInHorizontally(tween(260)) { dir * it / 5 } + fadeIn(tween(220)))
-                            .togetherWith(slideOutHorizontally(tween(220)) { -dir * it / 5 } + fadeOut(tween(160)))
+                        (slideInHorizontally(Motion.tween(260)) { dir * it / 5 } + fadeIn(Motion.fade(220)))
+                            .togetherWith(slideOutHorizontally(Motion.tween(220)) { -dir * it / 5 } + fadeOut(Motion.fade(160)))
                             .using(SizeTransform(clip = false))
                     },
                     label = "sheet",
@@ -399,8 +400,8 @@ fun ReaderOverlay(
     AnimatedVisibility(
         visible = searchState.current >= 0 && searchState.results.isNotEmpty() && state.sheet == null &&
             state.selection == null && state.footnote == null && !state.panelsVisible && !state.autoActive,
-        enter = fadeIn(tween(200)) + slideInVertically(tween(240)) { it / 2 },
-        exit = fadeOut(tween(160)),
+        enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(240)) { it / 2 },
+        exit = fadeOut(Motion.fade(160)),
         modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.systemBars).padding(bottom = 56.dp),
     ) {
         SearchNavBar(search, onReopen = { state.sheet = ReaderSheet.Search }, modifier = Modifier)
@@ -408,8 +409,8 @@ fun ReaderOverlay(
 
     AnimatedVisibility(
         visible = state.autoActive && state.sheet == null && state.footnote == null && state.selection == null,
-        enter = fadeIn(tween(200)) + slideInVertically(tween(240)) { it / 2 },
-        exit = fadeOut(tween(160)),
+        enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(240)) { it / 2 },
+        exit = fadeOut(Motion.fade(160)),
         modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.systemBars).padding(bottom = 56.dp),
     ) {
         AutoBar(
@@ -425,8 +426,8 @@ fun ReaderOverlay(
 
     AnimatedVisibility(
         visible = state.footnote != null && state.sheet == null,
-        enter = fadeIn(tween(200)) + slideInVertically(tween(260)) { it / 3 },
-        exit = fadeOut(tween(160)) + slideOutVertically(tween(200)) { it / 3 },
+        enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(260)) { it / 3 },
+        exit = fadeOut(Motion.fade(160)) + slideOutVertically(Motion.tween(200)) { it / 3 },
         modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.systemBars).padding(bottom = 16.dp),
     ) {
         val last = remember { arrayOf<FootnoteInfo?>(null) }
@@ -448,8 +449,8 @@ fun ReaderOverlay(
     val selection = state.selection
     AnimatedVisibility(
         visible = selection != null && state.sheet == null,
-        enter = fadeIn(tween(220)),
-        exit = fadeOut(tween(160)),
+        enter = fadeIn(Motion.fade(220)),
+        exit = fadeOut(Motion.fade(160)),
     ) {
         val last = remember { arrayOf<SelectionInfo?>(null) }
         selection?.let { last[0] = it }
