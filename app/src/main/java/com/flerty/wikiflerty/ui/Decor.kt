@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,22 +35,20 @@ fun SectionHeader(
     count: Int? = null,
     action: (@Composable () -> Unit)? = null,
 ) {
-    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Row(
-            Modifier
-                .widthIn(max = 560.dp)
-                .heightIn(min = 42.dp)
-                .fieldSurface(CircleShape)
-                .padding(start = if (icon != null) 6.dp else 16.dp, end = if (action != null || count != null) 8.dp else 16.dp, top = 5.dp, bottom = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (icon != null) {
-                Box(
-                    Modifier.size(30.dp).clip(CircleShape).background(AppColors.AccentSoft),
-                    contentAlignment = Alignment.Center,
-                ) { Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(16.dp)) }
-                Spacer(Modifier.width(10.dp))
-            }
+    Row(
+        modifier.fillMaxWidth().heightIn(min = 34.dp).padding(start = 2.dp, end = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(3.dp).height(18.dp).clip(CircleShape).background(AppColors.Accent))
+        Spacer(Modifier.width(10.dp))
+        if (icon != null) {
+            Box(
+                Modifier.size(26.dp).clip(CircleShape).background(AppColors.AccentSoft),
+                contentAlignment = Alignment.Center,
+            ) { Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(15.dp)) }
+            Spacer(Modifier.width(8.dp))
+        }
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 title,
                 color = AppColors.Text,
@@ -65,35 +62,11 @@ fun SectionHeader(
                 Spacer(Modifier.width(8.dp))
                 CountBadge(count)
             }
-            if (action != null) {
-                Spacer(Modifier.width(10.dp))
-                Box(Modifier.width(1.dp).height(22.dp).background(AppColors.Line))
-                Spacer(Modifier.width(4.dp))
-                Box(Modifier.widthIn(max = 170.dp)) { action() }
-            }
         }
-    }
-}
-
-@Composable
-fun HeaderAction(text: String, icon: ImageVector? = null, color: Color = AppColors.Accent, onClick: (() -> Unit)? = null) {
-    Row(
-        Modifier
-            .heightIn(min = 32.dp)
-            .then(if (onClick != null) Modifier.liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.92f, onClick = onClick) else Modifier)
-            .padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        if (icon != null) Icon(icon, null, tint = color, modifier = Modifier.size(15.dp))
-        Text(
-            text,
-            color = color,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            softWrap = false,
-            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 13.sp, stepSize = 0.5.sp),
-        )
+        if (action != null) {
+            Spacer(Modifier.width(8.dp))
+            Box(Modifier.widthIn(max = 150.dp)) { action() }
+        }
     }
 }
 
@@ -101,46 +74,13 @@ fun HeaderAction(text: String, icon: ImageVector? = null, color: Color = AppColo
 fun CountBadge(count: Int) {
     Box(
         Modifier
-            .defaultMinSize(minWidth = 26.dp, minHeight = 26.dp)
+            .heightIn(min = 20.dp)
             .clip(CircleShape)
             .background(AppColors.AccentSoft)
-            .padding(horizontal = 6.dp),
+            .padding(horizontal = 8.dp, vertical = 2.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text("$count", color = AppColors.Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-    }
-}
-
-@Composable
-fun SettingCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Box(
-        modifier
-            .fillMaxWidth()
-            .fieldSurface(appCorner(18))
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-    ) { content() }
-}
-
-@Composable
-fun DividedColumn(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    val line = AppColors.Line.copy(alpha = 0.55f)
-    androidx.compose.ui.layout.SubcomposeLayout(modifier) { constraints ->
-        val loose = constraints.copy(minHeight = 0)
-        val items = subcompose("items", content).map { it.measure(loose) }.filter { it.height > 0 }
-        val gaps = (items.size - 1).coerceAtLeast(0)
-        val lines = subcompose("lines") {
-            repeat(gaps) { Box(Modifier.fillMaxWidth().height(1.dp).background(line)) }
-        }.map { it.measure(loose.copy(minWidth = 0)) }
-        val width = if (constraints.hasBoundedWidth) constraints.maxWidth else (items.maxOfOrNull { it.width } ?: 0)
-        val height = items.sumOf { it.height }
-        layout(width, height) {
-            var y = 0
-            items.forEachIndexed { i, p ->
-                p.place(0, y)
-                y += p.height
-                if (i < gaps) lines[i].place(0, y)
-            }
-        }
+        Text("$count", color = AppColors.Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
     }
 }
 
@@ -186,8 +126,8 @@ fun ActionPill(text: String, icon: ImageVector? = null, onClick: () -> Unit) {
 
 val com.flerty.wikiflerty.data.ReadStatus.chipColor: Color
     get() = when (this) {
-        com.flerty.wikiflerty.data.ReadStatus.Reading -> Color(0xFF8AB4F8)
-        com.flerty.wikiflerty.data.ReadStatus.Planned -> Color(0xFFF2B36B)
-        com.flerty.wikiflerty.data.ReadStatus.Finished -> Color(0xFF7ED3A0)
-        com.flerty.wikiflerty.data.ReadStatus.New -> Color(0xFFA9AFBC)
+        com.flerty.wikiflerty.data.ReadStatus.Reading -> AppColors.Info
+        com.flerty.wikiflerty.data.ReadStatus.Planned -> AppColors.Warn
+        com.flerty.wikiflerty.data.ReadStatus.Finished -> AppColors.Good
+        com.flerty.wikiflerty.data.ReadStatus.New -> AppColors.Muted
     }

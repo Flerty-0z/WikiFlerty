@@ -236,7 +236,7 @@ fun AiChatContent(bridge: AiBridge, modifier: Modifier = Modifier) {
                             .border(1.dp, Color(0x55F08A8A), appCorner(14)).padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text(error, color = Color(0xFFF5B4B4), fontSize = 13.sp, lineHeight = 18.sp)
+                        Text(error, color = AppColors.Bad, fontSize = 13.sp, lineHeight = 18.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                             Text(
                                 "Повторить",
@@ -383,7 +383,7 @@ private fun UserBubble(bubble: AiBubble, first: Boolean, fragment: String) {
             Modifier
                 .widthIn(max = 300.dp)
                 .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 4.dp))
-                .background(Color(0xFF2A2E35))
+                .background(AppColors.Line)
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
@@ -421,7 +421,7 @@ private fun AnswerBubble(text: String, writing: Boolean, note: String? = null) {
             TypingDots()
         } else {
             SelectionContainer {
-                Text(markdown(text), color = Color(0xFFE2E3E6), fontSize = 15.sp, lineHeight = 22.sp)
+                Text(markdown(text), color = AppColors.Text, fontSize = 15.sp, lineHeight = 22.sp)
             }
         }
     }
@@ -500,7 +500,7 @@ private fun QuoteBox(text: String, maxLines: Int) {
         Box(Modifier.width(4.dp).fillMaxHeight().background(AppColors.Accent))
         Text(
             text,
-            color = Color(0xFFD0CEC8),
+            color = AppColors.Text.copy(alpha = 0.85f),
             fontFamily = FontFamily.Serif,
             fontSize = 15.sp,
             lineHeight = 22.sp,

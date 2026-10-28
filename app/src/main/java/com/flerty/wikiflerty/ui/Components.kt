@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 fun Modifier.panelSurface(shape: Shape, elevation: Dp = 14.dp): Modifier = this
-    .shadow(elevation, shape, ambientColor = Color.Black, spotColor = Color.Black)
+    .shadow(elevation, shape, ambientColor = if (AppStyle.light) Color(0x55A07850) else Color.Black, spotColor = if (AppStyle.light) Color(0x55A07850) else Color.Black)
     .clip(shape)
     .background(Brush.verticalGradient(listOf(AppColors.PanelTop, AppColors.PanelBottom)))
     .then(
@@ -45,6 +45,7 @@ fun Modifier.accentHighlight(shape: Shape): Modifier = when (AppStyle.buttons) {
 val accentContent: Color get() = if (AppStyle.buttons == ButtonLook.Filled) AppColors.OnAccent else AppColors.Accent
 
 fun Modifier.fieldSurface(shape: Shape, selected: Boolean = false, accent: Color = AppColors.Accent): Modifier = this
+    .then(if (AppStyle.light) Modifier.shadow(3.dp, shape, ambientColor = Color(0x33A07850), spotColor = Color(0x33A07850)) else Modifier)
     .clip(shape)
     .background(AppColors.Field)
     .border(if (selected) 2.dp else 1.dp, if (selected) accent else AppColors.PanelBorder, shape)

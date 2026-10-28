@@ -1,7 +1,5 @@
 package com.flerty.wikiflerty.ui
 
-import androidx.compose.foundation.text.TextAutoSize
-
 import android.content.Context
 import android.speech.tts.TextToSpeech
 import androidx.activity.compose.BackHandler
@@ -104,11 +102,11 @@ object StudyQueue {
 }
 
 fun srsBadge(s: SrsState, now: Long = System.currentTimeMillis()): Pair<String, Color> = when {
-    s.isNew -> "Новое" to Color(0xFF8AB4F8)
-    s.isLearning -> "Учу" to Color(0xFFF2B36B)
-    s.isMastered -> "Выучено" to Color(0xFF7ED3A0)
-    s.due <= now -> "Повторить" to Color(0xFFF2B36B)
-    else -> "через ${Srs.wait(s.due - now)}" to Color(0xFF9DB0C8)
+    s.isNew -> "Новое" to AppColors.Info
+    s.isLearning -> "Учу" to AppColors.Warn
+    s.isMastered -> "Выучено" to AppColors.Good
+    s.due <= now -> "Повторить" to AppColors.Warn
+    else -> "через ${Srs.wait(s.due - now)}" to AppColors.Muted
 }
 
 private fun maskWord(text: String, word: String): String {
@@ -286,9 +284,9 @@ private fun androidx.compose.foundation.layout.ColumnScope.StudyBody(
 ) {
     run {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            CountChip("Новые", newLeft, Color(0xFF8AB4F8), AppIcons.Star)
-            CountChip("Учу", learnLeft, Color(0xFFF2B36B), AppIcons.Clock)
-            CountChip("Повтор", reviewLeft, Color(0xFF7ED3A0), AppIcons.Rotate)
+            CountChip("Новые", newLeft, AppColors.Info)
+            CountChip("Учу", learnLeft, AppColors.Warn)
+            CountChip("Повтор", reviewLeft, AppColors.Good)
         }
         val total = answered + queue.size
         Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(AppColors.Line)) {
@@ -331,18 +329,13 @@ private fun androidx.compose.foundation.layout.ColumnScope.StudyBody(
                     .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f) { onFlip(current.id) }
                     .accentHighlight(shape),
                 contentAlignment = Alignment.Center,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Icon(AppIcons.Eye, null, tint = accentContent, modifier = Modifier.size(20.dp))
-                    Text("Показать ответ", color = accentContent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                }
-            }
+            ) { Text("Показать ответ", color = accentContent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
         } else {
             Row(Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                GradeButton("Снова", Srs.label(current.srs, Grade.Again, now), AppIcons.Rotate, Color(0xFFF08A8A), Modifier.weight(1f)) { onAnswer(current, Grade.Again) }
-                GradeButton("Трудно", Srs.label(current.srs, Grade.Hard, now), AppIcons.Clock, Color(0xFFF2B36B), Modifier.weight(1f)) { onAnswer(current, Grade.Hard) }
-                GradeButton("Хорошо", Srs.label(current.srs, Grade.Good, now), AppIcons.Check, Color(0xFF7ED3A0), Modifier.weight(1f)) { onAnswer(current, Grade.Good) }
-                GradeButton("Легко", Srs.label(current.srs, Grade.Easy, now), AppIcons.StarFilled, Color(0xFF8AB4F8), Modifier.weight(1f)) { onAnswer(current, Grade.Easy) }
+                GradeButton("Снова", Srs.label(current.srs, Grade.Again, now), AppColors.Bad, Modifier.weight(1f)) { onAnswer(current, Grade.Again) }
+                GradeButton("Трудно", Srs.label(current.srs, Grade.Hard, now), AppColors.Warn, Modifier.weight(1f)) { onAnswer(current, Grade.Hard) }
+                GradeButton("Хорошо", Srs.label(current.srs, Grade.Good, now), AppColors.Good, Modifier.weight(1f)) { onAnswer(current, Grade.Good) }
+                GradeButton("Легко", Srs.label(current.srs, Grade.Easy, now), AppColors.Info, Modifier.weight(1f)) { onAnswer(current, Grade.Easy) }
             }
         }
     }
@@ -351,87 +344,38 @@ private fun androidx.compose.foundation.layout.ColumnScope.StudyBody(
 @Composable
 private fun RoundButton(icon: ImageVector, description: String, onClick: () -> Unit) {
     Box(
-        Modifier.size(42.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onClick).background(Color.White.copy(alpha = 0.07f)),
+        Modifier.size(42.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onClick).background(AppColors.Shade.copy(alpha = 0.07f)),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, description, tint = AppColors.Text, modifier = Modifier.size(18.dp)) }
 }
 
 @Composable
-private fun CountChip(label: String, count: Int, color: Color, icon: ImageVector) {
+private fun CountChip(label: String, count: Int, color: Color) {
     Row(
-        Modifier.clip(CircleShape).background(color.copy(alpha = 0.14f)).border(1.dp, color.copy(alpha = 0.3f), CircleShape).padding(horizontal = 12.dp, vertical = 6.dp),
+        Modifier.clip(appCorner(10)).background(color.copy(alpha = 0.14f)).padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Icon(icon, null, tint = color, modifier = Modifier.size(14.dp))
         Text(label, color = color, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         Text(count.toString(), color = AppColors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
-private fun GradeButton(title: String, wait: String, icon: ImageVector, color: Color, modifier: Modifier, onClick: () -> Unit) {
-    val shape = appCorner(18)
+private fun GradeButton(title: String, wait: String, color: Color, modifier: Modifier, onClick: () -> Unit) {
+    val shape = appCorner(16)
     Column(
         modifier
-            .heightIn(min = 84.dp)
+            .heightIn(min = 60.dp)
             .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.93f, onClick = onClick)
-            .background(color.copy(alpha = 0.12f))
+            .background(color.copy(alpha = 0.14f))
             .border(1.dp, color.copy(alpha = 0.35f), shape)
-            .padding(vertical = 10.dp, horizontal = 4.dp),
+            .padding(vertical = 8.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+        verticalArrangement = Arrangement.Center,
     ) {
-        Box(Modifier.size(30.dp).clip(CircleShape).background(color.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = color, modifier = Modifier.size(16.dp))
-        }
-        Text(
-            title,
-            color = color,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            softWrap = false,
-            autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 13.sp, stepSize = 0.5.sp),
-        )
+        Text(title, color = color, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         Text(wait, color = AppColors.Muted, fontSize = 11.sp, maxLines = 1)
-    }
-}
-
-@Composable
-private fun CardLabel(text: String, icon: ImageVector, color: Color = AppColors.Muted) {
-    Row(
-        Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.06f)).border(1.dp, AppColors.PanelBorder, CircleShape).padding(start = 8.dp, end = 12.dp, top = 5.dp, bottom = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Icon(icon, null, tint = color, modifier = Modifier.size(14.dp))
-        Text(
-            text,
-            color = color,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            softWrap = false,
-            autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 12.sp, stepSize = 0.5.sp),
-        )
-    }
-}
-
-@Composable
-private fun QuoteBlock(text: androidx.compose.ui.text.AnnotatedString, maxLines: Int = Int.MAX_VALUE) {
-    Column(
-        Modifier.fillMaxWidth().clip(appCorner(16)).background(Color.White.copy(alpha = 0.05f)).border(1.dp, AppColors.PanelBorder, appCorner(16)).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        CardLabel("Из книги", AppIcons.Quote)
-        Text(
-            text,
-            color = Color(0xFFBDBBB5),
-            fontFamily = FontFamily.Serif,
-            fontSize = 14.sp,
-            lineHeight = 20.sp,
-            maxLines = maxLines,
-            overflow = TextOverflow.Ellipsis,
-        )
     }
 }
 
@@ -474,7 +418,12 @@ private fun CardFront(entry: DictionaryEntry, reverse: Boolean, onSpeak: () -> U
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        CardLabel(if (reverse) "Какое это слово?" else "Что это значит?", AppIcons.Info, AppColors.Accent)
+        Text(
+            if (reverse) "Какое это слово?" else "Что это значит?",
+            color = AppColors.Muted,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
         Spacer(Modifier.weight(1f))
         if (reverse) {
             val plain = markdown(entry.definition).text
@@ -499,24 +448,38 @@ private fun CardFront(entry: DictionaryEntry, reverse: Boolean, onSpeak: () -> U
             Text(
                 entry.word,
                 color = AppColors.Text,
+                fontSize = 32.sp,
+                lineHeight = 38.sp,
                 fontFamily = FontFamily.Serif,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
-                maxLines = 1,
-                softWrap = false,
-                autoSize = TextAutoSize.StepBased(minFontSize = 16.sp, maxFontSize = 34.sp, stepSize = 1.sp),
             )
             SpeakButton(onSpeak)
             if (hint && entry.context.isNotBlank()) {
-                QuoteBlock(highlightWord("«${entry.context.take(260)}»", entry.word, AppColors.Accent), maxLines = 6)
+                Text(
+                    highlightWord("«${entry.context.take(260)}»", entry.word, AppColors.Accent),
+                    color = AppColors.Muted,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    fontFamily = FontFamily.Serif,
+                    textAlign = TextAlign.Center,
+                    maxLines = 6,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
         Spacer(Modifier.weight(1f))
         val canHint = reverse || entry.context.isNotBlank()
         if (canHint && !hint) {
-            ActionPill(if (reverse) "Подсказка" else "Пример из книги", if (reverse) AppIcons.Bulb else AppIcons.Quote) { hint = true }
+            Text(
+                if (reverse) "Подсказка" else "Показать предложение из книги",
+                color = AppColors.Accent,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.liveClick(appCorner(8), sound = FeedbackSound.Tap) { hint = true }.padding(8.dp),
+            )
         }
-        entry.bookTitle?.let { InfoChip(it, AppColors.Muted, AppIcons.Book) }
+        entry.bookTitle?.let { Text(it, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
     }
 }
 
@@ -526,33 +489,35 @@ private fun CardBack(entry: DictionaryEntry, onSpeak: () -> Unit) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Row(
-            Modifier.fillMaxWidth().clip(appCorner(18)).background(Color.White.copy(alpha = 0.05f)).border(1.dp, AppColors.PanelBorder, appCorner(18)).padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 entry.word,
                 color = AppColors.Text,
+                fontSize = 26.sp,
+                lineHeight = 32.sp,
                 fontFamily = FontFamily.Serif,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                softWrap = false,
-                autoSize = TextAutoSize.StepBased(minFontSize = 14.sp, maxFontSize = 26.sp, stepSize = 1.sp),
                 modifier = Modifier.weight(1f),
             )
             SpeakButton(onSpeak)
         }
-        Column(
-            Modifier.fillMaxWidth().clip(appCorner(16)).background(Color.White.copy(alpha = 0.05f)).border(1.dp, AppColors.PanelBorder, appCorner(16)).padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            CardLabel("Значение", AppIcons.Book, AppColors.Accent)
-            Text(markdown(entry.definition), color = Color(0xFFE2E3E6), fontSize = 15.sp, lineHeight = 22.sp)
-        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.Line))
+        Text(markdown(entry.definition), color = AppColors.Text, fontSize = 15.sp, lineHeight = 22.sp)
         if (entry.context.isNotBlank()) {
-            QuoteBlock(highlightWord("«${entry.context}»", entry.word, AppColors.Accent))
+            Column(
+                Modifier.fillMaxWidth().clip(appCorner(14)).background(AppColors.Shade.copy(alpha = 0.05f)).padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    highlightWord("«${entry.context}»", entry.word, AppColors.Accent),
+                    color = AppColors.Text.copy(alpha = 0.75f),
+                    fontFamily = FontFamily.Serif,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                )
+                entry.bookTitle?.let { Text(it, color = AppColors.Faint, fontSize = 12.sp) }
+            }
         }
-        entry.bookTitle?.let { InfoChip(it, AppColors.Muted, AppIcons.Book) }
     }
 }
 
@@ -575,9 +540,9 @@ private fun FinishedView(
     ) {
         Spacer(Modifier.height(24.dp))
         Box(
-            Modifier.size(84.dp).clip(CircleShape).background(Color(0xFF7ED3A0).copy(alpha = 0.16f)),
+            Modifier.size(84.dp).clip(CircleShape).background(AppColors.Good.copy(alpha = 0.16f)),
             contentAlignment = Alignment.Center,
-        ) { Icon(AppIcons.Check, null, tint = Color(0xFF7ED3A0), modifier = Modifier.size(40.dp)) }
+        ) { Icon(AppIcons.Check, null, tint = AppColors.Good, modifier = Modifier.size(40.dp)) }
         Text(
             if (answered > 0) "На сегодня всё!" else "Повторять пока нечего",
             color = AppColors.Text,
@@ -642,14 +607,14 @@ fun StudyCard(entries: List<DictionaryEntry>, onStart: () -> Unit, onSettings: (
                 )
             }
             Box(
-                Modifier.size(40.dp).liveClick(CircleShape, sound = FeedbackSound.Open, onClick = onSettings).background(Color.White.copy(alpha = 0.07f)),
+                Modifier.size(40.dp).liveClick(CircleShape, sound = FeedbackSound.Open, onClick = onSettings).background(AppColors.Shade.copy(alpha = 0.07f)),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Options, "Настройки карточек", tint = AppColors.Text, modifier = Modifier.size(18.dp)) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CountChip("Новые", counts.new, Color(0xFF8AB4F8), AppIcons.Star)
-            CountChip("Учу", counts.learning, Color(0xFFF2B36B), AppIcons.Clock)
-            CountChip("Повтор", counts.review, Color(0xFF7ED3A0), AppIcons.Rotate)
+            CountChip("Новые", counts.new, AppColors.Info)
+            CountChip("Учу", counts.learning, AppColors.Warn)
+            CountChip("Повтор", counts.review, AppColors.Good)
         }
         val button = appCorner(16)
         Row(
@@ -703,5 +668,12 @@ fun FlashcardSettingsSheet(onDismiss: () -> Unit) {
                 app.flashcards.update { it.copy(autoSpeak = v) }
             }
         }
+        Text(
+            "«Снова» — слово вернётся через минуту. «Хорошо» — через всё более длинные промежутки: день, неделя, месяц. Так слова запоминаются надолго.",
+            color = AppColors.Faint,
+            fontSize = 12.sp,
+            lineHeight = 17.sp,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
     }
 }

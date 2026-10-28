@@ -1,5 +1,9 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.foundation.layout.navigationBarsPadding
+
+import androidx.compose.ui.graphics.RectangleShape
+
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -129,33 +133,28 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
         if (drawerOpen) drawerOpen = false else section = Section.Library
     }
 
+    val bottomNav = AppStyle.bottomNav
+    var addMenu by remember { mutableStateOf(false) }
     SideDrawer(
-        open = drawerOpen,
+        open = drawerOpen && !bottomNav,
+        enabled = !bottomNav,
         onOpenChange = { drawerOpen = it },
         drawer = {
             DrawerLogo()
             Spacer(Modifier.height(10.dp))
-            androidx.compose.foundation.layout.Column(
-                Modifier
-                    .padding(horizontal = 12.dp)
-                    .fillMaxWidth()
-                    .fieldSurface(appCorner(24))
-                    .padding(vertical = 6.dp),
-            ) {
-                Section.entries.forEach { item ->
-                    if (item == Section.Settings) {
-                        Box(Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth().height(1.dp).background(AppColors.Line))
-                    }
-                    val count = when (item) {
-                        Section.Library -> libraryBooks.size
-                        Section.Notes -> notesCount
-                        Section.Dictionary -> wordsCount
-                        else -> 0
-                    }
-                    DrawerItem(item, selected = item == section, count = count) {
-                        section = item
-                        drawerOpen = false
-                    }
+            Section.entries.forEach { item ->
+                if (item == Section.Settings) {
+                    Box(Modifier.padding(horizontal = 22.dp, vertical = 8.dp).fillMaxWidth().height(1.dp).background(AppColors.Line))
+                }
+                val count = when (item) {
+                    Section.Library -> libraryBooks.size
+                    Section.Notes -> notesCount
+                    Section.Dictionary -> wordsCount
+                    else -> 0
+                }
+                DrawerItem(item, selected = item == section, count = count) {
+                    section = item
+                    drawerOpen = false
                 }
             }
             Spacer(Modifier.weight(1f))
@@ -189,25 +188,52 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                             },
                             actions = {
                                 if (section == Section.Library && libraryBooks.isNotEmpty()) LibraryTopActions(libraryControls)
+                                if (bottomNav && section == Section.Library) {
+                                    Box(
+                                        Modifier
+                                            .padding(end = 8.dp)
+                                            .size(44.dp)
+                                            .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.85f) { section = Section.Settings }
+                                            .fieldSurface(CircleShape),
+                                        contentAlignment = Alignment.Center,
+                                    ) { Icon(AppIcons.Options, "Настройки", tint = AppColors.Text, modifier = Modifier.size(20.dp)) }
+                                }
                             },
                             colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                             navigationIcon = {
-                                Box(
-                                    Modifier
-                                        .padding(start = 4.dp)
-                                        .size(48.dp)
-                                        .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.85f) { drawerOpen = true },
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Icon(Icons.Filled.Menu, contentDescription = "Меню")
+                                if (!bottomNav) {
+                                    Box(
+                                        Modifier
+                                            .padding(start = 4.dp)
+                                            .size(48.dp)
+                                            .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.85f) { drawerOpen = true },
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(Icons.Filled.Menu, contentDescription = "Меню")
+                                    }
+                                } else if (section == Section.Settings || section == Section.About) {
+                                    Box(
+                                        Modifier
+                                            .padding(start = 4.dp)
+                                            .size(48.dp)
+                                            .liveClick(CircleShape, sound = FeedbackSound.Close, pressedScale = 0.85f) {
+                                                section = if (section == Section.About) Section.Settings else Section.Library
+                                            },
+                                        contentAlignment = Alignment.Center,
+                                    ) { Icon(AppIcons.Back, "Назад", tint = AppColors.Text, modifier = Modifier.size(22.dp)) }
                                 }
                             },
                         )
                         if (busy != null) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                     }
                 },
+                bottomBar = {
+                    if (bottomNav) {
+                        BottomNav(section, onSelect = { section = it }, onAdd = { addMenu = true })
+                    }
+                },
                 floatingActionButton = {
-                    if (section == Section.Library) {
+                    if (section == Section.Library && !bottomNav) {
                         AddBookFab(
                             onFile = { pickBook.launch(arrayOf("*/*")) },
                             onScan = { libraryControls.scanFolder = true },
@@ -240,13 +266,23 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                             Section.Notes -> NotesScreen(libraryViewModel, modifier)
                             Section.Dictionary -> DictionaryScreen(libraryViewModel, modifier)
                             Section.Stats -> StatsScreen(modifier)
-                            Section.Settings -> SettingsScreen(modifier)
+                            Section.Settings -> SettingsScreen(modifier, onAbout = if (bottomNav) { { section = Section.About } } else null)
                             Section.About -> AboutScreen(modifier)
                             Section.Library -> Unit
                         }
                     }
                 }
                 }
+            }
+            if (addMenu) {
+                AddBookSheet(
+                    onDismiss = { addMenu = false },
+                    onFile = { pickBook.launch(arrayOf("*/*")) },
+                    onScan = {
+                        section = Section.Library
+                        libraryControls.scanFolder = true
+                    },
+                )
             }
             StartupPrompts()
             AchievementToast()
@@ -259,7 +295,7 @@ private fun DrawerItem(item: Section, selected: Boolean, count: Int, onClick: ()
     val shape = appCorner(18)
     Row(
         Modifier
-            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .padding(horizontal = 12.dp, vertical = 2.dp)
             .fillMaxWidth()
             .height(54.dp)
             .liveClick(shape, sound = FeedbackSound.Tap, pressedScale = 0.97f, onClick = onClick)
@@ -279,8 +315,8 @@ private fun DrawerItem(item: Section, selected: Boolean, count: Int, onClick: ()
             Modifier
                 .size(34.dp)
                 .clip(tile)
-                .background(if (selected) AppColors.Accent else Color.White.copy(alpha = 0.07f))
-                .border(1.dp, if (selected) Color.Transparent else Color.White.copy(alpha = 0.08f), tile),
+                .background(if (selected) AppColors.Accent else AppColors.Shade.copy(alpha = 0.07f))
+                .border(1.dp, if (selected) Color.Transparent else AppColors.Shade.copy(alpha = 0.08f), tile),
             contentAlignment = Alignment.Center,
         ) { Icon(item.icon, null, tint = if (selected) AppColors.OnAccent else AppColors.Accent, modifier = Modifier.size(19.dp)) }
         Text(
@@ -291,7 +327,7 @@ private fun DrawerItem(item: Section, selected: Boolean, count: Int, onClick: ()
             maxLines = 1,
             modifier = Modifier.weight(1f),
         )
-        if (count > 0) CountBadge(count)
+        if (count > 0) Text(count.toString(), color = AppColors.Faint, fontSize = 12.sp)
     }
 }
 
@@ -311,8 +347,8 @@ private fun DrawerTodayCard() {
             .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 16.dp)
             .fillMaxWidth()
             .clip(shape)
-            .background(Color.White.copy(alpha = 0.06f))
-            .border(1.dp, Color.White.copy(alpha = 0.09f), shape)
+            .background(AppColors.Shade.copy(alpha = 0.06f))
+            .border(1.dp, AppColors.Shade.copy(alpha = 0.09f), shape)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -347,6 +383,7 @@ private fun DrawerTodayCard() {
 @Composable
 private fun SideDrawer(
     open: Boolean,
+    enabled: Boolean = true,
     onOpenChange: (Boolean) -> Unit,
     drawer: @Composable ColumnScope.() -> Unit,
     content: @Composable () -> Unit,
@@ -364,7 +401,7 @@ private fun SideDrawer(
 
         content()
 
-        if (!open) {
+        if (!open && enabled) {
             Box(
                 Modifier
                     .fillMaxHeight()
@@ -476,7 +513,7 @@ private fun DrawerLogo() {
             Column {
                 Text(
                     buildAnnotatedString {
-                        withStyle(SpanStyle(color = Color.White)) { append("Wiki") }
+                        withStyle(SpanStyle(color = AppColors.Text)) { append("Wiki") }
                         withStyle(SpanStyle(color = AppColors.Accent)) { append("Flerty") }
                     },
                     fontFamily = logoFont,
@@ -490,5 +527,97 @@ private fun DrawerLogo() {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun BottomNav(section: Section, onSelect: (Section) -> Unit, onAdd: () -> Unit) {
+    Box(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .shadow(12.dp, RectangleShape, ambientColor = AppColors.Shade.copy(alpha = 0.25f), spotColor = AppColors.Shade.copy(alpha = 0.25f))
+                .background(AppColors.Panel)
+                .navigationBarsPadding()
+                .height(66.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BottomItem(Section.Library, "Полка", section, onSelect, Modifier.weight(1f))
+            BottomItem(Section.Notes, "Заметки", section, onSelect, Modifier.weight(1f))
+            Spacer(Modifier.weight(1f))
+            BottomItem(Section.Dictionary, "Словарь", section, onSelect, Modifier.weight(1f))
+            BottomItem(Section.Stats, "Итоги", section, onSelect, Modifier.weight(1f))
+        }
+        Box(
+            Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = (-22).dp)
+                .size(62.dp)
+                .clip(CircleShape)
+                .background(AppColors.Background)
+                .padding(4.dp)
+                .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.88f, onClick = onAdd)
+                .background(AppColors.Accent),
+            contentAlignment = Alignment.Center,
+        ) { Icon(AppIcons.Plus, "Добавить книгу", tint = AppColors.OnAccent, modifier = Modifier.size(28.dp)) }
+    }
+}
+
+@Composable
+private fun BottomItem(item: Section, label: String, current: Section, onSelect: (Section) -> Unit, modifier: Modifier) {
+    val on = item == current
+    val color = if (on) AppColors.Accent else AppColors.Faint
+    Column(
+        modifier
+            .fillMaxHeight()
+            .liveClick(RectangleShape, sound = FeedbackSound.Tap, pressedScale = 0.92f) { onSelect(item) },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
+    ) {
+        Icon(item.icon, null, tint = color, modifier = Modifier.size(22.dp))
+        Text(label, color = color, fontSize = 11.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+    }
+}
+
+@Composable
+private fun AddBookSheet(onDismiss: () -> Unit, onFile: () -> Unit, onScan: () -> Unit) {
+    AppSheet(onDismiss = onDismiss, title = "Добавить книгу") {
+        val close = sheetClose(onDismiss)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            AddChoice(AppIcons.Book, "Файл", Modifier.weight(1f)) {
+                close()
+                onFile()
+            }
+            AddChoice(AppIcons.FolderSearch, "Найти на телефоне", Modifier.weight(1f)) {
+                close()
+                onScan()
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddChoice(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, modifier: Modifier, onClick: () -> Unit) {
+    val shape = appCorner(20)
+    Column(
+        modifier
+            .height(112.dp)
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.95f, onClick = onClick)
+            .fieldSurface(shape)
+            .padding(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
+    ) {
+        Box(Modifier.size(46.dp).clip(CircleShape).background(AppColors.AccentSoft), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(24.dp))
+        }
+        Text(
+            title,
+            color = AppColors.Text,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            softWrap = false,
+            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 14.sp, stepSize = 0.5.sp),
+        )
     }
 }

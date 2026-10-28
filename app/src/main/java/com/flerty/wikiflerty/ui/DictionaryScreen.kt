@@ -162,7 +162,7 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
                 }
                 if (open) {
                     SelectionContainer {
-                        Text(markdown(entry.definition), color = Color(0xFFE2E3E6), fontSize = 15.sp, lineHeight = 22.sp)
+                        Text(markdown(entry.definition), color = AppColors.Text, fontSize = 15.sp, lineHeight = 22.sp)
                     }
                 } else {
                     Text(
@@ -179,7 +179,7 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
                         if (entry.context.isNotBlank()) {
                             Text(
                                 "«${entry.context}»",
-                                color = Color(0xFFBDBBB5),
+                                color = AppColors.Text.copy(alpha = 0.75f),
                                 fontFamily = FontFamily.Serif,
                                 fontSize = 14.sp,
                                 lineHeight = 20.sp,
@@ -208,7 +208,7 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
                                     .border(1.dp, Color(0x55F08A8A), deleteShape)
                                     .padding(horizontal = 14.dp),
                                 contentAlignment = Alignment.Center,
-                            ) { Icon(AppIcons.Trash, "Удалить слово", tint = Color(0xFFF08A8A), modifier = Modifier.size(18.dp)) }
+                            ) { Icon(AppIcons.Trash, "Удалить слово", tint = AppColors.Bad, modifier = Modifier.size(18.dp)) }
                         }
                     }
                 }

@@ -59,14 +59,14 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @Composable
-fun SettingsGroup(title: String?, icon: ImageVector? = null, content: @Composable () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (title != null) SectionHeader(title, icon = icon)
-        DividedColumn(
+fun SettingsGroup(title: String?, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (title != null) SectionHeader(title)
+        Column(
             Modifier
                 .fillMaxWidth()
                 .fieldSurface(appCorner(18))
-                .padding(horizontal = 14.dp, vertical = 4.dp),
+                .padding(horizontal = 14.dp, vertical = 6.dp),
         ) { content() }
     }
 }
@@ -134,13 +134,8 @@ fun SettingSwitch(
             Spacer(Modifier.width(12.dp))
         }
         Column(Modifier.weight(1f).padding(end = 8.dp)) {
-            Text(
-                label,
-                color = AppColors.Text,
-                maxLines = 1,
-                softWrap = false,
-                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 15.sp, stepSize = 0.5.sp),
-            )
+            Text(label, color = AppColors.Text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (hint != null) Text(hint, color = AppColors.Faint, fontSize = 12.sp, lineHeight = 16.sp)
         }
         Switch(
             checked = checked,

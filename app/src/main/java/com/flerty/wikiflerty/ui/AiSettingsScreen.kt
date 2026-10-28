@@ -61,8 +61,8 @@ import com.flerty.wikiflerty.ai.AiProvider
 import com.flerty.wikiflerty.ai.KeyCheck
 import kotlinx.coroutines.launch
 
-private val Good = Color(0xFF7ED3A0)
-private val Bad = Color(0xFFF08A8A)
+private val Good get() = AppColors.Good
+private val Bad get() = AppColors.Bad
 
 private val TranslateLanguages = listOf(
     "русский", "английский", "немецкий", "французский", "испанский", "итальянский", "португальский",
@@ -82,13 +82,12 @@ fun AiSettingsContent(ai: AiManager, modifier: Modifier = Modifier) {
     var showAll by remember { mutableStateOf(false) }
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-        ) {
-            InfoChip("Любая нейросеть", AppColors.Accent, AppIcons.Sparkle)
-            InfoChip("Ключ зашифрован", AppColors.Muted, AppIcons.Lock)
-        }
+        Text(
+            "Вставь ключ любой нейросети — приложение само поймёт, чья она. Ключ хранится зашифрованным только на телефоне.",
+            color = AppColors.Muted,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+        )
 
         QuickConnectCard(ai) { expanded = it.id }
 
@@ -130,7 +129,7 @@ fun AiSettingsContent(ai: AiManager, modifier: Modifier = Modifier) {
         }
 
         Spacer(Modifier.height(4.dp))
-        SettingsGroup("Ответы", AppIcons.Sparkle) {
+        SettingsGroup("Ответы") {
             PickerRow(
                 label = "Длина ответов",
                 icon = AppIcons.Length,
@@ -229,7 +228,7 @@ private fun ProviderCard(
                         .fillMaxWidth()
                         .height(48.dp)
                         .clip(appCorner(12))
-                        .background(Color(0xFF121316))
+                        .background(AppColors.Background)
                         .border(1.dp, AppColors.Line, appCorner(12))
                         .padding(start = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -440,7 +439,7 @@ private fun AllProvidersRow(all: List<AiProvider>, connected: Int, onClick: () -
 
 @Composable
 private fun SectionLabel(text: String) {
-    SectionHeader(text, modifier = Modifier.padding(top = 4.dp), icon = AppIcons.Check)
+    SectionHeader(text, modifier = Modifier.padding(top = 4.dp))
 }
 
 @Composable
@@ -457,7 +456,7 @@ private fun InputField(
             .fillMaxWidth()
             .height(48.dp)
             .clip(appCorner(12))
-            .background(Color(0xFF121316))
+            .background(AppColors.Background)
             .border(1.dp, AppColors.Line, appCorner(12))
             .padding(start = 12.dp, end = if (secret) 0.dp else 12.dp),
         verticalAlignment = Alignment.CenterVertically,

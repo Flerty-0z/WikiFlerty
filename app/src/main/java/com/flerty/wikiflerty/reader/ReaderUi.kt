@@ -180,7 +180,7 @@ class ReaderUiState {
 
 data class TocItem(val title: String, val depth: Int, val link: Link)
 
-private val SelectedSegment = Color(0xFF30343B)
+private val SelectedSegment get() = AppColors.AccentTintStrong
 private val FlagBackground = Color(0xE61B1D21)
 
 private fun Modifier.blockTaps(): Modifier = pointerInput(Unit) { detectTapGestures { } }
@@ -540,7 +540,7 @@ private fun ProgressFlag(chapter: String?, progress: String, modifier: Modifier)
             .height(FlagHeight.dp)
             .clip(shape)
             .background(FlagBackground)
-            .border(1.dp, Color(0xFF2C2F34), shape)
+            .border(1.dp, AppColors.PanelBorder, shape)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -552,7 +552,7 @@ private fun ProgressFlag(chapter: String?, progress: String, modifier: Modifier)
                 fontSize = 12.sp,
                 modifier = Modifier.widthIn(max = 200.dp),
             )
-            Box(Modifier.size(3.dp).clip(CircleShape).background(Color(0xFF5A5E66)))
+            Box(Modifier.size(3.dp).clip(CircleShape).background(AppColors.Faint))
         }
         Text(progress, color = AppColors.Text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
     }
@@ -591,7 +591,7 @@ private fun TopPanel(
             Modifier
                 .size(width = 32.dp, height = 46.dp)
                 .clip(appCorner(5))
-                .background(Color(0xFF4A5A7A))
+                .background(AppColors.Line)
                 .border(1.dp, Color(0x33FFFFFF), appCorner(5)),
             contentAlignment = Alignment.Center,
         ) {
@@ -809,7 +809,7 @@ internal fun RoundIconButton(
         modifier = Modifier
             .size(44.dp)
             .liveClick(CircleShape, sound = sound, pressedScale = 0.88f, onClick = onClick)
-            .background(if (filled) Color(0xFF2C2F35) else Color.Transparent),
+            .background(if (filled) AppColors.Line else Color.Transparent),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = description, tint = AppColors.Text, modifier = Modifier.size(if (filled) 18.dp else 22.dp))
@@ -931,7 +931,7 @@ private fun SheetContent(
                 .align(Alignment.CenterHorizontally)
                 .size(width = 36.dp, height = 4.dp)
                 .clip(appCorner(2))
-                .background(Color(0xFF3A3E45)),
+                .background(AppColors.Line),
         )
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             val parent = when {
@@ -941,26 +941,25 @@ private fun SheetContent(
                 sheet.depth > 0 -> ReaderSheet.Options
                 else -> null
             }
-            if (sheet in NavSheets) {
-                if (parent != null) RoundIconButton(AppIcons.Back, "Назад", sound = FeedbackSound.Close) { onOpen(parent) }
-                NavTabs(sheet, onSelect = onOpen, modifier = Modifier.weight(1f).padding(end = 6.dp))
-            } else {
-                if (parent != null) {
-                    RoundIconButton(AppIcons.Back, "Назад", sound = FeedbackSound.Close) { onOpen(parent) }
-                } else {
-                    Spacer(Modifier.size(44.dp))
-                }
-                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    SheetTitle(
-                        when {
-                            sheet == ReaderSheet.NoteEditor && editor?.id == null -> "Новая заметка"
-                            sheet == ReaderSheet.AiChat -> ai.chat.action.title
-                            else -> sheet.title
-                        },
-                        sheetIcon(sheet),
-                    )
-                }
+            if (parent != null) {
+                RoundIconButton(AppIcons.Back, "Назад", sound = FeedbackSound.Close) { onOpen(parent) }
             }
+            if (sheet in NavSheets) {
+                NavTabs(sheet, onSelect = onOpen, modifier = Modifier.weight(1f).padding(end = 6.dp))
+            } else Text(
+                when {
+                    sheet == ReaderSheet.NoteEditor && editor?.id == null -> "Новая заметка"
+                    sheet == ReaderSheet.Notes && notes.isNotEmpty() -> "Заметки · ${notes.size}"
+                    sheet == ReaderSheet.AiChat -> ai.chat.action.title
+                    else -> sheet.title
+                },
+                color = AppColors.Text,
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(start = if (parent != null) 0.dp else 4.dp),
+            )
             RoundIconButton(AppIcons.Close, "Закрыть", filled = true, sound = FeedbackSound.Close, onClick = onClose)
         }
 
@@ -1171,6 +1170,9 @@ private fun TextOptions(
             AlignIcon(justify = false)
         }
     }
+    if (!entry.supportsItalic) {
+        Text("У этого шрифта нет курсива", color = AppColors.Faint, fontSize = 12.sp)
+    }
     SwitchRow("Переносы", settings.hyphens, icon = AppIcons.Wrap) { v -> onSettingsChange { it.copy(hyphens = v) } }
     Column(Modifier.alpha(if (settings.scroll) 0.45f else 1f)) {
         Segmented(
@@ -1184,7 +1186,14 @@ private fun TextOptions(
             icon = AppIcons.Pages,
         ) { i -> if (!settings.scroll) onSettingsChange { it.copy(columns = listOf("auto", "1", "2")[i]) } }
     }
-    if (settings.scroll) Hint("Только в режиме «Страницы»")
+    if (settings.scroll) {
+        Text(
+            "Колонки работают в режиме «Страницы». Сейчас включена лента — переключить можно в «Листании»",
+            color = AppColors.Faint,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+        )
+    }
 }
 
 @Composable
@@ -1382,7 +1391,7 @@ private fun PanelOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
         onSettingsChange { it.copy(progressInPages = i == 1) }
     }
     SwitchRow("Флажок внизу", settings.showFlag, icon = AppIcons.Flag) { v -> onSettingsChange { it.copy(showFlag = v) } }
-    Group("Кнопки панели", AppIcons.Panel) {
+    Group("Кнопки панели") {
         Column(Modifier.clip(appCorner(16)).background(AppColors.Field)) {
             QuickButton.entries.forEach { button ->
                 val checked = button.id in settings.quickButtons
@@ -1417,7 +1426,7 @@ private fun PanelOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
             }
         }
     }
-    Hint("До 5 кнопок, по порядку выбора")
+    Hint("До пяти кнопок, в порядке выбора.")
 }
 
 @Composable
@@ -1533,7 +1542,7 @@ private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: M
 
 @Composable
 internal fun Group(label: String, icon: ImageVector? = null, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth().fieldSurface(appCorner(18)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (icon != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SettingIcon(icon, 30.dp)
@@ -1549,16 +1558,7 @@ internal fun Group(label: String, icon: ImageVector? = null, content: @Composabl
 
 @Composable
 internal fun Hint(text: String) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Icon(AppIcons.Info, null, tint = AppColors.Faint, modifier = Modifier.size(14.dp))
-        Text(
-            text,
-            color = AppColors.Faint,
-            maxLines = 1,
-            softWrap = false,
-            autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 12.sp, stepSize = 0.5.sp),
-        )
-    }
+    Text(text, color = AppColors.Faint, fontSize = 12.sp, lineHeight = 17.sp)
 }
 
 @Composable
@@ -1566,7 +1566,7 @@ private fun CheckMark(checked: Boolean) {
     val bg by animateColorAsState(if (checked) AppColors.Accent else Color.Transparent, label = "check")
     val shape = appCorner(7)
     Box(
-        Modifier.size(24.dp).clip(shape).background(bg).border(2.dp, if (checked) AppColors.Accent else Color(0xFF4A4E56), shape),
+        Modifier.size(24.dp).clip(shape).background(bg).border(2.dp, if (checked) AppColors.Accent else AppColors.Faint, shape),
         contentAlignment = Alignment.Center,
     ) {
         if (checked) Icon(AppIcons.Check, null, tint = AppColors.OnAccent, modifier = Modifier.size(16.dp))
@@ -1586,10 +1586,7 @@ internal fun StepSlider(
 ) {
     var current by remember(value) { mutableFloatStateOf(value.toFloat()) }
     val steps = ((range.endInclusive - range.start) / step).roundToInt() - 1
-    Column(
-        Modifier.fillMaxWidth().fieldSurface(appCorner(18)).padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 4.dp).alpha(if (enabled) 1f else 0.4f),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
+    Column(Modifier.alpha(if (enabled) 1f else 0.4f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (icon != null) {
                 SettingIcon(icon, 30.dp)
@@ -1644,7 +1641,7 @@ internal fun Segmented(label: String, options: List<String>, selected: Int, icon
                         .height(40.dp)
                         .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.96f) { onSelect(i) }
                         .background(bg)
-                        .then(if (isSelected) Modifier.border(1.dp, Color(0xFF41454D), shape) else Modifier),
+                        .then(if (isSelected) Modifier.border(1.dp, AppColors.PanelBorder, shape) else Modifier),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
@@ -1669,16 +1666,12 @@ internal fun SwitchRow(label: String, checked: Boolean, enabled: Boolean = true,
         feedback?.play(FeedbackSound.Toggle, view)
         onChange(v)
     }
-    val rowShape = appCorner(18)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 60.dp)
+            .heightIn(min = 52.dp)
             .alpha(if (enabled) 1f else 0.4f)
-            .clip(rowShape)
-            .clickable(enabled = enabled) { change(!checked) }
-            .fieldSurface(rowShape)
-            .padding(horizontal = 14.dp),
+            .clickable(enabled = enabled) { change(!checked) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) {
@@ -1908,7 +1901,7 @@ private fun JumpContent(jump: JumpInfo, onClose: () -> Unit) {
                     .height(56.dp)
                     .clip(appCorner(14))
                     .background(AppColors.Field)
-                    .border(1.dp, if (input.isNotEmpty() && target == null) Color(0xFFF08A8A) else AppColors.Line, appCorner(14))
+                    .border(1.dp, if (input.isNotEmpty() && target == null) AppColors.Bad else AppColors.Line, appCorner(14))
                     .padding(horizontal = 14.dp, vertical = 14.dp),
                 decorationBox = { inner ->
                     Box(contentAlignment = Alignment.Center) {
@@ -1977,50 +1970,5 @@ private fun AiChapterButton(icon: ImageVector, title: String, hint: String, onCl
             )
         }
         Icon(AppIcons.Forward, null, tint = AppColors.Faint, modifier = Modifier.size(18.dp))
-    }
-}
-
-private fun sheetIcon(sheet: ReaderSheet): ImageVector = when (sheet) {
-    ReaderSheet.Options -> AppIcons.Options
-    ReaderSheet.Toc -> AppIcons.Toc
-    ReaderSheet.Text, ReaderSheet.Fonts -> AppIcons.TextSize
-    ReaderSheet.Scroll -> AppIcons.Pages
-    ReaderSheet.Theme -> AppIcons.Theme
-    ReaderSheet.Panel -> AppIcons.Panel
-    ReaderSheet.Gestures -> AppIcons.Gesture
-    ReaderSheet.Screen -> AppIcons.Screen
-    ReaderSheet.Sound -> AppIcons.Sound
-    ReaderSheet.Listen -> AppIcons.Headphones
-    ReaderSheet.Notes, ReaderSheet.NoteEditor -> AppIcons.Note
-    ReaderSheet.Bookmarks -> AppIcons.Bookmark
-    ReaderSheet.Quote -> AppIcons.Quote
-    ReaderSheet.Search -> AppIcons.Search
-    ReaderSheet.Jump -> AppIcons.Forward
-    ReaderSheet.AiMenu, ReaderSheet.AiChat, ReaderSheet.AiSetup, ReaderSheet.AiChapter -> AppIcons.Sparkle
-    else -> AppIcons.Options
-}
-
-@Composable
-private fun SheetTitle(title: String, icon: ImageVector) {
-    Row(
-        Modifier
-            .heightIn(min = 44.dp)
-            .fieldSurface(CircleShape)
-            .padding(start = 6.dp, end = 18.dp, top = 6.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Box(
-            Modifier.size(32.dp).clip(CircleShape).background(AppColors.AccentSoft),
-            contentAlignment = Alignment.Center,
-        ) { Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(17.dp)) }
-        Text(
-            title,
-            color = AppColors.Text,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            softWrap = false,
-            autoSize = TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 17.sp, stepSize = 0.5.sp),
-        )
     }
 }

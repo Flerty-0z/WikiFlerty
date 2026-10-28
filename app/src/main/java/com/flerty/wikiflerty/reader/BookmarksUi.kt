@@ -161,7 +161,7 @@ internal fun BookmarkList(bookmarks: List<Bookmark>, actions: BookmarkActions, m
     }
 }
 
-private val DeleteColor = Color(0xFFF08A8A)
+private val DeleteColor get() = AppColors.Bad
 
 @Composable
 private fun BookmarkRow(bookmark: Bookmark, onOpen: () -> Unit, onDelete: () -> Unit, modifier: Modifier) {

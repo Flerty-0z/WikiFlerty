@@ -62,7 +62,7 @@ import java.time.ZoneId
 import kotlinx.coroutines.launch
 import androidx.compose.animation.togetherWith
 
-private val Danger = Color(0xFFF08A8A)
+private val Danger get() = AppColors.Bad
 
 val LocalSheetClose = androidx.compose.runtime.staticCompositionLocalOf<(() -> Unit)?> { null }
 
@@ -364,7 +364,7 @@ private fun BookStatsContent(app: App, book: Book, onBack: () -> Unit) {
 fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
     AppSheet(onDismiss, title = "Вид и сортировка") {
-        SettingsGroup("Сортировка", AppIcons.Sort) {
+        SettingsGroup("Сортировка") {
             LibrarySort.entries.forEach { sort ->
                 val selected = sort == prefs.sort
                 Row(
@@ -396,7 +396,7 @@ fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
                 app.libraryPrefs.update { it.copy(descending = if (names) !wantFirst else wantFirst) }
             }
         }
-        SettingsGroup("Вид", AppIcons.Grid) {
+        SettingsGroup("Вид") {
             PickerRow(
                 label = "Прогресс",
                 icon = AppIcons.Percent,

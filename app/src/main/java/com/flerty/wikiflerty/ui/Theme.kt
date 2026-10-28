@@ -48,6 +48,7 @@ enum class UiBase(
     val field: Long,
     val line: Long,
     val ambience: Ambience? = null,
+    val light: Boolean = false,
 ) {
     Aurora(
         "aurora", "Сияние", 0xFF0A0D18, 0xFF161B2E, 0xFF1B2240, 0xFF13172A, 0xFF262D48, 0xFF3C4670, 0xFF111528, 0xFF2A3150,
@@ -102,6 +103,10 @@ enum class UiBase(
             ),
         ),
     ),
+    Cream(
+        "cream", "Крем", 0xFFFBF7F1, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFBF7F1, 0xFFEFE6DA, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFEEE4D8,
+        light = true,
+    ),
     Dark("dark", "Тёмная", 0xFF101113, 0xFF1F2125, 0xFF25282D, 0xFF1C1E22, 0xFF2C2F34, 0xFF454952, 0xFF16171A, 0xFF33363C),
     Graphite("graphite", "Графит", 0xFF141414, 0xFF222222, 0xFF292929, 0xFF1F1F1F, 0xFF323232, 0xFF4A4A4A, 0xFF191919, 0xFF3A3A3A),
     Ocean("ocean", "Океан", 0xFF0D1117, 0xFF161D27, 0xFF1B2431, 0xFF141B25, 0xFF243042, 0xFF3A4A63, 0xFF0F151E, 0xFF2A3546),
@@ -154,6 +159,7 @@ data class UiStyle(
     val motionSpeed: String = MotionSpeed.Normal.id,
     val motionStyle: String = MotionStyle.Soft.id,
     val press: String = PressStrength.Normal.id,
+    val navigation: String = "drawer",
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("version", 1)
@@ -175,6 +181,7 @@ data class UiStyle(
         put("motionSpeed", motionSpeed)
         put("motionStyle", motionStyle)
         put("press", press)
+        put("navigation", navigation)
     }
 
     companion object {
@@ -198,6 +205,7 @@ data class UiStyle(
                 animations = json.optBoolean("animations", d.animations),
                 motionSpeed = json.optString("motionSpeed", d.motionSpeed),
                 motionStyle = json.optString("motionStyle", d.motionStyle),
+                navigation = json.optString("navigation", d.navigation),
                 press = json.optString(
                     "press",
                     if (json.has("pressEffect") && !json.optBoolean("pressEffect", true)) PressStrength.Off.id else d.press,
@@ -214,6 +222,7 @@ data class StylePreset(
     val font: String? = null,
     val buttons: ButtonLook? = null,
     val corners: Float? = null,
+    val navigation: String? = null,
 ) {
     fun applyTo(style: UiStyle) = style.copy(
         base = base.id,
@@ -221,6 +230,7 @@ data class StylePreset(
         font = font ?: style.font,
         buttons = buttons?.id ?: style.buttons,
         corners = corners ?: style.corners,
+        navigation = navigation ?: "drawer",
         ambience = true,
     )
 
@@ -228,6 +238,7 @@ data class StylePreset(
 }
 
 val StyleTemplates = listOf(
+    StylePreset("Крем", UiBase.Cream, 0xFFD9772A, font = "nunito", buttons = ButtonLook.Filled, corners = 1.1f, navigation = "bottom"),
     StylePreset("Сияние", UiBase.Aurora, 0xFF8AB4F8, font = "onest", buttons = ButtonLook.Soft, corners = 1f),
     StylePreset("Ночная библиотека", UiBase.Lamp, 0xFFF2C46B, font = "lora", buttons = ButtonLook.Soft, corners = 0.8f),
     StylePreset("Глубина океана", UiBase.Deep, 0xFF5EEAD4, font = "manrope", buttons = ButtonLook.Filled, corners = 1.1f),
@@ -252,6 +263,8 @@ object AppStyle {
         internal set
 
     val base: UiBase get() = UiBase.of(current.base)
+    val light: Boolean get() = base.light
+    val bottomNav: Boolean get() = current.navigation == "bottom"
     val buttons: ButtonLook get() = ButtonLook.of(current.buttons)
 }
 
@@ -300,9 +313,15 @@ object AppColors {
     val EdgeTop: Color get() = Color(base.edgeTop)
     val Field: Color get() = Color(base.field)
     val Line: Color get() = Color(base.line)
-    val Text = Color(0xFFECEDEF)
-    val Muted = Color(0xFFA3A7AF)
-    val Faint = Color(0xFF8A8E96)
+    private val light get() = AppStyle.light
+    val Text: Color get() = if (light) Color(0xFF2B2520) else Color(0xFFECEDEF)
+    val Muted: Color get() = if (light) Color(0xFF85796A) else Color(0xFFA3A7AF)
+    val Faint: Color get() = if (light) Color(0xFF9A8E7E) else Color(0xFF8A8E96)
+    val Good: Color get() = if (light) Color(0xFF2E8B57) else Color(0xFF7ED3A0)
+    val Warn: Color get() = if (light) Color(0xFFC07514) else Color(0xFFF2B36B)
+    val Bad: Color get() = if (light) Color(0xFFD0443E) else Color(0xFFF08A8A)
+    val Info: Color get() = if (light) Color(0xFF3D6EF5) else Color(0xFF8AB4F8)
+    val Shade: Color get() = if (light) Color(0xFF2B2520) else Color.White
 
     val Accent: Color get() = Color(AppStyle.current.accent)
     val OnAccent: Color get() = if (Accent.luminance() > 0.4f) Color(0xFF0D1424) else Color.White
@@ -319,7 +338,17 @@ fun appCorner(radius: Int): RoundedCornerShape = RoundedCornerShape((radius * Ap
 fun WikiFlertyTheme(content: @Composable () -> Unit) {
     val style = AppStyle.current
     val context = LocalContext.current
-    val colors = darkColorScheme(
+    val view = androidx.compose.ui.platform.LocalView.current
+    val light = AppStyle.light
+    androidx.compose.runtime.SideEffect {
+        val window = (view.context as? android.app.Activity)?.window ?: return@SideEffect
+        androidx.core.view.WindowCompat.getInsetsController(window, view).apply {
+            isAppearanceLightStatusBars = light
+            isAppearanceLightNavigationBars = light
+        }
+    }
+    val scheme = if (light) androidx.compose.material3.lightColorScheme() else darkColorScheme()
+    val colors = scheme.copy(
         primary = AppColors.Accent,
         onPrimary = AppColors.OnAccent,
         primaryContainer = AppColors.AccentTintStrong,

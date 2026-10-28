@@ -286,5 +286,5 @@ fun TtsOptions(
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier.liveClick(appCorner(8), sound = FeedbackSound.Open) { ReadAloud.installVoices(context) }.padding(vertical = 4.dp),
     )
-    Hint("Больше голосов: RHVoice в Play Маркете")
+    Hint("Новые движки ставятся из Play Маркета: RHVoice, Sherpa TTS — и сразу появляются здесь.")
 }

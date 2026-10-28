@@ -48,8 +48,8 @@ import com.flerty.wikiflerty.system.CrashLog
 import com.flerty.wikiflerty.system.UpdateState
 import kotlinx.coroutines.launch
 
-private val Good = Color(0xFF7ED3A0)
-private val Bad = Color(0xFFF08A8A)
+private val Good get() = AppColors.Good
+private val Bad get() = AppColors.Bad
 
 @Composable
 fun AboutScreen(modifier: Modifier = Modifier) {
@@ -88,7 +88,7 @@ fun AboutScreen(modifier: Modifier = Modifier) {
             }
         }
 
-        SettingsGroup("Обновления", AppIcons.Backup) {
+        SettingsGroup("Обновления") {
             UpdatePanel(app, Modifier.padding(vertical = 8.dp))
             SettingSwitch(
                 label = "Проверять автоматически",
@@ -98,7 +98,7 @@ fun AboutScreen(modifier: Modifier = Modifier) {
             ) { app.updates.setAuto(it) }
         }
 
-        SettingsGroup("Журнал сбоев", AppIcons.Info) {
+        SettingsGroup("Журнал сбоев") {
             Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (crashes.isEmpty()) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

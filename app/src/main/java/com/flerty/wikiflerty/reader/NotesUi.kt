@@ -224,7 +224,7 @@ fun NoteCard(
             if (note.note.isNotBlank()) {
                 Text(
                     com.flerty.wikiflerty.ui.markdown(note.note),
-                    color = Color(0xFFC9CDD4),
+                    color = AppColors.Text.copy(alpha = 0.82f),
                     fontSize = 14.sp,
                     lineHeight = 19.sp,
                     maxLines = 3,
@@ -236,10 +236,7 @@ fun NoteCard(
                 note.chapter?.takeIf { it.isNotBlank() },
                 "${(note.progression * 100).roundToInt()}%",
             ).joinToString(" · ")
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(AppIcons.Bookmark, null, tint = AppColors.Faint, modifier = Modifier.size(13.dp))
-                Text(meta, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
+            Text(meta, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (onEdit != null) {
             Box(
@@ -297,7 +294,7 @@ fun NoteEditor(
             Box(Modifier.width(4.dp).fillMaxHeight().background(quoteBorder))
             Text(
                 draft.text,
-                color = Color(0xFFD0CEC8),
+                color = AppColors.Text.copy(alpha = 0.85f),
                 fontFamily = FontFamily.Serif,
                 fontSize = 15.sp,
                 lineHeight = 22.sp,
@@ -359,7 +356,7 @@ fun NoteEditor(
                         Modifier
                             .size(40.dp)
                             .liveClick(CircleShape, sound = FeedbackSound.Toggle) { if (editing == -1) editing = null else startEdit(-1) }
-                            .border(1.dp, if (editing == -1) AppColors.Accent else Color(0xFF4A4E56), CircleShape)
+                            .border(1.dp, if (editing == -1) AppColors.Accent else AppColors.Faint, CircleShape)
                             .semantics { contentDescription = "Добавить цвет" },
                         contentAlignment = Alignment.Center,
                     ) {
@@ -432,7 +429,7 @@ fun NoteEditor(
             ) {
                 Text(
                     if (id != null) "Удалить" else "Отмена",
-                    color = if (id != null) Color(0xFFF08A8A) else AppColors.Text,
+                    color = if (id != null) AppColors.Bad else AppColors.Text,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -531,7 +528,7 @@ private fun ColorSettings(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(AppIcons.Trash, "Удалить цвет", tint = Color(0xFFF08A8A), modifier = Modifier.size(22.dp))
+                    Icon(AppIcons.Trash, "Удалить цвет", tint = AppColors.Bad, modifier = Modifier.size(22.dp))
                 }
             }
             Box(

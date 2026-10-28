@@ -52,7 +52,6 @@ object AppIcons {
         )
     }
     val Sound by lazy { icon("sound", "M4 10v4h4l5 4V6L8 10H4z", "M16 9a4 4 0 0 1 0 6", "M18.5 6.5a8 8 0 0 1 0 11") }
-    val Upload by lazy { icon("upload", "M12 15V3", "M7 8l5-5 5 5", "M4 16v4h16v-4") }
     val Backup by lazy { icon("backup", "M12 3v12", "M7 10l5 5 5-5", "M4 16v4h16v-4") }
     val Heart by lazy { icon("heart", "M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z") }
     val HeartFilled by lazy {

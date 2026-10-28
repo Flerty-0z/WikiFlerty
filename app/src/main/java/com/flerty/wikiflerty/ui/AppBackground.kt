@@ -167,7 +167,7 @@ fun AmbienceBackground(base: UiBase, ambience: Ambience, modifier: Modifier) {
         if (ambience.dots) {
             val step = 18.dp.toPx()
             val dot = 1.dp.toPx()
-            val color = Color.White.copy(alpha = 0.07f)
+            val color = AppColors.Shade.copy(alpha = 0.07f)
             var y = step / 2
             while (y < h) {
                 var x = step / 2

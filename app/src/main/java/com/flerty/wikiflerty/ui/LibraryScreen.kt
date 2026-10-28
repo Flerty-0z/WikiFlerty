@@ -93,8 +93,8 @@ fun progressLabel(book: Book, inPages: Boolean): String =
 
 fun statusColor(status: ReadStatus): Color = when (status) {
     ReadStatus.Reading -> AppColors.Accent
-    ReadStatus.Finished -> Color(0xFF7ED3A0)
-    ReadStatus.Planned -> Color(0xFFF2C46B)
+    ReadStatus.Finished -> AppColors.Good
+    ReadStatus.Planned -> AppColors.Warn
     ReadStatus.New -> AppColors.Muted
 }
 
@@ -210,12 +210,12 @@ fun LibraryScreen(
                 modifier = Modifier.fillMaxSize(),
             ) {
                 if (current != null) {
-                    item(key = "continue-title", span = { GridItemSpan(maxLineSpan) }) { SectionHeader("Продолжить", icon = AppIcons.Book, action = if (goalText != null) { { HeaderAction(goalText, AppIcons.Target) } } else null) }
+                    item(key = "continue-title", span = { GridItemSpan(maxLineSpan) }) { SectionHeader("Продолжить", icon = AppIcons.Book, action = if (goalText != null) { { InfoChip(goalText, AppColors.Accent, AppIcons.Target) } } else null) }
                     item(key = "continue", span = { GridItemSpan(maxLineSpan) }) {
                         ContinueCard(current, viewModel.coverFile(current), todayMs, prefs.dailyGoalMinutes, prefs.progressInPages) { open(current) }
                     }
                 }
-                item(key = "books-title", span = { GridItemSpan(maxLineSpan) }) { SectionHeader(active.sectionTitle, icon = AppIcons.Shelf, count = shown.size, action = { HeaderAction(prefs.sort.title, AppIcons.Sort) { controls.showViewSheet = true } }) }
+                item(key = "books-title", span = { GridItemSpan(maxLineSpan) }) { SectionHeader(active.sectionTitle, icon = AppIcons.Shelf, count = shown.size, action = { ActionPill(prefs.sort.title, AppIcons.Sort) { controls.showViewSheet = true } }) }
                 items(shown, key = { it.id }) { book ->
                     Box(motionItem()) {
                         BookCard(book, viewModel.coverFile(book), small = prefs.coverSize == 0, inPages = prefs.progressInPages, onClick = { open(book) }, onLongClick = { longPress(book) })
@@ -229,12 +229,12 @@ fun LibraryScreen(
                 modifier = Modifier.fillMaxSize(),
             ) {
                 if (current != null) {
-                    item(key = "continue-title") { SectionHeader("Продолжить", icon = AppIcons.Book, action = if (goalText != null) { { HeaderAction(goalText, AppIcons.Target) } } else null) }
+                    item(key = "continue-title") { SectionHeader("Продолжить", icon = AppIcons.Book, action = if (goalText != null) { { InfoChip(goalText, AppColors.Accent, AppIcons.Target) } } else null) }
                     item(key = "continue") {
                         ContinueCard(current, viewModel.coverFile(current), todayMs, prefs.dailyGoalMinutes, prefs.progressInPages) { open(current) }
                     }
                 }
-                item(key = "books-title") { SectionHeader(active.sectionTitle, icon = AppIcons.Shelf, count = shown.size, action = { HeaderAction(prefs.sort.title, AppIcons.Sort) { controls.showViewSheet = true } }) }
+                item(key = "books-title") { SectionHeader(active.sectionTitle, icon = AppIcons.Shelf, count = shown.size, action = { ActionPill(prefs.sort.title, AppIcons.Sort) { controls.showViewSheet = true } }) }
                 items(shown, key = { it.id }) { book ->
                     Box(motionItem()) {
                         BookRow(book, viewModel.coverFile(book), inPages = prefs.progressInPages, onClick = { open(book) }, onLongClick = { longPress(book) })
@@ -365,7 +365,7 @@ private fun LibraryFilterSheet(
         }
         val shelves = filters.filter { it.isShelf }
         if (shelves.isNotEmpty()) {
-            SettingsGroup("Полки", AppIcons.Shelf) {
+            SettingsGroup("Полки") {
                 shelves.forEach { f ->
                     FilterRow(f, counts[f.id] ?: 0, f.id == selectedId, onEdit = { onEditShelf(f.title) }) { onSelect(f.id) }
                 }

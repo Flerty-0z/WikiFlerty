@@ -174,7 +174,7 @@ private fun AchievementBadge(
 ) {
     val earned = earnedAt != null
     Column(modifier.padding(horizontal = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        AchievementMedal(achievement, earned, progress.fraction(achievement), 60.dp)
+        AchievementMedal(achievement, earned, progress.fraction(achievement), if (withHint) 62.dp else 56.dp)
         Spacer(Modifier.height(8.dp))
         Text(
             achievement.title,
@@ -513,7 +513,7 @@ fun AchievementsPage(modifier: Modifier = Modifier, onBack: () -> Unit) {
                 SectionHeader(
                     kindTitle(kind),
                     icon = style.icon,
-                    action = { HeaderAction("${group.count { it.id in unlocked }} / ${group.size}", color = Color(style.from)) },
+                    action = { InfoChip("${group.count { it.id in unlocked }} / ${group.size}", Color(style.from)) },
                 )
                 Column(
                     Modifier.fillMaxWidth().fieldSurface(appCorner(18)).padding(horizontal = 6.dp, vertical = 14.dp),
@@ -522,7 +522,7 @@ fun AchievementsPage(modifier: Modifier = Modifier, onBack: () -> Unit) {
                     group.chunked(3).forEach { row ->
                         Row(Modifier.fillMaxWidth()) {
                             row.forEach { achievement ->
-                                AchievementBadge(achievement, unlocked[achievement.id], progress, Modifier.weight(1f))
+                                AchievementBadge(achievement, unlocked[achievement.id], progress, Modifier.weight(1f), withHint = true)
                             }
                             repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                         }
