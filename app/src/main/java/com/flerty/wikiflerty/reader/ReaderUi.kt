@@ -94,6 +94,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.flerty.wikiflerty.ui.AppColors
+import com.flerty.wikiflerty.ai.AiAction
 import com.flerty.wikiflerty.ui.Motion
 import com.flerty.wikiflerty.ui.PickerOption
 import com.flerty.wikiflerty.ui.PickerRow
@@ -137,6 +138,8 @@ enum class ReaderSheet(val title: String, val depth: Int) {
     AiChat("ИИ", 0),
     AiSetup("Нейросети", 1),
     Search("Поиск", 0),
+    Jump("Переход", 0),
+    AiChapter("ИИ по главе", 1),
 }
 
 class ReaderUiState {
@@ -330,6 +333,7 @@ fun ReaderOverlay(
                 onSeek = onSeek,
                 bookmarked = state.bookmarked,
                 onBookmark = bookmarkActions.onToggle,
+                onJump = { state.sheet = ReaderSheet.Jump },
             )
         }
 
@@ -388,6 +392,7 @@ fun ReaderOverlay(
                         bookLanguage = bookLanguage,
                         search = search,
                         auto = auto,
+                        jump = JumpInfo(state.progression, state.position, state.totalPositions, onSeek),
                         sheet = sheet,
                         settings = settings,
                         fonts = fonts,
@@ -565,6 +570,7 @@ private fun TopPanel(
     onSeek: (Double) -> Unit,
     bookmarked: Boolean,
     onBookmark: () -> Unit,
+    onJump: () -> Unit,
 ) {
     var preview by remember { mutableStateOf<Double?>(null) }
     Row(
@@ -612,6 +618,9 @@ private fun TopPanel(
                     fontSize = 12.sp,
                     fontWeight = if (preview != null) FontWeight.SemiBold else FontWeight.Normal,
                     maxLines = 1,
+                    modifier = Modifier
+                        .liveClick(appCorner(8), sound = FeedbackSound.Open, pressedScale = 0.9f, onClick = onJump)
+                        .padding(horizontal = 4.dp, vertical = 6.dp),
                 )
             }
         }
@@ -910,6 +919,7 @@ private fun SheetContent(
     bookLanguage: String?,
     search: SearchActions,
     auto: AutoActions,
+    jump: JumpInfo,
 ) {
     Column(
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
@@ -974,6 +984,13 @@ private fun SheetContent(
                 QuoteContent(quote, quoteActions, Modifier.weight(1f, fill = false))
             }
             ReaderSheet.Search -> SearchContent(search, Modifier.weight(1f, fill = false))
+            ReaderSheet.Jump -> JumpContent(jump, onClose)
+            ReaderSheet.AiChapter -> AiChapterContent(
+                hasAi = ai.manager.current() != null,
+                onRecap = { ai.onChapter(AiAction.Recap); onOpen(ReaderSheet.AiChat) },
+                onQuiz = { ai.onChapter(AiAction.Quiz); onOpen(ReaderSheet.AiChat) },
+                onSetup = { onOpen(ReaderSheet.AiSetup) },
+            )
             ReaderSheet.Fonts -> FontList(fonts, settings, onSettingsChange, Modifier.weight(1f, fill = false))
             ReaderSheet.AiMenu -> AiMenuContent(
                 bridge = ai,
@@ -1029,6 +1046,7 @@ private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
         Tile(ReaderSheet.Screen, "Яркость, поворот", AppIcons.Screen, 0xFFF7D774, 0xFFD9A92B, dark = true),
         Tile(ReaderSheet.Listen, "Голос, скорость", AppIcons.Headphones, 0xFF8BD3A5, 0xFF3E9E66, dark = true),
         Tile(ReaderSheet.Sound, "Звуки, вибрация", AppIcons.Sound, 0xFFF6A26B, 0xFFD9692B),
+        Tile(ReaderSheet.AiChapter, "Пересказ, тест", AppIcons.Book, 0xFF7DD3FC, 0xFF3B82C4),
         Tile(ReaderSheet.AiSetup, "Нейросети, модели", AppIcons.Sparkle, 0xFF8AB4F8, 0xFF7653E0),
     )
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1830,5 +1848,126 @@ private fun AutoMini(paused: Boolean, progress: Float?, onExpand: () -> Unit) {
             )
         }
         Icon(if (paused) AppIcons.Play else AppIcons.Pause, null, tint = AppColors.Text, modifier = Modifier.size(13.dp))
+    }
+}
+
+class JumpInfo(val progression: Double, val position: Int?, val total: Int, val onSeek: (Double) -> Unit)
+
+@Composable
+private fun JumpContent(jump: JumpInfo, onClose: () -> Unit) {
+    var pages by remember { mutableStateOf(jump.total > 1) }
+    var input by remember { mutableStateOf("") }
+    val value = input.replace(',', '.').toDoubleOrNull()
+    val target: Double? = when {
+        value == null -> null
+        pages -> if (jump.total > 1 && value >= 1 && value <= jump.total) (value - 1) / (jump.total - 1) else null
+        else -> if (value in 0.0..100.0) value / 100.0 else null
+    }
+    val go: () -> Unit = {
+        if (target != null) {
+            jump.onSeek(target)
+            onClose()
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (jump.total > 1) {
+            Segmented("Куда", listOf("Страница", "Процент"), if (pages) 0 else 1, icon = AppIcons.Pages) { i ->
+                pages = i == 0
+                input = ""
+            }
+        }
+        Text(
+            if (pages) "Сейчас: стр. ${jump.position ?: 1} из ${jump.total}" else "Сейчас: ${(jump.progression * 100).roundToInt()}%",
+            color = AppColors.Muted,
+            fontSize = 13.sp,
+            maxLines = 1,
+            modifier = Modifier.padding(start = 4.dp),
+        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            androidx.compose.foundation.text.BasicTextField(
+                value = input,
+                onValueChange = { v -> input = v.filter { it.isDigit() || (!pages && (it == '.' || it == ',')) }.take(6) },
+                singleLine = true,
+                textStyle = TextStyle(color = AppColors.Text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(AppColors.Accent),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = if (pages) androidx.compose.ui.text.input.KeyboardType.Number else androidx.compose.ui.text.input.KeyboardType.Decimal,
+                    imeAction = androidx.compose.ui.text.input.ImeAction.Go,
+                ),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onGo = { go() }),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(56.dp)
+                    .clip(appCorner(14))
+                    .background(AppColors.Field)
+                    .border(1.dp, if (input.isNotEmpty() && target == null) Color(0xFFF08A8A) else AppColors.Line, appCorner(14))
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                decorationBox = { inner ->
+                    Box(contentAlignment = Alignment.Center) {
+                        if (input.isEmpty()) {
+                            Text(if (pages) "1–${jump.total}" else "0–100 %", color = AppColors.Faint, fontSize = 20.sp)
+                        }
+                        inner()
+                    }
+                },
+            )
+            Box(
+                Modifier
+                    .size(56.dp)
+                    .liveClick(appCorner(14), sound = FeedbackSound.Open, enabled = target != null, onClick = go)
+                    .background(if (target != null) AppColors.Accent else AppColors.Line, appCorner(14)),
+                contentAlignment = Alignment.Center,
+            ) { Icon(AppIcons.Forward, "Перейти", tint = if (target != null) AppColors.OnAccent else AppColors.Faint, modifier = Modifier.size(24.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun AiChapterContent(hasAi: Boolean, onRecap: () -> Unit, onQuiz: () -> Unit, onSetup: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (hasAi) {
+            AiChapterButton(AppIcons.Book, "Пересказ главы", "Что было до этого места", onRecap)
+            AiChapterButton(AppIcons.Check, "Тест по главе", "5 вопросов, ответы проверит ИИ", onQuiz)
+            Text(
+                "ИИ видит только прочитанную часть главы",
+                color = AppColors.Faint,
+                fontSize = 12.sp,
+                maxLines = 1,
+                modifier = Modifier.padding(start = 4.dp),
+            )
+        } else {
+            AiChapterButton(AppIcons.Sparkle, "Подключить нейросеть", "Нужен ключ любой нейросети", onSetup)
+        }
+    }
+}
+
+@Composable
+private fun AiChapterButton(icon: ImageVector, title: String, hint: String, onClick: () -> Unit) {
+    val shape = appCorner(16)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onClick = onClick)
+            .fieldSurface(shape)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            Modifier.size(40.dp).clip(appCorner(12)).background(AppColors.AccentSoft),
+            contentAlignment = Alignment.Center,
+        ) { Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp)) }
+        Column(Modifier.weight(1f)) {
+            Text(title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(
+                hint,
+                color = AppColors.Muted,
+                fontSize = 12.sp,
+                maxLines = 1,
+                softWrap = false,
+                autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 12.sp, stepSize = 0.5.sp),
+            )
+        }
+        Icon(AppIcons.Forward, null, tint = AppColors.Faint, modifier = Modifier.size(18.dp))
     }
 }

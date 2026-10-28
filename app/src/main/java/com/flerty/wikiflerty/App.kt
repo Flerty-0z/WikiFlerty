@@ -61,6 +61,8 @@ class App : Application() {
 
     val crashLog: com.flerty.wikiflerty.system.CrashLog by lazy { com.flerty.wikiflerty.system.CrashLog(this) }
 
+    val autoBackup: com.flerty.wikiflerty.system.AutoBackup by lazy { com.flerty.wikiflerty.system.AutoBackup(this) }
+
     val updates: com.flerty.wikiflerty.system.Updates by lazy { com.flerty.wikiflerty.system.Updates(this) }
 
     val backgroundAudio: com.flerty.wikiflerty.system.BackgroundAudio by lazy { com.flerty.wikiflerty.system.BackgroundAudio(this) }
@@ -92,6 +94,10 @@ class App : Application() {
         appScope.launch { library.ensureFingerprints() }
         backgroundAudio.install()
         achievements.start(appScope)
+        appScope.launch {
+            kotlinx.coroutines.delay(20_000)
+            autoBackup.runIfDue()
+        }
     }
 
     suspend fun prepareReader(book: Book, startAt: Locator? = null): Result<Unit> {

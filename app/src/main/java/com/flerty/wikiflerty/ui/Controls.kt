@@ -61,9 +61,7 @@ import kotlin.math.roundToInt
 @Composable
 fun SettingsGroup(title: String?, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (title != null) {
-            Text(title, color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp))
-        }
+        if (title != null) SectionHeader(title)
         Column(
             Modifier
                 .fillMaxWidth()

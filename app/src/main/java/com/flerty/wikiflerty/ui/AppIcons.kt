@@ -161,6 +161,8 @@ object AppIcons {
     val EyeOff by lazy {
         icon("eye-off", "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z", "M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6z", "M4 4l16 16")
     }
+    val Folder by lazy { icon("folder", "M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z") }
+    val FolderSearch by lazy { icon("folder-search", "M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v3", "M3 6.5v12A1.5 1.5 0 0 0 4.5 20H11", "M16.5 13a3 3 0 1 0 0 6a3 3 0 1 0 0-6z", "M21 21l-2.3-2.3") }
     val Search by lazy { icon("search", "M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14z", "M20 20l-4-4") }
     val Sun by lazy { icon("sun", "M12 7a5 5 0 1 0 0 10a5 5 0 1 0 0-10z", "M12 1v2M12 21v2M1 12h2M21 12h2") }
 }

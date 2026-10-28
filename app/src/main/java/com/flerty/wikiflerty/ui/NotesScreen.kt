@@ -175,21 +175,12 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
         }
         groups.forEach { (bookId, bookNotes) ->
             item(key = "book-$bookId") {
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        titles[bookId] ?: "Удалённая книга",
-                        color = AppColors.Text,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text("${bookNotes.size}", color = AppColors.Muted, fontSize = 13.sp)
-                }
+                SectionHeader(
+                    titles[bookId] ?: "Удалённая книга",
+                    modifier = Modifier.padding(top = 12.dp, bottom = 2.dp),
+                    icon = AppIcons.Book,
+                    count = bookNotes.size,
+                )
             }
             items(bookNotes.sortedBy { it.progression }, key = { it.id }) { note ->
                 Box(motionItem()) {

@@ -202,6 +202,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             onModel = ::switchModel,
             onSaveDictionary = ::saveToDictionary,
             onSaveNote = ::saveAnswerAsNote,
+            onChapter = ::startChapterAi,
         )
     }
 
@@ -978,6 +979,30 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         sendAi()
     }
 
+    private fun startChapterAi(action: AiAction) {
+        val locator = navigator.currentLocator.value
+        val progression = locator.locations.progression ?: 0.0
+        chat.job?.cancel()
+        chat.bubbles.clear()
+        chat.error = null
+        chat.action = action
+        chat.fragment = locator.title?.takeIf { it.isNotBlank() } ?: session.publication.metadata.title.orEmpty()
+        chat.context = ""
+        chat.streaming = true
+        lifecycleScope.launch {
+            val end = (progression + pageSpan).coerceIn(0.05, 1.0)
+            val raw = runCatching { navigator.evaluateJavascript(CHAPTER_TEXT_JS.replace("__END__", end.toString())) }.getOrNull()
+            val text = raw?.let { runCatching { org.json.JSONTokener(it).nextValue() as? String }.getOrNull() }.orEmpty()
+            chat.streaming = false
+            if (text.isBlank()) {
+                chat.error = "Не удалось прочитать текст главы"
+                return@launch
+            }
+            chat.context = text
+            startAi(action, null)
+        }
+    }
+
     private fun followUpAi(text: String) {
         if (chat.streaming || chat.provider == null) return
         chat.bubbles.add(AiBubble(fromUser = true, shown = text, sent = text))
@@ -1460,7 +1485,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
         trackReading()
         visible = false
-        app.appScope.launch(Dispatchers.IO) { app.stats.save() }
+        app.appScope.launch(Dispatchers.IO) {
+            app.stats.save()
+            if (isFinishing) app.autoBackup.runIfDue()
+        }
         com.flerty.wikiflerty.widget.ReadingWidget.refreshSoon(app)
         super.onPause()
     }
@@ -1494,6 +1522,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         const val AUTO_TICK = 100L
         const val SEARCH_LIMIT = 500
         const val PAGE_EPSILON = 0.0005
+        const val CHAPTER_TEXT_JS =
+            "(function(){var t=(document.body.innerText||'').replace(/\\n{3,}/g,'\\n\\n');" +
+                "var n=Math.min(t.length,Math.ceil(t.length*__END__)+600);" +
+                "return t.substring(Math.max(0,n-14000),n);})()"
         const val PAGE_SPAN_JS =
             "(function(){var e=document.scrollingElement||document.documentElement;" +
                 "var w=e.scrollWidth,h=e.scrollHeight,iw=window.innerWidth,ih=window.innerHeight;" +

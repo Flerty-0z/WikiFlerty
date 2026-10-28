@@ -1,10 +1,12 @@
 package com.flerty.wikiflerty.ai
 
-enum class AiAction(val id: String, val title: String, val hint: String, val mark: String) {
+enum class AiAction(val id: String, val title: String, val hint: String, val mark: String, val forSelection: Boolean = true) {
     Explain("explain", "Объяснить", "Просто, с учётом текста вокруг", "?"),
     Define("define", "Определение", "Как в толковом словаре", "Аб"),
     Translate("translate", "Перевод", "На выбранный язык", "En"),
     Ask("ask", "Свой вопрос", "Что угодно об отрывке", "…"),
+    Recap("recap", "Пересказ главы", "Что было до этого места", "≡", forSelection = false),
+    Quiz("quiz", "Тест по главе", "5 вопросов на понимание", "✓", forSelection = false),
 }
 
 object AiPrompts {
@@ -40,6 +42,15 @@ object AiPrompts {
                     "перевод без пояснений.$contextLine"
             AiAction.Ask ->
                 "Вопрос об отрывке «$fragment»: ${question.orEmpty().trim()}$contextLine"
+            AiAction.Recap ->
+                "Кратко перескажи, что происходит в главе «$fragment» до того места, где я сейчас читаю. " +
+                    "По порядку, 6–10 предложений: ключевые события, мысли и выводы автора. Опирайся только на этот текст, " +
+                    "ничего не придумывай и не забегай вперёд.\n\nТекст главы до текущего места:\n«${context.trim()}»"
+            AiAction.Quiz ->
+                "Составь короткий тест на понимание главы «$fragment» — 5 вопросов только по прочитанному тексту ниже. " +
+                    "У каждого вопроса 3 варианта ответа: А, Б, В. Правильные ответы НЕ показывай. В конце попроси меня " +
+                    "ответить одной строкой, например «1А 2В 3Б 4А 5Б». Когда я отвечу — проверь, скажи результат и коротко " +
+                    "объясни ошибки со ссылкой на текст.\n\nТекст главы до текущего места:\n«${context.trim()}»"
         }
     }
 
@@ -48,7 +59,21 @@ object AiPrompts {
         return if (name.endsWith("ий") || name.endsWith("ый")) "$name язык" else name
     }
 
-    fun followUps(settings: AiSettings) = listOf(
+    fun followUps(settings: AiSettings, action: AiAction): List<Pair<String, String>> = when (action) {
+        AiAction.Recap -> listOf(
+            "Короче" to "Перескажи ещё короче — в 3 предложениях.",
+            "Главная мысль" to "Какая главная мысль этой части главы?",
+            "Персонажи" to "Кто здесь действует и что о них важно знать?",
+        )
+        AiAction.Quiz -> listOf(
+            "Ответы" to "Покажи правильные ответы с коротким пояснением.",
+            "Ещё тест" to "Сделай ещё 5 других вопросов по этому же тексту.",
+            "Сложнее" to "Сделай 5 вопросов посложнее, на детали и смысл.",
+        )
+        else -> selectionFollowUps(settings)
+    }
+
+    private fun selectionFollowUps(settings: AiSettings) = listOf(
         "Проще" to "Объясни ещё проще, как для школьника.",
         "Примеры" to "Приведи 2–3 коротких примера употребления.",
         "Синонимы" to "Какие есть синонимы и чем они отличаются по оттенку?",

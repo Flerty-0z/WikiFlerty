@@ -184,12 +184,11 @@ fun BookSheet(
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(book.title, color = AppColors.Text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (book.author.isNotBlank()) Text(book.author, color = AppColors.Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    "${progressLabel(book, app.libraryPrefs.prefs.value.progressInPages)} · ${book.status.title}",
-                    color = AppColors.Faint,
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                )
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    InfoChip(progressLabel(book, app.libraryPrefs.prefs.value.progressInPages), AppColors.Accent)
+                    InfoChip(book.status.title, book.status.chipColor)
+                }
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 RoundButton(AppIcons.Close, "Закрыть", AppColors.Muted, FeedbackSound.Close, sheetClose(onDismiss))
@@ -263,7 +262,7 @@ private fun ColumnScope.BookMainContent(
             ) { id -> ReadStatus.of(id)?.let { status -> scope.launch { app.library.setStatus(book.id, status) } } }
         }
 
-        SheetLabel("Полки")
+        SectionHeader("Полки", icon = AppIcons.Shelf, count = book.shelves.size.takeIf { it > 0 })
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             shelves.forEach { shelf ->
                 val on = shelf in book.shelves

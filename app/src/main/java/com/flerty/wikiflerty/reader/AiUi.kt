@@ -110,6 +110,7 @@ class AiBridge(
     val onModel: (AiProvider, String) -> Unit,
     val onSaveDictionary: () -> Unit,
     val onSaveNote: () -> Unit,
+    val onChapter: (AiAction) -> Unit = {},
 )
 
 @Composable
@@ -140,7 +141,7 @@ fun AiMenuContent(bridge: AiBridge, onSetup: () -> Unit, onStarted: () -> Unit, 
             return@Column
         }
 
-        AiAction.entries.forEach { action ->
+        AiAction.entries.filter { it.forSelection }.forEach { action ->
             val shape = appCorner(14)
             Row(
                 Modifier
@@ -263,7 +264,7 @@ fun AiChatContent(bridge: AiBridge, modifier: Modifier = Modifier) {
         AnimatedVisibility(visible = hasAnswer, enter = fadeIn(Motion.fade(220)) + expandVertically(), exit = fadeOut() + shrinkVertically()) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AiPrompts.followUps(bridge.manager.settings.value).forEach { (label, prompt) ->
+                    AiPrompts.followUps(bridge.manager.settings.value, chat.action).forEach { (label, prompt) ->
                         val shape = appCorner(18)
                         Box(
                             Modifier.height(34.dp)
@@ -274,7 +275,7 @@ fun AiChatContent(bridge: AiBridge, modifier: Modifier = Modifier) {
                         ) { Text(label, color = AppColors.Text, fontSize = 13.sp) }
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (chat.action.forSelection) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AccentButton(
                         if (chat.savedToDictionary) "✓ В словаре" else "В словарь",
                         enabled = !chat.savedToDictionary,

@@ -123,6 +123,7 @@ private fun sorted(books: List<Book>, prefs: LibraryPrefs): List<Book> {
 class LibraryControls {
     var showViewSheet by mutableStateOf(false)
     var shelfDialog by mutableStateOf<ShelfDialog?>(null)
+    var scanFolder by mutableStateOf(false)
 }
 
 @Composable
@@ -130,6 +131,7 @@ fun LibraryTopActions(controls: LibraryControls) {
     val app = LocalContext.current.applicationContext as App
     val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
     Row(Modifier.padding(end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        ToolButton(AppIcons.FolderSearch, "Найти книги на телефоне") { controls.scanFolder = true }
         ToolButton(AppIcons.ShelfAdd, "Новая полка") { controls.shelfDialog = ShelfDialog.Create(null) }
         ToolButton(if (prefs.view == LibraryView.Grid) AppIcons.ListView else AppIcons.Grid, "Вид") {
             app.libraryPrefs.update { it.copy(view = if (it.view == LibraryView.Grid) LibraryView.List else LibraryView.Grid) }
@@ -153,7 +155,8 @@ fun LibraryScreen(
     var showFilterSheet by rememberSaveable { mutableStateOf(false) }
 
     if (books.isEmpty()) {
-        EmptyLibrary(onAddBook, modifier)
+        EmptyLibrary(onAddBook, { controls.scanFolder = true }, modifier)
+        if (controls.scanFolder) FolderScanSheet(onDismiss = { controls.scanFolder = false }, onImport = viewModel::importAll)
         return
     }
 
@@ -208,12 +211,12 @@ fun LibraryScreen(
                 modifier = Modifier.fillMaxSize(),
             ) {
                 if (current != null) {
-                    item(key = "continue-title", span = { GridItemSpan(maxLineSpan) }) { SectionTitle("Продолжить", goalText) }
+                    item(key = "continue-title", span = { GridItemSpan(maxLineSpan) }) { SectionHeader("Продолжить", icon = AppIcons.Book, action = if (goalText != null) { { InfoChip(goalText, AppColors.Accent, AppIcons.Target) } } else null) }
                     item(key = "continue", span = { GridItemSpan(maxLineSpan) }) {
                         ContinueCard(current, viewModel.coverFile(current), todayMs, prefs.dailyGoalMinutes, prefs.progressInPages) { open(current) }
                     }
                 }
-                item(key = "books-title", span = { GridItemSpan(maxLineSpan) }) { SectionTitle(active.sectionTitle, prefs.sort.title) }
+                item(key = "books-title", span = { GridItemSpan(maxLineSpan) }) { SectionHeader(active.sectionTitle, icon = AppIcons.Shelf, count = shown.size, action = { ActionPill(prefs.sort.title, AppIcons.Sort) { controls.showViewSheet = true } }) }
                 items(shown, key = { it.id }) { book ->
                     Box(motionItem()) {
                         BookCard(book, viewModel.coverFile(book), small = prefs.coverSize == 0, inPages = prefs.progressInPages, onClick = { open(book) }, onLongClick = { longPress(book) })
@@ -227,12 +230,12 @@ fun LibraryScreen(
                 modifier = Modifier.fillMaxSize(),
             ) {
                 if (current != null) {
-                    item(key = "continue-title") { SectionTitle("Продолжить", goalText) }
+                    item(key = "continue-title") { SectionHeader("Продолжить", icon = AppIcons.Book, action = if (goalText != null) { { InfoChip(goalText, AppColors.Accent, AppIcons.Target) } } else null) }
                     item(key = "continue") {
                         ContinueCard(current, viewModel.coverFile(current), todayMs, prefs.dailyGoalMinutes, prefs.progressInPages) { open(current) }
                     }
                 }
-                item(key = "books-title") { SectionTitle(active.sectionTitle, prefs.sort.title) }
+                item(key = "books-title") { SectionHeader(active.sectionTitle, icon = AppIcons.Shelf, count = shown.size, action = { ActionPill(prefs.sort.title, AppIcons.Sort) { controls.showViewSheet = true } }) }
                 items(shown, key = { it.id }) { book ->
                     Box(motionItem()) {
                         BookRow(book, viewModel.coverFile(book), inPages = prefs.progressInPages, onClick = { open(book) }, onLongClick = { longPress(book) })
@@ -256,6 +259,7 @@ fun LibraryScreen(
         )
     }
 
+    if (controls.scanFolder) FolderScanSheet(onDismiss = { controls.scanFolder = false }, onImport = viewModel::importAll)
     if (controls.showViewSheet) LibraryViewSheet(prefs, onDismiss = { controls.showViewSheet = false })
 
     if (showFilterSheet) {
@@ -576,7 +580,7 @@ private fun ContinueCard(book: Book, coverFile: File?, todayMs: Long, goalMinute
 }
 
 @Composable
-private fun EmptyLibrary(onAddBook: () -> Unit, modifier: Modifier) {
+private fun EmptyLibrary(onAddBook: () -> Unit, onScan: () -> Unit, modifier: Modifier) {
     Column(
         modifier = modifier.padding(32.dp),
         verticalArrangement = Arrangement.Center,
@@ -598,6 +602,16 @@ private fun EmptyLibrary(onAddBook: () -> Unit, modifier: Modifier) {
                 .accentHighlight(shape).padding(horizontal = 24.dp),
             contentAlignment = Alignment.Center,
         ) { Text("Добавить книгу", color = accentContent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+        Spacer(Modifier.height(10.dp))
+        Row(
+            Modifier.heightIn(min = 44.dp).liveClick(shape, sound = FeedbackSound.Open, onClick = onScan)
+                .border(1.dp, AppColors.Accent.copy(alpha = 0.35f), shape).padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(AppIcons.FolderSearch, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
+            Text("Найти на телефоне", color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        }
     }
 }
 

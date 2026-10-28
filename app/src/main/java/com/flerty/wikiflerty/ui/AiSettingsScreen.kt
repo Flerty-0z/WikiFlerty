@@ -439,13 +439,7 @@ private fun AllProvidersRow(all: List<AiProvider>, connected: Int, onClick: () -
 
 @Composable
 private fun SectionLabel(text: String) {
-    Text(
-        text,
-        color = AppColors.Muted,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.padding(start = 4.dp, top = 4.dp),
-    )
+    SectionHeader(text, modifier = Modifier.padding(top = 4.dp))
 }
 
 @Composable
