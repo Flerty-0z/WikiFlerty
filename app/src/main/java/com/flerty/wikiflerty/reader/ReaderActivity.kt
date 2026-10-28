@@ -355,6 +355,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         ui.footnote = null
         ui.autoActive = true
         ui.autoPaused = false
+        ui.autoProgress = 0f
         runAuto()
     }
 
@@ -383,9 +384,16 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
         stopAutoScrollJs()
         autoJob = lifecycleScope.launch {
+            var elapsed = (ui.autoProgress * AutoScroll.pageDelayMs(settings.autoSpeed)).toLong()
             while (isActive && ui.autoActive && !ui.autoPaused) {
-                delay(AutoScroll.pageDelayMs(settings.autoSpeed))
+                delay(AUTO_TICK)
                 if (ui.sheet != null || ui.selection != null || ui.footnote != null) continue
+                elapsed += AUTO_TICK
+                val total = AutoScroll.pageDelayMs(settings.autoSpeed)
+                ui.autoProgress = (elapsed.toFloat() / total).coerceIn(0f, 1f)
+                if (elapsed < total) continue
+                elapsed = 0
+                ui.autoProgress = 0f
                 if (ui.progression >= 0.9995) {
                     stopAuto()
                     break
@@ -526,7 +534,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 return true
             }
             val s = settings
-            if (s.edgeTaps && !s.scroll) {
+            if (s.edgeTaps) {
                 val width = navigator.publicationView.width.toFloat()
                 if (width > 0f) {
                     val x = event.point.x
@@ -722,7 +730,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         val speedChanged = s.autoSpeed != lastAutoSpeed || s.scroll != lastAutoScrollMode
                         lastAutoSpeed = s.autoSpeed
                         lastAutoScrollMode = s.scroll
-                        if (speedChanged && ui.autoActive && !ui.autoPaused) runAuto()
+                        if (speedChanged && ui.autoActive && !ui.autoPaused && (s.scroll || autoJob?.isActive != true)) runAuto()
                     }
                 }
                 launch {
@@ -989,6 +997,15 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
     }
 
+    private fun scrollPage(forward: Boolean) {
+        lifecycleScope.launch {
+            val moved = runCatching {
+                navigator.evaluateJavascript("window.__wfPage ? window.__wfPage(${if (forward) 1 else -1}) : false")
+            }.getOrNull()
+            if (moved != "true") go(forward, animated = false)
+        }
+    }
+
     private fun onStripTap(left: Boolean) {
         if (ui.autoActive) {
             toggleAuto()
@@ -999,7 +1016,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             return
         }
         val s = settings
-        if (s.edgeTaps && !s.scroll) {
+        if (s.edgeTaps) {
             turn(forward = !left || s.leftTapForward)
         } else {
             ui.panelsVisible = true
@@ -1010,6 +1027,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         if (forward) navigator.goForward(animated = animated) else navigator.goBackward(animated = animated)
 
     private fun turn(forward: Boolean) {
+        if (settings.scroll) {
+            scrollPage(forward)
+            return
+        }
         when (settings.animation) {
             PageAnimation.Slide -> go(forward, animated = true)
             PageAnimation.None -> go(forward, animated = false)
@@ -1248,6 +1269,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         const val NOTES_GROUP = "notes"
         const val TTS_GROUP = "tts"
         const val SEARCH_GROUP = "search"
+        const val AUTO_TICK = 100L
         const val SEARCH_LIMIT = 500
     }
 }

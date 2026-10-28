@@ -76,9 +76,25 @@ private fun LoopingVideo(file: File, volume: Float, modifier: Modifier) {
     if (!file.exists()) return
     key(file.path, file.lastModified()) {
         val player = remember { MediaPlayer() }
+        val prepared = remember { booleanArrayOf(false) }
+        val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
         androidx.compose.runtime.LaunchedEffect(volume) { runCatching { player.setVolume(volume, volume) } }
+        DisposableEffect(lifecycle) {
+            val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                when (event) {
+                    androidx.lifecycle.Lifecycle.Event.ON_STOP -> runCatching { if (prepared[0] && player.isPlaying) player.pause() }
+                    androidx.lifecycle.Lifecycle.Event.ON_START -> runCatching { if (prepared[0] && !player.isPlaying) player.start() }
+                    else -> Unit
+                }
+            }
+            lifecycle.addObserver(observer)
+            onDispose { lifecycle.removeObserver(observer) }
+        }
         DisposableEffect(Unit) {
-            onDispose { runCatching { player.release() } }
+            onDispose {
+                prepared[0] = false
+                runCatching { player.release() }
+            }
         }
         AndroidView(
             modifier = modifier,
@@ -93,8 +109,9 @@ private fun LoopingVideo(file: File, volume: Float, modifier: Modifier) {
                                 player.isLooping = true
                                 player.setVolume(currentVolume, currentVolume)
                                 player.setOnPreparedListener { mp ->
+                                    prepared[0] = true
                                     cropToFill(this@apply, mp.videoWidth, mp.videoHeight)
-                                    mp.start()
+                                    if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) mp.start()
                                 }
                                 player.prepareAsync()
                             }
@@ -105,6 +122,7 @@ private fun LoopingVideo(file: File, volume: Float, modifier: Modifier) {
                         }
 
                         override fun onSurfaceTextureDestroyed(texture: SurfaceTexture): Boolean {
+                            prepared[0] = false
                             runCatching { player.stop() }
                             return true
                         }

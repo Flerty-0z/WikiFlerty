@@ -148,6 +148,7 @@ class ReaderUiState {
     var footnote by mutableStateOf<FootnoteInfo?>(null)
     var autoActive by mutableStateOf(false)
     var autoPaused by mutableStateOf(false)
+    var autoProgress by mutableFloatStateOf(0f)
     var editor by mutableStateOf<NoteDraft?>(null)
     var aiSetupFromMenu by mutableStateOf(false)
     var ttsActive by mutableStateOf(false)
@@ -413,6 +414,7 @@ fun ReaderOverlay(
     ) {
         AutoBar(
             paused = state.autoPaused,
+            progress = if (settings.scroll) null else state.autoProgress,
             label = AutoScroll.label(settings.autoSpeed, settings.scroll),
             onToggle = auto.onToggle,
             onSlower = { onSettingsChange { it.copy(autoSpeed = (it.autoSpeed - 1).coerceAtLeast(1)) } },
@@ -1095,16 +1097,26 @@ private fun TextOptions(
         Text("У этого шрифта нет курсива", color = AppColors.Faint, fontSize = 12.sp)
     }
     SwitchRow("Переносы", settings.hyphens, icon = AppIcons.Wrap) { v -> onSettingsChange { it.copy(hyphens = v) } }
-    Segmented(
-        "Колонки",
-        listOf("Авто", "Одна", "Две"),
-        when (settings.columns) {
-            "1" -> 1
-            "2" -> 2
-            else -> 0
-        },
-        icon = AppIcons.Pages,
-    ) { i -> onSettingsChange { it.copy(columns = listOf("auto", "1", "2")[i]) } }
+    Column(Modifier.alpha(if (settings.scroll) 0.45f else 1f)) {
+        Segmented(
+            "Колонки",
+            listOf("Авто", "Одна", "Две"),
+            when (settings.columns) {
+                "1" -> 1
+                "2" -> 2
+                else -> 0
+            },
+            icon = AppIcons.Pages,
+        ) { i -> if (!settings.scroll) onSettingsChange { it.copy(columns = listOf("auto", "1", "2")[i]) } }
+    }
+    if (settings.scroll) {
+        Text(
+            "Колонки работают в режиме «Страницы». Сейчас включена лента — переключить можно в «Листании»",
+            color = AppColors.Faint,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+        )
+    }
 }
 
 @Composable
@@ -1682,24 +1694,44 @@ class AutoActions(
 @Composable
 private fun AutoBar(
     paused: Boolean,
+    progress: Float?,
     label: String,
     onToggle: () -> Unit,
     onSlower: () -> Unit,
     onFaster: () -> Unit,
     onStop: () -> Unit,
 ) {
-    Row(
+    Column(
         Modifier
             .panelSurface(appCorner(24), elevation = 12.dp)
             .blockTaps()
             .padding(4.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         RoundIconButton(if (paused) AppIcons.Play else AppIcons.Pause, if (paused) "Продолжить" else "Пауза", filled = true, sound = FeedbackSound.Toggle, onClick = onToggle)
         AutoStepButton("−", "Медленнее", onSlower)
         Text(label, color = AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(horizontal = 4.dp))
         AutoStepButton("+", "Быстрее", onFaster)
         RoundIconButton(AppIcons.Close, "Остановить", sound = FeedbackSound.Close, onClick = onStop)
+    }
+    if (progress != null) {
+        Box(
+            Modifier
+                .padding(start = 14.dp, end = 14.dp, bottom = 4.dp)
+                .width(180.dp)
+                .height(3.dp)
+                .clip(appCorner(2))
+                .background(AppColors.Line),
+        ) {
+            Box(
+                Modifier
+                    .fillMaxWidth(progress.coerceIn(0f, 1f))
+                    .fillMaxHeight()
+                    .background(AppColors.Accent),
+            )
+        }
+    }
     }
 }
 

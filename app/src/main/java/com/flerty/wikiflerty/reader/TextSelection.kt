@@ -48,6 +48,14 @@ internal object TextSelection {
             }
             raf = requestAnimationFrame(step);
           }
+          window.__wfPage = function (dir) {
+            var root = document.scrollingElement || document.documentElement;
+            var top = root.scrollTop;
+            var max = root.scrollHeight - window.innerHeight;
+            if ((dir > 0 && top >= max - 2) || (dir < 0 && top <= 2)) return false;
+            window.scrollBy({ top: dir * window.innerHeight * 0.88, behavior: "smooth" });
+            return true;
+          };
           window.__wfAuto = {
             start: function (s) { speed = s; ended = false; if (!raf) { last = 0; raf = requestAnimationFrame(step); } },
             stop: function () { speed = 0; }
@@ -179,6 +187,10 @@ internal object TextSelection {
           }
           var hs = handle("wf-s");
           var he = handle("wf-e");
+          var probe = document.createElement("div");
+          probe.setAttribute("aria-hidden", "true");
+          probe.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none";
+          document.documentElement.appendChild(probe);
 
           function notify(type) {
             try { window.${BRIDGE}.onEvent(type); } catch (e) {}
@@ -287,8 +299,9 @@ internal object TextSelection {
             place();
           }
           function show(el, x, y, start) {
-            el.style.left = (start ? x - 32 : x - 12) + "px";
-            el.style.top = y + "px";
+            var o = probe.getBoundingClientRect();
+            el.style.left = (x - o.left + (start ? -32 : -12)) + "px";
+            el.style.top = (y - o.top) + "px";
             el.style.display = "block";
           }
           function place() {
