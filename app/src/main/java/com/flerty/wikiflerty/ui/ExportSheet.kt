@@ -41,6 +41,7 @@ fun ExportSheet(
     extra: (@Composable () -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    var closeSheet by remember { mutableStateOf(onDismiss) }
     var selected by remember { mutableStateOf(formats.first().id) }
     val format = formats.firstOrNull { it.id == selected } ?: formats.first()
     val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(format.mime)) { uri ->
@@ -53,7 +54,6 @@ fun ExportSheet(
         }
     }
 
-    var closeSheet by remember { mutableStateOf(onDismiss) }
     AppSheet(onDismiss = onDismiss, title = title) {
         closeSheet = sheetClose(onDismiss)
         extra?.invoke()
