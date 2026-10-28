@@ -135,19 +135,27 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
         drawer = {
             DrawerLogo()
             Spacer(Modifier.height(10.dp))
-            Section.entries.forEach { item ->
-                if (item == Section.Settings) {
-                    Box(Modifier.padding(horizontal = 22.dp, vertical = 8.dp).fillMaxWidth().height(1.dp).background(AppColors.Line))
-                }
-                val count = when (item) {
-                    Section.Library -> libraryBooks.size
-                    Section.Notes -> notesCount
-                    Section.Dictionary -> wordsCount
-                    else -> 0
-                }
-                DrawerItem(item, selected = item == section, count = count) {
-                    section = item
-                    drawerOpen = false
+            androidx.compose.foundation.layout.Column(
+                Modifier
+                    .padding(horizontal = 12.dp)
+                    .fillMaxWidth()
+                    .fieldSurface(appCorner(24))
+                    .padding(vertical = 6.dp),
+            ) {
+                Section.entries.forEach { item ->
+                    if (item == Section.Settings) {
+                        Box(Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth().height(1.dp).background(AppColors.Line))
+                    }
+                    val count = when (item) {
+                        Section.Library -> libraryBooks.size
+                        Section.Notes -> notesCount
+                        Section.Dictionary -> wordsCount
+                        else -> 0
+                    }
+                    DrawerItem(item, selected = item == section, count = count) {
+                        section = item
+                        drawerOpen = false
+                    }
                 }
             }
             Spacer(Modifier.weight(1f))
@@ -251,7 +259,7 @@ private fun DrawerItem(item: Section, selected: Boolean, count: Int, onClick: ()
     val shape = appCorner(18)
     Row(
         Modifier
-            .padding(horizontal = 12.dp, vertical = 2.dp)
+            .padding(horizontal = 6.dp, vertical = 2.dp)
             .fillMaxWidth()
             .height(54.dp)
             .liveClick(shape, sound = FeedbackSound.Tap, pressedScale = 0.97f, onClick = onClick)
@@ -283,7 +291,7 @@ private fun DrawerItem(item: Section, selected: Boolean, count: Int, onClick: ()
             maxLines = 1,
             modifier = Modifier.weight(1f),
         )
-        if (count > 0) Text(count.toString(), color = AppColors.Faint, fontSize = 12.sp)
+        if (count > 0) CountBadge(count)
     }
 }
 

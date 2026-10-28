@@ -3,7 +3,9 @@ package com.flerty.wikiflerty.ui
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -75,20 +77,12 @@ fun BackupContent() {
         }
     }
 
-    Text(
-        "Всё в одном файле: прогресс, заметки, закладки, словарь, статистика и настройки.",
-        color = AppColors.Muted,
-        fontSize = 13.sp,
-        lineHeight = 19.sp,
-        modifier = Modifier.padding(horizontal = 4.dp),
-    )
-
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        BackupButton("Экспорт", "Сохранить файл", Modifier.weight(1f), enabled = busy == null, filled = true) {
+        BackupButton("Экспорт", AppIcons.Upload, Modifier.weight(1f), enabled = busy == null, filled = true) {
             val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
             exportLauncher.launch("WikiFlerty-$date.wikiflerty")
         }
-        BackupButton("Импорт", "Загрузить файл", Modifier.weight(1f), enabled = busy == null, filled = false) {
+        BackupButton("Импорт", AppIcons.Backup, Modifier.weight(1f), enabled = busy == null, filled = false) {
             importLauncher.launch(arrayOf("*/*"))
         }
     }
@@ -102,7 +96,7 @@ fun BackupContent() {
 
     AutoBackupGroup()
 
-    SettingsGroup("В файле") {
+    SettingsGroup("В файле", AppIcons.Folder) {
         SettingSwitch("Вместе с книгами", includeBooks, hint = "Файл будет больше", icon = AppIcons.Book) {
             includeBooks = it
         }
@@ -131,8 +125,8 @@ private fun AutoBackupGroup() {
     }
     val folder = auto.folderName()
 
-    SettingsGroup("Автокопия") {
-        SettingSwitch("Автоматически", config.enabled, hint = "Сохранять копию без напоминаний", icon = AppIcons.Backup) { on ->
+    SettingsGroup("Автокопия", AppIcons.Clock) {
+        SettingSwitch("Автоматически", config.enabled, icon = AppIcons.Backup) { on ->
             if (on && config.folder == null) {
                 enableAfterPick = true
                 folderLauncher.launch(null)
@@ -225,34 +219,31 @@ private fun FolderRow(value: String, onClick: () -> Unit) {
 @Composable
 private fun BackupButton(
     title: String,
-    hint: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     modifier: Modifier,
     enabled: Boolean,
     filled: Boolean,
     onClick: () -> Unit,
 ) {
-    val shape = appCorner(16)
+    val shape = appCorner(20)
     Column(
         modifier
-            .heightIn(min = 68.dp)
+            .heightIn(min = 104.dp)
             .liveClick(shape, sound = FeedbackSound.Open, enabled = enabled, onClick = onClick)
-            .then(if (filled) Modifier.accentHighlight(shape) else Modifier.border(1.dp, AppColors.Accent.copy(alpha = 0.4f), shape))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .then(if (filled) Modifier.accentHighlight(shape) else Modifier.fieldSurface(shape))
+            .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
     ) {
-        Text(
-            title,
-            color = if (filled) accentContent else AppColors.Accent,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            hint,
-            color = if (filled) accentContent.copy(alpha = 0.75f) else AppColors.Muted,
-            fontSize = 12.sp,
-            textAlign = TextAlign.Center,
-        )
+        Box(
+            Modifier
+                .size(46.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(if (filled) accentContent.copy(alpha = 0.16f) else AppColors.AccentSoft),
+            contentAlignment = Alignment.Center,
+        ) {
+            androidx.compose.material3.Icon(icon, null, tint = if (filled) accentContent else AppColors.Accent, modifier = Modifier.size(24.dp))
+        }
+        Text(title, color = if (filled) accentContent else AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
     }
 }

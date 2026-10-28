@@ -232,7 +232,7 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
             books.map { it to StatsCalc.book(days, it.statsKey) }.filter { it.second.ms >= 60_000 }.sortedByDescending { it.second.ms }.take(5)
         }
         if (top.isNotEmpty()) {
-            SettingsGroup("Больше всего времени") {
+            SettingsGroup("Больше всего времени", AppIcons.Clock) {
                 top.forEach { (book, stats) -> TopBookRow(app, book, stats) }
             }
         }

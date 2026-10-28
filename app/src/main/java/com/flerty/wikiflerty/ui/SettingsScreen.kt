@@ -70,11 +70,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private enum class SettingsPage(val title: String) {
-    Ai("ИИ-помощник"),
-    Custom("Кастомизация"),
-    Sound("Звук и отклик"),
-    Backup("Резервная копия"),
+private enum class SettingsPage(val title: String, val hint: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    Ai("ИИ-помощник", "Ключи, модели, перевод", AppIcons.Sparkle),
+    Custom("Кастомизация", "Цвета, форма, шрифт, фон", AppIcons.Theme),
+    Sound("Звук и отклик", "Звуки и вибрация", AppIcons.Sound),
+    Backup("Резервная копия", "Экспорт и импорт", AppIcons.Backup),
 }
 
 @Composable
@@ -103,7 +103,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
             if (current == null) {
                 SettingsHome { page = it }
             } else {
-                PageHeader(current.title) { page = null }
+                PageHeader(current.title, current.icon) { page = null }
                 when (current) {
                     SettingsPage.Ai -> AiSettingsContent((LocalContext.current.applicationContext as App).ai)
                     SettingsPage.Custom -> CustomizationContent()
@@ -117,20 +117,30 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
 
 @Composable
 private fun SettingsHome(onOpen: (SettingsPage) -> Unit) {
-    SettingsNavRow(AppIcons.Sparkle, "ИИ-помощник", "Ключи, модели, перевод") { onOpen(SettingsPage.Ai) }
-    SettingsNavRow(AppIcons.Theme, "Кастомизация", "Цвета, форма, шрифт, фон") { onOpen(SettingsPage.Custom) }
-    SettingsNavRow(AppIcons.Sound, "Звук и отклик", "Звуки и вибрация") { onOpen(SettingsPage.Sound) }
-    SettingsNavRow(AppIcons.Backup, "Резервная копия", "Экспорт и импорт") { onOpen(SettingsPage.Backup) }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(appCorner(28))
+            .background(AppColors.Panel.copy(alpha = 0.55f))
+            .border(1.dp, AppColors.PanelBorder, appCorner(28))
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        SettingsPage.entries.forEach { p -> SettingsNavRow(p.icon, p.title, p.hint) { onOpen(p) } }
+    }
 }
 
 @Composable
-private fun PageHeader(title: String, onBack: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+private fun PageHeader(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onBack: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
-            Modifier.size(44.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onBack),
+            Modifier.size(44.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onBack).fieldSurface(CircleShape),
             contentAlignment = Alignment.Center,
-        ) { Icon(AppIcons.Back, "Назад", tint = AppColors.Text, modifier = Modifier.size(22.dp)) }
-        Text(title, color = AppColors.Text, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+        ) { Icon(AppIcons.Back, "Назад", tint = AppColors.Text, modifier = Modifier.size(20.dp)) }
+        Box(Modifier.weight(1f).padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
+            SectionHeader(title, icon = icon)
+        }
+        Spacer(Modifier.size(44.dp))
     }
 }
 
@@ -206,7 +216,7 @@ private fun CustomizationContent() {
 
     StylePreview()
 
-    Text("Шаблоны оформления", color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp))
+    SectionHeader("Шаблоны оформления", icon = AppIcons.Palette)
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         StyleTemplates.forEach { template ->
             TemplateCard(template, selected = template.matches(style)) { store.update { template.applyTo(it) } }
@@ -218,7 +228,7 @@ private fun CustomizationContent() {
         }
     }
 
-    Text("Цветовые пары", color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp))
+    SectionHeader("Цветовые пары", icon = AppIcons.Drop)
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         StylePresets.forEach { preset ->
             val selected = style.base == preset.base.id && style.accent == preset.accent
@@ -246,7 +256,7 @@ private fun CustomizationContent() {
         }
     }
 
-    SettingsGroup("Цвета") {
+    SettingsGroup("Цвета", AppIcons.Palette) {
         PickerRow(
             label = "Основной фон",
             icon = AppIcons.Palette,
@@ -297,7 +307,7 @@ private fun CustomizationContent() {
         }
     }
 
-    SettingsGroup("Форма и кнопки") {
+    SettingsGroup("Форма и кнопки", AppIcons.Corners) {
         SettingSlider(
             label = "Скругление углов",
             icon = AppIcons.Corners,
@@ -326,7 +336,7 @@ private fun CustomizationContent() {
         }
     }
 
-    SettingsGroup("Анимации") {
+    SettingsGroup("Анимации", AppIcons.Animation) {
         SettingSwitch(
             "Анимации",
             style.animations,
@@ -356,7 +366,7 @@ private fun CustomizationContent() {
         }
     }
 
-    SettingsGroup("Шрифт интерфейса") {
+    SettingsGroup("Шрифт интерфейса", AppIcons.TextSize) {
         val fonts = remember { FontCatalog.available(context).filter { it.css != null && it.category != FontCategory.Mono || it.id == "jetbrainsmono" } }
         PickerRow(
             label = "Шрифт",
@@ -377,7 +387,7 @@ private fun CustomizationContent() {
         ) { v -> store.update { it.copy(textScale = v) } }
     }
 
-    SettingsGroup("Фон приложения") {
+    SettingsGroup("Фон приложения", AppIcons.Image) {
         PickerRow(
             label = "Фон",
             icon = AppIcons.Image,

@@ -223,7 +223,7 @@ fun NoteCard(
             )
             if (note.note.isNotBlank()) {
                 Text(
-                    note.note,
+                    com.flerty.wikiflerty.ui.markdown(note.note),
                     color = Color(0xFFC9CDD4),
                     fontSize = 14.sp,
                     lineHeight = 19.sp,
@@ -236,7 +236,10 @@ fun NoteCard(
                 note.chapter?.takeIf { it.isNotBlank() },
                 "${(note.progression * 100).roundToInt()}%",
             ).joinToString(" · ")
-            Text(meta, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(AppIcons.Bookmark, null, tint = AppColors.Faint, modifier = Modifier.size(13.dp))
+                Text(meta, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
         if (onEdit != null) {
             Box(

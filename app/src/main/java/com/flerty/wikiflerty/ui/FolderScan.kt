@@ -158,7 +158,7 @@ fun FolderScanSheet(onDismiss: () -> Unit, onImport: (List<Uri>) -> Unit) {
                     icon = AppIcons.Folder,
                     count = found.size,
                     action = {
-                        ActionPill("Другая", AppIcons.FolderSearch) { launcher.launch(null) }
+                        HeaderAction("Другая", AppIcons.FolderSearch) { launcher.launch(null) }
                     },
                 )
                 if (found.isEmpty()) {

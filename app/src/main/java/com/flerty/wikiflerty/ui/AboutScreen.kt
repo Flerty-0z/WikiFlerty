@@ -88,7 +88,7 @@ fun AboutScreen(modifier: Modifier = Modifier) {
             }
         }
 
-        SettingsGroup("Обновления") {
+        SettingsGroup("Обновления", AppIcons.Backup) {
             UpdatePanel(app, Modifier.padding(vertical = 8.dp))
             SettingSwitch(
                 label = "Проверять автоматически",
@@ -98,7 +98,7 @@ fun AboutScreen(modifier: Modifier = Modifier) {
             ) { app.updates.setAuto(it) }
         }
 
-        SettingsGroup("Журнал сбоев") {
+        SettingsGroup("Журнал сбоев", AppIcons.Info) {
             Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (crashes.isEmpty()) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

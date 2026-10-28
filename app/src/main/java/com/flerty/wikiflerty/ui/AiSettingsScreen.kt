@@ -82,12 +82,13 @@ fun AiSettingsContent(ai: AiManager, modifier: Modifier = Modifier) {
     var showAll by remember { mutableStateOf(false) }
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(
-            "Вставь ключ любой нейросети — приложение само поймёт, чья она. Ключ хранится зашифрованным только на телефоне.",
-            color = AppColors.Muted,
-            fontSize = 13.sp,
-            lineHeight = 18.sp,
-        )
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        ) {
+            InfoChip("Любая нейросеть", AppColors.Accent, AppIcons.Sparkle)
+            InfoChip("Ключ зашифрован", AppColors.Muted, AppIcons.Lock)
+        }
 
         QuickConnectCard(ai) { expanded = it.id }
 
@@ -129,7 +130,7 @@ fun AiSettingsContent(ai: AiManager, modifier: Modifier = Modifier) {
         }
 
         Spacer(Modifier.height(4.dp))
-        SettingsGroup("Ответы") {
+        SettingsGroup("Ответы", AppIcons.Sparkle) {
             PickerRow(
                 label = "Длина ответов",
                 icon = AppIcons.Length,
@@ -439,7 +440,7 @@ private fun AllProvidersRow(all: List<AiProvider>, connected: Int, onClick: () -
 
 @Composable
 private fun SectionLabel(text: String) {
-    SectionHeader(text, modifier = Modifier.padding(top = 4.dp))
+    SectionHeader(text, modifier = Modifier.padding(top = 4.dp), icon = AppIcons.Check)
 }
 
 @Composable
