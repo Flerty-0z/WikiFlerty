@@ -986,7 +986,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         chat.bubbles.clear()
         chat.error = null
         chat.action = action
-        chat.fragment = locator.title?.takeIf { it.isNotBlank() } ?: session.publication.metadata.title.orEmpty()
+        chat.fragment = locator.title?.takeIf { it.isNotBlank() } ?: bookTitle
         chat.context = ""
         chat.streaming = true
         lifecycleScope.launch {
