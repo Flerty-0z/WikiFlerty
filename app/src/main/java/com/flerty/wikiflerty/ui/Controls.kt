@@ -95,7 +95,7 @@ fun SettingsNavRow(icon: ImageVector, title: String, subtitle: String, onClick: 
         ) { Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(22.dp)) }
         Column(Modifier.weight(1f)) {
             Text(title, color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, color = AppColors.Muted, fontSize = 12.sp, lineHeight = 16.sp)
         }
         Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(20.dp))
     }
@@ -131,7 +131,7 @@ fun SettingSwitch(
         }
         Column(Modifier.weight(1f).padding(end = 8.dp)) {
             Text(label, color = AppColors.Text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (hint != null) Text(hint, color = AppColors.Faint, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (hint != null) Text(hint, color = AppColors.Faint, fontSize = 12.sp, lineHeight = 16.sp)
         }
         Switch(
             checked = checked,
@@ -291,7 +291,9 @@ fun PickerRow(
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = selected?.font,
-                maxLines = 1,
+                maxLines = 2,
+                lineHeight = 19.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.End,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
             )
@@ -387,7 +389,7 @@ fun PickerSheet(
                                 overflow = TextOverflow.Ellipsis,
                             )
                             if (option.subtitle != null) {
-                                Text(option.subtitle, color = AppColors.Faint, fontSize = 12.sp, fontFamily = option.font, maxLines = 1)
+                                Text(option.subtitle, color = AppColors.Faint, fontSize = 12.sp, lineHeight = 16.sp, fontFamily = option.font)
                             }
                         }
                         if (isSelected) Icon(AppIcons.Check, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp))

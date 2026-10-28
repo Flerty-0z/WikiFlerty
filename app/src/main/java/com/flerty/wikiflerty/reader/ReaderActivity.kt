@@ -336,6 +336,19 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         )
     }
 
+    private var lastColumns: String? = null
+    private var lastColumnsScroll = false
+
+    private suspend fun applyColumns(s: ReaderSettings) {
+        val two = s.columns == "2" && !s.scroll
+        val script = if (two) {
+            "(function(){var r=document.documentElement.style;if(r.getPropertyValue('--RS__colCount').trim()!=='2'){r.setProperty('--RS__colCount','2');r.setProperty('--RS__colWidth','auto');window.dispatchEvent(new Event('resize'));}})()"
+        } else {
+            "(function(){var r=document.documentElement.style;if(r.getPropertyValue('--RS__colCount')){r.removeProperty('--RS__colCount');r.removeProperty('--RS__colWidth');window.dispatchEvent(new Event('resize'));}})()"
+        }
+        runCatching { navigator.evaluateJavascript(script) }
+    }
+
     private var autoJob: Job? = null
     private var autoHref: String? = null
     private var lastAutoSpeed = -1
@@ -687,7 +700,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
                     navigator.currentLocator.collect { locator ->
-                        launch { runCatching { navigator.evaluateJavascript(selectionScript) } }
+                        launch {
+                            runCatching { navigator.evaluateJavascript(selectionScript) }
+                            applyColumns(settings)
+                        }
                         val href = locator.href.toString()
                         if (href != autoHref) {
                             autoHref = href
@@ -727,6 +743,11 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         navigator.submitPreferences(s.toEpubPreferences(fonts))
                         applyWindowSettings(s)
                         applyListeningSettings(s)
+                        if (s.columns != lastColumns || s.scroll != lastColumnsScroll) {
+                            lastColumns = s.columns
+                            lastColumnsScroll = s.scroll
+                            launch { applyColumns(s) }
+                        }
                         val speedChanged = s.autoSpeed != lastAutoSpeed || s.scroll != lastAutoScrollMode
                         lastAutoSpeed = s.autoSpeed
                         lastAutoScrollMode = s.scroll

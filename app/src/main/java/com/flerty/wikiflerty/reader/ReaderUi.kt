@@ -150,6 +150,7 @@ class ReaderUiState {
     var autoActive by mutableStateOf(false)
     var autoPaused by mutableStateOf(false)
     var autoProgress by mutableFloatStateOf(0f)
+    var autoCollapsed by mutableStateOf(false)
     var editor by mutableStateOf<NoteDraft?>(null)
     var aiSetupFromMenu by mutableStateOf(false)
     var ttsActive by mutableStateOf(false)
@@ -408,7 +409,7 @@ fun ReaderOverlay(
     }
 
     AnimatedVisibility(
-        visible = state.autoActive && state.sheet == null && state.footnote == null && state.selection == null,
+        visible = state.autoActive && !state.autoCollapsed && state.sheet == null && state.footnote == null && state.selection == null,
         enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(240)) { it / 2 },
         exit = fadeOut(Motion.fade(160)),
         modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.systemBars).padding(bottom = 56.dp),
@@ -421,6 +422,20 @@ fun ReaderOverlay(
             onSlower = { onSettingsChange { it.copy(autoSpeed = (it.autoSpeed - 1).coerceAtLeast(1)) } },
             onFaster = { onSettingsChange { it.copy(autoSpeed = (it.autoSpeed + 1).coerceAtMost(10)) } },
             onStop = auto.onStop,
+            onCollapse = { state.autoCollapsed = true },
+        )
+    }
+
+    AnimatedVisibility(
+        visible = state.autoActive && state.autoCollapsed && state.sheet == null && state.footnote == null && state.selection == null,
+        enter = fadeIn(Motion.fade(200)) + slideInHorizontally(Motion.tween(260)) { it },
+        exit = fadeOut(Motion.fade(160)) + slideOutHorizontally(Motion.tween(220)) { it },
+        modifier = Modifier.align(Alignment.CenterEnd).padding(end = 6.dp).offset(y = 140.dp),
+    ) {
+        AutoMini(
+            paused = state.autoPaused,
+            progress = if (settings.scroll) null else state.autoProgress,
+            onExpand = { state.autoCollapsed = false },
         )
     }
 
@@ -1005,7 +1020,7 @@ private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
                         }
                         Column {
                             Text(tile.target.title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                            Text(tile.hint, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(tile.hint, color = AppColors.Muted, fontSize = 12.sp, lineHeight = 16.sp)
                         }
                     }
                 }
@@ -1701,6 +1716,7 @@ private fun AutoBar(
     onSlower: () -> Unit,
     onFaster: () -> Unit,
     onStop: () -> Unit,
+    onCollapse: () -> Unit,
 ) {
     Column(
         Modifier
@@ -1714,6 +1730,7 @@ private fun AutoBar(
         AutoStepButton("−", "Медленнее", onSlower)
         Text(label, color = AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(horizontal = 4.dp))
         AutoStepButton("+", "Быстрее", onFaster)
+        RoundIconButton(AppIcons.EyeOff, "Скрыть панель", sound = FeedbackSound.Close, onClick = onCollapse)
         RoundIconButton(AppIcons.Close, "Остановить", sound = FeedbackSound.Close, onClick = onStop)
     }
     if (progress != null) {
@@ -1746,5 +1763,30 @@ private fun AutoStepButton(symbol: String, description: String, onClick: () -> U
         contentAlignment = Alignment.Center,
     ) {
         Text(symbol, color = AppColors.Text, fontSize = 22.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun AutoMini(paused: Boolean, progress: Float?, onExpand: () -> Unit) {
+    Box(
+        Modifier
+            .size(46.dp)
+            .alpha(0.85f)
+            .panelSurface(CircleShape, elevation = 8.dp)
+            .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.85f, onClick = onExpand)
+            .semantics { contentDescription = "Показать автопрокрутку" },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (progress != null) {
+            androidx.compose.material3.CircularProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.size(38.dp),
+                color = AppColors.Accent,
+                trackColor = AppColors.Line,
+                strokeWidth = 2.5.dp,
+                gapSize = 0.dp,
+            )
+        }
+        Icon(if (paused) AppIcons.Play else AppIcons.Pause, null, tint = AppColors.Text, modifier = Modifier.size(16.dp))
     }
 }
