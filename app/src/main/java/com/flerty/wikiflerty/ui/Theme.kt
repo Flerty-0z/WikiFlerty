@@ -54,10 +54,13 @@ enum class UiBase(
         "cream", "Крем", 0xFFFBF7F1, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFBF7F1, 0xFFEFE6DA, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFEEE4D8,
         light = true,
     ),
+    CreamDark(
+        "cream_dark", "Крем тёмный", 0xFF15120F, 0xFF201B17, 0xFF26201B, 0xFF1C1814, 0xFF342C25, 0xFF43392F, 0xFF211C17, 0xFF3A3129,
+    ),
     ;
 
     companion object {
-        fun of(id: String) = Cream
+        fun of(id: String) = if (AppStyle.current.lightMode) Cream else CreamDark
     }
 }
 
@@ -103,9 +106,10 @@ data class UiStyle(
     val motionStyle: String = MotionStyle.Soft.id,
     val press: String = PressStrength.Normal.id,
     val navigation: String = "drawer",
+    val lightMode: Boolean = false,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
-        put("version", 2)
+        put("version", 3)
         put("base", base)
         put("accent", String.format("#%08X", accent))
         put("corners", corners.toDouble())
@@ -125,6 +129,7 @@ data class UiStyle(
         put("motionStyle", motionStyle)
         put("press", press)
         put("navigation", navigation)
+        put("lightMode", lightMode)
     }
 
     companion object {
@@ -163,6 +168,7 @@ data class UiStyle(
                 motionSpeed = json.optString("motionSpeed", d.motionSpeed),
                 motionStyle = json.optString("motionStyle", d.motionStyle),
                 navigation = json.optString("navigation", d.navigation),
+                lightMode = if (json.optInt("version", 1) < 3) false else json.optBoolean("lightMode", d.lightMode),
                 press = json.optString(
                     "press",
                     if (json.has("pressEffect") && !json.optBoolean("pressEffect", true)) PressStrength.Off.id else d.press,
@@ -184,7 +190,7 @@ object AppStyle {
         internal set
 
     val base: UiBase get() = UiBase.of(current.base)
-    val light: Boolean get() = base.light
+    val light: Boolean get() = current.lightMode
     val bottomNav: Boolean get() = true
     val buttons: ButtonLook get() = ButtonLook.of(current.buttons)
 }
@@ -235,14 +241,14 @@ object AppColors {
     val Field: Color get() = Color(base.field)
     val Line: Color get() = Color(base.line)
     private val light get() = AppStyle.light
-    val Text: Color get() = if (light) Color(0xFF2B2520) else Color(0xFFECEDEF)
-    val Muted: Color get() = if (light) Color(0xFF85796A) else Color(0xFFA3A7AF)
-    val Faint: Color get() = if (light) Color(0xFF9A8E7E) else Color(0xFF8A8E96)
+    val Text: Color get() = if (light) Color(0xFF2B2520) else Color(0xFFF2EBE1)
+    val Muted: Color get() = if (light) Color(0xFF85796A) else Color(0xFFB4A797)
+    val Faint: Color get() = if (light) Color(0xFF9A8E7E) else Color(0xFF8E8273)
     val Good: Color get() = if (light) Color(0xFF2E8B57) else Color(0xFF7ED3A0)
     val Warn: Color get() = if (light) Color(0xFFC07514) else Color(0xFFF2B36B)
     val Bad: Color get() = if (light) Color(0xFFD0443E) else Color(0xFFF08A8A)
     val Info: Color get() = if (light) Color(0xFF3D6EF5) else Color(0xFF8AB4F8)
-    val Shade: Color get() = if (light) Color(0xFF2B2520) else Color.White
+    val Shade: Color get() = if (light) Color(0xFF2B2520) else Color(0xFFF2EBE1)
 
     val Accent: Color get() = Color(AppStyle.current.accent)
     val OnAccent: Color get() = if (Accent.luminance() > 0.4f) Color(0xFF0D1424) else Color.White

@@ -177,7 +177,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
             Scaffold(
                 containerColor = if (hasBackground) Color.Transparent else AppColors.Background,
                 topBar = {
-                    Column {
+                    Box {
                         MainHeader(
                             section = section,
                             greeting = if (section == Section.Library) greeting else null,
@@ -194,7 +194,13 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                                 HeaderButton(AppIcons.Options, "Настройки") { section = Section.Settings }
                             }
                         }
-                        if (busy != null) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = AppColors.Accent, trackColor = AppColors.Line)
+                        if (busy != null) {
+                            LinearProgressIndicator(
+                                modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter),
+                                color = AppColors.Accent,
+                                trackColor = AppColors.Line,
+                            )
+                        }
                     }
                 },
                 bottomBar = {
@@ -215,10 +221,9 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 androidx.compose.animation.AnimatedContent(
                     targetState = section,
                     transitionSpec = {
-                        (androidx.compose.animation.fadeIn(Motion.fade(240), initialAlpha = 0f) +
-                            androidx.compose.animation.slideInVertically(Motion.tween(300)) { it / 28 } +
-                            androidx.compose.animation.scaleIn(Motion.tween(300), initialScale = 0.985f))
-                            .togetherWith(androidx.compose.animation.fadeOut(Motion.fade(160)))
+                        androidx.compose.animation.fadeIn(Motion.fade(220))
+                            .togetherWith(androidx.compose.animation.fadeOut(Motion.fade(120)))
+                            .using(androidx.compose.animation.SizeTransform(clip = false) { _, _ -> androidx.compose.animation.core.snap() })
                     },
                     label = "section",
                 ) { current ->
@@ -604,7 +609,8 @@ private fun MainHeader(section: Section, greeting: String?, onBack: (() -> Unit)
         Modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(start = if (onBack != null) 12.dp else 20.dp, end = 16.dp, top = 14.dp, bottom = 10.dp),
+            .height(74.dp)
+            .padding(start = if (onBack != null) 12.dp else 20.dp, end = 16.dp, top = 8.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {

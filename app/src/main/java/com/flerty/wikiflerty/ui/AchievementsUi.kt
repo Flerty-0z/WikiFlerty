@@ -511,7 +511,7 @@ fun AchievementsPage(modifier: Modifier = Modifier, onBack: () -> Unit) {
                     group.chunked(3).forEach { row ->
                         Row(Modifier.fillMaxWidth()) {
                             row.forEach { achievement ->
-                                AchievementBadge(achievement, unlocked[achievement.id], progress, Modifier.weight(1f), withHint = true)
+                                AchievementBadge(achievement, unlocked[achievement.id], progress, Modifier.weight(1f))
                             }
                             repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                         }

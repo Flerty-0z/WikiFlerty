@@ -202,6 +202,12 @@ private fun CustomizationContent() {
 
     StylePreview()
 
+    SettingsGroup("Тема") {
+        SettingSwitch("Светлая тема", style.lightMode, hint = null, icon = AppIcons.Sun) { v ->
+            store.update { it.copy(lightMode = v) }
+        }
+    }
+
     SettingsGroup("Цвета") {
         Text("Акцентный цвет", color = AppColors.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
         FlowRow(
