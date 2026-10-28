@@ -1,5 +1,9 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.animation.togetherWith
+
+import com.flerty.wikiflerty.data.Achievements
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -131,6 +135,30 @@ object StatsCalc {
 
 @Composable
 fun StatsScreen(modifier: Modifier = Modifier) {
+    var achievements by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    androidx.compose.animation.AnimatedContent(
+        targetState = achievements,
+        transitionSpec = {
+            val dir = if (targetState) 1 else -1
+            (androidx.compose.animation.fadeIn(Motion.fade(220)) +
+                androidx.compose.animation.slideInHorizontally(Motion.tween(280)) { dir * it / 5 })
+                .togetherWith(
+                    androidx.compose.animation.fadeOut(Motion.fade(160)) +
+                        androidx.compose.animation.slideOutHorizontally(Motion.tween(240)) { -dir * it / 6 },
+                )
+        },
+        label = "statsPage",
+    ) { page ->
+        if (page) {
+            AchievementsPage(modifier) { achievements = false }
+        } else {
+            StatsMain(modifier) { achievements = true }
+        }
+    }
+}
+
+@Composable
+private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
     val days by app.stats.days.collectAsStateWithLifecycle()
     val books by app.library.books.collectAsStateWithLifecycle()
@@ -196,7 +224,7 @@ fun StatsScreen(modifier: Modifier = Modifier) {
 
         val unlocked by app.achievements.unlocked.collectAsStateWithLifecycle()
         val progress = remember(days, books) { com.flerty.wikiflerty.data.AchievementProgress.of(days, books) }
-        AchievementsSection(progress, unlocked)
+        AchievementsButton(Achievements.all.count { it.id in unlocked }, Achievements.all.size, onAchievements)
 
         val top = remember(days, books) {
             books.map { it to StatsCalc.book(days, it.statsKey) }.filter { it.second.ms >= 60_000 }.sortedByDescending { it.second.ms }.take(5)

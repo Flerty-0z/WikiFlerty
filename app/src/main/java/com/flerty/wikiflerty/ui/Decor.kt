@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -47,21 +48,25 @@ fun SectionHeader(
             ) { Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(15.dp)) }
             Spacer(Modifier.width(8.dp))
         }
-        Text(
-            title,
-            color = AppColors.Text,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false),
-        )
-        if (count != null) {
-            Spacer(Modifier.width(8.dp))
-            CountBadge(count)
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                title,
+                color = AppColors.Text,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                softWrap = false,
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 15.sp, stepSize = 0.5.sp),
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            if (count != null) {
+                Spacer(Modifier.width(8.dp))
+                CountBadge(count)
+            }
         }
-        Spacer(Modifier.weight(1f))
-        action?.invoke()
+        if (action != null) {
+            Spacer(Modifier.width(8.dp))
+            Box(Modifier.widthIn(max = 150.dp)) { action() }
+        }
     }
 }
 
@@ -108,7 +113,14 @@ fun ActionPill(text: String, icon: ImageVector? = null, onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         if (icon != null) Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(14.dp))
-        Text(text, color = AppColors.Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Text(
+            text,
+            color = AppColors.Accent,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            softWrap = false,
+            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 12.sp, stepSize = 0.5.sp),
+        )
     }
 }
 

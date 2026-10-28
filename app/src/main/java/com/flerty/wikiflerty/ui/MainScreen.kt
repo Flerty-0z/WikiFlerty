@@ -170,7 +170,14 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                                             .togetherWith(androidx.compose.animation.fadeOut(Motion.fade(140)) + androidx.compose.animation.slideOutVertically(Motion.tween(200)) { -it / 2 })
                                     },
                                     label = "title",
-                                ) { Text(it.title) }
+                                ) {
+                                    Text(
+                                        it.title,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 14.sp, maxFontSize = 22.sp, stepSize = 0.5.sp),
+                                    )
+                                }
                             },
                             actions = {
                                 if (section == Section.Library && libraryBooks.isNotEmpty()) LibraryTopActions(libraryControls)
@@ -193,13 +200,9 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 },
                 floatingActionButton = {
                     if (section == Section.Library) {
-                        ExtendedFloatingActionButton(
-                            onClick = {
-                                feedback?.play(FeedbackSound.Open, view)
-                                pickBook.launch(arrayOf("*/*"))
-                            },
-                            icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                            text = { Text("Книга") },
+                        AddBookFab(
+                            onFile = { pickBook.launch(arrayOf("*/*")) },
+                            onScan = { libraryControls.scanFolder = true },
                         )
                     }
                 },

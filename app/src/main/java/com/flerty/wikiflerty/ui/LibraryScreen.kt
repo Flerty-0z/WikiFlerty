@@ -131,7 +131,6 @@ fun LibraryTopActions(controls: LibraryControls) {
     val app = LocalContext.current.applicationContext as App
     val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
     Row(Modifier.padding(end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        ToolButton(AppIcons.FolderSearch, "Найти книги на телефоне") { controls.scanFolder = true }
         ToolButton(AppIcons.ShelfAdd, "Новая полка") { controls.shelfDialog = ShelfDialog.Create(null) }
         ToolButton(if (prefs.view == LibraryView.Grid) AppIcons.ListView else AppIcons.Grid, "Вид") {
             app.libraryPrefs.update { it.copy(view = if (it.view == LibraryView.Grid) LibraryView.List else LibraryView.Grid) }
