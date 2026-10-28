@@ -36,6 +36,7 @@ data class LibraryPrefs(
     val coverSize: Int = 1,
     val shelves: List<String> = emptyList(),
     val dailyGoalMinutes: Int = 0,
+    val yearGoalBooks: Int = 0,
     val progressInPages: Boolean = false,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
@@ -46,6 +47,7 @@ data class LibraryPrefs(
         put("coverSize", coverSize)
         put("shelves", JSONArray(shelves))
         put("dailyGoalMinutes", dailyGoalMinutes)
+        put("yearGoalBooks", yearGoalBooks)
         put("progressInPages", progressInPages)
     }
 
@@ -57,6 +59,7 @@ data class LibraryPrefs(
             view = LibraryView.of(j.optString("view")),
             coverSize = j.optInt("coverSize", 1).coerceIn(0, 2),
             dailyGoalMinutes = j.optInt("dailyGoalMinutes", 0).coerceAtLeast(0),
+            yearGoalBooks = j.optInt("yearGoalBooks", 0).coerceAtLeast(0),
             progressInPages = j.optBoolean("progressInPages", false),
             shelves = j.optJSONArray("shelves")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
         )

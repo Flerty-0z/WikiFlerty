@@ -130,6 +130,8 @@ enum class ReaderSheet(val title: String, val depth: Int) {
     Listen("Чтение вслух", 1),
     Fonts("Шрифт", 2),
     Notes("Заметки", 0),
+    Bookmarks("Закладки", 0),
+    Quote("Цитата", 0),
     NoteEditor("Заметка", 3),
     AiMenu("ИИ", 0),
     AiChat("ИИ", 0),
@@ -158,6 +160,8 @@ class ReaderUiState {
     var ttsProblem by mutableStateOf<com.flerty.wikiflerty.tts.ReadAloud.Problem?>(null)
     var ttsSleep by mutableStateOf<com.flerty.wikiflerty.tts.SleepTimer?>(null)
     var askFinished by mutableStateOf(false)
+    var bookmarked by mutableStateOf(false)
+    var quote by mutableStateOf<QuoteDraft?>(null)
 
     fun hideAll() {
         sheet = null
@@ -202,6 +206,9 @@ fun ReaderOverlay(
     search: SearchActions,
     onFootnoteGo: (String) -> Unit = {},
     auto: AutoActions,
+    bookmarks: List<com.flerty.wikiflerty.data.Bookmark> = emptyList(),
+    bookmarkActions: BookmarkActions,
+    quoteActions: QuoteActions,
 ) {
     val progressText = progressText(state, settings)
     val feedback = LocalFeedback.current
@@ -247,6 +254,15 @@ fun ReaderOverlay(
                         state.sheet = null
                     },
             )
+        }
+
+        AnimatedVisibility(
+            visible = state.bookmarked && !state.panelsVisible,
+            enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(320)) { -it },
+            exit = fadeOut(Motion.fade(160)) + slideOutVertically(Motion.tween(220)) { -it },
+            modifier = Modifier.align(Alignment.TopEnd).padding(end = 22.dp),
+        ) {
+            PageRibbon()
         }
 
         if (settings.showFlag) {
@@ -312,6 +328,8 @@ fun ReaderOverlay(
                 onListen = { state.sheet = ReaderSheet.Listen },
                 onSearch = { state.sheet = ReaderSheet.Search },
                 onSeek = onSeek,
+                bookmarked = state.bookmarked,
+                onBookmark = bookmarkActions.onToggle,
             )
         }
 
@@ -331,6 +349,7 @@ fun ReaderOverlay(
                         QuickButton.Scroll -> state.sheet = ReaderSheet.Scroll
                         QuickButton.Screen -> state.sheet = ReaderSheet.Screen
                         QuickButton.Notes -> state.sheet = ReaderSheet.Notes
+                        QuickButton.Bookmarks -> state.sheet = ReaderSheet.Bookmarks
                         QuickButton.Listen -> state.sheet = ReaderSheet.Listen
                         QuickButton.Search -> state.sheet = ReaderSheet.Search
                         QuickButton.Auto -> auto.onStart()
@@ -351,6 +370,7 @@ fun ReaderOverlay(
             SheetFrame {
                 AnimatedContent(
                     targetState = last[0],
+                    contentKey = { if (it in NavSheets) ReaderSheet.Toc else it },
                     transitionSpec = {
                         val deeper = targetState.depth > initialState.depth
                         val dir = if (deeper) 1 else -1
@@ -373,6 +393,10 @@ fun ReaderOverlay(
                         fonts = fonts,
                         toc = toc,
                         notes = notes,
+                        bookmarks = bookmarks,
+                        bookmarkActions = bookmarkActions,
+                        quote = state.quote,
+                        quoteActions = quoteActions,
                         editor = state.editor,
                         noteActions = noteActions,
                         ai = ai,
@@ -539,6 +563,8 @@ private fun TopPanel(
     onListen: () -> Unit,
     onSearch: () -> Unit,
     onSeek: (Double) -> Unit,
+    bookmarked: Boolean,
+    onBookmark: () -> Unit,
 ) {
     var preview by remember { mutableStateOf<Double?>(null) }
     Row(
@@ -551,7 +577,7 @@ private fun TopPanel(
             .blockTaps()
             .padding(start = 4.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         RoundIconButton(AppIcons.Back, "Назад в библиотеку", sound = FeedbackSound.Close, onClick = onBack)
         Box(
@@ -568,7 +594,7 @@ private fun TopPanel(
                 Text(title.take(1), color = AppColors.Text, fontFamily = FontFamily.Serif, fontSize = 16.sp)
             }
         }
-        Column(Modifier.weight(1f).padding(start = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(Modifier.weight(1f).padding(start = 8.dp, end = 2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             MarqueeText(title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SeekBar(
@@ -589,6 +615,7 @@ private fun TopPanel(
                 )
             }
         }
+        BookmarkButton(bookmarked, onBookmark)
         RoundIconButton(AppIcons.Search, "Поиск по книге", sound = FeedbackSound.Open, onClick = onSearch)
         RoundIconButton(AppIcons.Headphones, "Чтение вслух", sound = FeedbackSound.Open, onClick = onListen)
     }
@@ -765,6 +792,7 @@ private fun quickIconVector(button: QuickButton): ImageVector = when (button) {
     QuickButton.Scroll -> AppIcons.Pages
     QuickButton.Screen -> AppIcons.Screen
     QuickButton.Notes -> AppIcons.Note
+    QuickButton.Bookmarks -> AppIcons.Bookmark
     QuickButton.Listen -> AppIcons.Headphones
     QuickButton.Search -> AppIcons.Search
     QuickButton.Auto -> AppIcons.Play
@@ -873,6 +901,10 @@ private fun SheetContent(
     fonts: List<FontEntry>,
     toc: List<TocItem>,
     notes: List<com.flerty.wikiflerty.data.Note>,
+    bookmarks: List<com.flerty.wikiflerty.data.Bookmark>,
+    bookmarkActions: BookmarkActions,
+    quote: QuoteDraft?,
+    quoteActions: QuoteActions,
     editor: NoteDraft?,
     noteActions: NoteActions,
     ai: AiBridge,
@@ -912,7 +944,9 @@ private fun SheetContent(
             if (parent != null) {
                 RoundIconButton(AppIcons.Back, "Назад", sound = FeedbackSound.Close) { onOpen(parent) }
             }
-            Text(
+            if (sheet in NavSheets) {
+                NavTabs(sheet, onSelect = onOpen, modifier = Modifier.weight(1f).padding(end = 6.dp))
+            } else Text(
                 when {
                     sheet == ReaderSheet.NoteEditor && editor?.id == null -> "Новая заметка"
                     sheet == ReaderSheet.Notes && notes.isNotEmpty() -> "Заметки · ${notes.size}"
@@ -930,7 +964,26 @@ private fun SheetContent(
         }
 
         when (sheet) {
-            ReaderSheet.Toc -> TocList(toc, onTocSelect, Modifier.weight(1f, fill = false))
+            ReaderSheet.Toc, ReaderSheet.Notes, ReaderSheet.Bookmarks -> AnimatedContent(
+                targetState = sheet,
+                transitionSpec = {
+                    val dir = if (NavSheets.indexOf(targetState) > NavSheets.indexOf(initialState)) 1 else -1
+                    (slideInHorizontally(Motion.tween(280)) { dir * it / 4 } + fadeIn(Motion.fade(220)))
+                        .togetherWith(slideOutHorizontally(Motion.tween(240)) { -dir * it / 4 } + fadeOut(Motion.fade(160)))
+                        .using(SizeTransform(clip = true))
+                },
+                modifier = Modifier.weight(1f, fill = false),
+                label = "nav",
+            ) { tab ->
+                when (tab) {
+                    ReaderSheet.Notes -> BookNotesList(notes = notes, onOpen = noteActions.onGoTo, onEdit = onEditNote)
+                    ReaderSheet.Bookmarks -> BookmarkList(bookmarks, bookmarkActions)
+                    else -> TocList(toc, onTocSelect, Modifier)
+                }
+            }
+            ReaderSheet.Quote -> if (quote != null) {
+                QuoteContent(quote, quoteActions, Modifier.weight(1f, fill = false))
+            }
             ReaderSheet.Search -> SearchContent(search, Modifier.weight(1f, fill = false))
             ReaderSheet.Fonts -> FontList(fonts, settings, onSettingsChange, Modifier.weight(1f, fill = false))
             ReaderSheet.AiMenu -> AiMenuContent(
@@ -943,12 +996,6 @@ private fun SheetContent(
             ReaderSheet.AiSetup -> Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
                 com.flerty.wikiflerty.ui.AiSettingsContent(ai.manager)
             }
-            ReaderSheet.Notes -> BookNotesList(
-                notes = notes,
-                onOpen = noteActions.onGoTo,
-                onEdit = onEditNote,
-                modifier = Modifier.weight(1f, fill = false),
-            )
             ReaderSheet.NoteEditor -> if (editor != null) {
                 NoteEditor(
                     draft = editor,

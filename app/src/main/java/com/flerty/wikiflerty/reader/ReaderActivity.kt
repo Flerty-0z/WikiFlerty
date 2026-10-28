@@ -76,6 +76,7 @@ import com.flerty.wikiflerty.ai.AiPrompts
 import com.flerty.wikiflerty.ai.AiProvider
 import com.flerty.wikiflerty.ai.ChatMessage
 import com.flerty.wikiflerty.data.Note
+import com.flerty.wikiflerty.data.Bookmark
 import kotlinx.coroutines.CancellationException
 import org.readium.r2.navigator.epub.css.RsProperties
 import kotlinx.coroutines.flow.map
@@ -119,6 +120,35 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private var publication: Publication? = null
     private var lastTtsHighlight: Locator? = null
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    private var pendingQuoteSave: Triple<QuoteDraft, QuoteLook, QuoteFormat>? = null
+    private val storagePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val pending = pendingQuoteSave
+        pendingQuoteSave = null
+        if (granted && pending != null) saveQuote(pending.first, pending.second, pending.third)
+        else if (!granted) Toast.makeText(this, "Нет доступа к галерее", Toast.LENGTH_SHORT).show()
+    }
+    private var coverPath: String? = null
+    private var pageSpan = 0.02
+    private var bookmarkJob: Job? = null
+
+    private val bookmarkActions by lazy {
+        BookmarkActions(
+            onToggle = ::toggleBookmark,
+            onOpen = { mark ->
+                ui.hideAll()
+                mark.locator?.let { navigator.go(it, animated = false) }
+                resyncListening()
+            },
+            onDelete = { mark -> lifecycleScope.launch { app.bookmarks.delete(listOf(mark.id)) } },
+        )
+    }
+
+    private val quoteActions by lazy {
+        QuoteActions(
+            onShare = { draft, look, format -> shareQuote(draft, look, format) },
+            onSave = { draft, look, format -> requestSaveQuote(draft, look, format) },
+        )
+    }
 
     private val ttsActions by lazy {
         TtsActions(
@@ -333,6 +363,15 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 }
             },
             onSelectionClose = { endSelection() },
+            onSelectionQuote = {
+                val selection = ui.selection
+                if (selection != null) {
+                    endSelection()
+                    ui.quote = QuoteDraft(selection.text, bookTitle, bookAuthor, coverPath, quoteTypeface())
+                    ui.panelsVisible = false
+                    ui.sheet = ReaderSheet.Quote
+                }
+            },
         )
     }
 
@@ -629,6 +668,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val bookNotes = app.notes.notes.map { list ->
             list.filter { it.bookId == session.bookId }.sortedBy { it.progression }
         }
+        val bookMarks = app.bookmarks.bookmarks.map { list ->
+            list.filter { it.bookId == session.bookId }.sortedBy { it.progression }
+        }
 
         val book = app.library.books.value.firstOrNull { it.id == session.bookId }
         val title = book?.title ?: session.publication.metadata.title.orEmpty()
@@ -641,6 +683,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 WikiFlertyTheme {
                     val current by app.readerSettings.settings.collectAsState()
                     val notes by bookNotes.collectAsState(initial = emptyList())
+                    val marks by bookMarks.collectAsState(initial = emptyList())
                     ReaderOverlay(
                         state = ui,
                         settings = current,
@@ -669,18 +712,23 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         onSeek = ::seekTo,
                         search = searchActions,
                         auto = autoActions,
+                        bookmarks = marks,
+                        bookmarkActions = bookmarkActions,
+                        quoteActions = quoteActions,
                         onFootnoteGo = { url ->
                             lifecycleScope.launch {
                                 runCatching { navigator.evaluateJavascript("window.__wfGo && window.__wfGo(${org.json.JSONObject.quote(url)})") }
                             }
                         },
                     )
+                    com.flerty.wikiflerty.ui.AchievementToast()
                 }
             }
         }
 
         lifecycleScope.launch {
             book?.let { app.library.coverFile(it) }?.takeIf { it.exists() }?.let { file ->
+                coverPath = file.path
                 cover = withContext(Dispatchers.IO) {
                     com.flerty.wikiflerty.ui.CoverCache.load(file, maxWidth = 160)
                 }
@@ -719,6 +767,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         }
                         if (position != null) lastPosition = position
                         trackReading()
+                        refreshBookmarkState()
                         maybeAskFinished(locator.locations.totalProgression ?: 0.0)
                         pendingLocator = locator
                         saveTimer?.cancel()
@@ -730,6 +779,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 }
                 launch {
                     bookNotes.collect { notes -> showHighlights(notes) }
+                }
+                launch {
+                    bookMarks.collect { refreshBookmarkState() }
                 }
                 launch { followListening() }
                 launch {
@@ -1018,6 +1070,155 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
     }
 
+    private fun refreshBookmarkState() {
+        bookmarkJob?.cancel()
+        bookmarkJob = lifecycleScope.launch {
+            delay(60)
+            measurePageSpan()?.let { pageSpan = it }
+            ui.bookmarked = bookmarksOnPage(navigator.currentLocator.value).isNotEmpty()
+        }
+    }
+
+    private suspend fun measurePageSpan(): Double? {
+        val raw = runCatching { navigator.evaluateJavascript(PAGE_SPAN_JS) }.getOrNull() ?: return null
+        return raw.trim('"', ' ').toDoubleOrNull()?.takeIf { it > 0.0 && it <= 1.0 }
+    }
+
+    private fun bookmarksOnPage(locator: Locator): List<Bookmark> {
+        val href = locator.href.toString()
+        val start = locator.locations.progression ?: return emptyList()
+        val end = start + pageSpan
+        return app.bookmarks.bookmarks.value.filter { mark ->
+            if (mark.bookId != bookId) return@filter false
+            val l = mark.locator ?: return@filter false
+            val p = l.locations.progression ?: return@filter false
+            l.href.toString() == href && p >= start - PAGE_EPSILON && p < end - PAGE_EPSILON
+        }
+    }
+
+    private fun toggleBookmark() {
+        bookmarkJob?.cancel()
+        lifecycleScope.launch {
+            val locator = navigator.currentLocator.value
+            measurePageSpan()?.let { pageSpan = it }
+            val existing = bookmarksOnPage(locator)
+            if (existing.isNotEmpty()) {
+                ui.bookmarked = false
+                app.bookmarks.delete(existing.map { it.id })
+            } else {
+                ui.bookmarked = true
+                val first = runCatching { navigator.firstVisibleElementLocator() }.getOrNull()
+                val snippet = first?.text?.let { it.highlight ?: it.after }.orEmpty()
+                app.bookmarks.create(bookId, locator, ui.chapter ?: locator.title, snippet)
+            }
+        }
+    }
+
+    private fun quoteTypeface(): android.graphics.Typeface? {
+        val entry = FontCatalog.find(fonts, settings.font)
+        val file = entry.regular ?: return if (entry.id == "sans") android.graphics.Typeface.SANS_SERIF else android.graphics.Typeface.SERIF
+        return runCatching { android.graphics.Typeface.createFromAsset(assets, "fonts/$file") }.getOrNull()
+    }
+
+    private fun quoteTheme() = QuoteTheme(com.flerty.wikiflerty.ui.AppStyle.base, com.flerty.wikiflerty.ui.AppStyle.current.accent.toInt())
+
+    private suspend fun renderQuote(draft: QuoteDraft, look: QuoteLook, format: QuoteFormat): Bitmap {
+        val theme = quoteTheme()
+        return withContext(Dispatchers.Default) {
+            QuoteCard.render(draft, look, format, theme, QuoteCard.loadCover(draft.coverPath, maxWidth = 480))
+        }
+    }
+
+    private fun shareQuote(draft: QuoteDraft, look: QuoteLook, format: QuoteFormat) {
+        if (quoteActions.busy) return
+        quoteActions.busy = true
+        lifecycleScope.launch {
+            try {
+                val bitmap = renderQuote(draft, look, format)
+                val uri = withContext(Dispatchers.IO) {
+                    val dir = java.io.File(cacheDir, "share").apply { mkdirs() }
+                    val file = java.io.File(dir, "quote.png")
+                    file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                    androidx.core.content.FileProvider.getUriForFile(this@ReaderActivity, "$packageName.files", file)
+                }
+                val intent = Intent(Intent.ACTION_SEND)
+                    .setType("image/png")
+                    .putExtra(Intent.EXTRA_STREAM, uri)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                intent.clipData = ClipData.newRawUri("quote", uri)
+                startActivity(Intent.createChooser(intent, "Поделиться цитатой"))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Toast.makeText(this@ReaderActivity, "Не удалось поделиться", Toast.LENGTH_SHORT).show()
+            } finally {
+                quoteActions.busy = false
+            }
+        }
+    }
+
+    private fun requestSaveQuote(draft: QuoteDraft, look: QuoteLook, format: QuoteFormat) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+            checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingQuoteSave = Triple(draft, look, format)
+            storagePermission.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            return
+        }
+        saveQuote(draft, look, format)
+    }
+
+    private fun saveQuote(draft: QuoteDraft, look: QuoteLook, format: QuoteFormat) {
+        if (quoteActions.busy) return
+        quoteActions.busy = true
+        lifecycleScope.launch {
+            val saved = try {
+                val bitmap = renderQuote(draft, look, format)
+                withContext(Dispatchers.IO) { writeToGallery(bitmap) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                false
+            } finally {
+                quoteActions.busy = false
+            }
+            Toast.makeText(this@ReaderActivity, if (saved) "Сохранено в галерею" else "Не удалось сохранить", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun writeToGallery(bitmap: Bitmap): Boolean {
+        val name = "WikiFlerty_${System.currentTimeMillis()}.png"
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val resolver = contentResolver
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name)
+                put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
+                put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/WikiFlerty")
+                put(android.provider.MediaStore.Images.Media.IS_PENDING, 1)
+            }
+            val uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return false
+            val written = runCatching {
+                resolver.openOutputStream(uri)?.use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } ?: false
+            }.getOrDefault(false)
+            if (!written) {
+                resolver.delete(uri, null, null)
+                return false
+            }
+            values.clear()
+            values.put(android.provider.MediaStore.Images.Media.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
+            true
+        } else {
+            @Suppress("DEPRECATION")
+            val dir = java.io.File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES), "WikiFlerty")
+            dir.mkdirs()
+            val file = java.io.File(dir, name)
+            file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            android.media.MediaScannerConnection.scanFile(this, arrayOf(file.path), arrayOf("image/png"), null)
+            true
+        }
+    }
+
     private fun scrollPage(forward: Boolean) {
         lifecycleScope.launch {
             val moved = runCatching {
@@ -1292,5 +1493,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         const val SEARCH_GROUP = "search"
         const val AUTO_TICK = 100L
         const val SEARCH_LIMIT = 500
+        const val PAGE_EPSILON = 0.0005
+        const val PAGE_SPAN_JS =
+            "(function(){var e=document.scrollingElement||document.documentElement;" +
+                "var w=e.scrollWidth,h=e.scrollHeight,iw=window.innerWidth,ih=window.innerHeight;" +
+                "if(w>iw+4)return iw/w;if(h>ih+4)return ih/h;return 1;})()"
     }
 }

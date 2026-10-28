@@ -238,6 +238,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 }
             }
             StartupPrompts()
+            AchievementToast()
         }
     }
 }
