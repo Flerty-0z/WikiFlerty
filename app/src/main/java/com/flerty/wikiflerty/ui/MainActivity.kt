@@ -33,6 +33,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIncomingBook(intent: Intent?) {
+        if (intent != null && intent.action == com.flerty.wikiflerty.widget.QuoteWidget.ACTION_OPEN_NOTE) {
+            val id = intent.getStringExtra(com.flerty.wikiflerty.widget.QuoteWidget.EXTRA_NOTE_ID)
+            val app = applicationContext as com.flerty.wikiflerty.App
+            app.notes.notes.value.firstOrNull { it.id == id }?.let { libraryViewModel.openNote(it) }
+            intent.setAction(null)
+            return
+        }
         if (intent != null && intent.action == com.flerty.wikiflerty.widget.ReadingWidget.ACTION_OPEN_BOOK) {
             intent.getStringExtra(com.flerty.wikiflerty.widget.ReadingWidget.EXTRA_BOOK_ID)?.let { libraryViewModel.openById(it) }
             intent.setAction(null)

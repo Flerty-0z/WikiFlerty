@@ -203,6 +203,8 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
 
         MinutesCard(perDay, today)
 
+        YearHeatmapCard(days, perDay, books)
+
         StatusCard(books)
 
         val (current, best) = StatsCalc.streaks(perDay, today)

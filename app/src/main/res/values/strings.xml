@@ -3,4 +3,9 @@
     <string name="app_name">WikiFlerty</string>
     <string name="widget_continue">Продолжить чтение</string>
     <string name="widget_description">Текущая книга и цель на день</string>
+    <string name="widget_quote_title">Цитата дня</string>
+    <string name="widget_quote_open">Открыть</string>
+    <string name="widget_quote_next">Другая цитата</string>
+    <string name="widget_quote_description">Цитата дня из твоих заметок</string>
+    <string name="widget_quote_small_description">Цитата дня — маленький</string>
 </resources>

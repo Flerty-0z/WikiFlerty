@@ -49,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.withStyle
 import androidx.compose.animation.animateContentSize
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.rememberUpdatedState
@@ -117,6 +118,7 @@ class AiBridge(
     val onSaveDictionary: () -> Unit,
     val onSaveNote: () -> Unit,
     val onChapter: (AiAction) -> Unit = {},
+    val heroes: HeroBridge? = null,
 )
 
 @Composable
@@ -213,30 +215,7 @@ fun AiChatContent(bridge: AiBridge, modifier: Modifier = Modifier) {
     val chat = bridge.chat
     val listState = rememberLazyListState()
     var input by remember { mutableStateOf("") }
-    val dragged by listState.interactionSource.collectIsDraggedAsState()
-    var follow by remember { mutableStateOf(true) }
-
-    LaunchedEffect(Unit) {
-        if (chat.bubbles.isNotEmpty()) listState.scrollToItem(chat.bubbles.size - 1, Int.MAX_VALUE / 2)
-    }
-    LaunchedEffect(chat.bubbles.size) { follow = true }
-    LaunchedEffect(dragged) {
-        if (dragged) follow = false
-    }
-    LaunchedEffect(Unit) {
-        while (true) {
-            withFrameNanos { }
-            if (dragged) continue
-            val info = listState.layoutInfo
-            val last = info.visibleItemsInfo.lastOrNull() ?: continue
-            val atEnd = last.index == info.totalItemsCount - 1
-            val remaining = if (atEnd) (last.offset + last.size - info.viewportEndOffset).toFloat() else 1200f
-            if (!follow && atEnd && remaining < 24f) follow = true
-            if (follow && remaining > 0.5f) {
-                listState.scrollBy(maxOf(0.5f, remaining * 0.16f))
-            }
-        }
-    }
+    FollowBottom(listState, chat.bubbles.size)
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         ModelChip(bridge)
@@ -251,7 +230,7 @@ fun AiChatContent(bridge: AiBridge, modifier: Modifier = Modifier) {
                     UserBubble(bubble, first = index == 0, fragment = chat.fragment)
                 } else {
                     val writing = chat.streaming && index == chat.bubbles.lastIndex
-                    AnswerBubble(bubble.shown, writing = writing, note = if (writing) chat.retryNote else null)
+                    AnswerBubble(bubble.shown, writing = writing, note = if (writing) chat.retryNote else null, debate = chat.action == AiAction.Debate)
                 }
             }
             chat.error?.let { error ->
@@ -289,18 +268,34 @@ fun AiChatContent(bridge: AiBridge, modifier: Modifier = Modifier) {
         AnimatedVisibility(visible = hasAnswer, enter = fadeIn(Motion.fade(220)) + expandVertically(), exit = fadeOut() + shrinkVertically()) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AiPrompts.followUps(bridge.manager.settings.value, chat.action).forEach { (label, prompt) ->
+                    AiPrompts.followUps(bridge.manager.settings.value, chat.action).forEachIndexed { i, (label, prompt) ->
                         val shape = appCorner(18)
+                        val tint = if (chat.action == AiAction.Debate) {
+                            when (i) {
+                                0 -> AppColors.Good
+                                1 -> AppColors.Bad
+                                else -> AppColors.Text
+                            }
+                        } else {
+                            AppColors.Text
+                        }
                         Box(
                             Modifier.height(34.dp)
                                 .liveClick(shape, sound = FeedbackSound.Tap) { bridge.onFollowUp(prompt) }
-                                .border(1.dp, AppColors.Line, shape)
+                                .border(1.dp, if (tint == AppColors.Text) AppColors.Line else tint.copy(alpha = 0.5f), shape)
                                 .padding(horizontal = 12.dp),
                             contentAlignment = Alignment.Center,
-                        ) { Text(label, color = AppColors.Text, fontSize = 13.sp) }
+                        ) { Text(label, color = tint, fontSize = 13.sp, fontWeight = if (tint == AppColors.Text) FontWeight.Normal else FontWeight.SemiBold, maxLines = 1) }
                     }
                 }
-                if (chat.action.forSelection) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (chat.action == AiAction.Debate) {
+                    OutlineButton(
+                        if (chat.savedToNotes) "✓ В заметках" else "Сохранить спор в заметку",
+                        enabled = !chat.savedToNotes,
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = bridge.onSaveNote,
+                    )
+                } else if (chat.action.forSelection) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AccentButton(
                         if (chat.savedToDictionary) "✓ В словаре" else "В словарь",
                         enabled = !chat.savedToDictionary,
@@ -432,7 +427,32 @@ private fun UserBubble(bubble: AiBubble, first: Boolean, fragment: String) {
 }
 
 @Composable
-private fun AnswerBubble(text: String, writing: Boolean, note: String? = null) {
+private fun AnswerBubble(text: String, writing: Boolean, note: String? = null, debate: Boolean = false) {
+    val count = rememberRevealCount(text, writing)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .animateContentSize(androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow))
+            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 4.dp, bottomEnd = 16.dp))
+            .background(AppColors.Field)
+            .border(1.dp, AppColors.PanelBorder, RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 4.dp, bottomEnd = 16.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+    ) {
+        if (count == 0 && writing) {
+            if (note != null) Text(note, color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
+            TypingDots()
+        } else if (debate) {
+            DebateBody(text.take(count), count < text.length || writing)
+        } else {
+            SelectionContainer {
+                Text(revealText(text, count, writing, AppColors.Text), color = AppColors.Text, fontSize = 15.sp, lineHeight = 22.sp)
+            }
+        }
+    }
+}
+
+@Composable
+fun rememberRevealCount(text: String, writing: Boolean): Int {
     val target by rememberUpdatedState(text)
     val live by rememberUpdatedState(writing)
     var shown by remember { mutableFloatStateOf(if (writing) 0f else text.length.toFloat()) }
@@ -453,9 +473,12 @@ private fun AnswerBubble(text: String, writing: Boolean, note: String? = null) {
             }
         }
     }
-    val count = shown.toInt().coerceAtMost(text.length)
-    val accentTail = AppColors.Text
-    val visible = remember(text, count) {
+    return shown.toInt().coerceAtMost(text.length)
+}
+
+@Composable
+fun revealText(text: String, count: Int, writing: Boolean, color: Color): androidx.compose.ui.text.AnnotatedString =
+    remember(text, count, writing, color) {
         val base = markdown(text.take(count))
         if (count >= text.length && !writing) {
             base
@@ -465,26 +488,88 @@ private fun AnswerBubble(text: String, writing: Boolean, note: String? = null) {
                 for (i in 0 until tail) {
                     val pos = base.length - 1 - i
                     val a = 0.15f + 0.85f * (i.toFloat() / tail)
-                    addStyle(androidx.compose.ui.text.SpanStyle(color = accentTail.copy(alpha = a)), pos, pos + 1)
+                    addStyle(androidx.compose.ui.text.SpanStyle(color = color.copy(alpha = a)), pos, pos + 1)
                 }
             }.toAnnotatedString()
         }
     }
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .animateContentSize(androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow))
-            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 4.dp, bottomEnd = 16.dp))
-            .background(AppColors.Field)
-            .border(1.dp, AppColors.PanelBorder, RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 4.dp, bottomEnd = 16.dp))
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-    ) {
-        if (count == 0 && writing) {
-            if (note != null) Text(note, color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
-            TypingDots()
-        } else {
-            SelectionContainer {
-                Text(visible, color = AppColors.Text, fontSize = 15.sp, lineHeight = 22.sp)
+
+@Composable
+fun FollowBottom(listState: androidx.compose.foundation.lazy.LazyListState, itemCount: Int) {
+    val dragged by listState.interactionSource.collectIsDraggedAsState()
+    var follow by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        if (itemCount > 0) listState.scrollToItem(itemCount - 1, Int.MAX_VALUE / 2)
+    }
+    LaunchedEffect(itemCount) { follow = true }
+    LaunchedEffect(dragged) {
+        if (dragged) follow = false
+    }
+    LaunchedEffect(Unit) {
+        while (true) {
+            withFrameNanos { }
+            if (dragged) continue
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull() ?: continue
+            val atEnd = last.index == info.totalItemsCount - 1
+            val remaining = if (atEnd) (last.offset + last.size - info.viewportEndOffset).toFloat() else 1200f
+            if (!follow && atEnd && remaining < 24f) follow = true
+            if (follow && remaining > 0.5f) {
+                listState.scrollBy(maxOf(0.5f, remaining * 0.16f))
+            }
+        }
+    }
+}
+
+private val numbered = Regex("^\\s*(\\d{1,2})[.)]\\s*(.*)$")
+
+@Composable
+private fun DebateBody(raw: String, writing: Boolean) {
+    val palette = listOf(AppColors.Bad, AppColors.Warn, AppColors.Info, AppColors.Good)
+    val lines = raw.split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        lines.forEachIndexed { i, line ->
+            val last = i == lines.lastIndex && writing
+            val m = numbered.find(line)
+            when {
+                m != null -> {
+                    val n = m.groupValues[1].toIntOrNull() ?: 1
+                    val color = palette[(n - 1).mod(palette.size)]
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Box(
+                            Modifier.padding(top = 1.dp).size(22.dp).clip(CircleShape).background(color.copy(alpha = 0.18f)),
+                            contentAlignment = Alignment.Center,
+                        ) { Text(n.toString(), color = color, fontSize = 11.sp, fontWeight = FontWeight.Black) }
+                        Text(revealText(m.groupValues[2], m.groupValues[2].length, last, AppColors.Text), color = AppColors.Text, fontSize = 14.sp, lineHeight = 20.sp)
+                    }
+                    if (i < lines.lastIndex && numbered.find(lines[i + 1]) != null) {
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.Line.copy(alpha = 0.6f)))
+                    }
+                }
+                line.startsWith("Вопрос тебе", ignoreCase = true) -> {
+                    val rest = line.substringAfter(':', "").trim()
+                    Text(
+                        androidx.compose.ui.text.buildAnnotatedString {
+                            withStyle(androidx.compose.ui.text.SpanStyle(color = AppColors.Accent, fontWeight = FontWeight.Bold)) { append("Вопрос тебе: ") }
+                            append(revealText(rest, rest.length, last, AppColors.Text))
+                        },
+                        color = AppColors.Text,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                        modifier = Modifier
+                            .padding(top = 10.dp)
+                            .fillMaxWidth()
+                            .clip(appCorner(12))
+                            .background(AppColors.Accent.copy(alpha = 0.12f))
+                            .border(1.dp, AppColors.Accent.copy(alpha = 0.3f), appCorner(12))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                    )
+                }
+                i == 0 && line.endsWith(":") -> Text(line, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(bottom = 2.dp))
+                else -> Text(revealText(line, line.length, last, AppColors.Text), color = AppColors.Text, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(vertical = 4.dp))
             }
         }
     }

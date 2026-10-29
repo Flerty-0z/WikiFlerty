@@ -203,7 +203,240 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             onSaveDictionary = ::saveToDictionary,
             onSaveNote = ::saveAnswerAsNote,
             onChapter = ::startChapterAi,
+            heroes = heroBridge,
         )
+    }
+
+    private val heroStore by lazy { com.flerty.wikiflerty.data.HeroStore(this) }
+    private val heroUi = HeroUiState()
+    private var avatarFor: String? = null
+    private var heroContext: String? = null
+
+    private val avatarPicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        val id = avatarFor ?: return@registerForActivityResult
+        avatarFor = null
+        if (uri == null) return@registerForActivityResult
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) { heroStore.setAvatar(bookId, id, uri) }
+            if (ok) heroUi.avatarVersion++ else Toast.makeText(this@ReaderActivity, "Не удалось открыть картинку", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val voiceInput = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val text = result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+            ?: return@registerForActivityResult
+        heroUi.input = (heroUi.input.trimEnd() + " " + text).trim()
+    }
+
+    private val heroBridge by lazy {
+        HeroBridge(
+            state = heroUi,
+            author = { bookAuthor },
+            avatarFile = { heroStore.avatar(bookId, it) },
+            onFind = ::findHeroes,
+            onOpen = ::openHero,
+            onAdd = ::addHero,
+            onRemove = ::removeHero,
+            onAvatar = { hero ->
+                avatarFor = hero.id
+                runCatching { avatarPicker.launch("image/*") }
+            },
+            onSpoilers = { value ->
+                heroStore.noSpoilers = value
+                heroUi.noSpoilers = value
+            },
+            onSend = ::sendHeroMessage,
+            onStop = { heroUi.chat.job?.cancel() },
+            onRetry = ::retryHero,
+            onVoice = ::startVoice,
+        )
+    }
+
+    private fun loadHeroes(id: String) {
+        heroUi.heroes.clear()
+        heroUi.heroes.addAll(heroStore.load(id))
+        heroUi.searched = heroUi.heroes.any { !it.custom }
+        heroUi.noSpoilers = heroStore.noSpoilers
+    }
+
+    private fun findHeroes() {
+        if (heroUi.loading) return
+        val provider = app.ai.current()
+        if (provider == null) {
+            heroUi.error = "Подключи нейросеть, чтобы найти героев"
+            return
+        }
+        heroUi.loading = true
+        heroUi.error = null
+        lifecycleScope.launch {
+            try {
+                val text = bookTextSoFar(60_000, whole = !heroUi.noSpoilers)
+                if (text.isBlank()) throw AiException("Не удалось прочитать текст книги")
+                val model = app.ai.settings.value.modelFor(provider)
+                val answer = StringBuilder()
+                app.ai.chat(
+                    provider,
+                    model,
+                    "Ты помогаешь читателю разобраться в книге. Отвечай только JSON.",
+                    listOf(ChatMessage(true, AiPrompts.heroesPrompt(text))),
+                ).collect { answer.append(it) }
+                val found = com.flerty.wikiflerty.data.HeroStore.parse(answer.toString())
+                if (found.isEmpty()) throw AiException("ИИ не нашёл героев. Попробуй ещё раз или добавь героя вручную.")
+                val custom = heroUi.heroes.filter { it.custom }
+                val known = heroUi.heroes.filter { !it.custom }.associateBy { it.name.lowercase() }
+                val merged = found.map { known[it.name.lowercase()] ?: it } + custom.filter { c -> found.none { it.name.equals(c.name, true) } }
+                heroUi.heroes.clear()
+                heroUi.heroes.addAll(merged)
+                heroStore.save(bookId, merged)
+                heroUi.searched = true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                heroUi.error = e.message ?: "Не удалось найти героев"
+                heroUi.searched = true
+            } finally {
+                heroUi.loading = false
+            }
+        }
+    }
+
+    private fun addHero(name: String) {
+        if (heroUi.heroes.any { it.name.equals(name, true) }) return
+        heroUi.heroes.add(com.flerty.wikiflerty.data.Hero(java.util.UUID.randomUUID().toString(), name, "", custom = true))
+        heroStore.save(bookId, heroUi.heroes.toList())
+    }
+
+    private fun removeHero(hero: com.flerty.wikiflerty.data.Hero) {
+        heroUi.heroes.removeAll { it.id == hero.id }
+        heroStore.save(bookId, heroUi.heroes.toList())
+        heroStore.removeAvatar(bookId, hero.id)
+        heroUi.avatarVersion++
+    }
+
+    private fun openHero(hero: com.flerty.wikiflerty.data.Hero) {
+        val hc = heroUi.chat
+        hc.job?.cancel()
+        hc.bubbles.clear()
+        hc.error = null
+        heroUi.input = ""
+        heroUi.current = hero
+        heroContext = null
+        heroUi.place = ui.chapter?.takeIf { it.isNotBlank() }?.let { "до «${it.take(28)}»" } ?: "до ${(ui.progression * 100).roundToInt()}%"
+        ui.sheet = ReaderSheet.HeroChat
+        val provider = app.ai.current()
+        if (provider == null) {
+            hc.error = "Подключи нейросеть в настройках ИИ"
+            return
+        }
+        hc.provider = provider
+        hc.model = app.ai.settings.value.modelFor(provider)
+        hc.bubbles.add(AiBubble(fromUser = true, shown = "", sent = "Поздоровайся со мной в своей манере — коротко, в 1–3 предложениях — и спроси, о чём я хочу поговорить."))
+        sendHero()
+    }
+
+    private fun sendHeroMessage(text: String) {
+        val hc = heroUi.chat
+        if (hc.streaming || hc.provider == null || text.isBlank()) return
+        hc.bubbles.add(AiBubble(fromUser = true, shown = text, sent = text))
+        sendHero()
+    }
+
+    private fun retryHero() {
+        val hc = heroUi.chat
+        if (hc.streaming) return
+        if (hc.bubbles.lastOrNull()?.fromUser == false) hc.bubbles.removeAt(hc.bubbles.lastIndex)
+        if (hc.bubbles.isNotEmpty()) sendHero()
+    }
+
+    private fun sendHero() {
+        val hero = heroUi.current ?: return
+        val hc = heroUi.chat
+        val provider = hc.provider ?: return
+        hc.error = null
+        val history = hc.bubbles.map { ChatMessage(it.fromUser, it.sent) }
+        hc.bubbles.add(AiBubble(fromUser = false, shown = "", sent = ""))
+        hc.streaming = true
+        hc.job = lifecycleScope.launch {
+            val answer = StringBuilder()
+            try {
+                val text = heroContext ?: bookTextSoFar(if (heroUi.noSpoilers) 40_000 else 16_000).also { heroContext = it }
+                val system = AiPrompts.hero(
+                    hero.name,
+                    hero.role,
+                    bookTitle,
+                    bookAuthor,
+                    hero.id == com.flerty.wikiflerty.data.Hero.AUTHOR_ID,
+                    heroUi.noSpoilers,
+                    text,
+                )
+                app.ai.chat(provider, hc.model, system, history).collect { piece ->
+                    answer.append(piece)
+                    val t = answer.toString()
+                    if (hc.bubbles.isNotEmpty()) hc.bubbles[hc.bubbles.lastIndex] = AiBubble(false, t, t)
+                }
+                if (answer.isEmpty()) throw AiException("Модель вернула пустой ответ. Попробуй другую модель.")
+            } catch (e: CancellationException) {
+                if (answer.isEmpty()) dropEmpty(hc)
+                throw e
+            } catch (e: Exception) {
+                if (answer.isEmpty()) dropEmpty(hc)
+                hc.error = e.message ?: "Не удалось получить ответ"
+            } finally {
+                hc.streaming = false
+            }
+        }
+    }
+
+    private fun dropEmpty(state: AiChatState) {
+        val last = state.bubbles.lastOrNull()
+        if (last != null && !last.fromUser && last.shown.isEmpty()) state.bubbles.removeAt(state.bubbles.lastIndex)
+    }
+
+    private fun startVoice() {
+        val intent = Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "ru-RU")
+            .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Говори")
+        try {
+            voiceInput.launch(intent)
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(this, "Голосовой ввод на телефоне недоступен", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private suspend fun bookTextSoFar(maxChars: Int, whole: Boolean = false): String = withContext(Dispatchers.IO) {
+        val pub = publication ?: return@withContext ""
+        val locator = navigator.currentLocator.value
+        val href = locator.href.toString().substringBefore('#')
+        val order = pub.readingOrder
+        val found = order.indexOfFirst { it.url().toString().substringBefore('#') == href }
+        val idx = if (found < 0) order.lastIndex else found
+        val end = if (whole) order.lastIndex else idx
+        val parts = ArrayList<String>()
+        for (i in 0..end) {
+            val res = pub.get(order[i]) ?: continue
+            val bytes = runCatching { res.read().getOrNull() }.getOrNull()
+            runCatching { res.close() }
+            val html = bytes?.toString(Charsets.UTF_8) ?: continue
+            var text = htmlToText(html)
+            if (!whole && i == idx) {
+                val p = (locator.locations.progression ?: 1.0).coerceIn(0.0, 1.0)
+                text = text.take((text.length * p).toInt() + 400)
+            }
+            if (text.isNotBlank()) parts += text
+        }
+        val all = parts.joinToString("\n\n").replace(Regex("\\n{3,}"), "\n\n")
+        if (all.length <= maxChars) all else all.take(maxChars / 5) + "\n\n[…]\n\n" + all.takeLast(maxChars * 4 / 5)
+    }
+
+    private fun htmlToText(html: String): String {
+        val start = html.indexOf("<body", ignoreCase = true)
+        val body = if (start >= 0) html.substring(html.indexOf('>', start) + 1) else html
+        val cleaned = body.replace(Regex("(?is)<(script|style)[^>]*>.*?</(script|style)>"), " ")
+        return android.text.Html.fromHtml(cleaned, android.text.Html.FROM_HTML_MODE_COMPACT).toString()
+            .replace('\uFFFC', ' ')
+            .replace(Regex("[ \\t]+"), " ")
+            .trim()
     }
 
     private val selectionCallback = object : ActionMode.Callback {
@@ -706,6 +939,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         publication = session.publication
         bookId = session.bookId
         bookAuthor = session.publication.metadata.authors.joinToString(", ") { it.name }
+        loadHeroes(session.bookId)
         val initial = settings
 
         supportFragmentManager.fragmentFactory = EpubNavigatorFactory(session.publication)

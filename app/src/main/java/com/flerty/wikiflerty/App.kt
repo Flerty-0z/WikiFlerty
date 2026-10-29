@@ -17,6 +17,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
 import org.json.JSONObject
 import org.readium.r2.shared.publication.Locator
 
@@ -94,6 +95,17 @@ class App : Application() {
         appScope.launch { library.ensureFingerprints() }
         backgroundAudio.install()
         achievements.start(appScope)
+        appScope.launch {
+            var first = true
+            notes.notes.collectLatest {
+                if (first) {
+                    first = false
+                    return@collectLatest
+                }
+                kotlinx.coroutines.delay(1500)
+                kotlinx.coroutines.withContext(Dispatchers.IO) { runCatching { com.flerty.wikiflerty.widget.QuoteWidget.refreshAll(this@App) } }
+            }
+        }
         appScope.launch {
             kotlinx.coroutines.delay(20_000)
             autoBackup.runIfDue()
