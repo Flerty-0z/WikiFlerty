@@ -61,6 +61,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.flerty.wikiflerty.data.Hero
+import com.flerty.wikiflerty.ui.AppSheet
+import com.flerty.wikiflerty.ui.sheetClose
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.flerty.wikiflerty.ui.AppColors
 import com.flerty.wikiflerty.ui.AppIcons
 import com.flerty.wikiflerty.ui.ConfirmSheet
@@ -100,7 +103,7 @@ class HeroBridge(
     val onStop: () -> Unit,
     val onRetry: () -> Unit,
     val onVoice: () -> Unit,
-    val onReset: () -> Unit = {},
+    val onReset: (Hero) -> Unit = {},
 )
 
 @Composable
@@ -151,6 +154,7 @@ fun HeroesContent(bridge: HeroBridge, modifier: Modifier = Modifier) {
     var adding by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     var toRemove by remember { mutableStateOf<Hero?>(null) }
+    var editing by remember { mutableStateOf<Hero?>(null) }
     LaunchedEffect(Unit) {
         if (state.heroes.none { !it.custom } && !state.loading && !state.searched) bridge.onFind()
     }
@@ -196,7 +200,7 @@ fun HeroesContent(bridge: HeroBridge, modifier: Modifier = Modifier) {
             }
         }
         state.heroes.forEach { hero ->
-            HeroRow(bridge, hero, onLong = { toRemove = hero })
+            HeroRow(bridge, hero, onLong = { editing = hero })
         }
         if (!state.loading && state.searched && state.heroes.isNotEmpty()) {
             Text(
@@ -265,7 +269,7 @@ fun HeroesContent(bridge: HeroBridge, modifier: Modifier = Modifier) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) { bridge.onOpen(authorHero) }
+                    .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onLongClick = { editing = authorHero }) { bridge.onOpen(authorHero) }
                     .background(AppColors.Accent.copy(alpha = 0.1f))
                     .border(1.dp, AppColors.Accent.copy(alpha = 0.3f), shape)
                     .padding(12.dp),
@@ -281,6 +285,29 @@ fun HeroesContent(bridge: HeroBridge, modifier: Modifier = Modifier) {
             }
         }
     }
+    editing?.let { hero ->
+        AppSheet(onDismiss = { editing = null }, title = "Редактирование") {
+            val close = sheetClose { editing = null }
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                HeroAvatar(bridge, hero, 40.dp, editable = false)
+                Text(hero.name, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            }
+            EditAction(AppIcons.Rotate, "Начать заново", "Герой забудет ваш разговор", AppColors.Text) {
+                bridge.onReset(hero)
+                close()
+            }
+            if (hero.id != Hero.AUTHOR_ID) {
+                EditAction(AppIcons.Trash, "Убрать героя", "Вместе с аватаром и чатом", AppColors.Bad) {
+                    toRemove = hero
+                    close()
+                }
+            }
+        }
+    }
     toRemove?.let { hero ->
         ConfirmSheet(
             title = "Убрать героя?",
@@ -289,6 +316,26 @@ fun HeroesContent(bridge: HeroBridge, modifier: Modifier = Modifier) {
             onConfirm = { bridge.onRemove(hero) },
             onDismiss = { toRemove = null },
         )
+    }
+}
+
+@Composable
+private fun EditAction(icon: ImageVector, title: String, hint: String, tint: Color, onClick: () -> Unit) {
+    val shape = appCorner(16)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.98f, onClick = onClick)
+            .fieldSurface(shape)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = tint, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text(hint, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 
@@ -311,17 +358,7 @@ private fun HeroRow(bridge: HeroBridge, hero: Hero, onLong: () -> Unit) {
                 Text(hero.role, color = AppColors.Muted, fontSize = 12.sp, lineHeight = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         }
-        Text(
-            "Говорить",
-            color = AppColors.Accent,
-            fontSize = 12.5.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            modifier = Modifier
-                .clip(CircleShape)
-                .border(1.dp, AppColors.Accent.copy(alpha = 0.45f), CircleShape)
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-        )
+        Icon(AppIcons.Chevron, "Открыть чат", tint = AppColors.Muted, modifier = Modifier.size(24.dp))
     }
 }
 
@@ -353,17 +390,6 @@ fun HeroChatContent(bridge: HeroBridge, modifier: Modifier = Modifier) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-            }
-            Row(
-                Modifier
-                    .liveClick(CircleShape, sound = FeedbackSound.Open) { if (!chat.streaming) bridge.onReset() }
-                    .border(1.dp, AppColors.Line, CircleShape)
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-            ) {
-                Icon(AppIcons.Rotate, null, tint = AppColors.Muted, modifier = Modifier.size(14.dp))
-                Text("Заново", color = AppColors.Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
             }
         }
 

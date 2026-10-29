@@ -16,6 +16,7 @@ data class AiRecord(
     val createdAt: Long,
     val updatedAt: Long,
     val messages: List<AiMessage>,
+    val bookId: String = "",
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id)
@@ -63,8 +64,12 @@ class AiHistoryStore(context: Context) {
         val f = file(bookId)
         if (!f.exists()) return@runCatching emptyList()
         val arr = JSONArray(f.readText())
-        (0 until arr.length()).map { AiRecord.fromJson(arr.getJSONObject(it)) }.sortedByDescending { it.updatedAt }
+        (0 until arr.length()).map { AiRecord.fromJson(arr.getJSONObject(it)).copy(bookId = bookId) }.sortedByDescending { it.updatedAt }
     }.getOrElse { emptyList() }
+
+    fun books(): List<String> = dir.listFiles()?.filter { it.name.endsWith(".json") && it.length() > 2 }?.map { it.name.removeSuffix(".json") }.orEmpty()
+
+    fun loadAll(): List<AiRecord> = books().flatMap { load(it) }.sortedByDescending { it.updatedAt }
 
     private fun write(bookId: String, list: List<AiRecord>) {
         runCatching {

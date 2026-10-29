@@ -209,26 +209,50 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private val historyStore by lazy { com.flerty.wikiflerty.data.AiHistoryStore(this) }
-    private val historyRecords = androidx.compose.runtime.mutableStateListOf<com.flerty.wikiflerty.data.AiRecord>()
+    private val historyState = HistoryState()
+
+    private fun refreshHistory(select: String? = historyState.book) {
+        lifecycleScope.launch {
+            val (choices, records) = withContext(Dispatchers.IO) {
+                val all = historyStore.books().map { it to historyStore.load(it) }.filter { it.second.isNotEmpty() }
+                val titles = app.library.books.value.associate { it.id to it.title }
+                val choices = all.sortedByDescending { it.second.first().updatedAt }
+                    .map { com.flerty.wikiflerty.ui.BookChoice(it.first, titles[it.first], it.second.size) }
+                val records = if (select == null) all.flatMap { it.second }.sortedByDescending { it.updatedAt }
+                else all.firstOrNull { it.first == select }?.second.orEmpty()
+                choices to records
+            }
+            historyState.book = select
+            historyState.choices.clear()
+            historyState.choices.addAll(choices)
+            historyState.total = choices.sumOf { it.count }
+            historyState.records.clear()
+            historyState.records.addAll(records)
+        }
+    }
 
     private val historyBridge by lazy {
         HistoryBridge(
-            records = historyRecords,
-            onLoad = {
-                lifecycleScope.launch {
-                    val list = withContext(Dispatchers.IO) { historyStore.load(bookId) }
-                    historyRecords.clear()
-                    historyRecords.addAll(list)
-                }
-            },
+            state = historyState,
+            onLoad = { refreshHistory(bookId) },
+            onSelectBook = { refreshHistory(it) },
             onOpen = ::openRecord,
             onDelete = { r ->
-                historyRecords.removeAll { it.id == r.id }
-                lifecycleScope.launch(Dispatchers.IO) { historyStore.delete(bookId, r.id) }
+                historyState.records.removeAll { it.id == r.id }
+                lifecycleScope.launch {
+                    withContext(Dispatchers.IO) { historyStore.delete(r.bookId.ifBlank { bookId }, r.id) }
+                    refreshHistory()
+                }
             },
             onClear = {
-                historyRecords.clear()
-                lifecycleScope.launch(Dispatchers.IO) { historyStore.clear(bookId) }
+                val target = historyState.book
+                historyState.records.clear()
+                lifecycleScope.launch {
+                    withContext(Dispatchers.IO) {
+                        if (target == null) historyStore.books().forEach { historyStore.clear(it) } else historyStore.clear(target)
+                    }
+                    refreshHistory()
+                }
             },
         )
     }
@@ -247,11 +271,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             updatedAt = System.currentTimeMillis(),
             messages = messages,
         )
-        val book = bookId
+        val book = chat.bookId ?: bookId
         lifecycleScope.launch {
-            val list = withContext(Dispatchers.IO) { historyStore.save(book, record) }
-            historyRecords.clear()
-            historyRecords.addAll(list)
+            withContext(Dispatchers.IO) { historyStore.save(book, record) }
+            refreshHistory()
         }
     }
 
@@ -262,8 +285,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         chat.action = AiAction.entries.firstOrNull { it.id == record.action } ?: AiAction.Explain
         chat.fragment = record.fragment
         chat.context = record.context
-        chat.locator = record.locatorJson?.let { runCatching { Locator.fromJSON(org.json.JSONObject(it)) }.getOrNull() }
+        chat.locator = record.locatorJson?.takeIf { record.bookId.isBlank() || record.bookId == bookId }?.let { runCatching { Locator.fromJSON(org.json.JSONObject(it)) }.getOrNull() }
         chat.recordId = record.id
+        chat.bookId = record.bookId.ifBlank { bookId }
         chat.createdAt = record.createdAt
         chat.error = null
         chat.savedToDictionary = false
@@ -324,10 +348,12 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             onStop = { heroUi.chat.job?.cancel() },
             onRetry = ::retryHero,
             onVoice = ::startVoice,
-            onReset = {
-                heroUi.current?.let { hero ->
-                    heroStore.clearChat(bookId, hero.id)
-                    openHero(hero)
+            onReset = { hero ->
+                heroStore.clearChat(bookId, hero.id)
+                if (heroUi.current?.id == hero.id) {
+                    heroUi.chat.job?.cancel()
+                    heroUi.chat.bubbles.clear()
+                    heroUi.current = null
                 }
             },
         )
@@ -1388,6 +1414,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         chat.savedToNotes = false
         chat.action = action
         chat.recordId = java.util.UUID.randomUUID().toString()
+        chat.bookId = bookId
         chat.createdAt = System.currentTimeMillis()
         val provider = app.ai.current() ?: return
         val settings = app.ai.settings.value

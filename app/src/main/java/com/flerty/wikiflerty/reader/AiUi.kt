@@ -104,6 +104,7 @@ class AiChatState {
     var job: Job? = null
     var recordId: String? = null
     var createdAt: Long = 0L
+    var bookId: String? = null
 
     val lastAnswer: String?
         get() = bubbles.lastOrNull { !it.fromUser && it.shown.isNotBlank() }?.shown
@@ -124,9 +125,17 @@ class AiBridge(
     val history: HistoryBridge? = null,
 )
 
+class HistoryState {
+    val records = mutableStateListOf<com.flerty.wikiflerty.data.AiRecord>()
+    val choices = mutableStateListOf<com.flerty.wikiflerty.ui.BookChoice>()
+    var book by mutableStateOf<String?>(null)
+    var total by mutableStateOf(0)
+}
+
 class HistoryBridge(
-    val records: List<com.flerty.wikiflerty.data.AiRecord>,
+    val state: HistoryState,
     val onLoad: () -> Unit,
+    val onSelectBook: (String?) -> Unit,
     val onOpen: (com.flerty.wikiflerty.data.AiRecord) -> Unit,
     val onDelete: (com.flerty.wikiflerty.data.AiRecord) -> Unit,
     val onClear: () -> Unit,
@@ -138,17 +147,30 @@ private val historyDate = java.time.format.DateTimeFormatter.ofPattern("d MMM, H
 fun AiHistoryContent(bridge: HistoryBridge, modifier: Modifier = Modifier) {
     var toDelete by remember { mutableStateOf<com.flerty.wikiflerty.data.AiRecord?>(null) }
     var clearing by remember { mutableStateOf(false) }
+    var picking by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { bridge.onLoad() }
-    val records = bridge.records
-    if (records.isEmpty()) {
-        Column(modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Icon(AppIcons.Clock, null, tint = AppColors.Faint, modifier = Modifier.size(28.dp))
-            Text("Пока пусто", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Text("Здесь появятся чаты с ИИ по этой книге", color = AppColors.Muted, fontSize = 13.sp)
-        }
-        return
-    }
+    val state = bridge.state
+    val records = state.records
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (state.choices.isNotEmpty()) {
+            item(key = "book") {
+                com.flerty.wikiflerty.ui.BookChoiceButton(
+                    selectedId = state.book,
+                    allIds = state.choices.map { it.id },
+                    fallbackTitle = state.choices.firstOrNull { it.id == state.book }?.title,
+                    count = if (state.book == null) state.total else state.choices.firstOrNull { it.id == state.book }?.count ?: records.size,
+                ) { picking = true }
+            }
+        }
+        if (records.isEmpty()) {
+            item(key = "empty") {
+                Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(AppIcons.Clock, null, tint = AppColors.Faint, modifier = Modifier.size(28.dp))
+                    Text("Пока пусто", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Здесь появятся чаты с ИИ", color = AppColors.Muted, fontSize = 13.sp)
+                }
+            }
+        }
         itemsIndexed(records, key = { _, r -> r.id }) { _, record ->
             val action = AiAction.entries.firstOrNull { it.id == record.action } ?: AiAction.Explain
             val shape = appCorner(16)
@@ -179,6 +201,15 @@ fun AiHistoryContent(bridge: HistoryBridge, modifier: Modifier = Modifier) {
                             maxLines = 1,
                         )
                     }
+                    if (state.book == null) {
+                        Text(
+                            com.flerty.wikiflerty.ui.bookTitle(record.bookId, state.choices.firstOrNull { it.id == record.bookId }?.title),
+                            color = AppColors.Faint,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     Text(
                         record.fragment.ifBlank { "Без отрывка" },
                         color = AppColors.Text,
@@ -200,9 +231,9 @@ fun AiHistoryContent(bridge: HistoryBridge, modifier: Modifier = Modifier) {
                 }
             }
         }
-        item(key = "clear") {
+        if (records.isNotEmpty()) item(key = "clear") {
             Text(
-                "Очистить историю книги",
+                if (state.book == null) "Очистить всю историю" else "Очистить историю книги",
                 color = AppColors.Bad,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -219,10 +250,20 @@ fun AiHistoryContent(bridge: HistoryBridge, modifier: Modifier = Modifier) {
             onDismiss = { toDelete = null },
         )
     }
+    if (picking) {
+        com.flerty.wikiflerty.ui.BookPickerSheet(
+            title = "Книги",
+            choices = state.choices.toList(),
+            total = state.total,
+            selectedId = state.book,
+            onSelect = { bridge.onSelectBook(it) },
+            onDismiss = { picking = false },
+        )
+    }
     if (clearing) {
         com.flerty.wikiflerty.ui.ConfirmSheet(
             title = "Очистить историю?",
-            text = "Все чаты с ИИ по этой книге удалятся.",
+            text = if (state.book == null) "Все чаты с ИИ по всем книгам удалятся." else "Все чаты с ИИ по этой книге удалятся.",
             confirm = "Очистить",
             onConfirm = bridge.onClear,
             onDismiss = { clearing = false },
