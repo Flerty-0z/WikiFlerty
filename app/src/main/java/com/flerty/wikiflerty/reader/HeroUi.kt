@@ -45,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -512,7 +513,7 @@ private fun HeroTyping() {
                 initialValue = 0.25f,
                 targetValue = 1f,
                 animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                    com.flerty.wikiflerty.ui.Motion.tween(520, delayMillis = i * 160),
+                    com.flerty.wikiflerty.ui.Motion.tween<Float>(520, delayMillis = i * 160),
                     androidx.compose.animation.core.RepeatMode.Reverse,
                 ),
                 label = "d$i",
