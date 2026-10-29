@@ -251,40 +251,46 @@ private fun DayDetail(day: LocalDate, days: Map<String, Map<String, DayEntry>>, 
     val entry = perDay[day]
     val minutes = (entry?.ms ?: 0) / 60_000
     val perBook = days[day.toString()].orEmpty().filterValues { it.ms > 0 }.entries.sortedByDescending { it.value.ms }
-    val titles = perBook.mapNotNull { (key, e) ->
+    val read = perBook.mapNotNull { (key, e) ->
         val b = books.firstOrNull { it.statsKey == key } ?: return@mapNotNull null
-        if (e.pages > 0) "${b.title} · ${e.pages} стр." else b.title
+        b to e
     }
     AnimatedContent(
         targetState = day,
         transitionSpec = { fadeIn(Motion.fade(200)).togetherWith(fadeOut(Motion.fade(120))) },
         label = "day",
     ) { _ ->
-        Row(
+        Column(
             Modifier.fillMaxWidth().clip(appCorner(12)).background(AppColors.Background).border(1.dp, AppColors.PanelBorder, appCorner(12)).padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Box(Modifier.width(5.dp).height(34.dp).clip(CircleShape).background(cellColor(level(entry?.ms ?: 0)).let { if (minutes == 0L) AppColors.Line else it }))
-            Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.width(5.dp).height(18.dp).clip(CircleShape).background(cellColor(level(entry?.ms ?: 0)).let { if (minutes == 0L) AppColors.Line else it }))
                 Text(
-                    dayTitle(day) + if (minutes > 0) " · $minutes мин" else "",
+                    dayTitle(day) + when {
+                        minutes > 0 -> " · $minutes мин"
+                        read.isEmpty() -> " · без чтения"
+                        else -> ""
+                    },
                     color = AppColors.Text,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.ExtraBold,
                     maxLines = 1,
                 )
-                Text(
-                    when {
-                        titles.isNotEmpty() -> titles.take(2).joinToString(" · ")
-                        minutes > 0 -> "Читал"
-                        else -> "В этот день без чтения"
-                    },
-                    color = AppColors.Muted,
-                    fontSize = 11.5.sp,
-                    maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                )
+            }
+            read.take(3).forEach { (book, e) ->
+                BookTag(book.id, book.title, coverWidth = 28.dp) {
+                    if (e.pages > 0) {
+                        Text(
+                            "${e.pages} стр.",
+                            color = AppColors.Muted,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            modifier = Modifier.clip(CircleShape).background(AppColors.Line).padding(horizontal = 8.dp, vertical = 3.dp),
+                        )
+                    }
+                }
             }
         }
     }

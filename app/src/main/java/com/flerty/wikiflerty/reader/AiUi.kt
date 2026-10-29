@@ -201,15 +201,6 @@ fun AiHistoryContent(bridge: HistoryBridge, modifier: Modifier = Modifier) {
                             maxLines = 1,
                         )
                     }
-                    if (state.book == null) {
-                        Text(
-                            com.flerty.wikiflerty.ui.bookTitle(record.bookId, state.choices.firstOrNull { it.id == record.bookId }?.title),
-                            color = AppColors.Faint,
-                            fontSize = 11.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
                     Text(
                         record.fragment.ifBlank { "Без отрывка" },
                         color = AppColors.Text,
@@ -218,6 +209,12 @@ fun AiHistoryContent(bridge: HistoryBridge, modifier: Modifier = Modifier) {
                         lineHeight = 19.sp,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
+                    )
+                    com.flerty.wikiflerty.ui.BookTag(
+                        record.bookId.takeIf { it.isNotBlank() },
+                        state.choices.firstOrNull { it.id == record.bookId }?.title,
+                        modifier = Modifier.padding(top = 6.dp),
+                        coverWidth = 28.dp,
                     )
                 }
                 if (count > 1) {
