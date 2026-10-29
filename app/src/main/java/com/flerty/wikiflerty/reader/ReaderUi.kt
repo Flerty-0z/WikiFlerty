@@ -78,6 +78,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -153,6 +155,9 @@ class ReaderUiState {
     var chapter by mutableStateOf<String?>(null)
     var brightnessHint by mutableStateOf<Int?>(null)
     var selection by mutableStateOf<SelectionInfo?>(null)
+    var handles by mutableStateOf<SelectionHandles?>(null)
+    var handleColor by mutableIntStateOf(0xFF8FB3FF.toInt())
+    var onHandleDrag: ((phase: Int, start: Boolean, x: Float, y: Float) -> Unit)? = null
     var footnote by mutableStateOf<FootnoteInfo?>(null)
     var autoActive by mutableStateOf(false)
     var autoPaused by mutableStateOf(false)
@@ -181,6 +186,55 @@ class ReaderUiState {
 }
 
 data class TocItem(val title: String, val depth: Int, val link: Link)
+
+data class SelectionHandles(val start: androidx.compose.ui.geometry.Offset?, val end: androidx.compose.ui.geometry.Offset?)
+
+@Composable
+private fun SelectionHandleLayer(state: ReaderUiState) {
+    val h = state.handles ?: return
+    if (state.sheet != null) return
+    val color = Color(state.handleColor)
+    h.start?.let { HandleDot(it, true, color, state) }
+    h.end?.let { HandleDot(it, false, color, state) }
+}
+
+@Composable
+private fun HandleDot(point: androidx.compose.ui.geometry.Offset, start: Boolean, color: Color, state: ReaderUiState) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val box = with(density) { 44.dp.toPx() }
+    val dot = with(density) { 20.dp.toPx() }
+    val pad = (box - dot) / 2f
+    val left = if (start) point.x - dot - pad else point.x - pad
+    val top = point.y - with(density) { 2.dp.toPx() }
+    val coords = remember { arrayOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
+    Box(
+        Modifier
+            .offset { androidx.compose.ui.unit.IntOffset(left.roundToInt(), top.roundToInt()) }
+            .size(44.dp)
+            .onGloballyPositioned { coords[0] = it }
+            .pointerInput(start) {
+                fun abs(p: androidx.compose.ui.geometry.Offset) = coords[0]?.localToRoot(p) ?: p
+                detectDragGestures(
+                    onDragStart = { o -> abs(o).let { state.onHandleDrag?.invoke(0, start, it.x, it.y) } },
+                    onDragEnd = { state.onHandleDrag?.invoke(2, start, 0f, 0f) },
+                    onDragCancel = { state.onHandleDrag?.invoke(2, start, 0f, 0f) },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        abs(change.position).let { state.onHandleDrag?.invoke(1, start, it.x, it.y) }
+                    },
+                )
+            },
+    ) {
+        Box(
+            Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 2.dp)
+                .size(20.dp)
+                .shadow(3.dp, if (start) RoundedCornerShape(50, 0, 50, 50) else RoundedCornerShape(0, 50, 50, 50))
+                .background(color, if (start) RoundedCornerShape(50, 0, 50, 50) else RoundedCornerShape(0, 50, 50, 50)),
+        )
+    }
+}
 
 private val SelectedSegment get() = AppColors.AccentTintStrong
 private val FlagBackground get() = AppColors.Panel.copy(alpha = 0.94f)
@@ -491,6 +545,8 @@ fun ReaderOverlay(
             )
         }
     }
+
+    SelectionHandleLayer(state)
 
     val selection = state.selection
     AnimatedVisibility(

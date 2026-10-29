@@ -5,7 +5,11 @@ import android.webkit.JavascriptInterface
 class TextSelectionBridge(
     private val onEvent: (String) -> Unit,
     private val onFootnote: (String, String) -> Unit,
+    private val onHandles: (String) -> Unit,
 ) {
+    @JavascriptInterface
+    fun onHandles(data: String) = onHandles.invoke(data)
+
     @JavascriptInterface
     fun onEvent(type: String) = onEvent.invoke(type)
 
@@ -317,19 +321,61 @@ internal object TextSelection {
             el.style.top = (y - o.top) + "px";
             el.style.display = "block";
           }
+          var lastSent = null;
+          function report(s, e) {
+            var k = window.devicePixelRatio || 1;
+            var msg = s || e ? JSON.stringify({ s: s ? [s[0] * k, s[1] * k] : null, e: e ? [e[0] * k, e[1] * k] : null }) : "";
+            if (msg === lastSent) return;
+            lastSent = msg;
+            try { window.${BRIDGE}.onHandles(msg); } catch (x) {}
+          }
           function place() {
             heal();
+            hs.style.display = "none";
+            he.style.display = "none";
             var e = ends();
             if (!e) {
-              hs.style.display = "none";
-              he.style.display = "none";
+              report(null, null);
               return;
             }
             var a = rectAt(e.start.node, e.start.offset);
             var b = rectAt(e.end.node, e.end.offset);
             var h = window.innerHeight;
-            if (a && onPage(a) && a.bottom > 0 && a.top < h) show(hs, a.left, a.bottom, true); else hs.style.display = "none";
-            if (b && onPage(b) && b.bottom > 0 && b.top < h) show(he, b.right, b.bottom, false); else he.style.display = "none";
+            var sa = a && onPage(a) && a.bottom > 0 && a.top < h ? [a.left, a.bottom] : null;
+            var sb = b && onPage(b) && b.bottom > 0 && b.top < h ? [b.right, b.bottom] : null;
+            report(sa, sb);
+          }
+          function grab(mode, x, y) {
+            var sel = ends();
+            if (!sel) return false;
+            clearTimeout(st.timer);
+            st.pressing = false;
+            lock();
+            st.mode = mode;
+            var p = mode === "start" ? sel.start : sel.end;
+            var r = rectAt(p.node, p.offset);
+            st.grabX = r ? x - (mode === "start" ? r.left : r.right) : 0;
+            st.grabY = r ? y - (r.top + r.bottom) / 2 : 24;
+            st.lastX = x;
+            st.lastY = y;
+            notify("drag");
+            return true;
+          }
+          function dragTo(x, y) {
+            if (!st.mode) return;
+            st.lastX = x;
+            st.lastY = y;
+            extend(x - st.grabX, y - st.grabY);
+            edges();
+          }
+          function release() {
+            stopEdges();
+            if (!st.mode) return;
+            st.mode = null;
+            st.word = null;
+            st.afterTurn = false;
+            place();
+            notify(ends() ? "done" : "clear");
           }
           function lock() {
             if (st.locked === null) st.locked = root.scrollLeft;
@@ -543,7 +589,14 @@ internal object TextSelection {
           document.addEventListener("touchend", function (e) { finish(e, false); }, { capture: true, passive: false });
           document.addEventListener("touchcancel", function (e) { finish(null, true); }, true);
 
-          window.__wfSel = { place: place, clear: clearSelection, heal: function () { heal(); place(); } };
+          window.__wfSel = {
+            place: place,
+            clear: clearSelection,
+            heal: function () { heal(); lastSent = null; place(); },
+            grab: grab,
+            drag: dragTo,
+            release: release
+          };
         })();
     """.trimIndent()
 }

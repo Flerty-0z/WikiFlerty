@@ -255,6 +255,57 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         )
     }
 
+    private var pageOffset = floatArrayOf(0f, 0f)
+    private val jsQueue = kotlinx.coroutines.channels.Channel<Pair<Boolean, String>>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+
+    private fun updatePageOffset() {
+        val page = IntArray(2).also { navigator.publicationView.getLocationInWindow(it) }
+        val root = IntArray(2).also { findViewById<View>(R.id.reader_root).getLocationInWindow(it) }
+        pageOffset = floatArrayOf((page[0] - root[0]).toFloat(), (page[1] - root[1]).toFloat())
+    }
+
+    private fun onHandles(data: String) {
+        if (data.isEmpty() || !::navigator.isInitialized) {
+            ui.handles = null
+            return
+        }
+        val json = runCatching { org.json.JSONObject(data) }.getOrNull() ?: return
+        updatePageOffset()
+        fun point(key: String) = json.optJSONArray(key)?.let {
+            androidx.compose.ui.geometry.Offset(it.getDouble(0).toFloat() + pageOffset[0], it.getDouble(1).toFloat() + pageOffset[1])
+        }
+        ui.handles = SelectionHandles(point("s"), point("e"))
+    }
+
+    private fun onHandleDrag(phase: Int, start: Boolean, x: Float, y: Float) {
+        val k = resources.displayMetrics.density
+        val cx = (x - pageOffset[0]) / k
+        val cy = (y - pageOffset[1]) / k
+        when (phase) {
+            0 -> jsQueue.trySend(false to "window.__wfSel && window.__wfSel.grab('${if (start) "start" else "end"}', $cx, $cy)")
+            1 -> jsQueue.trySend(true to "window.__wfSel && window.__wfSel.drag($cx, $cy)")
+            else -> jsQueue.trySend(false to "window.__wfSel && window.__wfSel.release()")
+        }
+    }
+
+    private fun startJsQueue() {
+        lifecycleScope.launch {
+            for (first in jsQueue) {
+                var item = first
+                while (item.first) {
+                    val next = jsQueue.tryReceive().getOrNull() ?: break
+                    if (next.first) {
+                        item = next
+                    } else {
+                        runCatching { navigator.evaluateJavascript(item.second) }
+                        item = next
+                    }
+                }
+                runCatching { navigator.evaluateJavascript(item.second) }
+            }
+        }
+    }
+
     private fun onSelectionEvent(type: String) {
         when (type) {
             "start" -> {
@@ -270,6 +321,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             "clear" -> {
                 selectionJob?.cancel()
                 ui.selection = null
+                ui.handles = null
             }
             "auto-end" -> onAutoEnd()
         }
@@ -292,6 +344,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private fun endSelection() {
         selectionJob?.cancel()
         ui.selection = null
+        ui.handles = null
         actionMode?.finish()
         navigator.clearSelection()
     }
@@ -652,6 +705,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_reader)
+        ui.handleColor = selectionAccent()
+        ui.onHandleDrag = { phase, start, x, y -> onHandleDrag(phase, start, x, y) }
+        startJsQueue()
         bookArea = findViewById(R.id.book_area)
         snapshot = findViewById(R.id.page_snapshot)
         snapshot.outlineProvider = ViewOutlineProvider.BOUNDS
@@ -907,6 +963,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             TextSelectionBridge(
                 onEvent = { type -> runOnUiThread { onSelectionEvent(type) } },
                 onFootnote = { text, url -> runOnUiThread { showFootnote(text, url) } },
+                onHandles = { data -> runOnUiThread { onHandles(data) } },
             )
         }
         val accent = selectionAccent()
