@@ -528,7 +528,7 @@ fun ReaderOverlay(
 private fun progressText(state: ReaderUiState, settings: ReaderSettings): String {
     val position = state.position
     return if (settings.progressInPages && position != null && state.totalPositions > 0) {
-        "стр. $position из ${state.totalPositions}"
+        "$position/${state.totalPositions}"
     } else {
         "${(state.progression * 100).roundToInt().coerceIn(0, 100)}%"
     }
@@ -613,7 +613,7 @@ private fun TopPanel(
                     modifier = Modifier.weight(1f),
                 )
                 val label = preview?.let { f ->
-                    if (totalPositions > 0) "стр. ${(f * (totalPositions - 1)).roundToInt() + 1}" else "${(f * 100).roundToInt()}%"
+                    if (totalPositions > 0) "${(f * (totalPositions - 1)).roundToInt() + 1}/$totalPositions" else "${(f * 100).roundToInt()}%"
                 } ?: progressText
                 Text(
                     label,
@@ -1873,7 +1873,7 @@ private fun JumpContent(jump: JumpInfo, onClose: () -> Unit) {
             }
         }
         Text(
-            if (pages) "Сейчас: стр. ${jump.position ?: 1} из ${jump.total}" else "Сейчас: ${(jump.progression * 100).roundToInt()}%",
+            if (pages) "Сейчас: ${jump.position ?: 1}/${jump.total}" else "Сейчас: ${(jump.progression * 100).roundToInt()}%",
             color = AppColors.Muted,
             fontSize = 13.sp,
             maxLines = 1,

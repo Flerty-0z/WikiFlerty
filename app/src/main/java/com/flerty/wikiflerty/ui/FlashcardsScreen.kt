@@ -291,10 +291,10 @@ private fun androidx.compose.foundation.layout.ColumnScope.StudyBody(
     now: Long,
 ) {
     run {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            CountChip("Новые", newLeft, AppColors.Info, AppIcons.Sparkle)
-            CountChip("Учу", learnLeft, AppColors.Warn, AppIcons.Bulb)
-            CountChip("Повтор", reviewLeft, AppColors.Good, AppIcons.Rotate)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            CountChip("Новые", newLeft, AppColors.Info, AppIcons.Sparkle, Modifier.weight(1f))
+            CountChip("Учу", learnLeft, AppColors.Warn, AppIcons.Bulb, Modifier.weight(1f))
+            CountChip("Повтор", reviewLeft, AppColors.Good, AppIcons.Rotate, Modifier.weight(1f))
         }
         val total = answered + queue.size
         Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(AppColors.Line)) {
@@ -358,17 +358,25 @@ private fun RoundButton(icon: ImageVector, description: String, onClick: () -> U
 }
 
 @Composable
-private fun CountChip(label: String, count: Int, color: Color, icon: ImageVector) {
+private fun CountChip(label: String, count: Int, color: Color, icon: ImageVector, modifier: Modifier = Modifier) {
     Row(
-        Modifier.clip(CircleShape).background(color.copy(alpha = 0.13f)).padding(start = 8.dp, end = 12.dp, top = 5.dp, bottom = 5.dp),
+        modifier.clip(CircleShape).background(color.copy(alpha = 0.13f)).padding(start = 6.dp, end = 10.dp, top = 5.dp, bottom = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally),
     ) {
         Box(Modifier.size(20.dp).clip(CircleShape).background(color.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
             Icon(icon, null, tint = color, modifier = Modifier.size(12.dp))
         }
-        Text(label, color = color, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-        Text(count.toString(), color = AppColors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Text(
+            label,
+            color = color,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            softWrap = false,
+            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 12.sp, stepSize = 0.5.sp),
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        Text(count.toString(), color = AppColors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
     }
 }
 
@@ -621,7 +629,7 @@ fun StudyCard(entries: List<DictionaryEntry>, onStart: () -> Unit, onSettings: (
             Column(Modifier.weight(1f)) {
                 Text("Сегодня повторить", color = AppColors.Text, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
                 Text(
-                    "Выучено $mastered из ${entries.size}" + if (today > 0) " · сегодня $today" else "",
+                    "Выучено $mastered/${entries.size}" + if (today > 0) " · сегодня $today" else "",
                     color = AppColors.Muted,
                     fontSize = 12.sp,
                     maxLines = 1,
@@ -632,10 +640,10 @@ fun StudyCard(entries: List<DictionaryEntry>, onStart: () -> Unit, onSettings: (
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Options, "Настройки карточек", tint = AppColors.Text, modifier = Modifier.size(18.dp)) }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CountChip("Новые", counts.new, AppColors.Info, AppIcons.Sparkle)
-            CountChip("Учу", counts.learning, AppColors.Warn, AppIcons.Bulb)
-            CountChip("Повтор", counts.review, AppColors.Good, AppIcons.Rotate)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            CountChip("Новые", counts.new, AppColors.Info, AppIcons.Sparkle, Modifier.weight(1f))
+            CountChip("Учу", counts.learning, AppColors.Warn, AppIcons.Bulb, Modifier.weight(1f))
+            CountChip("Повтор", counts.review, AppColors.Good, AppIcons.Rotate, Modifier.weight(1f))
         }
         val button = appCorner(16)
         Row(

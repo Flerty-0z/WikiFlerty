@@ -57,6 +57,10 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
     var bookSheet by remember { mutableStateOf(false) }
 
     val titles = books.associate { it.id to it.title }
+    val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.flerty.wikiflerty.App
+    val libraryPrefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
+    val inPages = libraryPrefs.progressInPages
+    val positions = books.associate { it.id to it.positions }
     val usedColors = notes.map { it.color }.distinct()
     val bookOrderAll = books.map { it.id }
     val noteBooks = notes.map { it.bookId }.distinct()
@@ -208,6 +212,8 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
                         onEdit = { toDelete = note },
                         editIcon = AppIcons.Trash,
                         editLabel = "Удалить заметку",
+                        pages = if (inPages) positions[note.bookId] ?: 0 else 0,
+                        onToggleUnit = { app.libraryPrefs.update { it.copy(progressInPages = !it.progressInPages) } },
                     )
                 }
             }

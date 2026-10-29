@@ -140,7 +140,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
     val libraryPrefsState by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
     val todayMinutes = (statsDays[java.time.LocalDate.now().toString()]?.values?.sumOf { it.ms } ?: 0L) / 60_000
     val greeting = if (libraryPrefsState.dailyGoalMinutes > 0) {
-        "Привет! Сегодня $todayMinutes из ${libraryPrefsState.dailyGoalMinutes} мин"
+        "Привет! Сегодня $todayMinutes/${libraryPrefsState.dailyGoalMinutes} мин"
     } else {
         "Привет! Сегодня $todayMinutes мин"
     }
@@ -337,7 +337,7 @@ private fun DrawerTodayCard() {
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                if (goal > 0) "Сегодня ${todayMs / 60_000} из $goal мин" else "Сегодня ${StatsCalc.duration(todayMs)}",
+                if (goal > 0) "Сегодня ${todayMs / 60_000}/$goal мин" else "Сегодня ${StatsCalc.duration(todayMs)}",
                 color = AppColors.Text,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,

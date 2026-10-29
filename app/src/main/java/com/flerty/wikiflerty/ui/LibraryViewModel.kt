@@ -57,7 +57,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             var added = 0
             var failed = 0
             uris.forEachIndexed { index, uri ->
-                _busy.value = "Добавляю книги ${index + 1} из ${uris.size}…"
+                _busy.value = "Добавляю книги ${index + 1}/${uris.size}…"
                 app.library.import(uri)
                     .onSuccess { if (it.id !in before) added++ }
                     .onFailure { failed++ }

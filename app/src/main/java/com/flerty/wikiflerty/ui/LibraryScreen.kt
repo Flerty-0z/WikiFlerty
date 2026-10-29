@@ -94,7 +94,7 @@ private fun baseFilters(): List<LibraryFilter> = listOf(
 
 fun progressLabel(book: Book, inPages: Boolean): String =
     if (inPages && book.positions > 0) {
-        "стр. ${(book.progress * book.positions).toInt().coerceIn(1, book.positions)} из ${book.positions}"
+        "${(book.progress * book.positions).toInt().coerceIn(1, book.positions)}/${book.positions}"
     } else {
         "${(book.progress * 100).toInt()}%"
     }
@@ -185,7 +185,7 @@ fun LibraryScreen(
     val stats by app.stats.days.collectAsStateWithLifecycle()
     val todayMs = stats[LocalDate.now().toString()]?.values?.sumOf { it.ms } ?: 0L
     val longPress = { book: Book -> menuBookId = book.id }
-    val goalText = if (prefs.dailyGoalMinutes > 0) "Сегодня ${todayMs / 60_000} из ${prefs.dailyGoalMinutes} мин" else null
+    val goalText = if (prefs.dailyGoalMinutes > 0) "Сегодня ${todayMs / 60_000}/${prefs.dailyGoalMinutes} мин" else null
 
     val counts = filters.associate { f -> f.id to books.count(f.matches) }
     val tablet = LocalConfiguration.current.screenWidthDp >= 600
@@ -494,10 +494,13 @@ private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean
 
 @Composable
 private fun BookCard(book: Book, coverFile: File?, small: Boolean, inPages: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
+    val shape = appCorner(16)
     Column(
         Modifier
             .fillMaxHeight()
-            .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.96f, onLongClick = onLongClick, onClick = onClick),
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.96f, onLongClick = onLongClick, onClick = onClick)
+            .fieldSurface(shape)
+            .padding(if (small) 6.dp else 8.dp),
     ) {
         CoverBox(
             book,

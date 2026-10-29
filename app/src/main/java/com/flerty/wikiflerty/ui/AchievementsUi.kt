@@ -150,7 +150,7 @@ fun AchievementsSection(progress: AchievementProgress, unlocked: Map<String, Lon
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Достижения", color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Text("$earnedCount из ${Achievements.all.size}", color = AppColors.Faint, fontSize = 12.sp)
+            Text("$earnedCount/${Achievements.all.size}", color = AppColors.Faint, fontSize = 12.sp)
         }
         Column(
             Modifier.fillMaxWidth().fieldSurface(appCorner(18)).padding(horizontal = 6.dp, vertical = 14.dp),
@@ -233,7 +233,7 @@ fun YearGoalCard(goal: Int, finished: Int, onGoal: (Int) -> Unit) {
             ) {
                 Box(rememberStagger(0)) { YearRing(fraction, finished, goal, 76.dp) }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    RollingText("Прочитано $finished из $goal", rememberStagger(1)) {
+                    RollingText("Прочитано $finished/$goal", rememberStagger(1)) {
                         Text(it, color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     RollingText(pace, rememberStagger(2)) {
@@ -294,7 +294,7 @@ private fun YearRing(fraction: Float, finished: Int, goal: Int, size: Dp) {
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("$shownFinished", color = AppColors.Text, fontSize = 21.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-            Text("из $shownGoal", color = AppColors.Faint, fontSize = 10.sp, lineHeight = 10.sp, maxLines = 1)
+            Text("/$shownGoal", color = AppColors.Faint, fontSize = 10.sp, lineHeight = 10.sp, maxLines = 1)
         }
     }
 }
@@ -488,7 +488,7 @@ fun AchievementsPage(modifier: Modifier = Modifier, onBack: () -> Unit) {
             TotalRing(earned, all.size, 84.dp)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    "Получено $earned из ${all.size}",
+                    "Получено $earned/${all.size}",
                     color = AppColors.Text,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,

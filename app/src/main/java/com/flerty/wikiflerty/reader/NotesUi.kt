@@ -198,6 +198,8 @@ fun NoteCard(
     subtitle: String? = null,
     editIcon: androidx.compose.ui.graphics.vector.ImageVector = AppIcons.Pencil,
     editLabel: String = "Изменить заметку",
+    pages: Int = 0,
+    onToggleUnit: (() -> Unit)? = null,
 ) {
     val shape = appCorner(16)
     Row(
@@ -231,12 +233,33 @@ fun NoteCard(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            val meta = listOfNotNull(
-                subtitle,
-                note.chapter?.takeIf { it.isNotBlank() },
-                "${(note.progression * 100).roundToInt()}%",
-            ).joinToString(" · ")
-            Text(meta, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val place = if (pages > 0) {
+                "${(note.progression * pages).toInt().coerceIn(1, pages)}/$pages"
+            } else {
+                "${(note.progression * 100).roundToInt()}%"
+            }
+            if (onToggleUnit == null) {
+                val meta = listOfNotNull(subtitle, note.chapter?.takeIf { it.isNotBlank() }, place).joinToString(" · ")
+                Text(meta, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        Modifier
+                            .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.92f, onClick = onToggleUnit)
+                            .background(AppColors.Accent.copy(alpha = 0.12f))
+                            .padding(start = 7.dp, end = 9.dp, top = 3.dp, bottom = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Icon(if (pages > 0) AppIcons.Pages else AppIcons.Percent, null, tint = AppColors.Accent, modifier = Modifier.size(12.dp))
+                        Text(place, color = AppColors.Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    }
+                    val meta = listOfNotNull(subtitle, note.chapter?.takeIf { it.isNotBlank() }).joinToString(" · ")
+                    if (meta.isNotEmpty()) {
+                        Text(meta, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    }
+                }
+            }
         }
         if (onEdit != null) {
             Box(

@@ -314,7 +314,7 @@ private fun BookStatsContent(app: App, book: Book, onBack: () -> Unit) {
     }
     Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         StatTile("Время чтения", StatsCalc.duration(stats.ms), Modifier.weight(1f))
-        StatTile("Страниц", stats.pages.toString(), Modifier.weight(1f), hint = if (book.positions > 0) "из ${book.positions}" else null)
+        StatTile("Страниц", if (book.positions > 0) "${stats.pages}/${book.positions}" else stats.pages.toString(), Modifier.weight(1f))
     }
     Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         StatTile("Скорость", speed?.let { "${it.toInt()} стр/ч" } ?: "—", Modifier.weight(1f))
@@ -402,7 +402,7 @@ fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
                 icon = AppIcons.Percent,
                 options = listOf(
                     PickerOption("percent", "Проценты", "30%"),
-                    PickerOption("pages", "Страницы", "стр. 110 из 366"),
+                    PickerOption("pages", "Страницы", "110/366"),
                 ),
                 selectedId = if (prefs.progressInPages) "pages" else "percent",
             ) { id -> app.libraryPrefs.update { it.copy(progressInPages = id == "pages") } }

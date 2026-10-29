@@ -218,7 +218,7 @@ internal fun SearchNavBar(search: SearchActions, onReopen: () -> Unit, modifier:
             if (total > 0) search.onOpen((state.current - 1 + total) % total)
         }
         Text(
-            "${state.current + 1} из $total",
+            "${state.current + 1}/$total",
             color = AppColors.Text,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
