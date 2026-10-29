@@ -258,8 +258,26 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private var pageOffset = floatArrayOf(0f, 0f)
     private val jsQueue = kotlinx.coroutines.channels.Channel<Pair<Boolean, String>>(kotlinx.coroutines.channels.Channel.UNLIMITED)
 
+    private fun currentWebView(): View? {
+        var best: View? = null
+        var bestArea = 0
+        val rect = android.graphics.Rect()
+        fun walk(v: View) {
+            if (v is android.webkit.WebView && v.isShown && v.getGlobalVisibleRect(rect)) {
+                val area = rect.width() * rect.height()
+                if (area > bestArea) {
+                    bestArea = area
+                    best = v
+                }
+            }
+            if (v is android.view.ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+        }
+        walk(navigator.publicationView)
+        return best
+    }
+
     private fun updatePageOffset() {
-        val page = IntArray(2).also { navigator.publicationView.getLocationInWindow(it) }
+        val page = IntArray(2).also { (currentWebView() ?: navigator.publicationView).getLocationInWindow(it) }
         val root = IntArray(2).also { findViewById<View>(R.id.reader_root).getLocationInWindow(it) }
         pageOffset = floatArrayOf((page[0] - root[0]).toFloat(), (page[1] - root[1]).toFloat())
     }
