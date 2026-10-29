@@ -325,13 +325,13 @@ private fun androidx.compose.foundation.layout.ColumnScope.StudyBody(
         if (flippedId != current.id) {
             val shape = appCorner(18)
             Box(
-                Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(bottom = 16.dp)
+                Modifier.fillMaxWidth().padding(bottom = 40.dp).heightIn(min = 56.dp)
                     .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f) { onFlip(current.id) }
                     .accentHighlight(shape),
                 contentAlignment = Alignment.Center,
             ) { Text("Показать ответ", color = accentContent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
         } else {
-            Row(Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth().padding(bottom = 40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GradeButton("Снова", Srs.label(current.srs, Grade.Again, now), AppColors.Bad, Modifier.weight(1f)) { onAnswer(current, Grade.Again) }
                 GradeButton("Трудно", Srs.label(current.srs, Grade.Hard, now), AppColors.Warn, Modifier.weight(1f)) { onAnswer(current, Grade.Hard) }
                 GradeButton("Хорошо", Srs.label(current.srs, Grade.Good, now), AppColors.Good, Modifier.weight(1f)) { onAnswer(current, Grade.Good) }
@@ -476,15 +476,22 @@ private fun CardFront(entry: DictionaryEntry, reverse: Boolean, onSpeak: () -> U
         Spacer(Modifier.weight(1f))
         val canHint = reverse || entry.context.isNotBlank()
         if (canHint && !hint) {
-            Text(
-                if (reverse) "Подсказка" else "Показать предложение из книги",
-                color = AppColors.Accent,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.liveClick(appCorner(8), sound = FeedbackSound.Tap) { hint = true }.padding(8.dp),
-            )
+            Row(
+                Modifier.liveClick(appCorner(12), sound = FeedbackSound.Tap) { hint = true }.padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(if (reverse) AppIcons.Bulb else AppIcons.Eye, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
+                Text(
+                    if (reverse) "Подсказка" else "Показать в книге",
+                    color = AppColors.Accent,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                )
+            }
         }
-        entry.bookTitle?.let { Text(it, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        if (entry.bookId != null || entry.bookTitle != null) BookTag(entry.bookId, entry.bookTitle, coverWidth = 28.dp)
     }
 }
 
@@ -520,9 +527,9 @@ private fun CardBack(entry: DictionaryEntry, onSpeak: () -> Unit) {
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
                 )
-                entry.bookTitle?.let { Text(it, color = AppColors.Faint, fontSize = 12.sp) }
             }
         }
+        if (entry.bookId != null || entry.bookTitle != null) BookTag(entry.bookId, entry.bookTitle, coverWidth = 28.dp)
     }
 }
 

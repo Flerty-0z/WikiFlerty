@@ -405,20 +405,35 @@ private fun ToastCard(achievement: Achievement, count: Int, onClick: () -> Unit)
 @Composable
 fun AchievementsButton(earned: Int, total: Int, onClick: () -> Unit) {
     val shape = appCorner(20)
+    val dark = Color(0xFF241D18)
     Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 62.dp)
+            .heightIn(min = 64.dp)
             .shadow(6.dp, shape, ambientColor = Color(0x55503010), spotColor = Color(0x55503010))
             .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onClick = onClick)
-            .background(AppColors.Text)
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+            .background(dark)
+            .border(1.dp, Color(0xFF3A3029), shape)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Icon(AppIcons.Trophy, null, tint = AppColors.Accent, modifier = Modifier.size(22.dp))
-        Text("Достижения", color = AppColors.Background, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, modifier = Modifier.weight(1f))
+        Row(horizontalArrangement = Arrangement.spacedBy((-10).dp)) {
+            listOf(AchievementKind.Streak, AchievementKind.Books, AchievementKind.Pages, AchievementKind.Time).forEach { kind ->
+                val style = medalStyle(kind)
+                Box(
+                    Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Brush.linearGradient(listOf(Color(style.from), Color(style.to))))
+                        .border(2.dp, dark, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(style.icon, null, tint = Color.White, modifier = Modifier.size(15.dp)) }
+            }
+        }
+        Text("Достижения", color = Color(0xFFF2EBE1), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, modifier = Modifier.weight(1f))
         Text("$earned / $total", color = AppColors.Accent, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+        Icon(AppIcons.Chevron, null, tint = Color(0xFFB4A797), modifier = Modifier.size(18.dp))
     }
 }
 

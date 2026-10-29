@@ -175,12 +175,12 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
         }
         groups.forEach { (bookId, bookNotes) ->
             item(key = "book-$bookId") {
-                SectionHeader(
-                    titles[bookId] ?: "Удалённая книга",
-                    modifier = Modifier.padding(top = 12.dp, bottom = 2.dp),
-                    icon = AppIcons.Book,
-                    count = bookNotes.size,
-                )
+                BookTag(
+                    bookId,
+                    titles[bookId],
+                    modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
+                    coverWidth = 40.dp,
+                ) { CountBadge(bookNotes.size) }
             }
             items(bookNotes.sortedBy { it.progression }, key = { it.id }) { note ->
                 Box(motionItem()) {

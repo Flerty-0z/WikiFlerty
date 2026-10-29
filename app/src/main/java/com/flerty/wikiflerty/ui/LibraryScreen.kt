@@ -187,8 +187,6 @@ fun LibraryScreen(
     val longPress = { book: Book -> menuBookId = book.id }
     val goalText = if (prefs.dailyGoalMinutes > 0) "Сегодня ${todayMs / 60_000} из ${prefs.dailyGoalMinutes} мин" else null
 
-    val reading = books.filter { it.status == ReadStatus.Reading }.sortedByDescending { it.lastReadAt ?: it.addedAt }
-    val showReading = active.id == "all" && q.isEmpty() && reading.isNotEmpty()
     val counts = filters.associate { f -> f.id to books.count(f.matches) }
     val tablet = LocalConfiguration.current.screenWidthDp >= 600
     val grid = prefs.view == LibraryView.Grid
@@ -202,14 +200,22 @@ fun LibraryScreen(
         androidx.compose.animation.AnimatedVisibility(visible = controls.searchOpen || query.isNotEmpty()) {
             SearchField(query, { query = it }, Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 10.dp))
         }
-        FilterChips(
-            filters = filters,
-            counts = counts,
-            selectedId = active.id,
-            onSelect = { id -> app.libraryPrefs.update { it.copy(filter = id) } },
-            onEditShelf = { name -> controls.shelfDialog = ShelfDialog.Edit(name) },
-            onNewShelf = { controls.shelfDialog = ShelfDialog.Create(null) },
-        )
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(Modifier.weight(1f)) {
+                FilterButton(active, counts[active.id] ?: 0) { showFilterSheet = true }
+            }
+            Box(
+                Modifier
+                    .size(44.dp)
+                    .liveClick(CircleShape, sound = FeedbackSound.Open) { controls.showViewSheet = true }
+                    .fieldSurface(CircleShape),
+                contentAlignment = Alignment.Center,
+            ) { Icon(AppIcons.Sort, "Вид и сортировка", tint = AppColors.Text, modifier = Modifier.size(20.dp)) }
+        }
 
         LazyVerticalGrid(
             columns = if (grid) GridCells.Adaptive(minSize = minSize) else GridCells.Fixed(1),
@@ -218,30 +224,6 @@ fun LibraryScreen(
             verticalArrangement = Arrangement.spacedBy(if (grid) 16.dp else 10.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
-            if (showReading) {
-                item(key = "reading-title", span = { GridItemSpan(maxLineSpan) }) {
-                    ShelfTitle("Читаю сейчас", action = "Все") { app.libraryPrefs.update { it.copy(filter = ReadStatus.Reading.id) } }
-                }
-                item(key = "reading", span = { GridItemSpan(maxLineSpan) }) {
-                    androidx.compose.foundation.lazy.LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        contentPadding = PaddingValues(bottom = 8.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        items(reading, key = { "r" + it.id }) { book ->
-                            ReadingCover(book, viewModel.coverFile(book), prefs.progressInPages, onClick = { open(book) }, onLongClick = { longPress(book) })
-                        }
-                        item(key = "reading-add") { AddCoverTile(onAddBook) }
-                    }
-                }
-            }
-            item(key = "books-title", span = { GridItemSpan(maxLineSpan) }) {
-                ShelfTitle(
-                    if (active.id == "all") "Все книги" else active.title,
-                    action = "${shown.size} · ${prefs.sort.title.lowercase()}",
-                    muted = true,
-                ) { controls.showViewSheet = true }
-            }
             if (shown.isEmpty()) {
                 item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
                     Text(
@@ -260,6 +242,11 @@ fun LibraryScreen(
                     } else {
                         BookRow(book, viewModel.coverFile(book), inPages = prefs.progressInPages, onClick = { open(book) }, onLongClick = { longPress(book) })
                     }
+                }
+            }
+            if (grid && q.isEmpty()) {
+                item(key = "add-tile") {
+                    AddCoverTile(Modifier.fillMaxWidth().aspectRatio(2f / 3f), onAddBook)
                 }
             }
         }
@@ -292,6 +279,10 @@ fun LibraryScreen(
                 showFilterSheet = false
             },
             onEditShelf = { name -> controls.shelfDialog = ShelfDialog.Edit(name) },
+            onNewShelf = {
+                showFilterSheet = false
+                controls.shelfDialog = ShelfDialog.Create(null)
+            },
             onDismiss = { showFilterSheet = false },
         )
     }
@@ -376,6 +367,7 @@ private fun LibraryFilterSheet(
     selectedId: String,
     onSelect: (String) -> Unit,
     onEditShelf: (String) -> Unit,
+    onNewShelf: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     AppSheet(onDismiss, title = "Показать") {
@@ -390,6 +382,18 @@ private fun LibraryFilterSheet(
                 shelves.forEach { f ->
                     FilterRow(f, counts[f.id] ?: 0, f.id == selectedId, onEdit = { onEditShelf(f.title) }) { onSelect(f.id) }
                 }
+            }
+        }
+        SettingsGroup(null) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 50.dp)
+                    .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onNewShelf),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SettingIcon(AppIcons.ShelfAdd)
+                Text("Новая полка", color = AppColors.Accent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(start = 12.dp))
             }
         }
     }
@@ -561,34 +565,10 @@ private fun Modifier.coverShadow(shape: androidx.compose.ui.graphics.Shape): Mod
     this.shadow(6.dp, shape, ambientColor = Color(0x66503010), spotColor = Color(0x66503010))
 
 @Composable
-private fun ReadingCover(book: Book, coverFile: File?, inPages: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
-    Column(
-        Modifier
-            .width(128.dp)
-            .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.96f, onLongClick = onLongClick, onClick = onClick),
-    ) {
-        CoverBox(book, coverFile, Modifier.size(width = 128.dp, height = 188.dp).coverShadow(appCorner(10)).clip(appCorner(10)))
-        Text(
-            book.title,
-            color = AppColors.Text,
-            fontSize = 13.sp,
-            lineHeight = 17.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 2,
-            minLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 10.dp),
-        )
-        ProgressWithPercent(book, Modifier.padding(top = 6.dp))
-    }
-}
-
-@Composable
-private fun AddCoverTile(onClick: () -> Unit) {
+private fun AddCoverTile(modifier: Modifier, onClick: () -> Unit) {
     val shape = appCorner(10)
     Box(
-        Modifier
-            .size(width = 72.dp, height = 188.dp)
+        modifier
             .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.95f, onClick = onClick)
             .dashedBorder(AppColors.PanelBorder, shape),
         contentAlignment = Alignment.Center,
@@ -605,100 +585,6 @@ private fun Modifier.dashedBorder(color: Color, shape: androidx.compose.ui.graph
             pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 8f)),
         ),
     )
-}
-
-@Composable
-private fun ShelfTitle(title: String, action: String?, muted: Boolean = false, onAction: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 2.dp, start = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            title,
-            color = AppColors.Text,
-            fontWeight = FontWeight.ExtraBold,
-            maxLines = 1,
-            softWrap = false,
-            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 18.sp, stepSize = 0.5.sp),
-            modifier = Modifier.weight(1f),
-        )
-        if (action != null) {
-            Row(
-                Modifier
-                    .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.92f, onClick = onAction)
-                    .padding(horizontal = 6.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    action,
-                    color = if (muted) AppColors.Muted else AppColors.Accent,
-                    fontSize = 13.sp,
-                    fontWeight = if (muted) FontWeight.SemiBold else FontWeight.ExtraBold,
-                    maxLines = 1,
-                )
-                if (muted) Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(14.dp).rotate(90f))
-            }
-        }
-    }
-}
-
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-@Composable
-private fun FilterChips(
-    filters: List<LibraryFilter>,
-    counts: Map<String, Int>,
-    selectedId: String,
-    onSelect: (String) -> Unit,
-    onEditShelf: (String) -> Unit,
-    onNewShelf: () -> Unit,
-) {
-    androidx.compose.foundation.lazy.LazyRow(
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        items(filters, key = { it.id }) { f ->
-            val selected = f.id == selectedId
-            val count = counts[f.id] ?: 0
-            if (count == 0 && !f.isShelf && f.id != "all" && !selected) return@items
-            val shape = CircleShape
-            Row(
-                Modifier
-                    .height(38.dp)
-                    .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.93f, onLongClick = if (f.isShelf) { { onEditShelf(f.title) } } else null) { onSelect(f.id) }
-                    .then(if (selected) Modifier.background(AppColors.Text) else Modifier.fieldSurface(shape))
-                    .padding(horizontal = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                if (f.id == "favorite") Icon(AppIcons.StarFilled, null, tint = StarYellow, modifier = Modifier.size(14.dp))
-                if (f.isShelf) Icon(AppIcons.Shelf, null, tint = if (selected) AppColors.Background else AppColors.Muted, modifier = Modifier.size(14.dp))
-                Text(
-                    if (f.id == "all") "Все" else f.title,
-                    color = if (selected) AppColors.Background else AppColors.Text,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                )
-                Text("$count", color = if (selected) AppColors.Background.copy(alpha = 0.7f) else AppColors.Faint, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-        item(key = "new-shelf") {
-            Row(
-                Modifier
-                    .height(38.dp)
-                    .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.93f, onClick = onNewShelf)
-                    .dashedBorder(AppColors.PanelBorder, CircleShape)
-                    .padding(horizontal = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Icon(AppIcons.Plus, null, tint = AppColors.Muted, modifier = Modifier.size(14.dp))
-                Text("Полка", color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-            }
-        }
-    }
 }
 
 @Composable

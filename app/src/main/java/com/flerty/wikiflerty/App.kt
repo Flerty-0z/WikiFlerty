@@ -94,11 +94,6 @@ class App : Application() {
         appScope.launch { library.ensureFingerprints() }
         backgroundAudio.install()
         achievements.start(appScope)
-        val fixes = getSharedPreferences("fixes", MODE_PRIVATE)
-        if (!fixes.getBoolean("sounds_on", false)) {
-            readerSettings.update { it.copy(sounds = true, soundVolume = maxOf(it.soundVolume, 0.35)) }
-            fixes.edit().putBoolean("sounds_on", true).apply()
-        }
         appScope.launch {
             kotlinx.coroutines.delay(20_000)
             autoBackup.runIfDue()

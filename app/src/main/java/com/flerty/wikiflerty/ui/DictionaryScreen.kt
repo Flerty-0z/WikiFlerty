@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -59,6 +61,7 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
     var cardSettings by remember { mutableStateOf(false) }
     var exporting by remember { mutableStateOf(false) }
     var wordFilter by rememberSaveable { mutableStateOf("all") }
+    var filterSheet by remember { mutableStateOf(false) }
 
     if (studying && entries.isNotEmpty()) {
         FlashcardSession(onClose = { studying = false }, modifier = modifier)
@@ -104,29 +107,28 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
             StudyCard(entries, onStart = { studying = true }, onSettings = { cardSettings = true })
         }
         item(key = "filters") {
-            androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-                val chips = listOf(
-                    "all" to "Все ${entries.size}",
-                    "new" to "Новые ${entries.count { it.srs.isNew }}",
-                    "learn" to "Учу ${entries.count { it.srs.isLearning }}",
-                    "review" to "Повтор ${entries.count { it.srs.isReview }}",
-                    "done" to "Выучено ${entries.count { it.srs.isMastered }}",
+            val shape = appCorner(22)
+            val current = wordFilters(entries).first { it.id == wordFilter }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) { filterSheet = true }
+                    .fieldSurface(shape)
+                    .padding(start = 14.dp, end = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Icon(current.icon, null, tint = current.color, modifier = Modifier.size(18.dp))
+                Text(current.title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.weight(1f))
+                Text(
+                    current.count.toString(),
+                    color = AppColors.Muted,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    modifier = Modifier.clip(appCorner(10)).background(AppColors.Line).padding(horizontal = 8.dp, vertical = 2.dp),
                 )
-                items(chips, key = { it.first }) { (id, title) ->
-                    val on = id == wordFilter
-                    Text(
-                        title,
-                        color = if (on) AppColors.Background else AppColors.Text,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        modifier = Modifier
-                            .height(36.dp)
-                            .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.93f) { wordFilter = id }
-                            .then(if (on) Modifier.background(AppColors.Text) else Modifier.fieldSurface(CircleShape))
-                            .padding(horizontal = 14.dp, vertical = 9.dp),
-                    )
-                }
+                Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(18.dp).rotate(90f))
             }
         }
         item(key = "search") {
@@ -220,7 +222,7 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
-                        entry.bookTitle?.let { Text(it, color = AppColors.Faint, fontSize = 12.sp) }
+                        if (entry.bookId != null || entry.bookTitle != null) BookTag(entry.bookId, entry.bookTitle)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (entry.bookId != null && entry.locator != null) {
                                 val buttonShape = appCorner(12)
@@ -250,6 +252,44 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
     }
 
     if (cardSettings) FlashcardSettingsSheet(onDismiss = { cardSettings = false })
+
+    if (filterSheet) {
+        AppSheet(onDismiss = { filterSheet = false }, title = "Показать") {
+            val close = sheetClose { filterSheet = false }
+            SettingsGroup(null) {
+                wordFilters(entries).forEach { f ->
+                    val selected = f.id == wordFilter
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 50.dp)
+                            .liveClick(appCorner(12), sound = FeedbackSound.Toggle, pressedScale = 0.98f) {
+                                wordFilter = f.id
+                                close()
+                            },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            Modifier.size(32.dp).clip(CircleShape).background(f.color.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(f.icon, null, tint = f.color, modifier = Modifier.size(17.dp)) }
+                        Text(
+                            f.title,
+                            color = if (selected) AppColors.Accent else AppColors.Text,
+                            fontSize = 15.sp,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f).padding(start = 12.dp, end = 8.dp),
+                        )
+                        Text(f.count.toString(), color = AppColors.Faint, fontSize = 14.sp)
+                        Box(Modifier.padding(start = 6.dp).size(22.dp), contentAlignment = Alignment.Center) {
+                            if (selected) Icon(AppIcons.Check, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     if (exporting) {
         ExportSheet(
@@ -282,3 +322,13 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
         )
     }
 }
+
+private data class WordFilter(val id: String, val title: String, val count: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector, val color: Color)
+
+private fun wordFilters(entries: List<DictionaryEntry>): List<WordFilter> = listOf(
+    WordFilter("all", "Все слова", entries.size, AppIcons.Translate, AppColors.Accent),
+    WordFilter("new", "Новые", entries.count { it.srs.isNew }, AppIcons.Sparkle, AppColors.Info),
+    WordFilter("learn", "Учу", entries.count { it.srs.isLearning }, AppIcons.Bulb, AppColors.Warn),
+    WordFilter("review", "Повтор", entries.count { it.srs.isReview }, AppIcons.Rotate, AppColors.Good),
+    WordFilter("done", "Выучено", entries.count { it.srs.isMastered }, AppIcons.Check, AppColors.Good),
+)
