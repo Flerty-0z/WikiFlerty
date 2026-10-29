@@ -1,5 +1,12 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.graphics.Color
 
 import androidx.compose.foundation.layout.Spacer
@@ -341,7 +348,11 @@ val GoalChoices = listOf(0, 5, 10, 15, 20, 30, 45, 60, 90)
 
 @Composable
 fun GoalRing(todayMs: Long, goalMinutes: Int, size: androidx.compose.ui.unit.Dp, showText: Boolean = true) {
-    val fraction = if (goalMinutes > 0) (todayMs / 60_000f / goalMinutes).coerceIn(0f, 1f) else 0f
+    val target = if (goalMinutes > 0) (todayMs / 60_000f / goalMinutes).coerceIn(0f, 1f) else 0f
+    val sweep = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(target) { sweep.animateTo(target, Motion.tween(900, 120, GrowEasing)) }
+    val fraction = sweep.value
+    val minutes = animatedCount((todayMs / 60_000).toInt())
     val accent = AppColors.Accent
     val track = AppColors.Line
     Box(Modifier.size(size), contentAlignment = Alignment.Center) {
@@ -359,7 +370,7 @@ fun GoalRing(todayMs: Long, goalMinutes: Int, size: androidx.compose.ui.unit.Dp,
             val big = with(density) { (size * 0.27f).toSp() }
             val small = with(density) { (size * 0.13f).toSp() }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("${todayMs / 60_000}", color = AppColors.Text, fontSize = big, lineHeight = big, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text("$minutes", color = AppColors.Text, fontSize = big, lineHeight = big, fontWeight = FontWeight.SemiBold, maxLines = 1)
                 if (size >= 64.dp) Text("мин", color = AppColors.Faint, fontSize = small, lineHeight = small, maxLines = 1)
             }
         }
@@ -370,30 +381,33 @@ fun GoalRing(todayMs: Long, goalMinutes: Int, size: androidx.compose.ui.unit.Dp,
 private fun GoalCard(goalMinutes: Int, perDay: Map<LocalDate, DayEntry>, onGoal: (Int) -> Unit) {
     val today = LocalDate.now()
     val todayMs = perDay[today]?.ms ?: 0L
+    var lastGoal by remember { mutableStateOf(goalMinutes) }
+    if (goalMinutes > 0) lastGoal = goalMinutes
     Column(
-        Modifier.fillMaxWidth().fieldSurface(appCorner(18)).padding(horizontal = 14.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().fieldSurface(appCorner(18)).animateContentSize(Motion.tween(380)).padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
-        if (goalMinutes > 0) {
-            val done = todayMs >= goalMinutes * 60_000L
-            val (streak, _) = StatsCalc.streaks(perDay, today, minMs = goalMinutes * 60_000L)
+        GoalReveal(goalMinutes > 0) {
+            val goal = lastGoal
+            val done = todayMs >= goal * 60_000L
+            val (streak, _) = StatsCalc.streaks(perDay, today, minMs = goal * 60_000L)
             Row(
                 Modifier.padding(top = 6.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                GoalRing(todayMs, goalMinutes, 76.dp)
+                Box(rememberStagger(0)) { GoalRing(todayMs, goal, 76.dp) }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text(
-                        if (done) "Цель на сегодня выполнена" else "Ещё ${goalMinutes - (todayMs / 60_000).toInt()} мин до цели",
-                        color = AppColors.Text,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text("Цель: $goalMinutes мин в день", color = AppColors.Muted, fontSize = 13.sp)
+                    RollingText(
+                        if (done) "Цель на сегодня выполнена" else "Ещё ${goal - (todayMs / 60_000).toInt()} мин до цели",
+                        rememberStagger(1),
+                    ) { Text(it, color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    RollingText("Цель: $goal мин в день", rememberStagger(2)) {
+                        Text(it, color = AppColors.Muted, fontSize = 13.sp, maxLines = 1)
+                    }
                     if (streak > 0) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(rememberStagger(3), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             Icon(AppIcons.Fire, null, tint = AppColors.Accent, modifier = Modifier.size(14.dp))
-                            Text("Выполняешь ${StatsCalc.days(streak)} подряд", color = AppColors.Faint, fontSize = 12.sp)
+                            Text("Выполняешь ${StatsCalc.days(streak)} подряд", color = AppColors.Faint, fontSize = 12.sp, maxLines = 1)
                         }
                     }
                 }
@@ -410,53 +424,172 @@ private fun GoalCard(goalMinutes: Int, perDay: Map<LocalDate, DayEntry>, onGoal:
     }
 }
 
+val GrowEasing = androidx.compose.animation.core.CubicBezierEasing(0.3f, 1.25f, 0.55f, 1f)
+
+@Composable
+fun GoalReveal(visible: Boolean, content: @Composable () -> Unit) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible,
+        enter = androidx.compose.animation.expandVertically(Motion.tween(420), expandFrom = Alignment.Top) +
+            androidx.compose.animation.fadeIn(Motion.fade(320)) +
+            androidx.compose.animation.scaleIn(Motion.tween(460, 0, GrowEasing), initialScale = 0.9f),
+        exit = androidx.compose.animation.shrinkVertically(Motion.tween(320), shrinkTowards = Alignment.Top) +
+            androidx.compose.animation.fadeOut(Motion.fade(200)) +
+            androidx.compose.animation.scaleOut(Motion.tween(300), targetScale = 0.94f),
+    ) { content() }
+}
+
+@Composable
+fun rememberStagger(index: Int): Modifier {
+    val progress = remember { androidx.compose.animation.core.Animatable(if (Motion.enabled) 0f else 1f) }
+    val shift = with(androidx.compose.ui.platform.LocalDensity.current) { 14.dp.toPx() }
+    LaunchedEffect(Unit) { progress.animateTo(1f, Motion.tween(460, 90 + index * 80, GrowEasing)) }
+    return Modifier.graphicsLayer {
+        val p = progress.value
+        alpha = p.coerceIn(0f, 1f)
+        translationY = (1f - p) * shift
+    }
+}
+
+@Composable
+fun RollingText(text: String, modifier: Modifier = Modifier, content: @Composable (String) -> Unit) {
+    androidx.compose.animation.AnimatedContent(
+        targetState = text,
+        transitionSpec = {
+            (androidx.compose.animation.slideInVertically(Motion.tween(360, 0, GrowEasing)) { it / 2 } + androidx.compose.animation.fadeIn(Motion.fade(260)))
+                .togetherWith(androidx.compose.animation.slideOutVertically(Motion.tween(260)) { -it / 2 } + androidx.compose.animation.fadeOut(Motion.fade(160)))
+                .using(androidx.compose.animation.SizeTransform(clip = false))
+        },
+        label = "rolling",
+        modifier = modifier,
+    ) { content(it) }
+}
+
+@Composable
+fun animatedCount(target: Int): Int {
+    val value = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(target) { value.animateTo(target.toFloat(), Motion.tween(800, 120)) }
+    return value.value.toInt()
+}
+
 private val DayLetters = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
 
 @Composable
 private fun MinutesCard(perDay: Map<LocalDate, DayEntry>, today: LocalDate) {
-    var month by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
-    val count = if (month) 30 else 7
-    val values = StatsCalc.series(perDay, count, today)
-    val max = values.maxOrNull()?.takeIf { it > 0 } ?: 1L
+    var month by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     Column(
         Modifier.fillMaxWidth().fieldSurface(appCorner(20)).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Минуты по дням", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f), maxLines = 1)
-            Row(Modifier.clip(CircleShape).background(AppColors.Line.copy(alpha = 0.6f)).padding(3.dp)) {
-                listOf(false to "Неделя", true to "30 дней").forEach { (m, title) ->
-                    val on = m == month
-                    Text(
-                        title,
-                        color = if (on) AppColors.OnAccent else AppColors.Muted,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.93f) { month = m }
-                            .background(if (on) AppColors.Accent else Color.Transparent)
-                            .padding(horizontal = 10.dp, vertical = 5.dp),
+            PeriodToggle(month) { month = it }
+        }
+        androidx.compose.animation.AnimatedContent(
+            targetState = month,
+            transitionSpec = {
+                val dir = if (targetState) 1 else -1
+                (androidx.compose.animation.fadeIn(Motion.fade(260)) +
+                    androidx.compose.animation.slideInHorizontally(Motion.tween(420, 0, GrowEasing)) { dir * it / 6 })
+                    .togetherWith(
+                        androidx.compose.animation.fadeOut(Motion.fade(160)) +
+                            androidx.compose.animation.slideOutHorizontally(Motion.tween(300)) { -dir * it / 6 },
+                    )
+                    .using(androidx.compose.animation.SizeTransform(clip = false))
+            },
+            label = "period",
+        ) { isMonth ->
+            MinutesBars(StatsCalc.series(perDay, if (isMonth) 30 else 7, today), isMonth, today)
+        }
+    }
+}
+
+@Composable
+private fun PeriodToggle(month: Boolean, onChange: (Boolean) -> Unit) {
+    val bounds = remember { androidx.compose.runtime.mutableStateMapOf<Boolean, Pair<Float, Float>>() }
+    val selected = bounds[month]
+    val x by androidx.compose.animation.core.animateFloatAsState(selected?.first ?: 0f, Motion.tween(380, 0, GrowEasing), label = "toggleX")
+    val w by androidx.compose.animation.core.animateFloatAsState(selected?.second ?: 0f, Motion.tween(380, 0, GrowEasing), label = "toggleW")
+    val accent = AppColors.Accent
+    Row(
+        Modifier
+            .clip(CircleShape)
+            .background(AppColors.Line.copy(alpha = 0.6f))
+            .drawBehind {
+                if (w > 0f) {
+                    drawRoundRect(
+                        accent,
+                        topLeft = Offset(x, 3.dp.toPx()),
+                        size = Size(w, size.height - 6.dp.toPx()),
+                        cornerRadius = CornerRadius(size.height / 2),
                     )
                 }
             }
+            .padding(3.dp),
+    ) {
+        listOf(false to "Неделя", true to "30 дней").forEach { (m, title) ->
+            val color by androidx.compose.animation.animateColorAsState(
+                if (m == month) AppColors.OnAccent else AppColors.Muted,
+                Motion.fade(260),
+                label = "toggleText",
+            )
+            Text(
+                title,
+                color = color,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                modifier = Modifier
+                    .onGloballyPositioned { c ->
+                        bounds[m] = c.positionInParent().x to c.size.width.toFloat()
+                    }
+                    .clip(CircleShape)
+                    .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.93f) { onChange(m) }
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+            )
         }
+    }
+}
+
+@Composable
+private fun MinutesBars(values: List<Long>, month: Boolean, today: LocalDate) {
+    val max = values.maxOrNull()?.takeIf { it > 0 } ?: 1L
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth().height(130.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(if (month) 3.dp else 10.dp)) {
             values.forEachIndexed { i, v ->
                 val last = i == values.lastIndex
+                val target = if (v > 0) (v.toFloat() / max).coerceIn(0.06f, 1f) else 0f
+                val grow = remember { androidx.compose.animation.core.Animatable(0f) }
+                LaunchedEffect(target) {
+                    grow.animateTo(target, Motion.tween(if (month) 560 else 700, (if (month) 14 else 55) * i + 80, GrowEasing))
+                }
+                val g = grow.value.coerceIn(0f, 1.1f)
                 Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Bottom, horizontalAlignment = Alignment.CenterHorizontally) {
                     if (!month && v > 0) {
-                        Text("${v / 60_000}", color = if (last) AppColors.Accent else AppColors.Muted, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                        Text(
+                            "${v / 60_000}",
+                            color = if (last) AppColors.Accent else AppColors.Muted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 1,
+                            modifier = Modifier.graphicsLayer { alpha = (g / target.coerceAtLeast(0.01f)).coerceIn(0f, 1f) },
+                        )
                         Spacer(Modifier.height(4.dp))
                     }
-                    val fraction = if (v > 0) (v.toFloat() / max).coerceIn(0.06f, 1f) else 0f
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .then(if (fraction > 0f) Modifier.fillMaxHeight(fraction * 0.82f) else Modifier.height(6.dp))
+                            .then(if (target > 0f) Modifier.fillMaxHeight((g * 0.82f).coerceIn(0.02f, 0.9f)) else Modifier.height(6.dp))
                             .clip(appCorner(if (month) 3 else 6))
-                            .background(if (v <= 0) AppColors.Line else if (last) AppColors.Accent else AppColors.Accent.copy(alpha = 0.45f)),
+                            .background(
+                                if (v <= 0) {
+                                    AppColors.Line
+                                } else if (last) {
+                                    AppColors.Accent
+                                } else {
+                                    AppColors.Accent.copy(alpha = 0.45f)
+                                },
+                            ),
                     )
                 }
             }

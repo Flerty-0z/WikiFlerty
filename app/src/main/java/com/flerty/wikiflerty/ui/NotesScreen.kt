@@ -53,10 +53,18 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
     var colorFilter by remember { mutableStateOf<Long?>(null) }
     var toDelete by remember { mutableStateOf<Note?>(null) }
     var exporting by remember { mutableStateOf(false) }
+    var bookFilter by remember { mutableStateOf<String?>(null) }
+    var bookSheet by remember { mutableStateOf(false) }
 
     val titles = books.associate { it.id to it.title }
     val usedColors = notes.map { it.color }.distinct()
+    val bookOrderAll = books.map { it.id }
+    val noteBooks = notes.map { it.bookId }.distinct()
+        .sortedBy { id -> bookOrderAll.indexOf(id).let { if (it < 0) Int.MAX_VALUE else it } }
+    if (bookFilter != null && bookFilter !in noteBooks) bookFilter = null
+    val choices = noteBooks.map { id -> BookChoice(id, titles[id], notes.count { it.bookId == id }) }
     val filtered = notes
+        .filter { bookFilter == null || it.bookId == bookFilter }
         .filter { colorFilter == null || it.color == colorFilter }
         .filter {
             query.isBlank() ||
@@ -124,6 +132,16 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
                         .fieldSurface(CircleShape),
                     contentAlignment = Alignment.Center,
                 ) { Icon(AppIcons.Send, "Экспорт", tint = AppColors.Accent, modifier = Modifier.size(20.dp)) }
+            }
+        }
+        if (noteBooks.size > 1) {
+            item(key = "books") {
+                BookChoiceButton(
+                    selectedId = bookFilter,
+                    allIds = noteBooks,
+                    fallbackTitle = bookFilter?.let { titles[it] },
+                    count = if (bookFilter == null) notes.size else notes.count { it.bookId == bookFilter },
+                ) { bookSheet = true }
             }
         }
         if (usedColors.size > 1) {
@@ -196,8 +214,20 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
         }
     }
 
+    if (bookSheet) {
+        BookPickerSheet(
+            title = "Книги",
+            choices = choices,
+            total = notes.size,
+            selectedId = bookFilter,
+            onSelect = { bookFilter = it },
+            onDismiss = { bookSheet = false },
+        )
+    }
+
     if (exporting) {
-        var scope by remember { mutableStateOf("all") }
+        var scope by remember { mutableStateOf(bookFilter ?: "all") }
+        var scopeSheet by remember { mutableStateOf(false) }
         val withNotes = books.filter { b -> notes.any { it.bookId == b.id } }
         val chosen = { if (scope == "all") notes else notes.filter { it.bookId == scope } }
         val base = if (scope == "all") "Заметки" else (titles[scope] ?: "Заметки").take(40)
@@ -213,14 +243,22 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
                 },
             ),
             extra = {
-                SettingsGroup(null) {
-                    PickerRow(
-                        label = "Книги",
-                        icon = AppIcons.Book,
-                        options = listOf(PickerOption("all", "Все книги", "Заметок: ${notes.size}")) +
-                            withNotes.map { b -> PickerOption(b.id, b.title, "Заметок: ${notes.count { it.bookId == b.id }}") },
-                        selectedId = scope,
-                    ) { scope = it }
+                val selected = scope.takeIf { it != "all" }
+                BookChoiceButton(
+                    selectedId = selected,
+                    allIds = withNotes.map { it.id },
+                    fallbackTitle = selected?.let { titles[it] },
+                    count = if (selected == null) notes.size else notes.count { it.bookId == selected },
+                ) { scopeSheet = true }
+                if (scopeSheet) {
+                    BookPickerSheet(
+                        title = "Книги",
+                        choices = withNotes.map { b -> BookChoice(b.id, b.title, notes.count { it.bookId == b.id }) },
+                        total = notes.size,
+                        selectedId = selected,
+                        onSelect = { scope = it ?: "all" },
+                        onDismiss = { scopeSheet = false },
+                    )
                 }
             },
         )

@@ -109,6 +109,14 @@ fun srsBadge(s: SrsState, now: Long = System.currentTimeMillis()): Pair<String, 
     else -> "через ${Srs.wait(s.due - now)}" to AppColors.Muted
 }
 
+fun srsIcon(s: SrsState, now: Long = System.currentTimeMillis()): ImageVector = when {
+    s.isNew -> AppIcons.Sparkle
+    s.isLearning -> AppIcons.Bulb
+    s.isMastered -> AppIcons.Check
+    s.due <= now -> AppIcons.Rotate
+    else -> AppIcons.Clock
+}
+
 private fun maskWord(text: String, word: String): String {
     val w = word.trim()
     if (w.isEmpty()) return text
@@ -284,9 +292,9 @@ private fun androidx.compose.foundation.layout.ColumnScope.StudyBody(
 ) {
     run {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            CountChip("Новые", newLeft, AppColors.Info)
-            CountChip("Учу", learnLeft, AppColors.Warn)
-            CountChip("Повтор", reviewLeft, AppColors.Good)
+            CountChip("Новые", newLeft, AppColors.Info, AppIcons.Sparkle)
+            CountChip("Учу", learnLeft, AppColors.Warn, AppIcons.Bulb)
+            CountChip("Повтор", reviewLeft, AppColors.Good, AppIcons.Rotate)
         }
         val total = answered + queue.size
         Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(AppColors.Line)) {
@@ -350,12 +358,15 @@ private fun RoundButton(icon: ImageVector, description: String, onClick: () -> U
 }
 
 @Composable
-private fun CountChip(label: String, count: Int, color: Color) {
+private fun CountChip(label: String, count: Int, color: Color, icon: ImageVector) {
     Row(
-        Modifier.clip(CircleShape).background(color.copy(alpha = 0.13f)).padding(horizontal = 12.dp, vertical = 6.dp),
+        Modifier.clip(CircleShape).background(color.copy(alpha = 0.13f)).padding(start = 8.dp, end = 12.dp, top = 5.dp, bottom = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        Box(Modifier.size(20.dp).clip(CircleShape).background(color.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = color, modifier = Modifier.size(12.dp))
+        }
         Text(label, color = color, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         Text(count.toString(), color = AppColors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
     }
@@ -622,9 +633,9 @@ fun StudyCard(entries: List<DictionaryEntry>, onStart: () -> Unit, onSettings: (
             ) { Icon(AppIcons.Options, "Настройки карточек", tint = AppColors.Text, modifier = Modifier.size(18.dp)) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CountChip("Новые", counts.new, AppColors.Info)
-            CountChip("Учу", counts.learning, AppColors.Warn)
-            CountChip("Повтор", counts.review, AppColors.Good)
+            CountChip("Новые", counts.new, AppColors.Info, AppIcons.Sparkle)
+            CountChip("Учу", counts.learning, AppColors.Warn, AppIcons.Bulb)
+            CountChip("Повтор", counts.review, AppColors.Good, AppIcons.Rotate)
         }
         val button = appCorner(16)
         Row(

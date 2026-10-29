@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.animation.animateContentSize
+
 import androidx.compose.ui.draw.shadow
 
 import androidx.compose.animation.AnimatedVisibility
@@ -210,8 +212,11 @@ val YearGoalChoices = listOf(0, 3, 5, 6, 10, 12, 15, 20, 24, 30, 36, 40, 50, 52,
 @Composable
 fun YearGoalCard(goal: Int, finished: Int, onGoal: (Int) -> Unit) {
     val today = LocalDate.now()
-    Column(Modifier.fillMaxWidth().fieldSurface(appCorner(18)).padding(horizontal = 14.dp, vertical = 10.dp)) {
-        if (goal > 0) {
+    var lastGoal by remember { mutableStateOf(goal) }
+    if (goal > 0) lastGoal = goal
+    Column(Modifier.fillMaxWidth().fieldSurface(appCorner(18)).animateContentSize(Motion.tween(380)).padding(horizontal = 14.dp, vertical = 10.dp)) {
+        GoalReveal(goal > 0) {
+            val goal = lastGoal
             val fraction = (finished.toFloat() / goal).coerceIn(0f, 1f)
             val expected = goal * today.dayOfYear.toDouble() / today.lengthOfYear()
             val diff = floor(finished - expected).toInt()
@@ -226,26 +231,19 @@ fun YearGoalCard(goal: Int, finished: Int, onGoal: (Int) -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                YearRing(fraction, finished, goal, 76.dp)
+                Box(rememberStagger(0)) { YearRing(fraction, finished, goal, 76.dp) }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text(
-                        "Прочитано $finished из $goal",
-                        color = AppColors.Text,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(pace, color = AppColors.Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    RollingText("Прочитано $finished из $goal", rememberStagger(1)) {
+                        Text(it, color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    RollingText(pace, rememberStagger(2)) {
+                        Text(it, color = AppColors.Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                     if (finished < goal) {
                         val left = goal - finished
-                        Text(
-                            "Ещё $left " + StatsCalc.plural(left, "книга", "книги", "книг") + " до конца года",
-                            color = AppColors.Faint,
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        RollingText("Ещё $left " + StatsCalc.plural(left, "книга", "книги", "книг") + " до конца года", rememberStagger(3)) {
+                            Text(it, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                     }
                 }
             }
@@ -269,7 +267,9 @@ fun YearGoalCard(goal: Int, finished: Int, onGoal: (Int) -> Unit) {
 @Composable
 private fun YearRing(fraction: Float, finished: Int, goal: Int, size: Dp) {
     val anim = remember { Animatable(0f) }
-    LaunchedEffect(fraction) { anim.animateTo(fraction, Motion.tween(900)) }
+    LaunchedEffect(fraction) { anim.animateTo(fraction, Motion.tween(900, 120, GrowEasing)) }
+    val shownFinished = animatedCount(finished)
+    val shownGoal = animatedCount(goal)
     val accent = AppColors.Accent
     val light = AppColors.AccentLight
     val track = AppColors.Line
@@ -293,8 +293,8 @@ private fun YearRing(fraction: Float, finished: Int, goal: Int, size: Dp) {
             }
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("$finished", color = AppColors.Text, fontSize = 21.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-            Text("из $goal", color = AppColors.Faint, fontSize = 10.sp, lineHeight = 10.sp, maxLines = 1)
+            Text("$shownFinished", color = AppColors.Text, fontSize = 21.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text("из $shownGoal", color = AppColors.Faint, fontSize = 10.sp, lineHeight = 10.sp, maxLines = 1)
         }
     }
 }
@@ -419,7 +419,7 @@ fun AchievementsButton(earned: Int, total: Int, onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy((-10).dp)) {
-            listOf(AchievementKind.Streak, AchievementKind.Books, AchievementKind.Pages, AchievementKind.Time).forEach { kind ->
+            listOf(AchievementKind.Streak, AchievementKind.Books, AchievementKind.Time).forEach { kind ->
                 val style = medalStyle(kind)
                 Box(
                     Modifier
@@ -431,7 +431,15 @@ fun AchievementsButton(earned: Int, total: Int, onClick: () -> Unit) {
                 ) { Icon(style.icon, null, tint = Color.White, modifier = Modifier.size(15.dp)) }
             }
         }
-        Text("Достижения", color = Color(0xFFF2EBE1), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, modifier = Modifier.weight(1f))
+        Text(
+            "Достижения",
+            color = Color(0xFFF2EBE1),
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            softWrap = false,
+            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 17.sp, stepSize = 0.5.sp),
+            modifier = Modifier.weight(1f),
+        )
         Text("$earned / $total", color = AppColors.Accent, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
         Icon(AppIcons.Chevron, null, tint = Color(0xFFB4A797), modifier = Modifier.size(18.dp))
     }

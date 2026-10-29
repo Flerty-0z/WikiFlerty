@@ -119,7 +119,10 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Icon(current.icon, null, tint = current.color, modifier = Modifier.size(18.dp))
+                Box(
+                    Modifier.size(28.dp).clip(CircleShape).background(current.color.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(current.icon, null, tint = current.color, modifier = Modifier.size(15.dp)) }
                 Text(current.title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.weight(1f))
                 Text(
                     current.count.toString(),
@@ -186,14 +189,14 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
                         modifier = Modifier.weight(1f).padding(end = 8.dp),
                     )
                     val (badge, badgeColor) = srsBadge(entry.srs)
-                    Text(
-                        badge,
-                        color = badgeColor,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        modifier = Modifier.clip(CircleShape).background(badgeColor.copy(alpha = 0.14f)).padding(horizontal = 9.dp, vertical = 3.dp),
-                    )
+                    Row(
+                        Modifier.clip(CircleShape).background(badgeColor.copy(alpha = 0.14f)).padding(start = 7.dp, end = 9.dp, top = 3.dp, bottom = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Icon(srsIcon(entry.srs), null, tint = badgeColor, modifier = Modifier.size(12.dp))
+                        Text(badge, color = badgeColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    }
                 }
                 if (open) {
                     SelectionContainer {
