@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
-enum class AchievementKind { Streak, Books, Pages, Time }
+enum class AchievementKind { Streak, Books, Pages, Time, Notes, Words }
 
 data class Achievement(
     val id: String,
@@ -28,12 +28,16 @@ data class AchievementProgress(
     val books: Int = 0,
     val pages: Int = 0,
     val ms: Long = 0,
+    val notes: Int = 0,
+    val words: Int = 0,
 ) {
     fun value(kind: AchievementKind): Long = when (kind) {
         AchievementKind.Streak -> bestStreak.toLong()
         AchievementKind.Books -> books.toLong()
         AchievementKind.Pages -> pages.toLong()
         AchievementKind.Time -> ms / HOUR
+        AchievementKind.Notes -> notes.toLong()
+        AchievementKind.Words -> words.toLong()
     }
 
     fun fraction(a: Achievement): Float = (value(a.kind).toFloat() / a.target).coerceIn(0f, 1f)
@@ -41,7 +45,7 @@ data class AchievementProgress(
     companion object {
         const val HOUR = 3_600_000L
 
-        fun of(days: Map<String, Map<String, DayEntry>>, books: List<Book>): AchievementProgress {
+        fun of(days: Map<String, Map<String, DayEntry>>, books: List<Book>, notes: Int = 0, words: Int = 0): AchievementProgress {
             val perDay = StatsCalc.perDay(days)
             val total = perDay.values.fold(DayEntry()) { a, b -> a + b }
             return AchievementProgress(
@@ -49,27 +53,77 @@ data class AchievementProgress(
                 books = books.count { it.status == ReadStatus.Finished },
                 pages = total.pages,
                 ms = total.ms,
+                notes = notes,
+                words = words,
             )
         }
     }
 }
 
 object Achievements {
-    val all: List<Achievement> = listOf(
-        Achievement("streak3", AchievementKind.Streak, 3, "3 дня подряд", "Читай 3 дня подряд"),
-        Achievement("streak7", AchievementKind.Streak, 7, "Неделя подряд", "Читай 7 дней подряд"),
-        Achievement("streak30", AchievementKind.Streak, 30, "Месяц подряд", "Читай 30 дней подряд"),
-        Achievement("streak100", AchievementKind.Streak, 100, "100 дней", "Читай 100 дней подряд"),
-        Achievement("books1", AchievementKind.Books, 1, "Первая книга", "Дочитай первую книгу"),
-        Achievement("books5", AchievementKind.Books, 5, "5 книг", "Дочитай 5 книг"),
-        Achievement("books10", AchievementKind.Books, 10, "10 книг", "Дочитай 10 книг"),
-        Achievement("books25", AchievementKind.Books, 25, "25 книг", "Дочитай 25 книг"),
-        Achievement("pages1000", AchievementKind.Pages, 1_000, "1 000 страниц", "Прочитай 1 000 страниц"),
-        Achievement("pages10000", AchievementKind.Pages, 10_000, "10 000 страниц", "Прочитай 10 000 страниц"),
-        Achievement("hours1", AchievementKind.Time, 1, "Первый час", "Читай в сумме 1 час"),
-        Achievement("hours10", AchievementKind.Time, 10, "10 часов", "Читай в сумме 10 часов"),
-        Achievement("hours100", AchievementKind.Time, 100, "100 часов", "Читай в сумме 100 часов"),
+    private fun n(v: Long): String = String.format(java.util.Locale.forLanguageTag("ru"), "%,d", v).replace('\u00A0', ' ')
+
+    private fun streak(d: Long) = Achievement(
+        "streak$d",
+        AchievementKind.Streak,
+        d,
+        when (d) {
+            7L -> "Неделя подряд"
+            14L -> "Две недели"
+            30L -> "Месяц подряд"
+            365L -> "Год подряд"
+            else -> "${n(d)} " + StatsCalc.plural(d.toInt(), "день", "дня", "дней") + " подряд"
+        },
+        "Читай ${n(d)} " + StatsCalc.plural(d.toInt(), "день", "дня", "дней") + " подряд",
     )
+
+    private fun books(c: Long) = Achievement(
+        "books$c",
+        AchievementKind.Books,
+        c,
+        if (c == 1L) "Первая книга" else "${n(c)} " + StatsCalc.plural(c.toInt(), "книга", "книги", "книг"),
+        "Дочитай ${n(c)} " + StatsCalc.plural(c.toInt(), "книгу", "книги", "книг"),
+    )
+
+    private fun pages(c: Long) = Achievement(
+        "pages$c",
+        AchievementKind.Pages,
+        c,
+        "${n(c)} " + StatsCalc.plural(c.toInt(), "страница", "страницы", "страниц"),
+        "Прочитай ${n(c)} " + StatsCalc.plural(c.toInt(), "страницу", "страницы", "страниц"),
+    )
+
+    private fun hours(h: Long) = Achievement(
+        "hours$h",
+        AchievementKind.Time,
+        h,
+        if (h == 1L) "Первый час" else "${n(h)} " + StatsCalc.plural(h.toInt(), "час", "часа", "часов"),
+        "Читай в сумме ${n(h)} " + StatsCalc.plural(h.toInt(), "час", "часа", "часов"),
+    )
+
+    private fun notes(c: Long) = Achievement(
+        "notes$c",
+        AchievementKind.Notes,
+        c,
+        if (c == 1L) "Первая заметка" else "${n(c)} " + StatsCalc.plural(c.toInt(), "заметка", "заметки", "заметок"),
+        "Сделай ${n(c)} " + StatsCalc.plural(c.toInt(), "заметку", "заметки", "заметок"),
+    )
+
+    private fun words(c: Long) = Achievement(
+        "words$c",
+        AchievementKind.Words,
+        c,
+        if (c == 1L) "Первое слово" else "${n(c)} " + StatsCalc.plural(c.toInt(), "слово", "слова", "слов"),
+        "Добавь в словарь ${n(c)} " + StatsCalc.plural(c.toInt(), "слово", "слова", "слов"),
+    )
+
+    val all: List<Achievement> =
+        listOf(3L, 5L, 7L, 14L, 21L, 30L, 50L, 75L, 100L, 150L, 200L, 365L).map(::streak) +
+            listOf(1L, 3L, 5L, 10L, 15L, 20L, 30L, 50L, 75L, 100L).map(::books) +
+            listOf(100L, 250L, 500L, 1_000L, 2_500L, 5_000L, 10_000L, 25_000L, 50_000L).map(::pages) +
+            listOf(1L, 5L, 10L, 25L, 50L, 100L, 250L, 500L).map(::hours) +
+            listOf(1L, 10L, 25L, 50L, 100L, 250L, 500L).map(::notes) +
+            listOf(1L, 10L, 25L, 50L, 100L, 250L, 500L).map(::words)
 
     fun byId(id: String): Achievement? = all.firstOrNull { it.id == id }
 }
@@ -86,10 +140,12 @@ class AchievementStore(private val app: App) {
 
     fun start(scope: CoroutineScope) {
         scope.launch {
-            combine(app.stats.days, app.library.books) { days, books -> days to books }
-                .collectLatest { (days, books) ->
+            combine(app.stats.days, app.library.books, app.notes.notes, app.dictionary.entries) { days, books, notes, words ->
+                AchievementProgress.of(days, books, notes.size, words.size)
+            }
+                .collectLatest { progress ->
                     delay(1200)
-                    check(AchievementProgress.of(days, books))
+                    check(progress)
                 }
         }
     }

@@ -49,6 +49,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.animateContentSize
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -207,10 +213,29 @@ fun AiChatContent(bridge: AiBridge, modifier: Modifier = Modifier) {
     val chat = bridge.chat
     val listState = rememberLazyListState()
     var input by remember { mutableStateOf("") }
-    val lastText = chat.bubbles.lastOrNull()?.shown
+    val dragged by listState.interactionSource.collectIsDraggedAsState()
+    var follow by remember { mutableStateOf(true) }
 
-    LaunchedEffect(chat.bubbles.size, lastText?.length) {
+    LaunchedEffect(Unit) {
         if (chat.bubbles.isNotEmpty()) listState.scrollToItem(chat.bubbles.size - 1, Int.MAX_VALUE / 2)
+    }
+    LaunchedEffect(chat.bubbles.size) { follow = true }
+    LaunchedEffect(dragged) {
+        if (dragged) follow = false
+    }
+    LaunchedEffect(Unit) {
+        while (true) {
+            withFrameNanos { }
+            if (dragged) continue
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull() ?: continue
+            val atEnd = last.index == info.totalItemsCount - 1
+            val remaining = if (atEnd) (last.offset + last.size - info.viewportEndOffset).toFloat() else 1200f
+            if (!follow && atEnd && remaining < 24f) follow = true
+            if (follow && remaining > 0.5f) {
+                listState.scrollBy(maxOf(0.5f, remaining * 0.16f))
+            }
+        }
     }
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -408,20 +433,58 @@ private fun UserBubble(bubble: AiBubble, first: Boolean, fragment: String) {
 
 @Composable
 private fun AnswerBubble(text: String, writing: Boolean, note: String? = null) {
+    val target by rememberUpdatedState(text)
+    val live by rememberUpdatedState(writing)
+    var shown by remember { mutableFloatStateOf(if (writing) 0f else text.length.toFloat()) }
+    LaunchedEffect(Unit) {
+        var last = 0L
+        while (true) {
+            val now = withFrameNanos { it }
+            val dt = if (last == 0L) 0.016f else ((now - last) / 1_000_000_000f).coerceAtMost(0.05f)
+            last = now
+            val goal = target.length.toFloat()
+            val gap = goal - shown
+            if (gap < 0f) {
+                shown = goal
+            } else if (gap > 0f) {
+                shown = minOf(goal, shown + (55f + gap * 3.5f) * dt)
+            } else if (!live) {
+                break
+            }
+        }
+    }
+    val count = shown.toInt().coerceAtMost(text.length)
+    val accentTail = AppColors.Text
+    val visible = remember(text, count) {
+        val base = markdown(text.take(count))
+        if (count >= text.length && !writing) {
+            base
+        } else {
+            androidx.compose.ui.text.AnnotatedString.Builder(base).apply {
+                val tail = minOf(18, base.length)
+                for (i in 0 until tail) {
+                    val pos = base.length - 1 - i
+                    val a = 0.15f + 0.85f * (i.toFloat() / tail)
+                    addStyle(androidx.compose.ui.text.SpanStyle(color = accentTail.copy(alpha = a)), pos, pos + 1)
+                }
+            }.toAnnotatedString()
+        }
+    }
     Column(
         Modifier
             .fillMaxWidth()
+            .animateContentSize(androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow))
             .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 4.dp, bottomEnd = 16.dp))
             .background(AppColors.Field)
             .border(1.dp, AppColors.PanelBorder, RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 4.dp, bottomEnd = 16.dp))
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
-        if (text.isEmpty() && writing) {
+        if (count == 0 && writing) {
             if (note != null) Text(note, color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
             TypingDots()
         } else {
             SelectionContainer {
-                Text(markdown(text), color = AppColors.Text, fontSize = 15.sp, lineHeight = 22.sp)
+                Text(visible, color = AppColors.Text, fontSize = 15.sp, lineHeight = 22.sp)
             }
         }
     }

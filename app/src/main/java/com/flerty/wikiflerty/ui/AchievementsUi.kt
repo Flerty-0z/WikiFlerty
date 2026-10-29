@@ -86,6 +86,8 @@ private fun medalStyle(kind: AchievementKind): MedalStyle = when (kind) {
     AchievementKind.Books -> MedalStyle(0xFF7C9BFF, 0xFF4C5ED9, AppIcons.Book)
     AchievementKind.Pages -> MedalStyle(0xFF5EEAD4, 0xFF1A9483, AppIcons.Pages)
     AchievementKind.Time -> MedalStyle(0xFFB79CFF, 0xFF7048DD, AppIcons.Clock)
+    AchievementKind.Notes -> MedalStyle(0xFFF6D365, 0xFFD9A21B, AppIcons.Note)
+    AchievementKind.Words -> MedalStyle(0xFFF7A1C4, 0xFFC44A86, AppIcons.Translate)
 }
 
 @Composable
@@ -140,7 +142,7 @@ private fun number(n: Long): String = String.format(ruLocale, "%,d", n)
 
 private fun progressLabel(achievement: Achievement, progress: AchievementProgress): String {
     val value = progress.value(achievement.kind).coerceAtMost(achievement.target)
-    val base = "${number(value)} / ${number(achievement.target)}"
+    val base = "${number(value)}/${number(achievement.target)}"
     return if (achievement.kind == AchievementKind.Time) "$base ч" else base
 }
 
@@ -450,6 +452,8 @@ private fun kindTitle(kind: AchievementKind) = when (kind) {
     AchievementKind.Books -> "Книги"
     AchievementKind.Pages -> "Страницы"
     AchievementKind.Time -> "Время"
+    AchievementKind.Notes -> "Заметки"
+    AchievementKind.Words -> "Слова"
 }
 
 @Composable
@@ -458,7 +462,9 @@ fun AchievementsPage(modifier: Modifier = Modifier, onBack: () -> Unit) {
     val days by app.stats.days.collectAsStateWithLifecycle()
     val books by app.library.books.collectAsStateWithLifecycle()
     val unlocked by app.achievements.unlocked.collectAsStateWithLifecycle()
-    val progress = remember(days, books) { AchievementProgress.of(days, books) }
+    val noteList by app.notes.notes.collectAsStateWithLifecycle()
+    val wordList by app.dictionary.entries.collectAsStateWithLifecycle()
+    val progress = remember(days, books, noteList.size, wordList.size) { AchievementProgress.of(days, books, noteList.size, wordList.size) }
     val all = Achievements.all
     val earned = all.count { it.id in unlocked }
     val next = all.filter { it.id !in unlocked }.maxByOrNull { progress.fraction(it) }
@@ -525,7 +531,7 @@ fun AchievementsPage(modifier: Modifier = Modifier, onBack: () -> Unit) {
                 SectionHeader(
                     kindTitle(kind),
                     icon = style.icon,
-                    action = { InfoChip("${group.count { it.id in unlocked }} / ${group.size}", Color(style.from)) },
+                    action = { InfoChip("${group.count { it.id in unlocked }}/${group.size}", Color(style.from)) },
                 )
                 Column(
                     Modifier.fillMaxWidth().fieldSurface(appCorner(18)).padding(horizontal = 6.dp, vertical = 14.dp),
