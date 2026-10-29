@@ -516,7 +516,6 @@ fun ReaderOverlay(
             }.coerceIn(minY, maxOf(minY, maxY))
             SelectionMenu(
                 markerColor = settings.markerColor,
-                parts = info.parts,
                 actions = noteActions,
                 modifier = Modifier.fillMaxWidth().offset { androidx.compose.ui.unit.IntOffset(0, y.roundToInt()) },
             )
