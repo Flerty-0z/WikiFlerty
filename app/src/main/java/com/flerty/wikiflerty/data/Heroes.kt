@@ -51,6 +51,21 @@ class HeroStore(private val context: Context) {
 
     fun avatar(bookId: String, heroId: String): File = File(dir, "${bookId}_$heroId.jpg")
 
+    private fun chatFile(bookId: String, heroId: String) = File(dir, "${bookId}_${heroId}_chat.json")
+
+    fun loadChat(bookId: String, heroId: String): List<AiMessage> = runCatching {
+        val f = chatFile(bookId, heroId)
+        if (f.exists()) messagesFrom(JSONArray(f.readText())) else emptyList()
+    }.getOrElse { emptyList() }
+
+    fun saveChat(bookId: String, heroId: String, messages: List<AiMessage>) {
+        runCatching { chatFile(bookId, heroId).writeText(messagesJson(messages.takeLast(200)).toString()) }
+    }
+
+    fun clearChat(bookId: String, heroId: String) {
+        chatFile(bookId, heroId).delete()
+    }
+
     fun setAvatar(bookId: String, heroId: String, uri: Uri): Boolean = runCatching {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
@@ -68,6 +83,7 @@ class HeroStore(private val context: Context) {
 
     fun removeAvatar(bookId: String, heroId: String) {
         avatar(bookId, heroId).delete()
+        chatFile(bookId, heroId).delete()
     }
 
     companion object {

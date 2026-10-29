@@ -204,7 +204,82 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             onSaveNote = ::saveAnswerAsNote,
             onChapter = ::startChapterAi,
             heroes = heroBridge,
+            history = historyBridge,
         )
+    }
+
+    private val historyStore by lazy { com.flerty.wikiflerty.data.AiHistoryStore(this) }
+    private val historyRecords = androidx.compose.runtime.mutableStateListOf<com.flerty.wikiflerty.data.AiRecord>()
+
+    private val historyBridge by lazy {
+        HistoryBridge(
+            records = historyRecords,
+            onLoad = {
+                lifecycleScope.launch {
+                    val list = withContext(Dispatchers.IO) { historyStore.load(bookId) }
+                    historyRecords.clear()
+                    historyRecords.addAll(list)
+                }
+            },
+            onOpen = ::openRecord,
+            onDelete = { r ->
+                historyRecords.removeAll { it.id == r.id }
+                lifecycleScope.launch(Dispatchers.IO) { historyStore.delete(bookId, r.id) }
+            },
+            onClear = {
+                historyRecords.clear()
+                lifecycleScope.launch(Dispatchers.IO) { historyStore.clear(bookId) }
+            },
+        )
+    }
+
+    private fun saveHistory() {
+        val id = chat.recordId ?: return
+        val messages = chat.bubbles.filter { it.fromUser || it.shown.isNotBlank() }.map { com.flerty.wikiflerty.data.AiMessage(it.fromUser, it.shown, it.sent) }
+        if (messages.none { !it.fromUser }) return
+        val record = com.flerty.wikiflerty.data.AiRecord(
+            id = id,
+            action = chat.action.id,
+            fragment = chat.fragment,
+            context = chat.context.take(16_000),
+            locatorJson = chat.locator?.toJSON()?.toString(),
+            createdAt = chat.createdAt,
+            updatedAt = System.currentTimeMillis(),
+            messages = messages,
+        )
+        val book = bookId
+        lifecycleScope.launch {
+            val list = withContext(Dispatchers.IO) { historyStore.save(book, record) }
+            historyRecords.clear()
+            historyRecords.addAll(list)
+        }
+    }
+
+    private fun openRecord(record: com.flerty.wikiflerty.data.AiRecord) {
+        chat.job?.cancel()
+        chat.bubbles.clear()
+        chat.bubbles.addAll(record.messages.map { AiBubble(it.fromUser, it.shown, it.sent) })
+        chat.action = AiAction.entries.firstOrNull { it.id == record.action } ?: AiAction.Explain
+        chat.fragment = record.fragment
+        chat.context = record.context
+        chat.locator = record.locatorJson?.let { runCatching { Locator.fromJSON(org.json.JSONObject(it)) }.getOrNull() }
+        chat.recordId = record.id
+        chat.createdAt = record.createdAt
+        chat.error = null
+        chat.savedToDictionary = false
+        chat.savedToNotes = false
+        val provider = app.ai.current()
+        chat.provider = provider
+        chat.model = provider?.let { app.ai.settings.value.modelFor(it) }.orEmpty()
+        if (provider == null) chat.error = "Подключи нейросеть, чтобы продолжить чат"
+        ui.sheet = ReaderSheet.AiChat
+    }
+
+    private fun trimmedHistory(list: List<ChatMessage>, limit: Int = 30): List<ChatMessage> {
+        if (list.size <= limit) return list
+        val tail = list.takeLast(limit)
+        val first = tail.indexOfFirst { it.fromUser }
+        return if (first > 0) tail.drop(first) else tail
     }
 
     private val heroStore by lazy { com.flerty.wikiflerty.data.HeroStore(this) }
@@ -249,6 +324,12 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             onStop = { heroUi.chat.job?.cancel() },
             onRetry = ::retryHero,
             onVoice = ::startVoice,
+            onReset = {
+                heroUi.current?.let { hero ->
+                    heroStore.clearChat(bookId, hero.id)
+                    openHero(hero)
+                }
+            },
         )
     }
 
@@ -330,6 +411,11 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
         hc.provider = provider
         hc.model = app.ai.settings.value.modelFor(provider)
+        val saved = heroStore.loadChat(bookId, hero.id)
+        if (saved.any { !it.fromUser && it.shown.isNotBlank() }) {
+            hc.bubbles.addAll(saved.map { AiBubble(it.fromUser, it.shown, it.sent) })
+            return
+        }
         hc.bubbles.add(AiBubble(fromUser = true, shown = "", sent = "Поздоровайся со мной в своей манере — коротко, в 1–3 предложениях — и спроси, о чём я хочу поговорить."))
         sendHero()
     }
@@ -353,7 +439,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val hc = heroUi.chat
         val provider = hc.provider ?: return
         hc.error = null
-        val history = hc.bubbles.map { ChatMessage(it.fromUser, it.sent) }
+        val history = trimmedHistory(hc.bubbles.map { ChatMessage(it.fromUser, it.sent) })
         hc.bubbles.add(AiBubble(fromUser = false, shown = "", sent = ""))
         hc.streaming = true
         hc.job = lifecycleScope.launch {
@@ -383,6 +469,13 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 hc.error = e.message ?: "Не удалось получить ответ"
             } finally {
                 hc.streaming = false
+                if (answer.isNotEmpty()) {
+                    val messages = hc.bubbles.filter { it.fromUser || it.shown.isNotBlank() }
+                        .map { com.flerty.wikiflerty.data.AiMessage(it.fromUser, it.shown, it.sent) }
+                    val book = bookId
+                    val heroId = hero.id
+                    app.appScope.launch(Dispatchers.IO) { heroStore.saveChat(book, heroId, messages) }
+                }
             }
         }
     }
@@ -1294,6 +1387,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         chat.savedToDictionary = false
         chat.savedToNotes = false
         chat.action = action
+        chat.recordId = java.util.UUID.randomUUID().toString()
+        chat.createdAt = System.currentTimeMillis()
         val provider = app.ai.current() ?: return
         val settings = app.ai.settings.value
         chat.provider = provider
@@ -1357,7 +1452,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private fun sendAi() {
         val provider = chat.provider ?: return
         chat.error = null
-        val history = chat.bubbles.map { ChatMessage(it.fromUser, it.sent) }
+        val history = trimmedHistory(chat.bubbles.map { ChatMessage(it.fromUser, it.sent) })
         val system = AiPrompts.system(bookTitle, bookAuthor, app.ai.settings.value)
         chat.bubbles.add(AiBubble(fromUser = false, shown = "", sent = ""))
         chat.streaming = true
@@ -1391,6 +1486,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             } finally {
                 chat.retryNote = null
                 chat.streaming = false
+                if (answer.isNotEmpty()) saveHistory()
             }
         }
     }

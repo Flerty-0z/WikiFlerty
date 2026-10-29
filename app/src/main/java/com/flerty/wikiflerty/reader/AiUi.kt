@@ -102,6 +102,8 @@ class AiChatState {
     var modelMenuOpen by mutableStateOf(false)
     var retryNote by mutableStateOf<String?>(null)
     var job: Job? = null
+    var recordId: String? = null
+    var createdAt: Long = 0L
 
     val lastAnswer: String?
         get() = bubbles.lastOrNull { !it.fromUser && it.shown.isNotBlank() }?.shown
@@ -119,10 +121,117 @@ class AiBridge(
     val onSaveNote: () -> Unit,
     val onChapter: (AiAction) -> Unit = {},
     val heroes: HeroBridge? = null,
+    val history: HistoryBridge? = null,
 )
 
+class HistoryBridge(
+    val records: List<com.flerty.wikiflerty.data.AiRecord>,
+    val onLoad: () -> Unit,
+    val onOpen: (com.flerty.wikiflerty.data.AiRecord) -> Unit,
+    val onDelete: (com.flerty.wikiflerty.data.AiRecord) -> Unit,
+    val onClear: () -> Unit,
+)
+
+private val historyDate = java.time.format.DateTimeFormatter.ofPattern("d MMM, HH:mm", java.util.Locale.forLanguageTag("ru"))
+
 @Composable
-fun AiMenuContent(bridge: AiBridge, onSetup: () -> Unit, onStarted: () -> Unit, modifier: Modifier = Modifier) {
+fun AiHistoryContent(bridge: HistoryBridge, modifier: Modifier = Modifier) {
+    var toDelete by remember { mutableStateOf<com.flerty.wikiflerty.data.AiRecord?>(null) }
+    var clearing by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { bridge.onLoad() }
+    val records = bridge.records
+    if (records.isEmpty()) {
+        Column(modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(AppIcons.Clock, null, tint = AppColors.Faint, modifier = Modifier.size(28.dp))
+            Text("Пока пусто", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text("Здесь появятся чаты с ИИ по этой книге", color = AppColors.Muted, fontSize = 13.sp)
+        }
+        return
+    }
+    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        itemsIndexed(records, key = { _, r -> r.id }) { _, record ->
+            val action = AiAction.entries.firstOrNull { it.id == record.action } ?: AiAction.Explain
+            val shape = appCorner(16)
+            val count = record.messages.count { !it.fromUser && it.shown.isNotBlank() }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onLongClick = { toDelete = record }) { bridge.onOpen(record) }
+                    .fieldSurface(shape)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Box(
+                    Modifier
+                        .size(38.dp)
+                        .clip(appCorner(11))
+                        .background(Brush.linearGradient(listOf(AppColors.Accent.copy(alpha = 0.28f), AppColors.Accent.copy(alpha = 0.1f)))),
+                    contentAlignment = Alignment.Center,
+                ) { Text(action.mark, color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(action.title, color = AppColors.Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
+                        Text(
+                            historyDate.format(java.time.Instant.ofEpochMilli(record.updatedAt).atZone(java.time.ZoneId.systemDefault())),
+                            color = AppColors.Faint,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                        )
+                    }
+                    Text(
+                        record.fragment.ifBlank { "Без отрывка" },
+                        color = AppColors.Text,
+                        fontFamily = if (action.forSelection) FontFamily.Serif else FontFamily.Default,
+                        fontSize = 14.sp,
+                        lineHeight = 19.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (count > 1) {
+                    Text(
+                        "$count",
+                        color = AppColors.Muted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clip(CircleShape).background(AppColors.Line).padding(horizontal = 8.dp, vertical = 2.dp),
+                    )
+                }
+            }
+        }
+        item(key = "clear") {
+            Text(
+                "Очистить историю книги",
+                color = AppColors.Bad,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 6.dp).liveClick(appCorner(8), sound = FeedbackSound.Close) { clearing = true }.padding(horizontal = 4.dp, vertical = 6.dp),
+            )
+        }
+    }
+    toDelete?.let { r ->
+        com.flerty.wikiflerty.ui.ConfirmSheet(
+            title = "Удалить чат?",
+            text = "«${r.fragment.take(100)}»",
+            confirm = "Удалить",
+            onConfirm = { bridge.onDelete(r) },
+            onDismiss = { toDelete = null },
+        )
+    }
+    if (clearing) {
+        com.flerty.wikiflerty.ui.ConfirmSheet(
+            title = "Очистить историю?",
+            text = "Все чаты с ИИ по этой книге удалятся.",
+            confirm = "Очистить",
+            onConfirm = bridge.onClear,
+            onDismiss = { clearing = false },
+        )
+    }
+}
+
+@Composable
+fun AiMenuContent(bridge: AiBridge, onSetup: () -> Unit, onStarted: () -> Unit, modifier: Modifier = Modifier, onHistory: () -> Unit = {}) {
     val keys by bridge.manager.vault.keys.collectAsStateWithLifecycle()
     val settings by bridge.manager.settings.collectAsStateWithLifecycle()
     val provider = bridge.manager.current()
@@ -201,12 +310,24 @@ fun AiMenuContent(bridge: AiBridge, onSetup: () -> Unit, onStarted: () -> Unit, 
                 }
             }
         }
-        Text(
-            "${provider.title} · ${settings.modelFor(provider)}",
-            color = AppColors.Faint,
-            fontSize = 12.sp,
-            modifier = Modifier.padding(start = 4.dp),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "${provider.title} · ${settings.modelFor(provider)}",
+                color = AppColors.Faint,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(start = 4.dp),
+            )
+            Row(
+                Modifier.liveClick(CircleShape, sound = FeedbackSound.Open, onClick = onHistory).padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(AppIcons.Clock, null, tint = AppColors.Accent, modifier = Modifier.size(16.dp))
+                Text("История", color = AppColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            }
+        }
     }
 }
 

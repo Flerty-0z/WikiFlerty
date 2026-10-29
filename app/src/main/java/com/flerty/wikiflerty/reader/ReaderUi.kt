@@ -147,6 +147,7 @@ enum class ReaderSheet(val title: String, val depth: Int) {
     AiChapter("ИИ по главе", 1),
     Heroes("Герои книги", 1),
     HeroChat("Герой", 1),
+    AiHistory("История", 1),
 }
 
 class ReaderUiState {
@@ -288,6 +289,7 @@ fun ReaderOverlay(
             sheet == ReaderSheet.AiSetup -> state.sheet = if (state.aiSetupFromMenu) ReaderSheet.AiMenu else ReaderSheet.Options
             sheet == ReaderSheet.Heroes -> state.sheet = ReaderSheet.AiChapter
             sheet == ReaderSheet.HeroChat -> state.sheet = ReaderSheet.Heroes
+            sheet == ReaderSheet.AiHistory -> state.sheet = ReaderSheet.AiChapter
             sheet.depth == 0 -> state.sheet = null
             else -> state.sheet = ReaderSheet.Options
         }
@@ -1007,6 +1009,7 @@ private fun SheetContent(
                 sheet == ReaderSheet.AiSetup -> if (aiSetupFromMenu) ReaderSheet.AiMenu else ReaderSheet.Options
                 sheet == ReaderSheet.Heroes -> ReaderSheet.AiChapter
                 sheet == ReaderSheet.HeroChat -> ReaderSheet.Heroes
+                sheet == ReaderSheet.AiHistory -> ReaderSheet.AiChapter
                 sheet.depth > 0 -> ReaderSheet.Options
                 else -> null
             }
@@ -1061,16 +1064,19 @@ private fun SheetContent(
                 onRecap = { ai.onChapter(AiAction.Recap); onOpen(ReaderSheet.AiChat) },
                 onQuiz = { ai.onChapter(AiAction.Quiz); onOpen(ReaderSheet.AiChat) },
                 onHeroes = { onOpen(ReaderSheet.Heroes) },
+                onHistory = { onOpen(ReaderSheet.AiHistory) },
                 onSetup = { onOpen(ReaderSheet.AiSetup) },
             )
             ReaderSheet.Heroes -> ai.heroes?.let { HeroesContent(it, Modifier.weight(1f, fill = false)) }
             ReaderSheet.HeroChat -> ai.heroes?.let { HeroChatContent(it, Modifier.weight(1f)) }
+            ReaderSheet.AiHistory -> ai.history?.let { AiHistoryContent(it, Modifier.weight(1f, fill = false)) }
             ReaderSheet.Fonts -> FontList(fonts, settings, onSettingsChange, Modifier.weight(1f, fill = false))
             ReaderSheet.AiMenu -> AiMenuContent(
                 bridge = ai,
                 onSetup = { onOpen(ReaderSheet.AiSetup) },
                 onStarted = { onOpen(ReaderSheet.AiChat) },
                 modifier = Modifier.weight(1f, fill = false),
+                onHistory = { onOpen(ReaderSheet.AiHistory) },
             )
             ReaderSheet.AiChat -> AiChatContent(ai, Modifier.weight(1f))
             ReaderSheet.AiSetup -> Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
@@ -1997,12 +2003,13 @@ private fun JumpContent(jump: JumpInfo, onClose: () -> Unit) {
 }
 
 @Composable
-private fun AiChapterContent(hasAi: Boolean, onRecap: () -> Unit, onQuiz: () -> Unit, onHeroes: () -> Unit, onSetup: () -> Unit) {
+private fun AiChapterContent(hasAi: Boolean, onRecap: () -> Unit, onQuiz: () -> Unit, onHeroes: () -> Unit, onHistory: () -> Unit, onSetup: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (hasAi) {
             AiChapterButton(AppIcons.Book, "Пересказ главы", "Что было до этого места", onRecap)
             AiChapterButton(AppIcons.Check, "Тест по главе", "5 вопросов, ответы проверит ИИ", onQuiz)
             AiChapterButton(AppIcons.Voice, "Герои книги", "Поговори с персонажем или автором", onHeroes)
+            AiChapterButton(AppIcons.Clock, "История", "Прошлые чаты с ИИ по этой книге", onHistory)
             Text(
                 "ИИ видит только прочитанную часть главы",
                 color = AppColors.Faint,

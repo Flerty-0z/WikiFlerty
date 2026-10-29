@@ -100,6 +100,7 @@ class HeroBridge(
     val onStop: () -> Unit,
     val onRetry: () -> Unit,
     val onVoice: () -> Unit,
+    val onReset: () -> Unit = {},
 )
 
 @Composable
@@ -352,6 +353,17 @@ fun HeroChatContent(bridge: HeroBridge, modifier: Modifier = Modifier) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
+            Row(
+                Modifier
+                    .liveClick(CircleShape, sound = FeedbackSound.Open) { if (!chat.streaming) bridge.onReset() }
+                    .border(1.dp, AppColors.Line, CircleShape)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Icon(AppIcons.Rotate, null, tint = AppColors.Muted, modifier = Modifier.size(14.dp))
+                Text("Заново", color = AppColors.Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
             }
         }
 
