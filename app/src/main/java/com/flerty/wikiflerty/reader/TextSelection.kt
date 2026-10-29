@@ -162,7 +162,10 @@ internal object TextSelection {
 
     private val SCRIPT = """
         (function () {
-          if (window.__wfSel) return;
+          if (window.__wfSel) {
+            try { window.__wfSel.heal(); } catch (e) {}
+            return;
+          }
           var root = document.scrollingElement || document.documentElement;
           var st = {
             anchor: null, word: null, mode: null, locked: null, timer: 0, edgeTimer: 0, pressing: false,
@@ -177,20 +180,30 @@ internal object TextSelection {
             ".wf-e i{left:12px;border-radius:0 50% 50% 50%}" +
             ".wf-s i{left:12px;border-radius:50% 0 50% 50%}";
           (document.head || document.documentElement).appendChild(css);
-          function handle(cls) {
+          function handle(cls, start) {
             var el = document.createElement("div");
             el.className = "wf-h " + cls;
             el.setAttribute("aria-hidden", "true");
-            el.appendChild(document.createElement("i"));
+            el.style.cssText = "position:fixed;left:0;top:0;width:44px;height:44px;z-index:2147483647;display:none;touch-action:none;-webkit-user-select:none;user-select:none;pointer-events:auto;margin:0;padding:0;transform:none";
+            var dot = document.createElement("i");
+            dot.style.cssText = "position:absolute;top:0;left:12px;width:20px;height:20px;display:block;background:__ACCENT__;box-shadow:0 1px 4px rgba(0,0,0,.35);border-radius:" + (start ? "50% 0 50% 50%" : "0 50% 50% 50%");
+            el.appendChild(dot);
             document.documentElement.appendChild(el);
             return el;
           }
-          var hs = handle("wf-s");
-          var he = handle("wf-e");
+          var hs = handle("wf-s", true);
+          var he = handle("wf-e", false);
           var probe = document.createElement("div");
           probe.setAttribute("aria-hidden", "true");
           probe.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none";
           document.documentElement.appendChild(probe);
+          function heal() {
+            var host = document.documentElement;
+            if (!css.isConnected) (document.head || host).appendChild(css);
+            if (!hs.isConnected) host.appendChild(hs);
+            if (!he.isConnected) host.appendChild(he);
+            if (!probe.isConnected) host.appendChild(probe);
+          }
 
           function notify(type) {
             try { window.${BRIDGE}.onEvent(type); } catch (e) {}
@@ -305,6 +318,7 @@ internal object TextSelection {
             el.style.display = "block";
           }
           function place() {
+            heal();
             var e = ends();
             if (!e) {
               hs.style.display = "none";
@@ -529,7 +543,7 @@ internal object TextSelection {
           document.addEventListener("touchend", function (e) { finish(e, false); }, { capture: true, passive: false });
           document.addEventListener("touchcancel", function (e) { finish(null, true); }, true);
 
-          window.__wfSel = { place: place, clear: clearSelection };
+          window.__wfSel = { place: place, clear: clearSelection, heal: function () { heal(); place(); } };
         })();
     """.trimIndent()
 }
