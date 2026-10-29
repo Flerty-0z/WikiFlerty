@@ -521,7 +521,7 @@ private fun BookCard(book: Book, coverFile: File?, small: Boolean, inPages: Bool
         )
         Spacer(Modifier.height(6.dp))
         if (book.status == ReadStatus.Reading) {
-            ProgressWithPercent(book)
+            ProgressWithPercent(book, inPages)
         } else {
             StatusBadge(book, inPages, compact = small)
         }
@@ -547,7 +547,7 @@ private fun BookRow(book: Book, coverFile: File?, inPages: Boolean, onClick: () 
                 Text(book.author, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (book.status == ReadStatus.Reading) {
-                ProgressWithPercent(book, Modifier.padding(top = 6.dp))
+                ProgressWithPercent(book, inPages, Modifier.padding(top = 6.dp))
             }
         }
         if (book.status != ReadStatus.Reading) StatusBadge(book, inPages)
@@ -555,12 +555,12 @@ private fun BookRow(book: Book, coverFile: File?, inPages: Boolean, onClick: () 
 }
 
 @Composable
-private fun ProgressWithPercent(book: Book, modifier: Modifier = Modifier) {
+private fun ProgressWithPercent(book: Book, inPages: Boolean, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(Modifier.weight(1f).height(5.dp).clip(CircleShape).background(AppColors.Line)) {
             Box(Modifier.fillMaxHeight().fillMaxWidth(book.progress.toFloat().coerceIn(0f, 1f)).clip(CircleShape).background(AppColors.Accent))
         }
-        Text("${(book.progress * 100).toInt()}%", color = AppColors.Accent, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+        Text(progressLabel(book, inPages), color = AppColors.Accent, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
     }
 }
 

@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.ui.graphics.luminance
+
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -202,9 +204,24 @@ private fun CustomizationContent() {
 
     StylePreview()
 
+    Text("Шаблоны оформления", color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp))
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        StyleTemplates.forEach { template ->
+            TemplateCard(template, selected = template.matches(style)) { store.update { template.applyTo(it) } }
+        }
+    }
+
+    val cream = style.base == UiBase.Cream.id || style.base == UiBase.CreamDark.id
     SettingsGroup("Тема") {
-        SettingSwitch("Светлая тема", style.lightMode, hint = null, icon = AppIcons.Sun) { v ->
-            store.update { it.copy(lightMode = v) }
+        if (cream) {
+            SettingSwitch("Светлая тема", style.lightMode, hint = null, icon = AppIcons.Sun) { v ->
+                store.update { it.copy(lightMode = v) }
+            }
+        }
+        if (AppStyle.base.ambience != null) {
+            SettingSwitch("Свечение фона", style.ambience, hint = null, icon = AppIcons.Sparkle) { v ->
+                store.update { it.copy(ambience = v) }
+            }
         }
     }
 
@@ -545,5 +562,62 @@ private fun MotionPreview() {
             )
         }
         AppButton("Проверить", primary = true, modifier = Modifier.width(120.dp)) { on = !on }
+    }
+}
+
+@Composable
+private fun TemplateCard(template: StyleTemplate, selected: Boolean, onClick: () -> Unit) {
+    val shape = appCorner(18)
+    val accent = Color(template.accent)
+    val base = template.base
+    Box(
+        Modifier
+            .width(124.dp)
+            .height(168.dp)
+            .liveClick(shape, sound = FeedbackSound.Toggle, onClick = onClick)
+            .border(if (selected) 2.dp else 1.dp, if (selected) accent else AppColors.PanelBorder, shape),
+    ) {
+        base.ambience?.let { AmbienceBackground(base, it, Modifier.matchParentSize()) }
+            ?: Box(Modifier.matchParentSize().background(Color(base.background)))
+        Column(Modifier.matchParentSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(accent.copy(alpha = 0.18f).compositeOver(Color(base.field)))
+                    .border(1.dp, accent.copy(alpha = 0.3f), RoundedCornerShape(10.dp)).padding(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(width = 18.dp, height = 26.dp).clip(RoundedCornerShape(3.dp)).background(accent.copy(alpha = 0.7f)))
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(Modifier.width(46.dp).height(5.dp).clip(CircleShape).background(Color(base.text).copy(alpha = 0.8f)))
+                    Box(Modifier.width(34.dp).height(4.dp).clip(CircleShape).background(accent))
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                repeat(2) {
+                    Box(
+                        Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(8.dp)).background(Color(base.field))
+                            .border(1.dp, Color(base.border), RoundedCornerShape(8.dp)),
+                    )
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    template.title,
+                    color = Color(base.text),
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    softWrap = false,
+                    autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 13.sp, stepSize = 0.5.sp),
+                    modifier = Modifier.weight(1f),
+                )
+                if (selected) {
+                    Box(Modifier.size(18.dp).clip(CircleShape).background(accent), contentAlignment = Alignment.Center) {
+                        Icon(AppIcons.Check, null, tint = if (accent.luminance() > 0.4f) Color(0xFF0D1424) else Color.White, modifier = Modifier.size(12.dp))
+                    }
+                }
+            }
+            Box(Modifier.width(40.dp).height(6.dp).clip(CircleShape).background(accent))
+        }
     }
 }
