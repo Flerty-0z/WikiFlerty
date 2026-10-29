@@ -2,6 +2,7 @@ package com.flerty.wikiflerty.reader
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,7 +60,7 @@ class TtsActions(
 )
 
 @Composable
-fun TtsBar(playing: Boolean, speed: Double, actions: TtsActions, modifier: Modifier = Modifier) {
+fun TtsBar(playing: Boolean, speed: Double, actions: TtsActions, modifier: Modifier = Modifier, onHide: () -> Unit = {}) {
     Row(
         modifier
             .padding(start = 12.dp, end = 12.dp)
@@ -73,6 +74,7 @@ fun TtsBar(playing: Boolean, speed: Double, actions: TtsActions, modifier: Modif
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         BarButton(AppIcons.Close, "Остановить", FeedbackSound.Close, actions.onStop)
+        BarButton(AppIcons.EyeOff, "Скрыть панель", FeedbackSound.Close, onHide)
         BarButton(AppIcons.SkipPrev, "Предыдущее предложение", FeedbackSound.Tap, actions.onPrevious)
         val shape = CircleShape
         Box(
@@ -287,4 +289,28 @@ fun TtsOptions(
         modifier = Modifier.liveClick(appCorner(8), sound = FeedbackSound.Open) { ReadAloud.installVoices(context) }.padding(vertical = 4.dp),
     )
     Hint("Новые движки ставятся из Play Маркета: RHVoice, Sherpa TTS — и сразу появляются здесь.")
+}
+
+@Composable
+fun TtsMini(playing: Boolean, onExpand: () -> Unit) {
+    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "ttsMini")
+    val pulse by transition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            com.flerty.wikiflerty.ui.Motion.tween<Float>(900),
+            androidx.compose.animation.core.RepeatMode.Reverse,
+        ),
+        label = "pulse",
+    )
+    Box(
+        Modifier
+            .size(36.dp)
+            .panelSurface(CircleShape, elevation = 8.dp)
+            .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.85f, onClick = onExpand)
+            .border(1.5.dp, AppColors.Accent.copy(alpha = if (playing) pulse else 0.3f), CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(AppIcons.Eye, "Показать чтение вслух", tint = AppColors.Accent, modifier = Modifier.size(18.dp))
+    }
 }

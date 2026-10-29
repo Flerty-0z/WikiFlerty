@@ -6,13 +6,13 @@
     android:background="@drawable/widget_background"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:padding="12dp">
+    android:padding="14dp">
 
     <ImageView
         android:id="@+id/widget_cover"
         android:layout_width="56dp"
         android:layout_height="82dp"
-        android:background="#334A5A7A"
+        android:background="@drawable/widget_cover_bg"
         android:contentDescription="@null"
         android:scaleType="centerCrop" />
 
@@ -28,8 +28,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/widget_continue"
-            android:textColor="#8AB4F8"
-            android:textSize="11sp" />
+            android:textColor="#D9772A"
+            android:textSize="11.5sp"
+            android:textStyle="bold" />
 
         <TextView
             android:id="@+id/widget_title"
@@ -37,7 +38,8 @@
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:maxLines="2"
-            android:textColor="#FFFFFF"
+            android:layout_marginTop="2dp"
+            android:textColor="#F2EBE1"
             android:textSize="15sp"
             android:textStyle="bold" />
 
@@ -47,7 +49,7 @@
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#B0B6C3"
+            android:textColor="#B4A797"
             android:textSize="12sp" />
 
         <ProgressBar
@@ -57,8 +59,8 @@
             android:layout_height="4dp"
             android:layout_marginTop="8dp"
             android:max="1000"
-            android:progressBackgroundTint="#33FFFFFF"
-            android:progressTint="#8AB4F8" />
+            android:progressBackgroundTint="#3A3129"
+            android:progressTint="#D9772A" />
 
         <TextView
             android:id="@+id/widget_info"
@@ -67,7 +69,7 @@
             android:layout_marginTop="4dp"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#B0B6C3"
+            android:textColor="#8E8273"
             android:textSize="11sp" />
     </LinearLayout>
 </LinearLayout>

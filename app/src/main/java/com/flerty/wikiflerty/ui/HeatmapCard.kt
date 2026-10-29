@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
@@ -50,7 +52,9 @@ import java.util.Locale
 private val ru = Locale.forLanguageTag("ru")
 private val MonthShort = listOf("Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек")
 private val DayShort = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
-private val dayFormat = DateTimeFormatter.ofPattern("EE, d MMMM", ru)
+private val MonthGen = listOf("января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря")
+
+private fun dayTitle(d: LocalDate): String = "${DayShort[d.dayOfWeek.value - 1]}, ${d.dayOfMonth} ${MonthGen[d.monthValue - 1]}"
 
 private fun level(ms: Long): Int {
     val m = ms / 60_000
@@ -169,8 +173,18 @@ private fun YearGrid(year: Int, perDay: Map<LocalDate, DayEntry>, selected: Loca
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Spacer(Modifier.height(14.dp))
             DayShort.forEachIndexed { i, d ->
-                Box(Modifier.height(12.dp), contentAlignment = Alignment.CenterStart) {
-                    if (i % 2 == 0) Text(d, color = AppColors.Faint, fontSize = 8.5.sp, maxLines = 1)
+                Box(Modifier.height(12.dp).width(16.dp), contentAlignment = Alignment.CenterStart) {
+                    if (i % 2 == 0) {
+                        Text(
+                            d,
+                            color = AppColors.Faint,
+                            fontSize = 8.5.sp,
+                            lineHeight = 9.sp,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.wrapContentHeight(unbounded = true).wrapContentWidth(Alignment.Start, unbounded = true),
+                        )
+                    }
                 }
             }
         }
@@ -186,9 +200,17 @@ private fun YearGrid(year: Int, perDay: Map<LocalDate, DayEntry>, selected: Loca
                 ) {
                     val monthStart = (0..6).map { start.plusDays(it.toLong()) }.firstOrNull { it.dayOfMonth == 1 && it.year == year }
                         ?: if (wi == 0) LocalDate.of(year, 1, 1) else null
-                    Box(Modifier.height(14.dp).width(12.dp)) {
+                    Box(Modifier.height(14.dp).width(12.dp), contentAlignment = Alignment.CenterStart) {
                         if (monthStart != null) {
-                            Text(MonthShort[monthStart.monthValue - 1], color = AppColors.Faint, fontSize = 8.5.sp, maxLines = 1, softWrap = false)
+                            Text(
+                                MonthShort[monthStart.monthValue - 1],
+                                color = AppColors.Faint,
+                                fontSize = 8.5.sp,
+                                lineHeight = 9.sp,
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.wrapContentHeight(unbounded = true).wrapContentWidth(Alignment.Start, unbounded = true),
+                            )
                         }
                     }
                     (0..6).forEach { d ->
@@ -246,7 +268,7 @@ private fun DayDetail(day: LocalDate, days: Map<String, Map<String, DayEntry>>, 
             Box(Modifier.width(5.dp).height(34.dp).clip(CircleShape).background(cellColor(level(entry?.ms ?: 0)).let { if (minutes == 0L) AppColors.Line else it }))
             Column(Modifier.weight(1f)) {
                 Text(
-                    dayFormat.format(day).replaceFirstChar { it.titlecase(ru) } + if (minutes > 0) " · $minutes мин" else "",
+                    dayTitle(day) + if (minutes > 0) " · $minutes мин" else "",
                     color = AppColors.Text,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.ExtraBold,

@@ -13,6 +13,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
@@ -165,6 +166,7 @@ class ReaderUiState {
     var autoPaused by mutableStateOf(false)
     var autoProgress by mutableFloatStateOf(0f)
     var autoCollapsed by mutableStateOf(false)
+    var ttsCollapsed by mutableStateOf(false)
     var editor by mutableStateOf<NoteDraft?>(null)
     var aiSetupFromMenu by mutableStateOf(false)
     var ttsActive by mutableStateOf(false)
@@ -336,13 +338,24 @@ fun ReaderOverlay(
             )
         }
 
+        LaunchedEffect(state.ttsActive) {
+            if (!state.ttsActive) state.ttsCollapsed = false
+        }
         AnimatedVisibility(
-            visible = state.ttsActive && state.sheet == null && !state.panelsVisible,
+            visible = state.ttsActive && !state.ttsCollapsed && state.sheet == null && !state.panelsVisible,
             enter = fadeIn(Motion.fade(220)) + slideInVertically(Motion.tween(260)) { it / 2 },
             exit = fadeOut(Motion.fade(180)) + slideOutVertically(Motion.tween(220)) { it / 2 },
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = PanelGap),
         ) {
-            TtsBar(state.ttsPlaying, settings.ttsSpeed, tts)
+            TtsBar(state.ttsPlaying, settings.ttsSpeed, tts, onHide = { state.ttsCollapsed = true })
+        }
+        AnimatedVisibility(
+            visible = state.ttsActive && state.ttsCollapsed && state.sheet == null && !state.panelsVisible,
+            enter = fadeIn(Motion.fade(200)) + slideInHorizontally(Motion.tween(260)) { -it },
+            exit = fadeOut(Motion.fade(160)) + slideOutHorizontally(Motion.tween(220)) { -it },
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = FlagBottom + (FlagHeight.dp - 36.dp) / 2),
+        ) {
+            TtsMini(state.ttsPlaying) { state.ttsCollapsed = false }
         }
 
         val problem = state.ttsProblem
