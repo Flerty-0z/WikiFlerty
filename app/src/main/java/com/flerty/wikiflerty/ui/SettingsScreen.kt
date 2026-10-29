@@ -211,14 +211,8 @@ private fun CustomizationContent() {
         }
     }
 
-    val cream = style.base == UiBase.Cream.id || style.base == UiBase.CreamDark.id
-    SettingsGroup("Тема") {
-        if (cream) {
-            SettingSwitch("Светлая тема", style.lightMode, hint = null, icon = AppIcons.Sun) { v ->
-                store.update { it.copy(lightMode = v) }
-            }
-        }
-        if (AppStyle.base.ambience != null) {
+    if (AppStyle.base.ambience != null) {
+        SettingsGroup(null) {
             SettingSwitch("Свечение фона", style.ambience, hint = null, icon = AppIcons.Sparkle) { v ->
                 store.update { it.copy(ambience = v) }
             }

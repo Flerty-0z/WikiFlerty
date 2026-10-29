@@ -54,11 +54,7 @@ enum class UiBase(
     val faint: Long = 0xFF8E8273,
 ) {
     Cream(
-        "cream", "Крем", 0xFFFBF7F1, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFBF7F1, 0xFFEFE6DA, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFEEE4D8,
-        light = true,
-    ),
-    CreamDark(
-        "cream_dark", "Крем тёмный", 0xFF15120F, 0xFF201B17, 0xFF26201B, 0xFF1C1814, 0xFF342C25, 0xFF43392F, 0xFF211C17, 0xFF3A3129,
+        "cream", "Крем", 0xFF15120F, 0xFF201B17, 0xFF26201B, 0xFF1C1814, 0xFF342C25, 0xFF43392F, 0xFF211C17, 0xFF3A3129,
     ),
     Aurora(
         "aurora", "Сияние", 0xFF0A0D18, 0xFF161B2E, 0xFF1B2240, 0xFF13172A, 0xFF262D48, 0xFF3C4670, 0xFF111528, 0xFF2A3150,
@@ -119,12 +115,38 @@ enum class UiBase(
         ),
         text = 0xFFE6F0E8, muted = 0xFFA3B8A9, faint = 0xFF76917E,
     ),
+    Paper(
+        "paper", "Бумага", 0xFFF7F5F0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFF7F5F0, 0xFFE6E1D8, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFE9E4DA,
+        light = true,
+        text = 0xFF26262B, muted = 0xFF77746E, faint = 0xFF9A968E,
+    ),
+    Mint(
+        "mint", "Мята", 0xFFF1F7F4, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFEEF5F1, 0xFFD8E8E0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFDDEBE4,
+        Ambience(
+            spots = listOf(
+                GlowSpot(0xFF8FE0B8, 0.30f, 0.20f, 0.06f, 0.60f),
+                GlowSpot(0xFFB8E6F0, 0.24f, 0.88f, 0.80f, 0.58f),
+            ),
+        ),
+        light = true,
+        text = 0xFF1F2D27, muted = 0xFF62786E, faint = 0xFF8A9C93,
+    ),
+    Lavender(
+        "lavender", "Лаванда", 0xFFF5F3FB, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFF2EFFA, 0xFFE3DEF2, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFE6E1F4,
+        Ambience(
+            spots = listOf(
+                GlowSpot(0xFFC6B4FF, 0.32f, 0.78f, 0.06f, 0.60f),
+                GlowSpot(0xFFFFC2DA, 0.24f, 0.12f, 0.78f, 0.58f),
+            ),
+        ),
+        light = true,
+        text = 0xFF26223A, muted = 0xFF6E6889, faint = 0xFF958FAE,
+    ),
     ;
 
     companion object {
         fun of(id: String): UiBase {
-            if (id == Cream.id || id == CreamDark.id) return if (AppStyle.current.lightMode) Cream else CreamDark
-            return entries.firstOrNull { it.id == id && !it.light } ?: CreamDark
+            return entries.firstOrNull { it.id == id } ?: Cream
         }
     }
 }
@@ -171,7 +193,6 @@ data class UiStyle(
     val motionStyle: String = MotionStyle.Soft.id,
     val press: String = PressStrength.Normal.id,
     val navigation: String = "drawer",
-    val lightMode: Boolean = false,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("version", 3)
@@ -194,7 +215,6 @@ data class UiStyle(
         put("motionStyle", motionStyle)
         put("press", press)
         put("navigation", navigation)
-        put("lightMode", lightMode)
     }
 
     companion object {
@@ -233,7 +253,6 @@ data class UiStyle(
                 motionSpeed = json.optString("motionSpeed", d.motionSpeed),
                 motionStyle = json.optString("motionStyle", d.motionStyle),
                 navigation = json.optString("navigation", d.navigation),
-                lightMode = if (json.optInt("version", 1) < 3) false else json.optBoolean("lightMode", d.lightMode),
                 press = json.optString(
                     "press",
                     if (json.has("pressEffect") && !json.optBoolean("pressEffect", true)) PressStrength.Off.id else d.press,
@@ -254,7 +273,7 @@ data class StyleTemplate(
     val corners: Float,
 ) {
     fun applyTo(style: UiStyle) = style.copy(
-        base = if (base == UiBase.CreamDark) UiBase.Cream.id else base.id,
+        base = base.id,
         accent = accent,
         font = font,
         buttons = buttons.id,
@@ -262,17 +281,20 @@ data class StyleTemplate(
         ambience = true,
     )
 
-    fun matches(style: UiStyle) = UiBase.of(style.base).let { it == base || (base == UiBase.CreamDark && it == UiBase.Cream) }
+    fun matches(style: UiStyle) = UiBase.of(style.base) == base
 }
 
 val StyleTemplates = listOf(
-    StyleTemplate("Крем", UiBase.CreamDark, DefaultAccent, "nunito", ButtonLook.Filled, 1.1f),
+    StyleTemplate("Крем", UiBase.Cream, DefaultAccent, "nunito", ButtonLook.Filled, 1.1f),
     StyleTemplate("Сияние", UiBase.Aurora, 0xFF8AB4F8, "onest", ButtonLook.Soft, 1f),
     StyleTemplate("Ночная библиотека", UiBase.Lamp, 0xFFF2C46B, "lora", ButtonLook.Soft, 0.8f),
     StyleTemplate("Глубина океана", UiBase.Deep, 0xFF5EEAD4, "manrope", ButtonLook.Filled, 1.1f),
     StyleTemplate("Сумерки", UiBase.Dusk, 0xFFF28BB8, "nunito", ButtonLook.Soft, 1.2f),
     StyleTemplate("Графит и неон", UiBase.Neon, 0xFFC6F432, "onest", ButtonLook.Outline, 0.6f),
     StyleTemplate("Лес", UiBase.Forest, 0xFF8BD3A5, "rubik", ButtonLook.Soft, 1f),
+    StyleTemplate("Бумага", UiBase.Paper, 0xFF3E63DD, "lora", ButtonLook.Filled, 0.8f),
+    StyleTemplate("Мята", UiBase.Mint, 0xFF2E9E6E, "manrope", ButtonLook.Soft, 1.2f),
+    StyleTemplate("Лаванда", UiBase.Lavender, 0xFF7C5CD6, "nunito", ButtonLook.Filled, 1.3f),
 )
 
 val AccentChoices = listOf(
@@ -336,14 +358,14 @@ object AppColors {
     val Field: Color get() = Color(base.field)
     val Line: Color get() = Color(base.line)
     private val light get() = AppStyle.light
-    val Text: Color get() = if (light) Color(0xFF2B2520) else Color(base.text)
-    val Muted: Color get() = if (light) Color(0xFF85796A) else Color(base.muted)
-    val Faint: Color get() = if (light) Color(0xFF9A8E7E) else Color(base.faint)
+    val Text: Color get() = Color(base.text)
+    val Muted: Color get() = Color(base.muted)
+    val Faint: Color get() = Color(base.faint)
     val Good: Color get() = if (light) Color(0xFF2E8B57) else Color(0xFF7ED3A0)
     val Warn: Color get() = if (light) Color(0xFFC07514) else Color(0xFFF2B36B)
     val Bad: Color get() = if (light) Color(0xFFD0443E) else Color(0xFFF08A8A)
     val Info: Color get() = if (light) Color(0xFF3D6EF5) else Color(0xFF8AB4F8)
-    val Shade: Color get() = if (light) Color(0xFF2B2520) else Color(base.text)
+    val Shade: Color get() = Color(base.text)
 
     val Accent: Color get() = Color(AppStyle.current.accent)
     val OnAccent: Color get() = if (Accent.luminance() > 0.4f) Color(0xFF0D1424) else Color.White
