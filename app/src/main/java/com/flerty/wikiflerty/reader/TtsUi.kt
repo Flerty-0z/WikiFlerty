@@ -48,6 +48,7 @@ import com.flerty.wikiflerty.ui.appCorner
 import com.flerty.wikiflerty.ui.liveClick
 import com.flerty.wikiflerty.ui.panelSurface
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 val TtsColors = listOf(0xFFF2C46B, 0xFF7ED3A0, 0xFF8AB4F8, 0xFFF28B9B, 0xFFC3A6F5, 0xFFB0B4BC)
 
@@ -140,6 +141,67 @@ private fun languageName(voice: TtsVoiceInfo): String =
     voice.language.locale.getDisplayName(Locale("ru")).replaceFirstChar { it.uppercase() }
 
 @Composable
+private fun PiperVoiceList(selected: String, onSelect: (String) -> Unit) {
+    val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val installed by com.flerty.wikiflerty.tts.PiperVoices.installed.collectAsStateWithLifecycle()
+    val progress by com.flerty.wikiflerty.tts.PiperVoices.progress.collectAsStateWithLifecycle()
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.flerty.wikiflerty.tts.PiperVoices.refresh(context) }
+    }
+    val current = NeuralVoices.voiceOrDefault(NeuralVoices.PIPER, selected)
+    Column(Modifier.padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text("Голос", color = AppColors.Muted, fontSize = 12.5.sp, modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
+        com.flerty.wikiflerty.tts.PiperVoices.all.forEach { v ->
+            val has = v.id in installed
+            val p = progress[v.id]
+            val isSel = v.id == current
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 50.dp)
+                    .liveClick(appCorner(12), sound = FeedbackSound.Toggle, pressedScale = 0.98f) {
+                        onSelect(v.id)
+                        if (!has && p == null) scope.launch { com.flerty.wikiflerty.tts.PiperVoices.download(context, v.id) }
+                    },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                com.flerty.wikiflerty.ui.SettingIcon(AppIcons.Voice)
+                Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp)) {
+                    Text(v.title, color = if (isSel) AppColors.Accent else AppColors.Text, fontSize = 15.sp, fontWeight = if (isSel) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1)
+                    Text(
+                        when {
+                            p != null -> "Скачиваю… ${(p * 100).toInt()}%"
+                            has -> v.hint + " · скачан"
+                            else -> v.hint + " · ${v.sizeMb} МБ"
+                        },
+                        color = if (p != null) AppColors.Accent else AppColors.Faint,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                    )
+                    if (p != null) {
+                        Box(Modifier.padding(top = 4.dp).fillMaxWidth().height(3.dp).clip(CircleShape).background(AppColors.Line)) {
+                            Box(Modifier.fillMaxWidth(p).height(3.dp).clip(CircleShape).background(AppColors.Accent))
+                        }
+                    }
+                }
+                when {
+                    has && !isSel -> Box(
+                        Modifier.size(36.dp).liveClick(CircleShape, sound = FeedbackSound.Close) { com.flerty.wikiflerty.tts.PiperVoices.delete(context, v.id) },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(AppIcons.Trash, "Удалить голос", tint = AppColors.Faint, modifier = Modifier.size(17.dp)) }
+                    !has && p == null -> Icon(AppIcons.Download, "Скачать", tint = AppColors.Accent, modifier = Modifier.size(20.dp))
+                    else -> Unit
+                }
+                Box(Modifier.padding(start = 6.dp).size(22.dp), contentAlignment = Alignment.Center) {
+                    if (isSel) Icon(AppIcons.Check, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun TtsOptions(
     settings: ReaderSettings,
     bookLanguage: String?,
@@ -186,6 +248,7 @@ fun TtsOptions(
         val engines by produceState(emptyList<com.flerty.wikiflerty.tts.TtsEngineInfo>()) { value = ReadAloud.engines(context) }
         val app = context.applicationContext as com.flerty.wikiflerty.App
         val keys by app.ai.vault.keys.collectAsStateWithLifecycle()
+        val piperOk by produceState(false) { value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.flerty.wikiflerty.tts.PiperVoices.supported() } }
         val neuralOptions = listOf(
             PickerOption(
                 NeuralVoices.GEMINI,
@@ -199,7 +262,11 @@ fun TtsOptions(
                 if (keys["openai"].isNullOrBlank()) "Нужен ключ ChatGPT в настройках ИИ" else "Живой голос, нужен интернет",
                 icon = AppIcons.Sparkle,
             ),
-        )
+        ) + if (piperOk) {
+            listOf(PickerOption(NeuralVoices.PIPER, "Офлайн · нейроголос", "Без интернета, голос скачивается один раз", icon = AppIcons.Voice))
+        } else {
+            emptyList()
+        }
         PickerRow(
             label = "Движок",
             icon = AppIcons.Engine,
@@ -210,7 +277,9 @@ fun TtsOptions(
             onSettingsChange { it.copy(ttsEngine = id, ttsVoice = if (NeuralVoices.isNeural(id)) NeuralVoices.voices(id).first().id else "", ttsVoiceLanguage = "") }
         }
 
-        if (NeuralVoices.isNeural(settings.ttsEngine)) {
+        if (settings.ttsEngine == NeuralVoices.PIPER) {
+            PiperVoiceList(settings.ttsVoice) { id -> onSettingsChange { it.copy(ttsVoice = id, ttsVoiceLanguage = "") } }
+        } else if (NeuralVoices.isNeural(settings.ttsEngine)) {
             val list = NeuralVoices.voices(settings.ttsEngine)
             PickerRow(
                 label = "Голос",

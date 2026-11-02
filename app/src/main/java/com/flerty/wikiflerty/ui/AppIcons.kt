@@ -154,6 +154,7 @@ object AppIcons {
         )
     }
     val Pencil by lazy { icon("pencil", "M4 20h4L19 9l-4-4L4 16v4z", "M13.5 6.5l4 4") }
+    val Download by lazy { icon("download", "M12 4v11", "M7.5 10.5L12 15l4.5-4.5", "M5 19h14") }
     val Trash by lazy { icon("trash", "M4 7h16", "M10 11v6M14 11v6", "M6 7l1 13h10l1-13", "M9 7V4h6v3") }
     val Send by lazy { icon("send", "M12 19V5M5 12l7-7 7 7", width = 2.4f) }
     val Eye by lazy {

@@ -45,6 +45,7 @@ data class NeuralVoice(val id: String, val title: String, val hint: String)
 object NeuralVoices {
     const val GEMINI = "neural:gemini"
     const val OPENAI = "neural:openai"
+    const val PIPER = "neural:piper"
 
     fun isNeural(engine: String) = engine.startsWith("neural:")
 
@@ -106,6 +107,7 @@ object NeuralVoices {
     fun voices(engine: String) = when (engine) {
         GEMINI -> gemini
         OPENAI -> openai
+        PIPER -> PiperVoices.all.map { NeuralVoice(it.id, it.title, it.hint) }
         else -> emptyList()
     }
 
@@ -169,6 +171,10 @@ class NeuralTts(
         checkVoice()
         val clean = sentences.filter { s -> s.any { it.isLetterOrDigit() } && !cache.containsKey(s) }
         if (clean.isEmpty()) return
+        if (engineId == NeuralVoices.PIPER) {
+            clean.forEach { enqueue(listOf(it)) }
+            return
+        }
         val limit = if (firstGroup) 260 else 900
         firstGroup = false
         var chunk = mutableListOf<String>()
@@ -359,7 +365,22 @@ class NeuralTts(
         cache.clear()
     }
 
+    private val piperLock = Any()
+
+    private fun piper(voice: String, text: String): Pcm {
+        val tts = PiperVoices.engine(app, voice) ?: throw NeuralException(
+            if (!PiperVoices.supported()) "Офлайн-голоса не поддерживаются на этом телефоне" else "Голос не скачан. Скачай его в настройках чтения вслух",
+        )
+        val audio = synchronized(piperLock) { tts.generate(text, 0, 1.0f) }
+        val f = audio.samples
+        val out = ShortArray(f.size) { i -> (f[i].coerceIn(-1f, 1f) * 32767f).toInt().toShort() }
+        return Pcm(out, audio.sampleRate)
+    }
+
     private suspend fun synthesize(text: String): Pcm = withContext(Dispatchers.IO) {
+        if (engineId == NeuralVoices.PIPER) {
+            return@withContext piper(NeuralVoices.voiceOrDefault(engineId, app.readerSettings.settings.value.ttsVoice), text)
+        }
         val provider = NeuralVoices.providerId(engineId)
         val key = app.ai.vault.get(provider) ?: throw NeuralException(
             if (provider == "gemini") "Для голосов Gemini нужен ключ Gemini в настройках ИИ" else "Для голосов OpenAI нужен ключ ChatGPT в настройках ИИ",

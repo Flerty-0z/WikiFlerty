@@ -88,4 +88,5 @@ dependencies {
     implementation(libs.compose.runtime)
     implementation(libs.compose.material3)
     implementation(libs.compose.icons.core)
+    implementation("org.apache.commons:commons-compress:1.27.1")
 }
