@@ -254,8 +254,14 @@ fun PetCard(onOpen: () -> Unit) {
             PetCanvas(p.species.id, app.pet.look(mood), 72.dp)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(p.name, color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(mood.text, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                XpBar(p)
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(appCorner(14))
+                        .background(AppColors.Line.copy(alpha = 0.45f))
+                        .border(1.dp, AppColors.PanelBorder, appCorner(14))
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                ) { XpBar(p) }
             }
         }
     }
