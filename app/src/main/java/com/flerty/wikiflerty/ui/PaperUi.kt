@@ -97,7 +97,7 @@ import kotlinx.coroutines.withContext
 private val SessionFormat = DateTimeFormatter.ofPattern("d MMM, HH:mm", Locale("ru"))
 private val FinishFormat = DateTimeFormatter.ofPattern("d MMMM", Locale("ru"))
 
-private fun clock(ms: Long): String {
+internal fun clock(ms: Long): String {
     val s = ms / 1000
     return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%02d:%02d".format(s / 60, s % 60)
 }
@@ -446,7 +446,7 @@ private fun StopwatchCard(watch: com.flerty.wikiflerty.data.Stopwatch, onToggle:
 }
 
 @Composable
-private fun RollingClock(text: String, modifier: Modifier = Modifier) {
+internal fun RollingClock(text: String, modifier: Modifier = Modifier, size: androidx.compose.ui.unit.TextUnit = 44.sp) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         text.forEachIndexed { i, ch ->
             key(text.length - i) {
@@ -458,7 +458,7 @@ private fun RollingClock(text: String, modifier: Modifier = Modifier) {
                     },
                     label = "digit",
                 ) { c ->
-                    Text(c.toString(), color = AppColors.Text, fontSize = 44.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                    Text(c.toString(), color = AppColors.Text, fontSize = size, fontWeight = FontWeight.Black, maxLines = 1)
                 }
             }
         }

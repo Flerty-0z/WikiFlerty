@@ -384,9 +384,15 @@ fun PetPage(modifier: Modifier = Modifier, onBack: () -> Unit) {
                     contentAlignment = Alignment.Center,
                 ) { Icon(AppIcons.Pencil, "Переименовать", tint = AppColors.Faint, modifier = Modifier.size(15.dp)) }
             }
-            Text(pet.species.title, color = AppColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Text(mood.text, color = AppColors.Muted, fontSize = 13.sp, textAlign = TextAlign.Center)
-            Box(Modifier.padding(top = 6.dp)) { XpBar(pet) }
+            Box(
+                Modifier
+                    .padding(top = 6.dp)
+                    .fillMaxWidth()
+                    .clip(appCorner(16))
+                    .background(AppColors.Line.copy(alpha = 0.45f))
+                    .border(1.dp, AppColors.PanelBorder, appCorner(16))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            ) { XpBar(pet) }
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

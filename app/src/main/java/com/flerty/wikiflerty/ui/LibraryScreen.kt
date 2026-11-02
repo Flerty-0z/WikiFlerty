@@ -362,15 +362,22 @@ private fun ToolButton(icon: ImageVector, description: String, onClick: () -> Un
 }
 
 @Composable
-private fun FilterCovers(filter: LibraryFilter, ids: List<String>, width: androidx.compose.ui.unit.Dp) {
-    if (ids.isEmpty()) {
-        Box(Modifier.size(width = width * 2.3f, height = width * 1.5f + 6.dp), contentAlignment = Alignment.Center) {
-            SettingIcon(filter.icon)
-        }
-    } else {
-        Box(Modifier.width(width * 2.3f + 4.dp), contentAlignment = Alignment.CenterStart) {
-            CoverStack(ids, width)
-        }
+private fun EmptyCover(width: androidx.compose.ui.unit.Dp) {
+    val shape = appCorner(6)
+    Box(
+        Modifier
+            .size(width = width, height = width * 1.5f)
+            .clip(shape)
+            .background(AppColors.Line.copy(alpha = 0.35f))
+            .border(1.dp, AppColors.PanelBorder, shape),
+        contentAlignment = Alignment.Center,
+    ) { Icon(AppIcons.Close, "Пусто", tint = AppColors.Faint, modifier = Modifier.size(width * 0.5f)) }
+}
+
+@Composable
+private fun FilterCovers(ids: List<String>, width: androidx.compose.ui.unit.Dp) {
+    Box(Modifier.size(width = width * 2.3f + 4.dp, height = width * 1.5f + 6.dp), contentAlignment = Alignment.CenterStart) {
+        if (ids.isEmpty()) EmptyCover(width) else CoverStack(ids, width)
     }
 }
 
@@ -387,11 +394,8 @@ private fun FilterButton(filter: LibraryFilter, ids: List<String>, count: Int, o
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        if (ids.isEmpty()) {
-            Icon(filter.icon, null, tint = if (filter.id == "favorite") StarYellow else AppColors.Accent, modifier = Modifier.padding(start = 4.dp).size(18.dp))
-        } else {
-            CoverStack(ids, 18.dp)
-        }
+        if (ids.isEmpty()) EmptyCover(18.dp) else CoverStack(ids, 18.dp)
+        Icon(filter.icon, null, tint = if (filter.id == "favorite") StarYellow else AppColors.Accent, modifier = Modifier.size(16.dp))
         Text(
             filter.title,
             color = AppColors.Text,
@@ -462,9 +466,11 @@ private fun FilterRow(filter: LibraryFilter, ids: List<String>, count: Int, sele
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        FilterCovers(filter, ids, 24.dp)
-        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (ids.isNotEmpty()) Icon(filter.icon, null, tint = if (filter.id == "favorite") StarYellow else AppColors.Accent, modifier = Modifier.size(15.dp))
+        FilterCovers(ids, 24.dp)
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.size(18.dp), contentAlignment = Alignment.Center) {
+                Icon(filter.icon, null, tint = if (filter.id == "favorite") StarYellow else AppColors.Accent, modifier = Modifier.size(16.dp))
+            }
             Text(
                 filter.title,
                 color = if (selected) AppColors.Accent else AppColors.Text,

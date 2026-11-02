@@ -331,7 +331,7 @@ private fun ColumnScope.BookMainContent(
         DeleteRow("Удалить книгу", onDelete)
         return
     }
-    val armed by app.readingTimer.armed.collectAsStateWithLifecycle()
+    val watching = app.readingTimer.watch.collectAsStateWithLifecycle().value?.let { it.bookId == book.id && it.running } == true
     val readShape = appCorner(18)
     Row(
         Modifier
@@ -351,17 +351,10 @@ private fun ColumnScope.BookMainContent(
             maxLines = 1,
             modifier = Modifier.padding(start = 8.dp),
         )
-        if (armed) Icon(AppIcons.Clock, null, tint = accentContent, modifier = Modifier.padding(start = 8.dp).size(18.dp))
+        if (watching) Icon(AppIcons.Clock, null, tint = accentContent, modifier = Modifier.padding(start = 8.dp).size(18.dp))
     }
 
-    SettingsGroup(null) {
-        SettingSwitch(
-            label = "Засечь время",
-            checked = armed,
-            hint = if (armed) "Итог покажу, когда закроешь книгу" else "Посчитаю, сколько ты читал",
-            icon = AppIcons.Clock,
-        ) { app.readingTimer.setArmed(it) }
-    }
+    ReadingWatchCard(book)
 
     BookStatusRow(app, book)
 
@@ -714,46 +707,5 @@ fun ShelfDialogView(dialog: ShelfDialog, shelves: List<String>, onDismiss: () ->
             },
             onDismiss = { confirmDelete = false },
         )
-    }
-}
-
-@Composable
-fun ReadingSessionSheet() {
-    val app = LocalContext.current.applicationContext as App
-    val result by app.readingTimer.result.collectAsStateWithLifecycle()
-    val r = result ?: return
-    val books by app.library.books.collectAsStateWithLifecycle()
-    val book = books.firstOrNull { it.id == r.bookId }
-    AppSheet({ app.readingTimer.dismissResult() }, title = "Сеанс чтения") {
-        val close = sheetClose { app.readingTimer.dismissResult() }
-        val s = r.ms / 1000
-        Text(
-            if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%02d:%02d".format(s / 60, s % 60),
-            color = AppColors.Text,
-            fontSize = 48.sp,
-            fontWeight = FontWeight.Black,
-            maxLines = 1,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        if (book != null) {
-            Text(book.title, color = AppColors.Muted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth())
-            val delta = (book.progress - r.startProgress).coerceAtLeast(0.0)
-            val pages = if (book.positions > 0) Math.round(delta * book.positions).toInt() else 0
-            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                InfoTile(AppIcons.Clock, StatsCalc.duration(r.ms), Modifier.weight(1f))
-                InfoTile(
-                    AppIcons.Pages,
-                    if (book.positions > 0) "+$pages стр." else "+${(delta * 100).toInt()}%",
-                    Modifier.weight(1f),
-                )
-            }
-            if (pages > 0 && r.ms >= 60_000) {
-                Row(Modifier.height(IntrinsicSize.Min)) {
-                    InfoTile(AppIcons.Speed, "${(pages / (r.ms / 3_600_000.0)).toInt()} стр/ч", Modifier.weight(1f))
-                }
-            }
-        }
-        AppButton("Готово", primary = true, modifier = Modifier.fillMaxWidth()) { close() }
     }
 }

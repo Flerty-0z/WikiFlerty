@@ -270,7 +270,6 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
             }
             if (paperSheet) PaperBookSheet(null) { paperSheet = false }
             StartupPrompts()
-            ReadingSessionSheet()
             StreakRescue()
             AchievementToast()
         }

@@ -1,0 +1,235 @@
+package com.flerty.wikiflerty.ui
+
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.flerty.wikiflerty.App
+import com.flerty.wikiflerty.data.Book
+import com.flerty.wikiflerty.system.ReadingSessionResult
+import com.flerty.wikiflerty.system.ReadingWatch
+import kotlinx.coroutines.delay
+
+private sealed interface WatchView {
+    data object Idle : WatchView
+    data class Active(val watch: ReadingWatch) : WatchView
+    data class Done(val result: ReadingSessionResult) : WatchView
+}
+
+@Composable
+fun ReadingWatchCard(book: Book) {
+    val app = LocalContext.current.applicationContext as App
+    val watch by app.readingTimer.watch.collectAsStateWithLifecycle()
+    val result by app.readingTimer.result.collectAsStateWithLifecycle()
+    val view: WatchView = when {
+        watch?.bookId == book.id -> WatchView.Active(watch!!)
+        result?.bookId == book.id -> WatchView.Done(result!!)
+        else -> WatchView.Idle
+    }
+    val shape = appCorner(22)
+    AnimatedContent(
+        targetState = view,
+        contentKey = { it::class },
+        transitionSpec = {
+            val enter = fadeIn(Motion.fade(260)) + scaleIn(Motion.tween(320), initialScale = 0.94f)
+            val exit = fadeOut(Motion.fade(160)) + scaleOut(Motion.tween(200), targetScale = 0.96f)
+            (enter togetherWith exit).using(SizeTransform(clip = false) { _, _ -> Motion.tween(320) })
+        },
+        label = "reading-watch",
+    ) { state ->
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .then(if (state is WatchView.Active) Modifier.background(AppColors.AccentTint, shape).border(1.dp, AppColors.Accent.copy(alpha = 0.45f), shape) else Modifier.fieldSurface(shape))
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            when (state) {
+                WatchView.Idle -> IdleWatch(other = watch != null) { app.readingTimer.start(book.id, book.progress) }
+                is WatchView.Active -> ActiveWatch(
+                    state.watch,
+                    onToggle = { if (state.watch.running) app.readingTimer.pause() else app.readingTimer.resume() },
+                    onStop = { app.readingTimer.stop() },
+                    onCancel = { app.readingTimer.cancel() },
+                )
+                is WatchView.Done -> WatchResult(app, book, state.result) { app.readingTimer.dismissResult() }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatePill(text: String, color: Color, dot: Float? = null) {
+    Row(
+        Modifier
+            .clip(CircleShape)
+            .background(color.copy(alpha = 0.12f))
+            .border(1.dp, color.copy(alpha = 0.45f), CircleShape)
+            .padding(horizontal = 12.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (dot != null) Box(Modifier.size(7.dp).graphicsLayer { alpha = dot }.background(color, CircleShape))
+        Text(text, color = color, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+    }
+}
+
+@Composable
+private fun Digits(ms: Long, dim: Boolean = false) {
+    val s = ms / 1000
+    val parts = listOf("%02d".format(s / 3600) to "часы", "%02d".format(s / 60 % 60) to "минуты", "%02d".format(s % 60) to "секунды")
+    Row(
+        Modifier.graphicsLayer { alpha = if (dim) 0.55f else 1f },
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        parts.forEachIndexed { i, (value, label) ->
+            if (i > 0) Text(":", color = AppColors.Faint, fontSize = 36.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                RollingClock(value, size = 40.sp)
+                Text(label, color = AppColors.Faint, fontSize = 11.sp, maxLines = 1)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoundControl(icon: ImageVector, description: String, size: Int, filled: Boolean, sound: FeedbackSound, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(size.dp)
+            .liveClick(CircleShape, sound = sound, pressedScale = 0.9f, onClick = onClick)
+            .then(if (filled) Modifier.accentHighlight(CircleShape) else Modifier.border(1.dp, AppColors.Accent.copy(alpha = 0.45f), CircleShape)),
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, description, tint = if (filled) accentContent else AppColors.Accent, modifier = Modifier.size((size * 0.4f).dp)) }
+}
+
+@Composable
+private fun IdleWatch(other: Boolean, onStart: () -> Unit) {
+    StatePill("Секундомер чтения", AppColors.Muted)
+    Digits(0L, dim = true)
+    RoundControl(AppIcons.Play, "Засечь время", 64, filled = true, sound = FeedbackSound.Toggle, onClick = onStart)
+    if (other) Text("Секундомер другой книги остановится", color = AppColors.Faint, fontSize = 12.sp, maxLines = 1)
+}
+
+@Composable
+private fun ActiveWatch(watch: ReadingWatch, onToggle: () -> Unit, onStop: () -> Unit, onCancel: () -> Unit) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(watch) {
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(250)
+        }
+    }
+    val pulse by rememberInfiniteTransition(label = "watch-pulse").animateFloat(1f, 0.25f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "dot")
+    AnimatedContent(
+        targetState = watch.running,
+        transitionSpec = { fadeIn(Motion.fade(220)) togetherWith fadeOut(Motion.fade(140)) },
+        label = "watch-pill",
+    ) { running ->
+        if (running) StatePill("Идёт сеанс чтения", AppColors.Accent, dot = pulse) else StatePill("Пауза", AppColors.Muted)
+    }
+    Digits(watch.elapsed(now), dim = !watch.running && pulse < 0.6f)
+    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        RoundControl(AppIcons.Close, "Сбросить", 48, filled = false, sound = FeedbackSound.Close, onClick = onCancel)
+        Box(
+            Modifier.size(64.dp).liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.9f, onClick = onToggle).accentHighlight(CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            AnimatedContent(
+                targetState = watch.running,
+                transitionSpec = { (fadeIn(Motion.fade(180)) + scaleIn(Motion.tween(220), initialScale = 0.5f)) togetherWith (fadeOut(Motion.fade(120)) + scaleOut(Motion.tween(160), targetScale = 0.5f)) },
+                label = "watch-icon",
+            ) { running ->
+                Icon(if (running) AppIcons.Pause else AppIcons.Play, if (running) "Пауза" else "Продолжить", tint = accentContent, modifier = Modifier.size(28.dp))
+            }
+        }
+        RoundControl(AppIcons.Stop, "Стоп", 48, filled = false, sound = FeedbackSound.Open, onClick = onStop)
+    }
+}
+
+@Composable
+private fun WatchResult(app: App, book: Book, result: ReadingSessionResult, onDone: () -> Unit) {
+    val days by app.stats.days.collectAsStateWithLifecycle()
+    val stats = remember(days, book.statsKey) { StatsCalc.book(days, book.statsKey) }
+    val delta = (book.progress - result.startProgress).coerceAtLeast(0.0)
+    val total = book.positions
+    val pages = if (total > 0) Math.round(delta * total).toInt() else 0
+    val hours = result.ms / 3_600_000.0
+    val speed = if (pages > 0 && result.ms >= 60_000) pages / hours else stats.pagesPerHour
+    val leftPages = if (total > 0) Math.round((1.0 - book.progress).coerceAtLeast(0.0) * total).toInt() else null
+    val leftMs = if (leftPages != null && speed != null && speed > 0) (leftPages / speed * 3_600_000).toLong() else null
+
+    StatePill("Итог сеанса", AppColors.Good)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatTile("Время", StatsCalc.duration(result.ms).ifBlank { "<1 мин" }, Modifier.weight(1f), icon = AppIcons.Clock)
+            StatTile(
+                "Прочитано",
+                if (total > 0) "+$pages стр." else "+${(delta * 100).toInt()}%",
+                Modifier.weight(1f),
+                icon = AppIcons.Pages,
+            )
+        }
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatTile("Скорость", speed?.let { "${it.toInt()} стр/ч" } ?: "—", Modifier.weight(1f), icon = AppIcons.Speed)
+            StatTile(
+                "До конца",
+                when {
+                    leftPages == 0 -> "Прочитано"
+                    leftMs != null -> "≈ " + StatsCalc.duration(leftMs)
+                    else -> "—"
+                },
+                Modifier.weight(1f),
+                hint = leftPages?.takeIf { it > 0 }?.let { "$it стр." },
+                icon = AppIcons.Calendar,
+            )
+        }
+    }
+    val shape = appCorner(16)
+    Box(
+        Modifier.fillMaxWidth().heightIn(min = 46.dp).liveClick(shape, sound = FeedbackSound.Close, onClick = onDone).border(1.dp, AppColors.Line, shape),
+        contentAlignment = Alignment.Center,
+    ) { Text("Готово", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+}

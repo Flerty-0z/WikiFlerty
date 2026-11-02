@@ -1067,9 +1067,6 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         fonts = FontCatalog.available(this)
         publication = session.publication
         bookId = session.bookId
-        if (savedInstanceState == null) {
-            app.readingTimer.begin(bookId, app.library.books.value.firstOrNull { it.id == bookId }?.progress ?: 0.0)
-        }
         bookAuthor = session.publication.metadata.authors.joinToString(", ") { it.name }
         loadHeroes(session.bookId)
         val initial = settings
@@ -2044,7 +2041,6 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         if (isFinishing) {
             if (mySession != null) app.readAloud.stop()
             app.ambient.stopAll()
-            app.readingTimer.end()
             app.closeReader()
         }
     }
