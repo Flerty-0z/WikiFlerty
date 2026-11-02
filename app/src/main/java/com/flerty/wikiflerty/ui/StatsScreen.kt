@@ -173,13 +173,6 @@ object StatsCalc {
 fun StatsScreen(modifier: Modifier = Modifier) {
     var achievements by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(0) }
     val app = LocalContext.current.applicationContext as App
-    val openPet by app.pet.open.collectAsStateWithLifecycle()
-    androidx.compose.runtime.LaunchedEffect(openPet) {
-        if (openPet) {
-            app.pet.open.value = false
-            if (app.pet.pet.value != null) achievements = 2
-        }
-    }
     androidx.compose.animation.AnimatedContent(
         targetState = achievements,
         transitionSpec = {
@@ -195,14 +188,13 @@ fun StatsScreen(modifier: Modifier = Modifier) {
     ) { page ->
         when (page) {
             1 -> AchievementsPage(modifier) { achievements = 0 }
-            2 -> PetPage(modifier) { achievements = 0 }
-            else -> StatsMain(modifier, onPet = { achievements = 2 }) { achievements = 1 }
+            else -> StatsMain(modifier) { achievements = 1 }
         }
     }
 }
 
 @Composable
-private fun StatsMain(modifier: Modifier, onPet: () -> Unit, onAchievements: () -> Unit) {
+private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
     val days by app.stats.days.collectAsStateWithLifecycle()
     val books by app.library.books.collectAsStateWithLifecycle()
@@ -241,7 +233,6 @@ private fun StatsMain(modifier: Modifier, onPet: () -> Unit, onAchievements: () 
                 )
             }
         }
-        item(key = "pet") { PetCard(onPet) }
         item(key = "goal") {
             GoalCard(prefs.dailyGoalMinutes, perDay) { minutes -> app.libraryPrefs.update { it.copy(dailyGoalMinutes = minutes) } }
         }

@@ -19,6 +19,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.key
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -499,18 +501,14 @@ private fun SessionSheet(book: Book, form: SessionForm, onSaved: (Boolean) -> Un
     AppSheet(onDismiss, title = if (form.session == null) "Сеанс чтения" else "Изменить сеанс") {
         val close = sheetClose(onDismiss)
         if (form.fromStopwatch) {
-            Text("⏱ ${StatsCalc.duration(form.durationMs)} — отлично! На какой странице остановился?", color = AppColors.Muted, fontSize = 13.5.sp, lineHeight = 19.sp)
+            Text("На какой странице остановился?", color = AppColors.Muted, fontSize = 14.sp, maxLines = 1)
         }
         SettingsGroup(null) {
             Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Stepper("С страницы", AppIcons.Bookmark, from, 0..total) { from = it; if (to < it) to = it }
-                Stepper("До страницы", AppIcons.Pages, to, 0..total) { to = it }
-                Row(Modifier.horizontalScroll(rememberScrollState()).padding(start = 44.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(5, 10, 20, 50).forEach { n -> QuickChip("+$n") { to = (to + n).coerceAtMost(total) } }
-                    QuickChip("До конца") { to = total }
-                }
+                Stepper("С", AppIcons.Bookmark, from, 0..total) { from = it; if (to < it) to = it }
+                Stepper("До", AppIcons.Pages, to, 0..total) { to = it }
                 Text(
-                    if (ok) "+${to - from} ${pagesWord(to - from)} · ${to * 100 / total}% книги" else "Укажи, до какой страницы дочитал · в книге $total стр.",
+                    if (ok) "+${to - from} ${pagesWord(to - from)} · ${to * 100 / total}% книги" else "В книге $total стр.",
                     color = if (ok) AppColors.Accent else AppColors.Faint,
                     fontSize = 12.5.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -520,8 +518,7 @@ private fun SessionSheet(book: Book, form: SessionForm, onSaved: (Boolean) -> Un
         }
         SettingsGroup(null) {
             Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Stepper("Минут читал", AppIcons.Clock, minutes, 0..600, step = 5) { minutes = it }
-                if (minutes == 0) Text("Можно оставить 0, если не засекал — тогда скорость не посчитается", color = AppColors.Faint, fontSize = 11.5.sp, modifier = Modifier.padding(start = 44.dp))
+                Stepper("Минут", AppIcons.Clock, minutes, 0..600) { minutes = it }
                 val at = Instant.ofEpochMilli(start).atZone(ZoneId.systemDefault())
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = 48.dp),
@@ -661,8 +658,41 @@ private fun Stepper(label: String, icon: androidx.compose.ui.graphics.vector.Ima
 
 @Composable
 private fun StepButton(label: String, onClick: () -> Unit) {
+    val action by androidx.compose.runtime.rememberUpdatedState(onClick)
+    val feedback = LocalFeedback.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var pressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(if (pressed) 0.86f else 1f, Motion.tween(120), label = "step")
     Box(
-        Modifier.size(36.dp).liveClick(CircleShape, sound = FeedbackSound.Tap, pressedScale = 0.88f, onClick = onClick).background(AppColors.Line, CircleShape),
+        Modifier
+            .size(36.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(CircleShape)
+            .background(if (pressed) AppColors.Accent.copy(alpha = 0.25f) else AppColors.Line)
+            .pointerInput(Unit) {
+                detectTapGestures(onPress = {
+                    pressed = true
+                    feedback?.play(FeedbackSound.Tap, view)
+                    action()
+                    val repeat = scope.launch {
+                        delay(420)
+                        var pause = 140L
+                        while (true) {
+                            action()
+                            view.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+                            delay(pause)
+                            pause = (pause * 0.88).toLong().coerceAtLeast(35L)
+                        }
+                    }
+                    tryAwaitRelease()
+                    repeat.cancel()
+                    pressed = false
+                })
+            },
         contentAlignment = Alignment.Center,
     ) { Text(label, color = AppColors.Text, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
 }

@@ -128,7 +128,6 @@ fun RatingSheet(bookId: String, celebrate: Boolean, onDismiss: () -> Unit) {
     AppSheet(onDismiss) {
         val close = sheetClose(onDismiss)
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            BookCover(book.id, 92.dp, Modifier.padding(bottom = 8.dp))
             Text(
                 if (celebrate) "Книга прочитана! 🎉" else "Оценка книги",
                 color = AppColors.Text,
@@ -137,17 +136,32 @@ fun RatingSheet(bookId: String, celebrate: Boolean, onDismiss: () -> Unit) {
                 maxLines = 1,
                 softWrap = false,
                 autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 14.sp, maxFontSize = 22.sp, stepSize = 0.5.sp),
+                modifier = Modifier.padding(bottom = 6.dp),
             )
-            val pages = book.positions.takeIf { it > 0 }?.let { "$it/$it" }
-            Text(
-                listOfNotNull(book.title, pages, stats.ms.takeIf { it >= 60_000 }?.let { StatsCalc.duration(it) }).joinToString(" · "),
-                color = AppColors.Muted,
-                fontSize = 13.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-            )
-            StarRating(rating, 42.dp, Modifier.padding(top = 10.dp), gap = 8.dp) { rating = it }
+            Row(
+                Modifier.fillMaxWidth().fieldSurface(appCorner(16)).padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                BookCover(book.id, 46.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(
+                        book.title,
+                        color = AppColors.Text,
+                        fontSize = 16.sp,
+                        lineHeight = 21.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    val pages = book.positions.takeIf { it > 0 }?.let { "$it/$it" }
+                    val facts = listOfNotNull(book.author.takeIf { it.isNotBlank() }, pages, stats.ms.takeIf { it >= 60_000 }?.let { StatsCalc.duration(it) })
+                    if (facts.isNotEmpty()) {
+                        Text(facts.joinToString(" · "), color = AppColors.Muted, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+            StarRating(rating, 42.dp, Modifier.padding(top = 12.dp), gap = 8.dp) { rating = it }
             Text(
                 if (rating > 0f) "${ratingText(rating)}/5" else "Нажми на звёзды",
                 color = if (rating > 0f) AppColors.Accent else AppColors.Faint,
@@ -201,14 +215,6 @@ fun RatingSheet(bookId: String, celebrate: Boolean, onDismiss: () -> Unit) {
                 Icon(AppIcons.Check, null, tint = accentContent, modifier = Modifier.size(18.dp))
                 Text("Сохранить", color = accentContent, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(start = 8.dp))
             }
-        }
-        if (celebrate) {
-            Text(
-                "Позже",
-                color = AppColors.Faint,
-                fontSize = 13.sp,
-                modifier = Modifier.align(Alignment.CenterHorizontally).liveClick(appCorner(8), sound = FeedbackSound.Close) { close() }.padding(horizontal = 12.dp, vertical = 6.dp),
-            )
         }
     }
 }
