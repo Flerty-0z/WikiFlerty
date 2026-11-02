@@ -394,6 +394,10 @@ fun PickerSheet(
         sheetState = sheetState,
         sheetGesturesEnabled = false,
         dragHandle = null,
+        properties = androidx.compose.material3.ModalBottomSheetProperties(
+            isAppearanceLightStatusBars = AppStyle.light,
+            isAppearanceLightNavigationBars = AppStyle.light,
+        ),
         containerColor = AppColors.Panel,
         shape = androidx.compose.foundation.shape.RoundedCornerShape(
             topStart = (26 * AppStyle.current.corners).dp,

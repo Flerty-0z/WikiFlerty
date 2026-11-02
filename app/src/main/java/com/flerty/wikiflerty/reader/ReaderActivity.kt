@@ -303,6 +303,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         chat.provider = provider
         chat.model = provider?.let { app.ai.settings.value.modelFor(it) }.orEmpty()
         if (provider == null) chat.error = "Подключи нейросеть, чтобы продолжить чат"
+        ui.chatFromHistory = true
         ui.sheet = ReaderSheet.AiChat
     }
 
@@ -1495,6 +1496,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private fun startAi(action: AiAction, question: String?) {
+        ui.chatFromHistory = false
         chat.job?.cancel()
         chat.bubbles.clear()
         chat.error = null
@@ -1515,6 +1517,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private fun startChapterAi(action: AiAction) {
+        ui.chatFromHistory = false
         val locator = navigator.currentLocator.value
         val progression = locator.locations.progression ?: 0.0
         chat.job?.cancel()

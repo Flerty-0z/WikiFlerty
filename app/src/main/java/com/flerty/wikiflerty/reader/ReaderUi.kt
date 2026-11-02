@@ -177,6 +177,7 @@ class ReaderUiState {
     var ttsProblem by mutableStateOf<com.flerty.wikiflerty.tts.ReadAloud.Problem?>(null)
     var ttsSleep by mutableStateOf<com.flerty.wikiflerty.tts.SleepTimer?>(null)
     var askFinished by mutableStateOf(false)
+    var chatFromHistory by mutableStateOf(false)
     var bookmarked by mutableStateOf(false)
     var quote by mutableStateOf<QuoteDraft?>(null)
 
@@ -292,6 +293,8 @@ fun ReaderOverlay(
             sheet == ReaderSheet.Heroes -> state.sheet = ReaderSheet.AiChapter
             sheet == ReaderSheet.HeroChat -> state.sheet = ReaderSheet.Heroes
             sheet == ReaderSheet.AiHistory -> state.sheet = ReaderSheet.AiChapter
+            sheet == ReaderSheet.CharMap -> state.sheet = ReaderSheet.AiChapter
+            sheet == ReaderSheet.AiChat && state.chatFromHistory -> state.sheet = ReaderSheet.AiHistory
             sheet.depth == 0 -> state.sheet = null
             else -> state.sheet = ReaderSheet.Options
         }
@@ -485,6 +488,7 @@ fun ReaderOverlay(
                         noteActions = noteActions,
                         ai = ai,
                         aiSetupFromMenu = state.aiSetupFromMenu,
+                        chatFromHistory = state.chatFromHistory,
                         onSettingsChange = onSettingsChange,
                         onOpen = {
                             if (it == ReaderSheet.AiSetup) state.aiSetupFromMenu = state.sheet == ReaderSheet.AiMenu
@@ -981,6 +985,7 @@ private fun SheetContent(
     noteActions: NoteActions,
     ai: AiBridge,
     aiSetupFromMenu: Boolean,
+    chatFromHistory: Boolean = false,
     onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit,
     onOpen: (ReaderSheet) -> Unit,
     onClose: () -> Unit,
@@ -1015,6 +1020,7 @@ private fun SheetContent(
                 sheet == ReaderSheet.HeroChat -> ReaderSheet.Heroes
                 sheet == ReaderSheet.AiHistory -> ReaderSheet.AiChapter
                 sheet == ReaderSheet.CharMap -> ReaderSheet.AiChapter
+                sheet == ReaderSheet.AiChat && chatFromHistory -> ReaderSheet.AiHistory
                 sheet.depth > 0 -> ReaderSheet.Options
                 else -> null
             }

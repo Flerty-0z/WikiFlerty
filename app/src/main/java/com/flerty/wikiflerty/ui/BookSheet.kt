@@ -88,6 +88,10 @@ fun AppSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable 
         sheetState = state,
         sheetGesturesEnabled = false,
         dragHandle = null,
+        properties = androidx.compose.material3.ModalBottomSheetProperties(
+            isAppearanceLightStatusBars = AppStyle.light,
+            isAppearanceLightNavigationBars = AppStyle.light,
+        ),
         containerColor = AppColors.Panel,
         shape = RoundedCornerShape(topStart = (26 * AppStyle.current.corners).dp, topEnd = (26 * AppStyle.current.corners).dp),
     ) {
