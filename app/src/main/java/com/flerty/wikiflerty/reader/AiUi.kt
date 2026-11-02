@@ -121,6 +121,8 @@ class AiBridge(
     val onSaveDictionary: () -> Unit,
     val onSaveNote: () -> Unit,
     val onChapter: (AiAction) -> Unit = {},
+    val onQuote: (String) -> Unit = {},
+    val onRemember: (String, String) -> Unit = { _, _ -> },
     val heroes: HeroBridge? = null,
     val history: HistoryBridge? = null,
 )
@@ -464,7 +466,10 @@ fun AiChatContent(bridge: AiBridge, modifier: Modifier = Modifier) {
     FollowBottom(listState, chat.bubbles.size)
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        ModelChip(bridge)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.weight(1f, fill = false)) { ModelChip(bridge) }
+            if (chat.action == AiAction.Teacher) TeacherScore(chat.bubbles.filter { !it.fromUser }.map { it.shown })
+        }
 
         LazyColumn(
             state = listState,
@@ -476,7 +481,11 @@ fun AiChatContent(bridge: AiBridge, modifier: Modifier = Modifier) {
                     UserBubble(bubble, first = index == 0, fragment = chat.fragment)
                 } else {
                     val writing = chat.streaming && index == chat.bubbles.lastIndex
-                    AnswerBubble(bubble.shown, writing = writing, note = if (writing) chat.retryNote else null, debate = chat.action == AiAction.Debate)
+                    if (chat.action == AiAction.Teacher && !(writing && bubble.shown.isEmpty())) {
+                        TeacherBubble(bubble.shown, writing, bridge)
+                    } else {
+                        AnswerBubble(bubble.shown, writing = writing, note = if (writing) chat.retryNote else null, debate = chat.action == AiAction.Debate)
+                    }
                 }
             }
             chat.error?.let { error ->
@@ -561,7 +570,7 @@ fun AiChatContent(bridge: AiBridge, modifier: Modifier = Modifier) {
         MessageInput(
             value = input,
             onChange = { input = it },
-            placeholder = "Спросить ещё…",
+            placeholder = if (chat.action == AiAction.Teacher) "Твой ответ…" else "Спросить ещё…",
             streaming = chat.streaming,
             onSend = {
                 if (input.isNotBlank()) {
@@ -768,6 +777,138 @@ fun FollowBottom(listState: androidx.compose.foundation.lazy.LazyListState, item
 }
 
 private val numbered = Regex("^\\s*(\\d{1,2})[.)]\\s*(.*)$")
+
+private enum class Verdict(val mark: String, val label: String) { Good("✅", "Верно"), Part("🟡", "Частично"), Bad("❌", "Мимо") }
+
+private fun verdictOf(line: String): Verdict? = Verdict.entries.firstOrNull { line.startsWith(it.mark) }
+
+@Composable
+private fun verdictColor(v: Verdict): Color = when (v) {
+    Verdict.Good -> AppColors.Good
+    Verdict.Part -> AppColors.Warn
+    Verdict.Bad -> AppColors.Bad
+}
+
+@Composable
+private fun TeacherScore(answers: List<String>) {
+    val counts = Verdict.entries.associateWith { v -> answers.count { a -> a.lineSequence().firstOrNull { it.isNotBlank() }?.trim()?.let(::verdictOf) == v } }
+    if (counts.values.sum() == 0) return
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Verdict.entries.forEach { v ->
+            val color = verdictColor(v)
+            Row(
+                Modifier.height(32.dp).clip(CircleShape).background(color.copy(alpha = 0.14f)).padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(v.mark, fontSize = 11.sp)
+                Text("${counts[v] ?: 0}", color = color, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TeacherBubble(text: String, writing: Boolean, bridge: AiBridge) {
+    val count = rememberRevealCount(text, writing)
+    val shown = text.take(count)
+    val live = count < text.length || writing
+    val lines = shown.split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+    val shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 4.dp, bottomEnd = 16.dp)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .animateContentSize(androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow))
+            .clip(shape)
+            .background(AppColors.Field)
+            .border(1.dp, AppColors.PanelBorder, shape)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        lines.forEachIndexed { i, line ->
+            val last = i == lines.lastIndex && live
+            val verdict = verdictOf(line)
+            when {
+                verdict != null -> {
+                    val color = verdictColor(verdict)
+                    Row(
+                        Modifier.clip(CircleShape).background(color.copy(alpha = 0.16f)).padding(horizontal = 12.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(verdict.mark, fontSize = 13.sp)
+                        Text(verdict.label, color = color, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                }
+                line.startsWith("Цитата:", ignoreCase = true) -> {
+                    val quote = line.substringAfter(':').trim().trim('«', '»', '"', ' ')
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(IntrinsicSize.Min)
+                            .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.98f) { bridge.onQuote(quote) }
+                            .background(AppColors.Accent.copy(alpha = 0.07f))
+                            .padding(end = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(Modifier.width(3.dp).fillMaxHeight().background(AppColors.Accent))
+                        Text(
+                            revealText("«$quote»", quote.length + 2, last, AppColors.Text),
+                            color = AppColors.Text,
+                            fontFamily = FontFamily.Serif,
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp,
+                            modifier = Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 8.dp),
+                        )
+                        Icon(AppIcons.Search, "Найти в книге", tint = AppColors.Accent, modifier = Modifier.size(16.dp))
+                    }
+                }
+                line.startsWith("Запомни:", ignoreCase = true) -> {
+                    val fact = line.substringAfter(':').trim()
+                    val key = fact.substringBefore(" — ", "").trim().ifBlank { fact.split(' ').take(4).joinToString(" ") }
+                    val body = fact.substringAfter(" — ", fact).trim()
+                    var saved by remember(fact) { mutableStateOf(false) }
+                    Column(
+                        Modifier.fillMaxWidth().clip(appCorner(12)).background(AppColors.Warn.copy(alpha = 0.08f)).border(1.dp, AppColors.Warn.copy(alpha = 0.3f), appCorner(12)).padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(AppIcons.Sparkle, null, tint = AppColors.Warn, modifier = Modifier.size(14.dp))
+                            Text("Запомни", color = AppColors.Warn, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                            if (!live) {
+                                Text(
+                                    if (saved) "✓ В карточках" else "В карточки",
+                                    color = if (saved) AppColors.Good else AppColors.Accent,
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier
+                                        .liveClick(CircleShape, sound = FeedbackSound.Toggle, enabled = !saved) {
+                                            saved = true
+                                            bridge.onRemember(key, body)
+                                        }
+                                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                                )
+                            }
+                        }
+                        Text(revealText(fact, fact.length, last, AppColors.Text), color = AppColors.Text, fontSize = 14.sp, lineHeight = 20.sp)
+                    }
+                }
+                Regex("^Вопрос\\s*\\d*\\s*:").containsMatchIn(line) -> {
+                    val num = Regex("\\d+").find(line.substringBefore(':'))?.value
+                    val q = line.substringAfter(':').trim()
+                    Column(
+                        Modifier.fillMaxWidth().clip(appCorner(14)).background(AppColors.AccentTint).border(1.dp, AppColors.Accent.copy(alpha = 0.35f), appCorner(14)).padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(if (num != null) "Вопрос $num" else "Вопрос", color = AppColors.Accent, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+                        Text(revealText(q, q.length, last, AppColors.Text), color = AppColors.Text, fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                else -> Text(revealText(line, line.length, last, AppColors.Text), color = AppColors.Text, fontSize = 15.sp, lineHeight = 22.sp)
+            }
+        }
+    }
+}
 
 @Composable
 private fun DebateBody(raw: String, writing: Boolean) {

@@ -1063,6 +1063,7 @@ private fun SheetContent(
                 hasAi = ai.manager.current() != null,
                 onRecap = { ai.onChapter(AiAction.Recap); onOpen(ReaderSheet.AiChat) },
                 onQuiz = { ai.onChapter(AiAction.Quiz); onOpen(ReaderSheet.AiChat) },
+                onTeacher = { ai.onChapter(AiAction.Teacher); onOpen(ReaderSheet.AiChat) },
                 onHeroes = { onOpen(ReaderSheet.Heroes) },
                 onHistory = { onOpen(ReaderSheet.AiHistory) },
                 onSetup = { onOpen(ReaderSheet.AiSetup) },
@@ -2003,11 +2004,12 @@ private fun JumpContent(jump: JumpInfo, onClose: () -> Unit) {
 }
 
 @Composable
-private fun AiChapterContent(hasAi: Boolean, onRecap: () -> Unit, onQuiz: () -> Unit, onHeroes: () -> Unit, onHistory: () -> Unit, onSetup: () -> Unit) {
+private fun AiChapterContent(hasAi: Boolean, onRecap: () -> Unit, onQuiz: () -> Unit, onTeacher: () -> Unit, onHeroes: () -> Unit, onHistory: () -> Unit, onSetup: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (hasAi) {
             AiChapterButton(AppIcons.Book, "Пересказ главы", "Что было до этого места", onRecap)
             AiChapterButton(AppIcons.Check, "Тест по главе", "5 вопросов, ответы проверит ИИ", onQuiz)
+            AiChapterButton(AppIcons.Pencil, "ИИ-Учитель", "Отвечай своими словами, ИИ разберёт", onTeacher)
             AiChapterButton(AppIcons.Voice, "Герои книги", "Поговори с персонажем или автором", onHeroes)
             AiChapterButton(AppIcons.Clock, "История", "Прошлые чаты с ИИ по этой книге", onHistory)
             Text(

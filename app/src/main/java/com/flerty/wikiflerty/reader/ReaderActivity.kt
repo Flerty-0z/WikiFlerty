@@ -204,6 +204,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             onSaveDictionary = ::saveToDictionary,
             onSaveNote = ::saveAnswerAsNote,
             onChapter = ::startChapterAi,
+            onQuote = ::findQuote,
+            onRemember = ::rememberFact,
             heroes = heroBridge,
             history = historyBridge,
         )
@@ -302,9 +304,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private fun trimmedHistory(list: List<ChatMessage>, limit: Int = 30): List<ChatMessage> {
         if (list.size <= limit) return list
-        val tail = list.takeLast(limit)
-        val first = tail.indexOfFirst { it.fromUser }
-        return if (first > 0) tail.drop(first) else tail
+        val tail = list.drop(1).takeLast(limit - 1)
+        val start = tail.indexOfFirst { !it.fromUser }
+        return listOf(list.first()) + if (start > 0) tail.drop(start) else tail
     }
 
     private val heroStore by lazy { com.flerty.wikiflerty.data.HeroStore(this) }
@@ -1533,6 +1535,21 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             app.dictionary.add(word, answer, chat.context.take(400), bookId, bookTitle, chat.locator)
             chat.savedToDictionary = true
             Toast.makeText(this@ReaderActivity, "Добавлено в словарь", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun findQuote(quote: String) {
+        val words = quote.replace(Regex("[«»\"“”„.,!?;:…()\\[\\]—–-]"), " ").split(Regex("\\s+")).filter { it.isNotBlank() }
+        val query = words.take(5).joinToString(" ").ifBlank { return }
+        searchActions.state.query = query
+        searchActions.onSearch(query)
+        ui.sheet = ReaderSheet.Search
+    }
+
+    private fun rememberFact(key: String, fact: String) {
+        lifecycleScope.launch {
+            app.dictionary.add(key, fact, chat.context.take(400), bookId, bookTitle, chat.locator)
+            Toast.makeText(this@ReaderActivity, "Добавлено в карточки", Toast.LENGTH_SHORT).show()
         }
     }
 
