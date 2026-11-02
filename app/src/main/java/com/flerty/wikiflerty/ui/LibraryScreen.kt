@@ -780,34 +780,41 @@ fun relativeDay(time: Long): String {
 
 @Composable
 fun StatusPill(status: ReadStatus, small: Boolean, modifier: Modifier = Modifier, framed: Boolean = false, wide: Boolean = false) {
-    val color = statusColor(status)
     val label = when (status) {
         ReadStatus.Reading -> "Читаю"
         ReadStatus.Planned -> "В планах"
         ReadStatus.Finished -> "Прочитано"
         ReadStatus.New -> "Новая"
     }
+    val tint = AppColors.Accent
+    val shape = appCorner(if (small) 10 else 12)
+    val box = if (small) 20.dp else 24.dp
     Row(
         modifier
-            .clip(CircleShape)
-            .background(if (framed) color.copy(alpha = 0.12f) else Color(0xD9100D0B))
-            .border(1.dp, color.copy(alpha = 0.5f), CircleShape)
-            .padding(horizontal = if (small) 5.dp else 7.dp, vertical = if (wide) 4.dp else 3.dp),
+            .clip(shape)
+            .background(AppColors.Line.copy(alpha = 0.35f))
+            .border(1.dp, AppColors.PanelBorder, shape)
+            .padding(start = 4.dp, end = if (small) 6.dp else 9.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.spacedBy(if (small) 5.dp else 7.dp, if (wide) Alignment.CenterHorizontally else Alignment.Start),
     ) {
-        Icon(statusIcon(status), null, tint = color, modifier = Modifier.size(if (small) 11.dp else 12.dp))
-        if (wide) {
+        Box(
+            Modifier
+                .size(box)
+                .clip(appCorner(7))
+                .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.26f), tint.copy(alpha = 0.08f))))
+                .border(1.dp, tint.copy(alpha = 0.18f), appCorner(7)),
+            contentAlignment = Alignment.Center,
+        ) { Icon(statusIcon(status), null, tint = tint, modifier = Modifier.size(box * 0.55f)) }
+        if (wide || framed || !small) {
             Text(
                 label,
-                color = color,
-                fontWeight = FontWeight.ExtraBold,
+                color = AppColors.Text,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 softWrap = false,
-                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = if (small) 10.sp else 11.5.sp, stepSize = 0.5.sp),
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = if (small) 11.sp else 12.5.sp, stepSize = 0.5.sp),
             )
-        } else if (!small) {
-            Text(label, color = color, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
         }
     }
 }

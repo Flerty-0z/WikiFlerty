@@ -246,7 +246,7 @@ fun BookSheet(
 
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             InfoTile(AppIcons.Pages, if (book.progress > 0 || inPages) progressLabel(book, inPages) else "Не начата", Modifier.weight(1f))
-            InfoTile(statusIcon(book.status), book.status.title, Modifier.weight(1f), statusColor(book.status))
+            InfoTile(statusIcon(book.status), book.status.title, Modifier.weight(1f))
         }
 
         androidx.compose.animation.AnimatedContent(
