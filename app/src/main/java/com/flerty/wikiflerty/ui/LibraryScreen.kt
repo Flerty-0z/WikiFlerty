@@ -522,7 +522,7 @@ private fun rememberCover(file: File?): ImageBitmap? {
 }
 
 @Composable
-private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean = false, showStatus: Boolean = true) {
+private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean = false, showStatus: Boolean = true, progress: Pair<String, Color>? = null) {
     val cover = rememberCover(file)
     Box(modifier.background(AppColors.Field), contentAlignment = Alignment.Center) {
         if (cover != null) {
@@ -546,9 +546,27 @@ private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Pages, "Бумажная книга", tint = Color.White, modifier = Modifier.size(if (small) 12.dp else 14.dp)) }
         }
+        progress?.let { (label, color) ->
+            Text(
+                label,
+                color = Color.White,
+                fontSize = if (small) 9.5.sp else 10.5.sp,
+                lineHeight = if (small) 12.sp else 13.sp,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = if (small) 5.dp else 7.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xD9100D0B))
+                    .border(1.dp, color.copy(alpha = 0.75f), CircleShape)
+                    .padding(horizontal = if (small) 6.dp else 8.dp, vertical = 2.dp),
+            )
+        }
         if (book.favorite) {
             Box(
-                Modifier.align(Alignment.TopEnd).padding(5.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
+                Modifier.align(if (showStatus) Alignment.BottomEnd else Alignment.TopEnd).padding(5.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
                     .background(Color(0xB0101114)),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.StarFilled, "Избранное", tint = StarYellow, modifier = Modifier.size(if (small) 12.dp else 15.dp)) }
@@ -571,6 +589,7 @@ private fun BookCard(book: Book, coverFile: File?, small: Boolean, inPages: Bool
             coverFile,
             Modifier.fillMaxWidth().aspectRatio(2f / 3f).coverShadow(appCorner(10)).clip(appCorner(10)),
             small,
+            progress = progressBadge(book, inPages),
         )
         Text(
             book.title,
@@ -584,7 +603,7 @@ private fun BookCard(book: Book, coverFile: File?, small: Boolean, inPages: Bool
             modifier = Modifier.padding(top = 8.dp),
         )
         Spacer(Modifier.height(6.dp))
-        ThickProgress(book, inPages, small)
+        ThickProgress(book, inPages, small, showLabel = false)
         Spacer(Modifier.height(6.dp))
         StatusPill(book.status, small, Modifier.fillMaxWidth().padding(horizontal = 2.dp), framed = true, wide = true)
     }
@@ -787,8 +806,18 @@ fun StatusPill(status: ReadStatus, small: Boolean, modifier: Modifier = Modifier
     }
 }
 
+private fun progressBadge(book: Book, inPages: Boolean): Pair<String, Color> {
+    val finished = book.status == ReadStatus.Finished
+    val label = when {
+        finished && book.positions > 0 && inPages -> "${book.positions}/${book.positions}"
+        finished -> "100%"
+        else -> progressLabel(book, inPages)
+    }
+    return label to if (finished) AppColors.Good else AppColors.Accent
+}
+
 @Composable
-fun ThickProgress(book: Book, inPages: Boolean, small: Boolean, modifier: Modifier = Modifier) {
+fun ThickProgress(book: Book, inPages: Boolean, small: Boolean, modifier: Modifier = Modifier, showLabel: Boolean = true) {
     val finished = book.status == ReadStatus.Finished
     val fraction = if (finished) 1f else book.progress.toFloat().coerceIn(0f, 1f)
     val label = when {
@@ -797,7 +826,7 @@ fun ThickProgress(book: Book, inPages: Boolean, small: Boolean, modifier: Modifi
         else -> progressLabel(book, inPages)
     }
     val fill = if (finished) AppColors.Good else AppColors.Accent
-    Box(modifier.fillMaxWidth().height(if (small) 18.dp else 20.dp), contentAlignment = Alignment.Center) {
+    Box(modifier.fillMaxWidth().height(if (!showLabel) 10.dp else if (small) 18.dp else 20.dp), contentAlignment = Alignment.Center) {
         Box(
             Modifier
                 .fillMaxWidth()
@@ -807,7 +836,7 @@ fun ThickProgress(book: Book, inPages: Boolean, small: Boolean, modifier: Modifi
         ) {
             Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).clip(CircleShape).background(fill))
         }
-        Box(
+        if (showLabel) Box(
             Modifier
                 .clip(CircleShape)
                 .background(AppColors.Panel)

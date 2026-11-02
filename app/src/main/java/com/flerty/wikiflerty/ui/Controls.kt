@@ -94,7 +94,7 @@ fun SettingsNavRow(icon: ImageVector, title: String, subtitle: String, onClick: 
         ) { Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(22.dp)) }
         Column(Modifier.weight(1f)) {
             Text(title, color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            Text(
+            if (subtitle.isNotBlank()) Text(
                 subtitle,
                 color = AppColors.Muted,
                 maxLines = 1,

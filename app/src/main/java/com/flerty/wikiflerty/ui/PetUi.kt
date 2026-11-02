@@ -115,12 +115,18 @@ private fun EmojiBadge(emoji: String, color: Color) {
 }
 
 @Composable
-private fun WellTile(emoji: String, label: String, value: String, level: Float?, color: Color, info: String) {
+private fun WellTile(emoji: String, label: String, value: String, level: Float?, color: Color, info: String, pill: Boolean = false) {
     var open by remember { mutableStateOf(false) }
     val v by animateFloatAsState(((level ?: 0f) / 100f).coerceIn(0f, 1f), Motion.tween(700), label = "bar")
     val shape = appCorner(18)
     Column(
-        Modifier.fillMaxWidth().fieldSurface(shape).padding(horizontal = 12.dp, vertical = 10.dp).animateContentSize(Motion.tween(240)),
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(AppColors.Line.copy(alpha = 0.45f))
+            .border(1.dp, AppColors.PanelBorder, shape)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .animateContentSize(Motion.tween(240)),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -135,7 +141,18 @@ private fun WellTile(emoji: String, label: String, value: String, level: Float?,
                 contentAlignment = Alignment.Center,
             ) { Text("?", color = if (open) color else AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold) }
             Spacer(Modifier.weight(1f))
-            Text(value, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+            if (pill) {
+                Text(
+                    value,
+                    color = AppColors.Accent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    modifier = Modifier.clip(CircleShape).background(AppColors.AccentTint).border(1.dp, AppColors.Accent.copy(alpha = 0.35f), CircleShape).padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+            } else {
+                Text(value, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+            }
         }
         if (level != null) {
             Box(Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(AppColors.Line)) {
@@ -176,35 +193,20 @@ private val XpRules = listOf(
 @Composable
 private fun XpGuideSheet(onDismiss: () -> Unit) {
     AppSheet(onDismiss, title = "Как получать опыт") {
-        Text(
-            "Опыт копится от чтения и занятий с книгами. Уровень — это просто показатель твоей активности.",
-            color = AppColors.Muted,
-            fontSize = 13.sp,
-            lineHeight = 18.sp,
-        )
-        XpRules.forEach { rule ->
-            val color = Color(rule.color)
-            Row(
-                Modifier.fillMaxWidth().fieldSurface(appCorner(16)).padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                EmojiBadge(rule.emoji, color)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text(rule.title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                    Text(rule.text, color = AppColors.Faint, fontSize = 12.sp, lineHeight = 16.sp)
-                }
-                Text(
-                    rule.value,
-                    color = AppColors.Accent,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    maxLines = 1,
-                    modifier = Modifier.clip(CircleShape).background(AppColors.AccentTint).border(1.dp, AppColors.Accent.copy(alpha = 0.35f), CircleShape).padding(horizontal = 10.dp, vertical = 4.dp),
-                )
+        TileGroup {
+            XpRules.forEach { rule ->
+                WellTile(rule.emoji, rule.title, rule.value, null, Color(rule.color), rule.text, pill = true)
             }
         }
     }
+}
+
+@Composable
+private fun TileGroup(content: @Composable () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().fieldSurface(appCorner(22)).padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) { content() }
 }
 
 @Composable
@@ -389,6 +391,7 @@ fun PetPage(modifier: Modifier = Modifier, onBack: () -> Unit) {
 
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SectionHeader("Самочувствие")
+            TileGroup {
             WellTile("🍎", "Сытость", "${pet.food.toInt()}", pet.food, Color(0xFFF2A65A), "Растёт от прочитанных страниц и законченных книг. Без чтения питомец понемногу голодает.")
             WellTile("😊", "Настроение", "${pet.mood.toInt()}", pet.mood, Color(0xFFF7D774), "Поднимают заметки, новые слова, карточки, главы и достижения. При заморозке серии питомец уходит в отпуск и не скучает.")
             WellTile("⚡", "Энергия", "${pet.energy.toInt()}", pet.energy, Color(0xFF7DD3FC), "Восстанавливается сама, ночью быстрее — с 23:00 до 7:00 питомец спит. Падает, если читать с часу до пяти ночи.")
@@ -400,9 +403,10 @@ fun PetPage(modifier: Modifier = Modifier, onBack: () -> Unit) {
                 Color(0xFFFF9AA8),
                 "Сколько книг вы прочитали вместе. Каждая книга даёт много опыта.",
             )
+            }
         }
 
-        SettingsNavRow(AppIcons.Info, "Как получать опыт", "Уровень показывает, насколько ты активен") { guide = true }
+        SettingsNavRow(AppIcons.Info, "Как получать опыт", "") { guide = true }
     }
     if (guide) XpGuideSheet { guide = false }
     if (renaming) RenameSheet(pet.name) { renaming = false }
