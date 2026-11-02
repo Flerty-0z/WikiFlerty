@@ -1,5 +1,6 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.graphics.drawOutline
 
 import androidx.compose.foundation.layout.width
@@ -504,7 +505,7 @@ private fun rememberCover(file: File?): ImageBitmap? {
 }
 
 @Composable
-private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean = false, showStatus: Boolean = true, progress: Pair<String, Color>? = null) {
+private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean = false, showStatus: Boolean = true, plaque: Boolean = false) {
     val cover = rememberCover(file)
     Box(modifier.background(AppColors.Field), contentAlignment = Alignment.Center) {
         if (cover != null) {
@@ -523,45 +524,32 @@ private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean
         val rating = book.rating?.takeIf { it > 0f }
         if (book.paper) {
             Box(
-                Modifier.align(if (progress != null) Alignment.BottomStart else Alignment.TopStart).padding(if (showStatus) 5.dp else 3.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
+                Modifier.align(if (plaque) Alignment.BottomStart else Alignment.TopStart).padding(if (showStatus) 5.dp else 3.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
                     .background(Color(0xB0101114)),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Pages, "Бумажная книга", tint = Color.White, modifier = Modifier.size(if (small) 12.dp else 14.dp)) }
         }
-        if (progress != null) {
-            val (label, color) = progress
-            val text = if (small) 9.5.sp else 10.5.sp
-            Row(
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .padding(horizontal = if (small) 4.dp else 6.dp, vertical = if (small) 4.dp else 6.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xD9100D0B))
-                    .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape)
-                    .padding(horizontal = if (small) 5.dp else 7.dp, vertical = 3.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    if (rating != null) {
-                        Icon(AppIcons.StarFilled, "Оценка", tint = AppColors.Accent, modifier = Modifier.size(if (small) 9.dp else 11.dp))
-                        Text(ratingText(rating), color = AppColors.Accent, fontSize = text, lineHeight = text, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
-                    }
-                }
-                Text(
-                    label,
-                    color = Color.White,
-                    fontSize = text,
-                    lineHeight = text,
-                    fontWeight = FontWeight.ExtraBold,
-                    maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier
+        if (plaque) {
+            if (rating != null || book.favorite) {
+                val text = if (small) 9.5.sp else 10.5.sp
+                Row(
+                    Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .padding(horizontal = if (small) 4.dp else 6.dp, vertical = if (small) 4.dp else 6.dp)
                         .clip(CircleShape)
-                        .border(1.dp, color.copy(alpha = 0.75f), CircleShape)
-                        .padding(horizontal = if (small) 5.dp else 7.dp, vertical = 1.dp),
-                )
-                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End) {
+                        .background(Color(0xD9100D0B))
+                        .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape)
+                        .heightIn(min = if (small) 18.dp else 22.dp)
+                        .padding(horizontal = if (small) 6.dp else 8.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        if (rating != null) {
+                            Icon(AppIcons.StarFilled, "Оценка", tint = AppColors.Accent, modifier = Modifier.size(if (small) 9.dp else 11.dp))
+                            Text(ratingText(rating), color = AppColors.Accent, fontSize = text, lineHeight = text, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
+                        }
+                    }
                     androidx.compose.animation.AnimatedVisibility(
                         visible = book.favorite,
                         enter = androidx.compose.animation.scaleIn(androidx.compose.animation.core.spring(dampingRatio = 0.4f, stiffness = 500f), initialScale = 0.2f) + androidx.compose.animation.fadeIn(Motion.fade(160)),
@@ -599,7 +587,7 @@ private fun BookCard(book: Book, coverFile: File?, small: Boolean, inPages: Bool
             coverFile,
             Modifier.fillMaxWidth().aspectRatio(2f / 3f).coverShadow(appCorner(10)).clip(appCorner(10)),
             small,
-            progress = progressBadge(book, inPages),
+            plaque = true,
         )
         Text(
             book.title,
@@ -613,9 +601,7 @@ private fun BookCard(book: Book, coverFile: File?, small: Boolean, inPages: Bool
             modifier = Modifier.padding(top = 8.dp),
         )
         Spacer(Modifier.height(6.dp))
-        ThickProgress(book, inPages, small, showLabel = false)
-        Spacer(Modifier.height(6.dp))
-        StatusPill(book.status, small, Modifier.fillMaxWidth().padding(horizontal = 2.dp), framed = true, wide = true)
+        StatusProgress(book, inPages, small)
     }
 }
 
@@ -637,10 +623,7 @@ private fun BookRow(book: Book, coverFile: File?, inPages: Boolean, onClick: () 
             if (book.author.isNotBlank()) {
                 Text(book.author, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ThickProgress(book, inPages, false, Modifier.weight(1f))
-                StatusPill(book.status, false, framed = true)
-            }
+            StatusProgress(book, inPages, small = false, modifier = Modifier.padding(top = 6.dp))
         }
     }
 }
@@ -780,6 +763,59 @@ fun relativeDay(time: Long): String {
         diff < 7L -> "${diff} " + StatsCalc.plural(diff.toInt(), "день", "дня", "дней") + " назад"
         else -> StatsCalc.date(day)
     }
+}
+
+@Composable
+private fun StatusProgress(book: Book, inPages: Boolean, small: Boolean, modifier: Modifier = Modifier) {
+    val (label, color) = progressBadge(book, inPages)
+    val finished = book.status == ReadStatus.Finished
+    val fraction by animateFloatAsState(if (finished) 1f else book.progress.toFloat().coerceIn(0f, 1f), Motion.tween(700), label = "status-progress")
+    val tint = AppColors.Accent
+    val shape = appCorner(if (small) 10 else 12)
+    val box = if (small) 20.dp else 24.dp
+    val track = AppColors.Line
+    Row(
+        modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(AppColors.Line.copy(alpha = 0.35f))
+            .border(1.dp, AppColors.PanelBorder, shape)
+            .drawWithContent {
+                drawContent()
+                val h = 3.dp.toPx()
+                drawRect(track, androidx.compose.ui.geometry.Offset(0f, size.height - h), androidx.compose.ui.geometry.Size(size.width, h))
+                drawRect(color, androidx.compose.ui.geometry.Offset(0f, size.height - h), androidx.compose.ui.geometry.Size(size.width * fraction, h))
+            }
+            .padding(start = 4.dp, end = if (small) 6.dp else 9.dp, top = 4.dp, bottom = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(if (small) 5.dp else 7.dp),
+    ) {
+        Box(
+            Modifier
+                .size(box)
+                .clip(appCorner(7))
+                .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.26f), tint.copy(alpha = 0.08f))))
+                .border(1.dp, tint.copy(alpha = 0.18f), appCorner(7)),
+            contentAlignment = Alignment.Center,
+        ) { Icon(statusIcon(book.status), null, tint = tint, modifier = Modifier.size(box * 0.55f)) }
+        Text(
+            statusLabel(book.status),
+            color = AppColors.Text,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.weight(1f),
+            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = if (small) 11.sp else 12.5.sp, stepSize = 0.5.sp),
+        )
+        Text(label, color = color, fontSize = if (small) 10.sp else 11.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
+    }
+}
+
+private fun statusLabel(status: ReadStatus): String = when (status) {
+    ReadStatus.Reading -> "Читаю"
+    ReadStatus.Planned -> "В планах"
+    ReadStatus.Finished -> "Прочитано"
+    ReadStatus.New -> "Новая"
 }
 
 @Composable
