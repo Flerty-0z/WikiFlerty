@@ -133,7 +133,7 @@ enum class ReaderSheet(val title: String, val depth: Int) {
     Panel("Панель", 1),
     Gestures("Жесты", 1),
     Screen("Экран", 1),
-    Sound("Звук/Атмосфера", 1),
+    Sound("Звуки/Атмосфера", 1),
     Listen("Чтение вслух", 1),
     Fonts("Шрифт", 2),
     Notes("Заметки", 0),
@@ -1166,7 +1166,14 @@ private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
                             Icon(tile.icon, null, tint = if (tile.dark) Color(0xFF1A1405) else Color.White, modifier = Modifier.size(20.dp))
                         }
                         Column {
-                            Text(tile.target.title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            Text(
+                                tile.target.title,
+                                color = AppColors.Text,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false,
+                                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 15.sp, stepSize = 0.5.sp),
+                            )
                             Text(
                                 tile.hint,
                                 color = AppColors.Muted,

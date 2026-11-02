@@ -405,7 +405,16 @@ private fun StopwatchCard(watch: com.flerty.wikiflerty.data.Stopwatch, onToggle:
             transitionSpec = { fadeIn(Motion.fade(220)) togetherWith fadeOut(Motion.fade(140)) },
             label = "watch-state",
         ) { running ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            val tint = if (running) AppColors.Accent else AppColors.Muted
+            Row(
+                Modifier
+                    .clip(CircleShape)
+                    .background(tint.copy(alpha = 0.12f))
+                    .border(1.dp, tint.copy(alpha = 0.45f), CircleShape)
+                    .padding(horizontal = 12.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
                 if (running) Box(Modifier.size(7.dp).graphicsLayer { alpha = pulse.value }.background(AppColors.Accent, CircleShape))
                 Text(if (running) "Идёт сеанс чтения" else "Пауза", color = if (running) AppColors.Accent else AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
@@ -433,7 +442,6 @@ private fun StopwatchCard(watch: com.flerty.wikiflerty.data.Stopwatch, onToggle:
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Stop, "Завершить", tint = AppColors.Accent, modifier = Modifier.size(18.dp)) }
         }
-        Text("Можно свернуть приложение — время идёт", color = AppColors.Faint, fontSize = 11.5.sp)
     }
 }
 
@@ -467,7 +475,7 @@ private fun SessionCard(s: PaperSession, total: Int, onClick: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("+${s.pages} ${pagesWord(s.pages)}", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, modifier = Modifier.weight(1f))
             if (s.toPage >= total) {
-                Text("Прочитано", color = AppColors.Good, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clip(CircleShape).background(AppColors.Good.copy(alpha = 0.14f)).padding(horizontal = 8.dp, vertical = 2.dp))
+                StatusPill(com.flerty.wikiflerty.data.ReadStatus.Finished, small = false, framed = true)
             }
         }
         Text("${s.toPage}/$total · ${(s.toPage * 100 / total.coerceAtLeast(1))}%", color = AppColors.Accent, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
