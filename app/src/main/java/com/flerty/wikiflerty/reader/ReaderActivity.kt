@@ -100,6 +100,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private lateinit var fonts: List<FontEntry>
     private lateinit var bookArea: View
     private lateinit var snapshot: ImageView
+    private lateinit var curl: PageCurlView
 
     private var systemBars: Insets = Insets.NONE
     private var turning = false
@@ -1151,6 +1152,11 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         startJsQueue()
         bookArea = findViewById(R.id.book_area)
         snapshot = findViewById(R.id.page_snapshot)
+        curl = PageCurlView(this).also { v ->
+            v.elevation = 17 * resources.displayMetrics.density
+            v.outlineProvider = null
+            (bookArea as android.view.ViewGroup).addView(v, android.view.ViewGroup.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT))
+        }
         snapshot.outlineProvider = ViewOutlineProvider.BOUNDS
         snapshot.elevation = 16 * resources.displayMetrics.density
 
@@ -1816,7 +1822,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         when (settings.animation) {
             PageAnimation.Slide -> go(forward, animated = true)
             PageAnimation.None -> go(forward, animated = false)
-            PageAnimation.Fade, PageAnimation.Cover -> animatedTurn(forward, settings.animation)
+            PageAnimation.Curl -> curlTurn(forward)
+            PageAnimation.Fade, PageAnimation.Cover, PageAnimation.Flip, PageAnimation.Depth -> animatedTurn(forward, settings.animation)
         }
         resyncListening()
     }
@@ -1849,6 +1856,15 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 .withEndAction { hideSnapshot() }
             when (animation) {
                 PageAnimation.Fade -> animator.alpha(0f).setDuration(280)
+                PageAnimation.Flip -> {
+                    snapshot.pivotX = if (forward) 0f else width
+                    snapshot.pivotY = bookArea.height / 2f
+                    snapshot.cameraDistance = 9000 * resources.displayMetrics.density
+                    animator.rotationY(if (forward) -95f else 95f).alpha(0.6f)
+                        .setInterpolator(android.view.animation.AccelerateInterpolator(1.3f)).setDuration(430)
+                }
+                PageAnimation.Depth -> animator.scaleX(0.84f).scaleY(0.84f).alpha(0f)
+                    .translationX(if (forward) -width * 0.12f else width * 0.12f).setDuration(360)
                 else -> animator.translationX(if (forward) -width else width).setDuration(320)
             }
             animator.start()
@@ -1860,7 +1876,37 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         snapshot.setImageDrawable(null)
         snapshot.translationX = 0f
         snapshot.alpha = 1f
+        snapshot.rotationY = 0f
+        snapshot.scaleX = 1f
+        snapshot.scaleY = 1f
         turning = false
+    }
+
+    private fun curlTurn(forward: Boolean) {
+        if (turning) {
+            go(forward, animated = false)
+            return
+        }
+        turning = true
+        capturePage { bitmap ->
+            if (bitmap == null) {
+                turning = false
+                go(forward, animated = false)
+                return@capturePage
+            }
+            curl.paper = settings.pageTheme.background.toInt()
+            snapshot.setImageBitmap(bitmap)
+            snapshot.visibility = View.VISIBLE
+            if (!go(forward, animated = false)) {
+                hideSnapshot()
+                return@capturePage
+            }
+            curl.postDelayed({
+                curl.play(bitmap, forward) { turning = false }
+                snapshot.visibility = View.GONE
+                snapshot.setImageDrawable(null)
+            }, 60)
+        }
     }
 
     private fun capturePage(onReady: (Bitmap?) -> Unit) {

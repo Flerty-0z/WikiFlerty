@@ -37,8 +37,11 @@ enum class PageTheme(
 
 enum class PageAnimation(val id: String, val title: String) {
     Slide("slide", "Сдвиг"),
-    Fade("fade", "Плавно"),
+    Curl("curl", "Загиб"),
+    Flip("flip", "3D-поворот"),
     Cover("cover", "Накрытие"),
+    Depth("depth", "Глубина"),
+    Fade("fade", "Плавно"),
     None("none", "Нет"),
     ;
 
