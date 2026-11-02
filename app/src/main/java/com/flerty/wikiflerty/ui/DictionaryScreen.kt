@@ -210,12 +210,12 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 4.dp)) {
                         if (entry.context.isNotBlank()) {
                             Text(
-                                "«${entry.context}»",
+                                "«${contextAround(entry.context, entry.word)}»",
                                 color = AppColors.Text.copy(alpha = 0.75f),
                                 fontFamily = FontFamily.Serif,
                                 fontSize = 14.sp,
                                 lineHeight = 20.sp,
-                                maxLines = 6,
+                                maxLines = 3,
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
@@ -290,9 +290,6 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
             title = "Экспорт словаря",
             onDismiss = { exporting = false },
             formats = listOf(
-                ExportFormat("anki", "Для Anki", "Файл для импорта в Anki: слово на лицевой стороне, значение и цитата на обороте", "WikiFlerty Anki ${exportStamp()}.txt", "text/plain") {
-                    com.flerty.wikiflerty.data.Exporter.wordsAnki(entries)
-                },
                 ExportFormat("md", "Markdown", "Список слов со значениями и цитатами", "Словарь ${exportStamp()}.md", "text/markdown") {
                     com.flerty.wikiflerty.data.Exporter.wordsMarkdown(entries)
                 },
@@ -326,3 +323,17 @@ private fun wordFilters(entries: List<DictionaryEntry>): List<WordFilter> = list
     WordFilter("review", "Повтор", entries.count { it.srs.isReview }, AppIcons.Rotate, AppColors.Good),
     WordFilter("done", "Выучено", entries.count { it.srs.isMastered }, AppIcons.Check, AppColors.Good),
 )
+
+private fun contextAround(context: String, word: String): String {
+    val text = context.replace(Regex("\\s+"), " ").trim()
+    val at = text.indexOf(word.trim(), ignoreCase = true)
+    if (at < 0) return text
+    val ends = ".!?…"
+    var start = at
+    while (start > 0 && text[start - 1] !in ends) start--
+    var end = at + word.length
+    while (end < text.length && text[end] !in ends) end++
+    if (end < text.length) end++
+    val sentence = text.substring(start, end).trim()
+    return if (sentence.length >= word.length) sentence else text
+}

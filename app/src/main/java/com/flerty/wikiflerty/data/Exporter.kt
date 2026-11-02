@@ -70,21 +70,6 @@ object Exporter {
         }
     }.trim() + "\n"
 
-    fun wordsAnki(entries: List<DictionaryEntry>): String = buildString {
-        appendLine("#separator:tab")
-        appendLine("#html:true")
-        appendLine("#tags column:3")
-        entries.forEach { entry ->
-            val back = buildString {
-                append(html(entry.definition))
-                if (entry.context.isNotBlank()) append("<br><br><i>").append(html(entry.context)).append("</i>")
-                entry.bookTitle?.takeIf { it.isNotBlank() }?.let { append("<br><small>").append(html(it)).append("</small>") }
-            }
-            val tags = listOfNotNull("wikiflerty", entry.bookTitle?.let(::tag)).joinToString(" ")
-            append(html(entry.word)).append('\t').append(back).append('\t').append(tags).append('\n')
-        }
-    }
-
     fun wordsCsv(entries: List<DictionaryEntry>): String = buildString {
         append('﻿')
         appendLine("Слово;Значение;Контекст;Книга")
@@ -92,16 +77,6 @@ object Exporter {
             appendLine(listOf(e.word, e.definition, e.context, e.bookTitle.orEmpty()).joinToString(";") { csv(it) })
         }
     }
-
-    private fun html(text: String): String = text.trim()
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace("\t", " ")
-        .replace(Regex("\r?\n"), "<br>")
-
-    private fun tag(title: String): String =
-        title.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), "_").trim('_').take(40).ifBlank { "book" }
 
     private fun csv(value: String): String = "\"" + value.replace("\"", "\"\"").replace(Regex("\r?\n"), " ") + "\""
 }

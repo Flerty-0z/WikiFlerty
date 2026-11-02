@@ -826,9 +826,12 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private suspend fun applyColumns(s: ReaderSettings) {
         val two = s.columns == "2" && !s.scroll
         val script = if (two) {
-            "(function(){var r=document.documentElement.style;if(r.getPropertyValue('--RS__colCount').trim()!=='2'){r.setProperty('--RS__colCount','2');r.setProperty('--RS__colWidth','auto');window.dispatchEvent(new Event('resize'));}})()"
+            "(function(){var d=document,s=d.getElementById('wf-cols');if(!s){s=d.createElement('style');s.id='wf-cols';(d.head||d.documentElement).appendChild(s);}" +
+                "s.textContent='html body,html body *{overflow-wrap:break-word!important;word-wrap:break-word!important;" + (if (s.hyphens) "-webkit-hyphens:auto!important;hyphens:auto!important;" else "") + "min-width:0!important}" +
+                "html body img,html body svg,html body table{max-width:100%!important}';" +
+                "var r=d.documentElement.style;if(r.getPropertyValue('--RS__colCount').trim()!=='2'){r.setProperty('--RS__colCount','2');r.setProperty('--RS__colWidth','auto');r.setProperty('--RS__colGap','1.6em');window.dispatchEvent(new Event('resize'));}})()"
         } else {
-            "(function(){var r=document.documentElement.style;if(r.getPropertyValue('--RS__colCount')){r.removeProperty('--RS__colCount');r.removeProperty('--RS__colWidth');window.dispatchEvent(new Event('resize'));}})()"
+            "(function(){var d=document,s=d.getElementById('wf-cols');if(s)s.remove();var r=d.documentElement.style;if(r.getPropertyValue('--RS__colCount')){r.removeProperty('--RS__colCount');r.removeProperty('--RS__colWidth');r.removeProperty('--RS__colGap');window.dispatchEvent(new Event('resize'));}})()"
         }
         runCatching { navigator.evaluateJavascript(script) }
     }

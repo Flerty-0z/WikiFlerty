@@ -196,14 +196,6 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
             }
         }
         groups.forEach { (bookId, bookNotes) ->
-            item(key = "book-$bookId") {
-                BookTag(
-                    bookId,
-                    titles[bookId],
-                    modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
-                    coverWidth = 40.dp,
-                ) { CountBadge(bookNotes.size) }
-            }
             items(bookNotes.sortedBy { it.progression }, key = { it.id }) { note ->
                 Box(motionItem()) {
                     NoteCard(
@@ -213,7 +205,8 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
                         editIcon = AppIcons.Trash,
                         editLabel = "Удалить заметку",
                         pages = if (inPages) positions[note.bookId] ?: 0 else 0,
-                        onToggleUnit = { app.libraryPrefs.update { it.copy(progressInPages = !it.progressInPages) } },
+                        pill = true,
+                        footer = { BookTag(bookId, titles[bookId], coverWidth = 30.dp) },
                     )
                 }
             }

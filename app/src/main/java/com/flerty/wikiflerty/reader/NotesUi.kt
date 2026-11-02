@@ -189,7 +189,8 @@ fun NoteCard(
     editIcon: androidx.compose.ui.graphics.vector.ImageVector = AppIcons.Pencil,
     editLabel: String = "Изменить заметку",
     pages: Int = 0,
-    onToggleUnit: (() -> Unit)? = null,
+    pill: Boolean = false,
+    footer: (@Composable () -> Unit)? = null,
 ) {
     val shape = appCorner(16)
     Row(
@@ -228,14 +229,14 @@ fun NoteCard(
             } else {
                 "${(note.progression * 100).roundToInt()}%"
             }
-            if (onToggleUnit == null) {
+            if (!pill) {
                 val meta = listOfNotNull(subtitle, note.chapter?.takeIf { it.isNotBlank() }, place).joinToString(" · ")
                 Text(meta, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(
                         Modifier
-                            .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.92f, onClick = onToggleUnit)
+                            .clip(CircleShape)
                             .background(AppColors.Accent.copy(alpha = 0.12f))
                             .padding(start = 7.dp, end = 9.dp, top = 3.dp, bottom = 3.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -250,6 +251,7 @@ fun NoteCard(
                     }
                 }
             }
+            if (footer != null) Box(Modifier.padding(top = 2.dp, end = 8.dp)) { footer() }
         }
         if (onEdit != null) {
             Box(

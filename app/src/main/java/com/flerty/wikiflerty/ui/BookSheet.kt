@@ -545,7 +545,7 @@ private fun BookStatsContent(app: App, book: Book, onBack: () -> Unit) {
 fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
     AppSheet(onDismiss, title = "Вид и сортировка") {
-        SettingsGroup("Сортировка") {
+        SettingsGroup(null) {
             LibrarySort.entries.forEach { sort ->
                 val icon = when (sort) {
                     LibrarySort.Recent -> AppIcons.Clock
@@ -573,7 +573,7 @@ fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
                 app.libraryPrefs.update { it.copy(descending = if (names) !wantFirst else wantFirst) }
             }
         }
-        SettingsGroup("Вид") {
+        SettingsGroup(null) {
             PickerRow(
                 label = "Прогресс",
                 icon = AppIcons.Percent,
