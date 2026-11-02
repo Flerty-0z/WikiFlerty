@@ -87,7 +87,7 @@ class App : Application() {
         super.onCreate()
         crashLog.install()
         streakFreeze
-        Thread({ runCatching { com.flerty.wikiflerty.reader.FontCatalog.warm(this) } }, "font-warm").apply { priority = Thread.MIN_PRIORITY }.start()
+        Thread({ runCatching { com.flerty.wikiflerty.reader.FontCatalog.warm(this) }; runCatching { java.io.File(filesDir, "charmap").deleteRecursively() } }, "font-warm").apply { priority = Thread.MIN_PRIORITY }.start()
         style = StyleStore(this)
         readium = ReadiumServices(this)
         library = LibraryRepository(this, readium)

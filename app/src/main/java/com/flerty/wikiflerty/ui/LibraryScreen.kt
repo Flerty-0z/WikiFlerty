@@ -193,6 +193,8 @@ fun LibraryScreen(
     val goalText = if (prefs.dailyGoalMinutes > 0) "Сегодня ${todayMs / 60_000}/${prefs.dailyGoalMinutes} мин" else null
 
     val counts = filters.associate { f -> f.id to books.count(f.matches) }
+    val recent = books.sortedByDescending { it.lastReadAt ?: it.addedAt }
+    val coversFor = filters.associate { f -> f.id to recent.filter(f.matches).map { it.id } }
     val tablet = LocalConfiguration.current.screenWidthDp >= 600
     val grid = prefs.view == LibraryView.Grid
     val minSize = when (prefs.coverSize) {
@@ -211,7 +213,7 @@ fun LibraryScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Box(Modifier.weight(1f)) {
-                FilterButton(active, counts[active.id] ?: 0) { showFilterSheet = true }
+                FilterButton(active, coversFor[active.id].orEmpty(), counts[active.id] ?: 0) { showFilterSheet = true }
             }
             Box(
                 Modifier
@@ -277,6 +279,7 @@ fun LibraryScreen(
         LibraryFilterSheet(
             filters = filters,
             counts = filters.associate { f -> f.id to books.count(f.matches) },
+            coversFor = coversFor,
             selectedId = active.id,
             onSelect = { id ->
                 app.libraryPrefs.update { it.copy(filter = id) }
@@ -332,19 +335,36 @@ private fun ToolButton(icon: ImageVector, description: String, onClick: () -> Un
 }
 
 @Composable
-private fun FilterButton(filter: LibraryFilter, count: Int, onClick: () -> Unit) {
-    val shape = appCorner(22)
+private fun FilterCovers(filter: LibraryFilter, ids: List<String>, width: androidx.compose.ui.unit.Dp) {
+    if (ids.isEmpty()) {
+        Box(Modifier.size(width = width * 2.3f, height = width * 1.5f + 6.dp), contentAlignment = Alignment.Center) {
+            SettingIcon(filter.icon)
+        }
+    } else {
+        Box(Modifier.width(width * 2.3f + 4.dp), contentAlignment = Alignment.CenterStart) {
+            CoverStack(ids, width)
+        }
+    }
+}
+
+@Composable
+private fun FilterButton(filter: LibraryFilter, ids: List<String>, count: Int, onClick: () -> Unit) {
+    val shape = appCorner(16)
     Row(
         Modifier
             .fillMaxWidth()
-            .height(44.dp)
+            .heightIn(min = 48.dp)
             .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
             .fieldSurface(shape)
-            .padding(start = 14.dp, end = 12.dp),
+            .padding(start = 10.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Icon(filter.icon, null, tint = if (filter.id == "favorite") StarYellow else AppColors.Accent, modifier = Modifier.size(18.dp))
+        if (ids.isEmpty()) {
+            Icon(filter.icon, null, tint = if (filter.id == "favorite") StarYellow else AppColors.Accent, modifier = Modifier.padding(start = 4.dp).size(18.dp))
+        } else {
+            CoverStack(ids, 18.dp)
+        }
         Text(
             filter.title,
             color = AppColors.Text,
@@ -363,6 +383,7 @@ private fun FilterButton(filter: LibraryFilter, count: Int, onClick: () -> Unit)
 private fun LibraryFilterSheet(
     filters: List<LibraryFilter>,
     counts: Map<String, Int>,
+    coversFor: Map<String, List<String>>,
     selectedId: String,
     onSelect: (String) -> Unit,
     onEditShelf: (String) -> Unit,
@@ -370,61 +391,70 @@ private fun LibraryFilterSheet(
     onDismiss: () -> Unit,
 ) {
     AppSheet(onDismiss, title = "Показать") {
-        SettingsGroup(null) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             filters.filterNot { it.isShelf }.forEach { f ->
-                FilterRow(f, counts[f.id] ?: 0, f.id == selectedId, onEdit = null) { onSelect(f.id) }
+                FilterRow(f, coversFor[f.id].orEmpty(), counts[f.id] ?: 0, f.id == selectedId, onEdit = null) { onSelect(f.id) }
             }
         }
         val shelves = filters.filter { it.isShelf }
         if (shelves.isNotEmpty()) {
-            SettingsGroup("Полки") {
+            SectionHeader("Полки")
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 shelves.forEach { f ->
-                    FilterRow(f, counts[f.id] ?: 0, f.id == selectedId, onEdit = { onEditShelf(f.title) }) { onSelect(f.id) }
+                    FilterRow(f, coversFor[f.id].orEmpty(), counts[f.id] ?: 0, f.id == selectedId, onEdit = { onEditShelf(f.title) }) { onSelect(f.id) }
                 }
             }
         }
-        SettingsGroup(null) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 50.dp)
-                    .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onNewShelf),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                SettingIcon(AppIcons.ShelfAdd)
-                Text("Новая полка", color = AppColors.Accent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(start = 12.dp))
-            }
+        val shape = appCorner(14)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 54.dp)
+                .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onNewShelf)
+                .border(1.dp, AppColors.Accent.copy(alpha = 0.4f), shape)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SettingIcon(AppIcons.ShelfAdd)
+            Text("Новая полка", color = AppColors.Accent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     }
 }
 
 @Composable
-private fun FilterRow(filter: LibraryFilter, count: Int, selected: Boolean, onEdit: (() -> Unit)?, onClick: () -> Unit) {
+private fun FilterRow(filter: LibraryFilter, ids: List<String>, count: Int, selected: Boolean, onEdit: (() -> Unit)?, onClick: () -> Unit) {
+    val shape = appCorner(14)
     Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 50.dp)
-            .liveClick(appCorner(12), sound = FeedbackSound.Toggle, pressedScale = 0.98f, onClick = onClick),
+            .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.98f, onClick = onClick)
+            .background(if (selected) AppColors.Accent.copy(alpha = 0.14f) else AppColors.Line.copy(alpha = 0.45f), shape)
+            .border(1.dp, if (selected) AppColors.Accent.copy(alpha = 0.45f) else AppColors.PanelBorder, shape)
+            .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        SettingIcon(filter.icon)
-        Text(
-            filter.title,
-            color = if (selected) AppColors.Accent else AppColors.Text,
-            fontSize = 15.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).padding(start = 12.dp, end = 8.dp),
-        )
-        Text(count.toString(), color = AppColors.Faint, fontSize = 14.sp)
+        FilterCovers(filter, ids, 24.dp)
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (ids.isNotEmpty()) Icon(filter.icon, null, tint = if (filter.id == "favorite") StarYellow else AppColors.Accent, modifier = Modifier.size(15.dp))
+            Text(
+                filter.title,
+                color = if (selected) AppColors.Accent else AppColors.Text,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        CountBadge(count)
         if (onEdit != null) {
             Box(
-                Modifier.padding(start = 4.dp).size(36.dp).liveClick(CircleShape, sound = FeedbackSound.Open, onClick = onEdit),
+                Modifier.size(34.dp).liveClick(CircleShape, sound = FeedbackSound.Open, onClick = onEdit),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Pencil, "Изменить", tint = AppColors.Muted, modifier = Modifier.size(17.dp)) }
         }
-        Box(Modifier.padding(start = 6.dp).size(22.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) {
             if (selected) Icon(AppIcons.Check, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp))
         }
     }

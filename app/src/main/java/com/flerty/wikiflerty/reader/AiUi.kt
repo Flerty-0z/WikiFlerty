@@ -125,7 +125,6 @@ class AiBridge(
     val onRemember: (String, String) -> Unit = { _, _ -> },
     val heroes: HeroBridge? = null,
     val history: HistoryBridge? = null,
-    val charMap: CharMapBridge? = null,
 )
 
 class HistoryState {

@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -74,6 +75,36 @@ val LocalSheetClose = androidx.compose.runtime.staticCompositionLocalOf<(() -> U
 fun sheetClose(fallback: () -> Unit): () -> Unit = LocalSheetClose.current ?: fallback
 
 @Composable
+fun KeepHostBars() {
+    val view = androidx.compose.ui.platform.LocalView.current
+    val context = LocalContext.current
+    DisposableEffect(view) {
+        var host: android.content.Context? = context
+        while (host is android.content.ContextWrapper && host !is android.app.Activity) host = host.baseContext
+        val hostWindow = (host as? android.app.Activity)?.window
+        var parent: android.view.ViewParent? = view.parent
+        var window: android.view.Window? = null
+        while (parent != null) {
+            if (parent is androidx.compose.ui.window.DialogWindowProvider) {
+                window = parent.window
+                break
+            }
+            parent = parent.parent
+        }
+        if (window != null && hostWindow != null) {
+            val insets = androidx.core.view.ViewCompat.getRootWindowInsets(hostWindow.decorView)
+            if (insets != null && !insets.isVisible(androidx.core.view.WindowInsetsCompat.Type.statusBars())) {
+                androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+                    systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+                }
+            }
+        }
+        onDispose { }
+    }
+}
+
+@Composable
 fun AppSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable ColumnScope.() -> Unit) {
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
@@ -99,6 +130,7 @@ fun AppSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable 
         containerColor = AppColors.Panel,
         shape = RoundedCornerShape(topStart = (26 * AppStyle.current.corners).dp, topEnd = (26 * AppStyle.current.corners).dp),
     ) {
+        KeepHostBars()
         androidx.compose.runtime.CompositionLocalProvider(LocalSheetClose provides close) {
             Column(
                 Modifier.padding(horizontal = 16.dp).navigationBarsPadding().verticalScroll(rememberScrollState()).padding(top = if (title == null) 16.dp else 0.dp, bottom = 16.dp),

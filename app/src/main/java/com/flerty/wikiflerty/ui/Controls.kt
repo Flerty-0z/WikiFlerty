@@ -404,6 +404,7 @@ fun PickerSheet(
             topEnd = (26 * AppStyle.current.corners).dp,
         ),
     ) {
+        KeepHostBars()
         Column(Modifier.padding(horizontal = 16.dp).navigationBarsPadding()) {
             SheetHeader(title, close)
             if (searchable) {

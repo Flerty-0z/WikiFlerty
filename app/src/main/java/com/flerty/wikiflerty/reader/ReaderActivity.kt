@@ -211,7 +211,6 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             onRemember = ::rememberFact,
             heroes = heroBridge,
             history = historyBridge,
-            charMap = charMapBridge,
         )
     }
 
@@ -411,72 +410,6 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 heroUi.searched = true
             } finally {
                 heroUi.loading = false
-            }
-        }
-    }
-
-    private val charMapStore by lazy { com.flerty.wikiflerty.data.CharacterMapStore(this) }
-    private val charMapState = CharMapState()
-
-    private val charMapBridge by lazy {
-        CharMapBridge(
-            state = charMapState,
-            avatarOf = { name ->
-                heroUi.heroes.firstOrNull { it.name.equals(name, true) }?.let { heroStore.avatar(bookId, it.id) }?.takeIf { it.exists() }
-            },
-            onLoad = {
-                if (charMapState.map == null) {
-                    lifecycleScope.launch {
-                        charMapState.map = withContext(Dispatchers.IO) { charMapStore.load(bookId) }
-                    }
-                }
-            },
-            onBuild = ::buildCharacterMap,
-            onTalk = { person ->
-                val hero = heroUi.heroes.firstOrNull { it.name.equals(person.name, true) }
-                    ?: com.flerty.wikiflerty.data.Hero(java.util.UUID.randomUUID().toString(), person.name, person.role, custom = true).also {
-                        heroUi.heroes.add(it)
-                        heroStore.save(bookId, heroUi.heroes.toList())
-                    }
-                openHero(hero)
-            },
-        )
-    }
-
-    private fun buildCharacterMap() {
-        if (charMapState.loading) return
-        val provider = app.ai.current()
-        if (provider == null) {
-            charMapState.error = "Подключи нейросеть, чтобы построить карту"
-            return
-        }
-        charMapState.loading = true
-        charMapState.error = null
-        val place = ui.chapter?.takeIf { it.isNotBlank() }?.let { "«${it.take(28)}»" } ?: "${(ui.progression * 100).roundToInt()}%"
-        val progression = ui.progression
-        lifecycleScope.launch {
-            try {
-                val text = bookTextSoFar(60_000)
-                if (text.isBlank()) throw AiException("Не удалось прочитать текст книги")
-                val answer = StringBuilder()
-                app.ai.chat(
-                    provider,
-                    app.ai.settings.value.modelFor(provider),
-                    "Ты помогаешь читателю разобраться в книге. Отвечай только JSON.",
-                    listOf(ChatMessage(true, AiPrompts.characterMapPrompt(text))),
-                ).collect { answer.append(it) }
-                val fresh = com.flerty.wikiflerty.data.CharacterMap.parse(answer.toString(), place, progression)
-                    ?: throw AiException("ИИ не смог составить карту. Попробуй ещё раз")
-                val merged = fresh.mergedWith(charMapState.map ?: withContext(Dispatchers.IO) { charMapStore.load(bookId) })
-                charMapState.map = merged
-                charMapState.selected = null
-                withContext(Dispatchers.IO) { charMapStore.save(bookId, merged) }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                charMapState.error = e.message ?: "Не удалось построить карту"
-            } finally {
-                charMapState.loading = false
             }
         }
     }
