@@ -248,7 +248,7 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     StatTile("Сегодня", StatsCalc.duration(perDay[today]?.ms ?: 0), Modifier.weight(1f), icon = AppIcons.Clock)
-                    StatTile("Дней чтения", "$readingDays", Modifier.weight(1f), hint = "Лучшая серия: ${StatsCalc.days(best)}", icon = AppIcons.Fire)
+                    StatTile("Дней чтения", "$readingDays", Modifier.weight(1f), hint = "Рекорд: ${StatsCalc.days(best)}", icon = AppIcons.Fire)
                 }
                 Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     StatTile("За неделю", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(6)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
@@ -350,7 +350,7 @@ fun StatTile(label: String, value: String, modifier: Modifier = Modifier, hint: 
             softWrap = false,
             autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 20.sp, stepSize = 0.5.sp),
         )
-        if (hint != null) Text(hint, color = AppColors.Faint, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (hint != null) Text(hint, color = AppColors.Faint, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 

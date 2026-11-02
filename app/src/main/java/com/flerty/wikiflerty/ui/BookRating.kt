@@ -1,5 +1,8 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.runtime.LaunchedEffect
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
@@ -74,26 +77,100 @@ fun ratingText(value: Float): String =
 
 @Composable
 fun StarRating(value: Float, size: Dp, modifier: Modifier = Modifier, gap: Dp = 6.dp, onChange: ((Float) -> Unit)? = null) {
+    val feedback = LocalFeedback.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    val current by androidx.compose.runtime.rememberUpdatedState(value)
+    val change by androidx.compose.runtime.rememberUpdatedState(onChange)
     val input = if (onChange == null) Modifier else {
-        fun pick(x: Float, width: Float) = (ceil(x / width * 10f) / 2f).coerceIn(0f, 5f)
+        fun pick(x: Float, width: Float) = (ceil(x / width * 10f) / 2f).coerceIn(0.5f, 5f)
+        fun apply(v: Float) {
+            if (v == current) return
+            feedback?.play(FeedbackSound.Star, view, 0.82f + v * 0.08f)
+            change?.invoke(v)
+        }
         Modifier
-            .pointerInput(Unit) { detectTapGestures { onChange(pick(it.x, this.size.width.toFloat())) } }
-            .pointerInput(Unit) { detectHorizontalDragGestures { change, _ -> onChange(pick(change.position.x, this.size.width.toFloat())) } }
+            .pointerInput(Unit) { detectTapGestures { apply(pick(it.x, this.size.width.toFloat())) } }
+            .pointerInput(Unit) { detectHorizontalDragGestures { c, _ -> apply(pick(c.position.x, this.size.width.toFloat())) } }
     }
     Row(modifier.then(input), horizontalArrangement = Arrangement.spacedBy(gap)) {
         for (i in 1..5) {
             val fill = (value - (i - 1)).coerceIn(0f, 1f)
-            Box(Modifier.size(size)) {
-                Icon(AppIcons.StarFilled, null, tint = AppColors.Line, modifier = Modifier.size(size))
-                if (fill > 0f) {
-                    Icon(
-                        AppIcons.StarFilled,
-                        null,
-                        tint = AppColors.Accent,
-                        modifier = Modifier.size(size).drawWithContent { clipRect(right = this.size.width * fill) { this@drawWithContent.drawContent() } },
-                    )
+            AnimatedStar(fill, size, i, interactive = onChange != null)
+        }
+    }
+}
+
+private class Spark(val angle: Float, val distance: Float, val radius: Float, val delay: Float)
+
+@Composable
+private fun AnimatedStar(fill: Float, size: Dp, index: Int, interactive: Boolean) {
+    val pop = remember { androidx.compose.animation.core.Animatable(1f) }
+    val burst = remember { androidx.compose.animation.core.Animatable(1f) }
+    val shown by androidx.compose.animation.core.animateFloatAsState(fill, Motion.tween(180), label = "star-fill")
+    var previous by remember { mutableFloatStateOf(fill) }
+    val sparks = remember(index) {
+        val r = kotlin.random.Random(index * 97)
+        List(9) { k -> Spark((k * 40f + r.nextFloat() * 22f) * (Math.PI.toFloat() / 180f), 0.75f + r.nextFloat() * 0.45f, 0.06f + r.nextFloat() * 0.05f, r.nextFloat() * 0.18f) }
+    }
+    LaunchedEffect(fill) {
+        val grew = fill > previous
+        val shrank = fill < previous
+        previous = fill
+        if (!interactive || !Motion.enabled) return@LaunchedEffect
+        if (grew) {
+            kotlinx.coroutines.coroutineScope {
+                launch {
+                    pop.snapTo(0.82f)
+                    pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.32f, stiffness = 520f))
+                }
+                if (fill >= 1f) launch {
+                    burst.snapTo(0f)
+                    burst.animateTo(1f, androidx.compose.animation.core.tween(620, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
                 }
             }
+        } else if (shrank) {
+            pop.snapTo(0.9f)
+            pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.5f, stiffness = 700f))
+        }
+    }
+    val accent = AppColors.Accent
+    val glow = StarYellow
+    Box(
+        Modifier
+            .size(size)
+            .drawBehind {
+                val p = burst.value
+                if (p < 1f) {
+                    val c = center
+                    val base = this.size.minDimension
+                    sparks.forEach { s ->
+                        val t = ((p - s.delay) / (1f - s.delay)).coerceIn(0f, 1f)
+                        if (t <= 0f) return@forEach
+                        val d = base * (0.35f + s.distance * t)
+                        val x = c.x + kotlin.math.cos(s.angle) * d
+                        val y = c.y + kotlin.math.sin(s.angle) * d
+                        val alpha = (1f - t) * (1f - t)
+                        val r = base * s.radius * (1f - t * 0.6f)
+                        drawCircle(glow.copy(alpha = alpha), r, androidx.compose.ui.geometry.Offset(x, y))
+                        drawCircle(accent.copy(alpha = alpha * 0.5f), r * 1.9f, androidx.compose.ui.geometry.Offset(x, y))
+                    }
+                    drawCircle(glow.copy(alpha = (1f - p) * 0.22f), base * (0.45f + p * 0.35f), c)
+                }
+            }
+            .graphicsLayer {
+                scaleX = pop.value
+                scaleY = pop.value
+                rotationZ = (1f - pop.value) * 40f
+            },
+    ) {
+        Icon(AppIcons.StarFilled, null, tint = AppColors.Line, modifier = Modifier.size(size))
+        if (shown > 0f) {
+            Icon(
+                AppIcons.StarFilled,
+                null,
+                tint = AppColors.Accent,
+                modifier = Modifier.size(size).drawWithContent { clipRect(right = this.size.width * shown) { this@drawWithContent.drawContent() } },
+            )
         }
     }
 }
