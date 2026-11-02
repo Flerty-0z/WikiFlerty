@@ -40,6 +40,8 @@ import com.flerty.wikiflerty.ui.AppIcons
 import com.flerty.wikiflerty.ui.FeedbackSound
 import com.flerty.wikiflerty.ui.PickerOption
 import com.flerty.wikiflerty.ui.PickerRow
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.flerty.wikiflerty.tts.NeuralVoices
 import com.flerty.wikiflerty.ui.accentContent
 import com.flerty.wikiflerty.ui.accentHighlight
 import com.flerty.wikiflerty.ui.appCorner
@@ -182,14 +184,42 @@ fun TtsOptions(
 
     Column(Modifier.clip(appCorner(16)).background(AppColors.Field).padding(horizontal = 14.dp, vertical = 4.dp)) {
         val engines by produceState(emptyList<com.flerty.wikiflerty.tts.TtsEngineInfo>()) { value = ReadAloud.engines(context) }
+        val app = context.applicationContext as com.flerty.wikiflerty.App
+        val keys by app.ai.vault.keys.collectAsStateWithLifecycle()
+        val neuralOptions = listOf(
+            PickerOption(
+                NeuralVoices.GEMINI,
+                "Gemini · нейроголос",
+                if (keys["gemini"].isNullOrBlank()) "Нужен ключ Gemini в настройках ИИ" else "Живой голос, нужен интернет",
+                icon = AppIcons.Sparkle,
+            ),
+            PickerOption(
+                NeuralVoices.OPENAI,
+                "OpenAI · нейроголос",
+                if (keys["openai"].isNullOrBlank()) "Нужен ключ ChatGPT в настройках ИИ" else "Живой голос, нужен интернет",
+                icon = AppIcons.Sparkle,
+            ),
+        )
         PickerRow(
             label = "Движок",
             icon = AppIcons.Engine,
-            options = listOf(PickerOption("", "Как в системе", engines.firstOrNull()?.label)) +
+            options = neuralOptions + listOf(PickerOption("", "Как в системе", engines.firstOrNull()?.label)) +
                 engines.map { PickerOption(it.packageName, it.label, it.packageName) },
             selectedId = settings.ttsEngine,
-        ) { id -> onSettingsChange { it.copy(ttsEngine = id, ttsVoice = "", ttsVoiceLanguage = "") } }
+        ) { id ->
+            onSettingsChange { it.copy(ttsEngine = id, ttsVoice = if (NeuralVoices.isNeural(id)) NeuralVoices.voices(id).first().id else "", ttsVoiceLanguage = "") }
+        }
 
+        if (NeuralVoices.isNeural(settings.ttsEngine)) {
+            val list = NeuralVoices.voices(settings.ttsEngine)
+            PickerRow(
+                label = "Голос",
+                icon = AppIcons.Voice,
+                options = list.map { PickerOption(it.id, it.title, it.hint) },
+                selectedId = NeuralVoices.voiceOrDefault(settings.ttsEngine, settings.ttsVoice),
+                searchable = list.size > 12,
+            ) { id -> onSettingsChange { it.copy(ttsVoice = id, ttsVoiceLanguage = "") } }
+        } else {
         val voices by produceState(emptyList<TtsVoiceInfo>(), settings.ttsEngine) {
             value = ReadAloud.voices(context, settings.ttsEngine.ifBlank { null })
         }
@@ -215,6 +245,7 @@ fun TtsOptions(
         ) { id ->
             val voice = voices.firstOrNull { it.name == id }
             onSettingsChange { it.copy(ttsVoice = voice?.name.orEmpty(), ttsVoiceLanguage = voice?.language?.code.orEmpty()) }
+        }
         }
     }
 

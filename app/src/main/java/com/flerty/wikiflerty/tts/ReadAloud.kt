@@ -63,7 +63,17 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
         stop()
         scope.launch {
             try {
-                val factory = TtsNavigatorFactory(app, publication, EngineTtsProvider(app, settings.ttsEngine.ifBlank { null }))
+                val neural = if (NeuralVoices.isNeural(settings.ttsEngine)) NeuralTtsProvider(app, settings.ttsEngine) else null
+                val factory = if (neural != null) {
+                    TtsNavigatorFactory(app, publication, neural, tokenizerFactory = { language ->
+                        val base = org.readium.r2.shared.util.tokenizer.DefaultTextContentTokenizer(org.readium.r2.shared.util.tokenizer.TextUnit.Sentence, language)
+                        org.readium.r2.shared.util.tokenizer.Tokenizer<String, IntRange> { text ->
+                            base.tokenize(text).also { ranges -> neural.engine?.prefetch(ranges.map { text.substring(it) }) }
+                        }
+                    })
+                } else {
+                    TtsNavigatorFactory(app, publication, EngineTtsProvider(app, settings.ttsEngine.ifBlank { null }))
+                }
                 if (factory == null) {
                     _problems.emit(Problem("Эту книгу нельзя прочитать вслух"))
                     return@launch
@@ -112,6 +122,10 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
     }
 
     private fun problemOf(error: TtsNavigator.Error): Problem {
+        NeuralTts.lastError?.let { message ->
+            NeuralTts.lastError = null
+            return Problem(message)
+        }
         val engineError = (error as? TtsNavigator.Error.EngineError<*>)?.cause as? AndroidTtsEngine.Error
         return when (engineError) {
             is AndroidTtsEngine.Error.LanguageMissingData -> Problem(
