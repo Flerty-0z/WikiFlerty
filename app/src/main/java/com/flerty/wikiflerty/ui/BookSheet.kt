@@ -397,22 +397,18 @@ fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
     AppSheet(onDismiss, title = "Вид и сортировка") {
         SettingsGroup("Сортировка") {
             LibrarySort.entries.forEach { sort ->
-                val selected = sort == prefs.sort
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 46.dp)
-                        .liveClick(appCorner(12), sound = FeedbackSound.Toggle, pressedScale = 0.98f) {
-                            app.libraryPrefs.update {
-                                val names = sort == LibrarySort.Title || sort == LibrarySort.Author
-                                it.copy(sort = sort, descending = if (it.sort == sort) it.descending else !names)
-                            }
-                        }
-                        .padding(horizontal = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(sort.title, color = if (selected) AppColors.Accent else AppColors.Text, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                    if (selected) Icon(AppIcons.Check, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp))
+                val icon = when (sort) {
+                    LibrarySort.Recent -> AppIcons.Clock
+                    LibrarySort.Added -> AppIcons.Plus
+                    LibrarySort.Title -> AppIcons.TextSize
+                    LibrarySort.Author -> AppIcons.Pencil
+                    LibrarySort.Progress -> AppIcons.Chart
+                }
+                SheetOptionRow(PickerOption(sort.id, sort.title, icon = icon), sort == prefs.sort) {
+                    app.libraryPrefs.update {
+                        val names = sort == LibrarySort.Title || sort == LibrarySort.Author
+                        it.copy(sort = sort, descending = if (it.sort == sort) it.descending else !names)
+                    }
                 }
             }
             val names = prefs.sort == LibrarySort.Title || prefs.sort == LibrarySort.Author

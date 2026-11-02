@@ -350,12 +350,7 @@ private fun FilterButton(filter: LibraryFilter, count: Int, onClick: () -> Unit)
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        Text(
-            count.toString(),
-            color = AppColors.Muted,
-            fontSize = 13.sp,
-            modifier = Modifier.clip(appCorner(10)).background(AppColors.Line).padding(horizontal = 8.dp, vertical = 2.dp),
-        )
+        CountBadge(count, AppColors.Muted, AppColors.Line)
         Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(18.dp).rotate(90f))
     }
 }

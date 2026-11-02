@@ -311,13 +311,7 @@ fun AiHistoryContent(bridge: HistoryBridge, modifier: Modifier = Modifier) {
                     )
                 }
                 if (count > 1) {
-                    Text(
-                        "$count",
-                        color = AppColors.Muted,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clip(CircleShape).background(AppColors.Line).padding(horizontal = 8.dp, vertical = 2.dp),
-                    )
+                    com.flerty.wikiflerty.ui.CountBadge(count, AppColors.Muted, AppColors.Line)
                 }
             }
         }

@@ -24,6 +24,9 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
+import androidx.compose.ui.text.drawText
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -196,58 +199,77 @@ private fun YearGrid(year: Int, perDay: Map<LocalDate, DayEntry>, frozen: Set<Lo
                 }
             }
         }
-        Row(Modifier.weight(1f).horizontalScroll(scroll), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            weeks.forEachIndexed { wi, start ->
-                val shown = ((appear.value * (weeks.size + 8)) - wi).coerceIn(0f, 1f)
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(3.dp),
-                    modifier = Modifier.graphicsLayer {
-                        alpha = shown
-                        scaleY = 0.6f + 0.4f * shown
-                    },
-                ) {
-                    val monthStart = (0..6).map { start.plusDays(it.toLong()) }.firstOrNull { it.dayOfMonth == 1 && it.year == year }
-                        ?: if (wi == 0) LocalDate.of(year, 1, 1) else null
-                    Box(Modifier.height(14.dp).width(12.dp), contentAlignment = Alignment.CenterStart) {
-                        if (monthStart != null) {
-                            Text(
-                                MonthShort[monthStart.monthValue - 1],
-                                color = AppColors.Faint,
-                                fontSize = 8.5.sp,
-                                lineHeight = 9.sp,
-                                maxLines = 1,
-                                softWrap = false,
-                                modifier = Modifier.wrapContentHeight(unbounded = true).wrapContentWidth(Alignment.Start, unbounded = true),
-                            )
+        val cells = (0..4).map { cellColor(it) }
+        val futureColor = AppColors.Line.copy(alpha = 0.25f)
+        val selColor = AppColors.Text
+        val labelStyle = androidx.compose.ui.text.TextStyle(color = AppColors.Faint, fontSize = 8.5.sp)
+        val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+        val months = remember(year, measurer) {
+            weeks.mapIndexedNotNull { wi, start ->
+                val m = (0..6).map { start.plusDays(it.toLong()) }.firstOrNull { it.dayOfMonth == 1 && it.year == year }
+                    ?: if (wi == 0) LocalDate.of(year, 1, 1) else null
+                m?.let { wi to measurer.measure(MonthShort[it.monthValue - 1], labelStyle) }
+            }
+        }
+        val feedback = LocalFeedback.current
+        val view = androidx.compose.ui.platform.LocalView.current
+        Box(Modifier.weight(1f).horizontalScroll(scroll)) {
+            androidx.compose.foundation.Canvas(
+                Modifier
+                    .width(15.dp * weeks.size - 3.dp)
+                    .height(14.dp + 15.dp * 7 - 3.dp)
+                    .pointerInput(year) {
+                        detectTapGestures { pos ->
+                            val step = 15.dp.toPx()
+                            val top = 14.dp.toPx()
+                            val wi = (pos.x / step).toInt()
+                            val di = ((pos.y - top) / step).toInt()
+                            if (pos.y < top || wi !in weeks.indices || di !in 0..6) return@detectTapGestures
+                            val day = weeks[wi].plusDays(di.toLong())
+                            if (day.year == year && !day.isAfter(today)) {
+                                feedback?.play(FeedbackSound.Tap, view)
+                                onSelect(day)
+                            }
                         }
-                    }
-                    (0..6).forEach { d ->
+                    },
+            ) {
+                val step = 15.dp.toPx()
+                val cell = 12.dp.toPx()
+                val top = 14.dp.toPx()
+                val r = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx() * AppStyle.current.corners.coerceAtMost(1.3f))
+                val shown = appear.value * (weeks.size + 8)
+                months.forEach { (wi, layout) ->
+                    val a = (shown - wi).coerceIn(0f, 1f)
+                    if (a > 0f) drawText(layout, topLeft = androidx.compose.ui.geometry.Offset(wi * step, 0f), alpha = a)
+                }
+                weeks.forEachIndexed { wi, start ->
+                    val a = (shown - wi).coerceIn(0f, 1f)
+                    if (a <= 0f) return@forEachIndexed
+                    val sy = 0.6f + 0.4f * a
+                    for (d in 0..6) {
                         val day = start.plusDays(d.toLong())
-                        val inYear = day.year == year
+                        if (day.year != year) continue
                         val future = day.isAfter(today)
                         val lv = level(perDay[day]?.ms ?: 0)
-                        val isSel = day == selected
-                        Box(
-                            Modifier
-                                .size(12.dp)
-                                .clip(appCorner(3))
-                                .background(
-                                    when {
-                                        !inYear -> Color.Transparent
-                                        day in frozen && lv == 0 -> IceColor.copy(alpha = if (future) 0.3f else 0.6f)
-                                        future -> AppColors.Line.copy(alpha = 0.25f)
-                                        else -> cellColor(lv)
-                                    },
-                                )
-                                .then(if (isSel) Modifier.border(1.5.dp, AppColors.Text, appCorner(3)) else Modifier)
-                                .then(
-                                    if (inYear && !future) {
-                                        Modifier.liveClick(appCorner(3), sound = FeedbackSound.Tap, pressedScale = 0.8f) { onSelect(day) }
-                                    } else {
-                                        Modifier
-                                    },
-                                ),
-                        )
+                        val color = when {
+                            day in frozen && lv == 0 -> IceColor.copy(alpha = if (future) 0.3f else 0.6f)
+                            future -> futureColor
+                            else -> cells[lv]
+                        }
+                        val h = cell * sy
+                        val x = wi * step
+                        val y = top + d * step + (cell - h) / 2
+                        drawRoundRect(color.copy(alpha = color.alpha * a), androidx.compose.ui.geometry.Offset(x, y), androidx.compose.ui.geometry.Size(cell, h), r)
+                        if (day == selected) {
+                            val sw = 1.5.dp.toPx()
+                            drawRoundRect(
+                                selColor,
+                                androidx.compose.ui.geometry.Offset(x + sw / 2, y + sw / 2),
+                                androidx.compose.ui.geometry.Size(cell - sw, h - sw),
+                                r,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(sw),
+                            )
+                        }
                     }
                 }
             }

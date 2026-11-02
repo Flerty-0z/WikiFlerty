@@ -425,7 +425,10 @@ fun WikiFlertyTheme(content: @Composable () -> Unit) {
         if (family == null) Typography() else Typography().withFont(family)
     }
     val density = LocalDensity.current
-    CompositionLocalProvider(LocalDensity provides Density(density.density, density.fontScale * style.textScale)) {
+    CompositionLocalProvider(
+        LocalDensity provides Density(density.density, density.fontScale * style.textScale),
+        androidx.compose.foundation.LocalOverscrollFactory provides null,
+    ) {
         MaterialTheme(colorScheme = colors, typography = typography, content = content)
     }
 }

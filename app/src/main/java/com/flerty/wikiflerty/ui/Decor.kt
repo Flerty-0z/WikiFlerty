@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -69,17 +70,22 @@ fun SectionHeader(
 }
 
 @Composable
-fun CountBadge(count: Int) {
+fun CountBadge(
+    count: Int,
+    color: Color = AppColors.Accent,
+    background: Color = AppColors.AccentSoft,
+    minSize: androidx.compose.ui.unit.Dp = 24.dp,
+) {
     Box(
         Modifier
-            .heightIn(min = 22.dp)
-            .widthIn(min = 22.dp)
-            .clip(CircleShape)
-            .background(AppColors.AccentSoft)
-            .padding(horizontal = 7.dp, vertical = 2.dp),
-        contentAlignment = Alignment.Center,
+            .background(background, CircleShape)
+            .layout { measurable, constraints ->
+                val p = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
+                val side = maxOf(p.width + 10.dp.roundToPx(), p.height + 6.dp.roundToPx(), minSize.roundToPx())
+                layout(side, side) { p.place((side - p.width) / 2, (side - p.height) / 2) }
+            },
     ) {
-        Text("$count", color = AppColors.Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Text("$count", color = color, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
     }
 }
 

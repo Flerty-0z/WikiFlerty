@@ -124,13 +124,7 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
                     contentAlignment = Alignment.Center,
                 ) { Icon(current.icon, null, tint = current.color, modifier = Modifier.size(15.dp)) }
                 Text(current.title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.weight(1f))
-                Text(
-                    current.count.toString(),
-                    color = AppColors.Muted,
-                    fontSize = 13.sp,
-                    maxLines = 1,
-                    modifier = Modifier.clip(appCorner(10)).background(AppColors.Line).padding(horizontal = 8.dp, vertical = 2.dp),
-                )
+                CountBadge(current.count, AppColors.Muted, AppColors.Line)
                 Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(18.dp).rotate(90f))
             }
         }
@@ -272,10 +266,7 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
                             },
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(
-                            Modifier.size(32.dp).clip(CircleShape).background(f.color.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center,
-                        ) { Icon(f.icon, null, tint = f.color, modifier = Modifier.size(17.dp)) }
+                        SettingIcon(f.icon)
                         Text(
                             f.title,
                             color = if (selected) AppColors.Accent else AppColors.Text,

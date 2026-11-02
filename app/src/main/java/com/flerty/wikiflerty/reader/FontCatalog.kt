@@ -90,7 +90,11 @@ object FontCatalog {
             ?: fonts.firstOrNull { it.id == DEFAULT_ID }
             ?: fonts.first { it.id == "serif" }
 
-    private val previewCache = mutableMapOf<String, ComposeFontFamily>()
+    private val previewCache = java.util.concurrent.ConcurrentHashMap<String, ComposeFontFamily>()
+
+    fun warm(context: Context) {
+        available(context).filter { it.bundled }.forEach { runCatching { preview(context, it) } }
+    }
 
     fun preview(context: Context, entry: FontEntry): ComposeFontFamily {
         val file = entry.regular ?: return when (entry.id) {

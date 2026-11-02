@@ -58,6 +58,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyColumn
 import com.flerty.wikiflerty.App
 import com.flerty.wikiflerty.data.Book
 import com.flerty.wikiflerty.data.DayEntry
@@ -196,83 +198,92 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
     val days by app.stats.days.collectAsStateWithLifecycle()
     val books by app.library.books.collectAsStateWithLifecycle()
-    val perDay = remember(days) { StatsCalc.perDay(days) }
+    val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
+    val freezes by app.streakFreeze.freezes.collectAsStateWithLifecycle()
+    val unlocked by app.achievements.unlocked.collectAsStateWithLifecycle()
     val today = LocalDate.now()
+    val perDay by produceState(StatsCalc.perDay(days), days) {
+        value = withContext(Dispatchers.Default) { StatsCalc.perDay(days) }
+    }
+    val top by produceState(emptyList<Pair<Book, BookStats>>(), days, books) {
+        value = withContext(Dispatchers.Default) {
+            books.map { it to StatsCalc.book(days, it.statsKey) }.filter { it.second.ms >= 60_000 }.sortedByDescending { it.second.ms }.take(5)
+        }
+    }
+    val yearStart = today.withDayOfYear(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+    val finishedThisYear = books.count { it.status == ReadStatus.Finished && (it.finishedAt ?: 0) >= yearStart }
+    val frozen = remember(freezes) { com.flerty.wikiflerty.data.StreakFreezeStore.days(freezes) }
+    val best = remember(perDay, frozen) { StatsCalc.streaks(perDay, today, frozen = frozen).second }
+    val total = remember(perDay) { perDay.values.fold(DayEntry()) { a, b -> a + b } }
+    val readingDays = remember(perDay) { perDay.values.count { it.ms >= 60_000 } }
 
-    Column(
-        modifier.verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp),
+    LazyColumn(
+        modifier,
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (perDay.values.none { it.ms > 0 }) {
-            Text(
-                "Почитай немного — статистика появится сама.",
-                color = AppColors.Muted,
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
-            )
+            item(key = "empty") {
+                Text(
+                    "Почитай немного — статистика появится сама.",
+                    color = AppColors.Muted,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                )
+            }
         }
-
-        val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
-        GoalCard(prefs.dailyGoalMinutes, perDay) { minutes -> app.libraryPrefs.update { it.copy(dailyGoalMinutes = minutes) } }
-
-        val yearStart = today.withDayOfYear(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val finishedThisYear = books.count { it.status == ReadStatus.Finished && (it.finishedAt ?: 0) >= yearStart }
-        YearGoalCard(prefs.yearGoalBooks, finishedThisYear) { n -> app.libraryPrefs.update { it.copy(yearGoalBooks = n) } }
-
-        StreakCard(perDay, today)
-
-        MinutesCard(perDay, today)
-
-        YearHeatmapCard(days, perDay, books)
-
-        StatusCard(books)
-
-        RatingsCard(books, yearStart)
-
-        val freezes by app.streakFreeze.freezes.collectAsStateWithLifecycle()
-        val (_, best) = StatsCalc.streaks(perDay, today, frozen = com.flerty.wikiflerty.data.StreakFreezeStore.days(freezes))
-        val total = perDay.values.fold(DayEntry()) { a, b -> a + b }
-        val readingDays = perDay.values.count { it.ms >= 60_000 }
-        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("Сегодня", StatsCalc.duration(perDay[today]?.ms ?: 0), Modifier.weight(1f), icon = AppIcons.Clock)
-            StatTile("Дней чтения", "$readingDays", Modifier.weight(1f), hint = "Лучшая серия: ${StatsCalc.days(best)}", icon = AppIcons.Fire)
+        item(key = "goal") {
+            GoalCard(prefs.dailyGoalMinutes, perDay) { minutes -> app.libraryPrefs.update { it.copy(dailyGoalMinutes = minutes) } }
         }
-        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("За неделю", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(6)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
-            StatTile("За месяц", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(29)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
+        item(key = "year-goal") {
+            YearGoalCard(prefs.yearGoalBooks, finishedThisYear) { n -> app.libraryPrefs.update { it.copy(yearGoalBooks = n) } }
         }
-        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("За год", StatsCalc.duration(StatsCalc.sumSince(perDay, today.withDayOfYear(1)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
-            StatTile(
-                "Прочитано",
-                "$finishedThisYear " + StatsCalc.plural(finishedThisYear, "книга", "книги", "книг"),
-                Modifier.weight(1f),
-                hint = "В ${today.year} году",
-                icon = AppIcons.Book,
-            )
+        item(key = "streak") { StreakCard(perDay, today) }
+        item(key = "minutes") { MinutesCard(perDay, today) }
+        item(key = "heatmap") { YearHeatmapCard(days, perDay, books) }
+        item(key = "status") { StatusCard(books) }
+        if (books.any { (it.rating ?: 0f) > 0f }) item(key = "ratings") { RatingsCard(books, yearStart) }
+        item(key = "tiles") {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    StatTile("Сегодня", StatsCalc.duration(perDay[today]?.ms ?: 0), Modifier.weight(1f), icon = AppIcons.Clock)
+                    StatTile("Дней чтения", "$readingDays", Modifier.weight(1f), hint = "Лучшая серия: ${StatsCalc.days(best)}", icon = AppIcons.Fire)
+                }
+                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    StatTile("За неделю", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(6)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
+                    StatTile("За месяц", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(29)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
+                }
+                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    StatTile("За год", StatsCalc.duration(StatsCalc.sumSince(perDay, today.withDayOfYear(1)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
+                    StatTile(
+                        "Прочитано",
+                        "$finishedThisYear " + StatsCalc.plural(finishedThisYear, "книга", "книги", "книг"),
+                        Modifier.weight(1f),
+                        hint = "В ${today.year} году",
+                        icon = AppIcons.Book,
+                    )
+                }
+                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    StatTile("Всего", StatsCalc.duration(total.ms), Modifier.weight(1f), hint = "${total.pages} стр.", icon = AppIcons.Pages)
+                    StatTile(
+                        "В среднем",
+                        StatsCalc.duration(if (readingDays > 0) total.ms / readingDays else 0),
+                        Modifier.weight(1f),
+                        hint = "в день чтения",
+                        icon = AppIcons.Chart,
+                    )
+                }
+            }
         }
-        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("Всего", StatsCalc.duration(total.ms), Modifier.weight(1f), hint = "${total.pages} стр.", icon = AppIcons.Pages)
-            StatTile(
-                "В среднем",
-                StatsCalc.duration(if (readingDays > 0) total.ms / readingDays else 0),
-                Modifier.weight(1f),
-                hint = "в день чтения",
-                icon = AppIcons.Chart,
-            )
-        }
-
-        val unlocked by app.achievements.unlocked.collectAsStateWithLifecycle()
-        val progress = remember(days, books) { com.flerty.wikiflerty.data.AchievementProgress.of(days, books) }
-        AchievementsButton(Achievements.all.count { it.id in unlocked }, Achievements.all.size, onAchievements)
-
-        val top = remember(days, books) {
-            books.map { it to StatsCalc.book(days, it.statsKey) }.filter { it.second.ms >= 60_000 }.sortedByDescending { it.second.ms }.take(5)
+        item(key = "achievements") {
+            AchievementsButton(Achievements.all.count { it.id in unlocked }, Achievements.all.size, onAchievements)
         }
         if (top.isNotEmpty()) {
-            SettingsGroup("Больше всего времени") {
-                top.forEach { (book, stats) -> TopBookRow(app, book, stats) }
+            item(key = "top") {
+                SettingsGroup("Больше всего времени") {
+                    top.forEach { (book, stats) -> TopBookRow(app, book, stats) }
+                }
             }
         }
     }

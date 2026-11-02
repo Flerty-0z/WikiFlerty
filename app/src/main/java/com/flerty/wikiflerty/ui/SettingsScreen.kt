@@ -95,6 +95,10 @@ fun SettingsScreen(modifier: Modifier = Modifier, onAbout: (() -> Unit)? = null)
         label = "settings",
         modifier = modifier,
     ) { current ->
+        if (current == SettingsPage.Custom) {
+            CustomizationContent { PageHeader(current.title) { page = null } }
+            return@AnimatedContent
+        }
         Column(
             Modifier
                 .fillMaxSize()
@@ -108,7 +112,7 @@ fun SettingsScreen(modifier: Modifier = Modifier, onAbout: (() -> Unit)? = null)
                 PageHeader(current.title) { page = null }
                 when (current) {
                     SettingsPage.Ai -> AiSettingsContent((LocalContext.current.applicationContext as App).ai)
-                    SettingsPage.Custom -> CustomizationContent()
+                    SettingsPage.Custom -> Unit
                     SettingsPage.Sound -> SoundContent()
                     SettingsPage.Backup -> BackupContent()
                 }
@@ -164,7 +168,7 @@ private fun SoundContent() {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CustomizationContent() {
+private fun CustomizationContent(header: @Composable () -> Unit) {
     val context = LocalContext.current
     val app = context.applicationContext as App
     val store = app.style
@@ -202,16 +206,26 @@ private fun CustomizationContent() {
         }
     }
 
-    StylePreview()
+    androidx.compose.foundation.lazy.LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+    item(key = "header") { header() }
+    item(key = "preview") { StylePreview() }
 
+    item(key = "templates") {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
     Text("Шаблоны оформления", color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp))
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         StyleTemplates.forEach { template ->
             TemplateCard(template, selected = template.matches(style)) { store.update { template.applyTo(it) } }
         }
     }
+    }
+    }
 
-    if (AppStyle.base.ambience != null) {
+    if (AppStyle.base.ambience != null) item(key = "ambience") {
         SettingsGroup(null) {
             SettingSwitch("Свечение фона", style.ambience, hint = null, icon = AppIcons.Sparkle) { v ->
                 store.update { it.copy(ambience = v) }
@@ -219,6 +233,7 @@ private fun CustomizationContent() {
         }
     }
 
+    item(key = "colors") {
     SettingsGroup("Цвета") {
         Text("Акцентный цвет", color = AppColors.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
         FlowRow(
@@ -263,7 +278,9 @@ private fun CustomizationContent() {
             }
         }
     }
+    }
 
+    item(key = "shape") {
     SettingsGroup("Форма и кнопки") {
         SettingSlider(
             label = "Скругление углов",
@@ -292,7 +309,9 @@ private fun CustomizationContent() {
             store.update { it.copy(outline = v) }
         }
     }
+    }
 
+    item(key = "motion") {
     SettingsGroup("Анимации") {
         SettingSwitch(
             "Анимации",
@@ -322,7 +341,9 @@ private fun CustomizationContent() {
             MotionPreview()
         }
     }
+    }
 
+    item(key = "font") {
     SettingsGroup("Шрифт интерфейса") {
         val fonts = remember { FontCatalog.available(context).filter { it.css != null && it.category != FontCategory.Mono || it.id == "jetbrainsmono" } }
         PickerRow(
@@ -330,7 +351,7 @@ private fun CustomizationContent() {
             icon = AppIcons.TextSize,
             options = listOf(PickerOption("system", "Системный", "Как в Android")) +
                 fonts.filter { it.bundled }.map {
-                    PickerOption(it.id, it.title, "Съешь же ещё этих мягких французских булок", FontCatalog.preview(context, it))
+                    PickerOption(it.id, it.title, "Съешь же ещё этих мягких французских булок", fontLoader = { FontCatalog.preview(context, it) })
                 },
             selectedId = style.font,
         ) { id -> store.update { it.copy(font = id) } }
@@ -343,7 +364,9 @@ private fun CustomizationContent() {
             format = ::percent,
         ) { v -> store.update { it.copy(textScale = v) } }
     }
+    }
 
+    item(key = "background") {
     SettingsGroup("Фон приложения") {
         PickerRow(
             label = "Фон",
@@ -446,7 +469,9 @@ private fun CustomizationContent() {
             }
         }
     }
+    }
 
+    item(key = "reset") {
     val resetShape = appCorner(14)
     Box(
         Modifier
@@ -459,6 +484,8 @@ private fun CustomizationContent() {
             .border(1.dp, Color(0x55F08A8A), resetShape),
         contentAlignment = Alignment.Center,
     ) { Text("Сбросить оформление", color = AppColors.Bad, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+    }
+    }
 }
 
 @Composable

@@ -236,7 +236,10 @@ data class PickerOption(
     val font: FontFamily? = null,
     val icon: ImageVector? = null,
     val swatch: Color? = null,
-)
+    val fontLoader: (() -> FontFamily?)? = null,
+) {
+    val typeface: FontFamily? get() = font ?: fontLoader?.invoke()
+}
 
 @Composable
 fun SettingIcon(icon: ImageVector, size: androidx.compose.ui.unit.Dp = 32.dp) {
@@ -248,6 +251,61 @@ fun SettingIcon(icon: ImageVector, size: androidx.compose.ui.unit.Dp = 32.dp) {
             .border(1.dp, AppColors.Accent.copy(alpha = 0.16f), appCorner(10)),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(size * 0.56f)) }
+}
+
+@Composable
+fun SheetOptionRow(option: PickerOption, selected: Boolean, fallbackIcon: ImageVector? = null, trailing: String? = null, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 50.dp)
+            .liveClick(appCorner(12), sound = FeedbackSound.Toggle, pressedScale = 0.98f, onClick = onClick)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        OptionTile(option, fallbackIcon)
+        Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp)) {
+            Text(
+                option.title,
+                color = if (selected) AppColors.Accent else AppColors.Text,
+                fontSize = 15.sp,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                fontFamily = option.typeface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (option.subtitle != null) {
+                Text(option.subtitle, color = AppColors.Faint, fontSize = 12.sp, lineHeight = 16.sp, fontFamily = option.typeface, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        if (trailing != null) Text(trailing, color = AppColors.Faint, fontSize = 14.sp, maxLines = 1)
+        Box(Modifier.padding(start = 6.dp).size(22.dp), contentAlignment = Alignment.Center) {
+            if (selected) Icon(AppIcons.Check, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+@Composable
+private fun OptionTile(option: PickerOption, fallbackIcon: ImageVector?) {
+    val shape = appCorner(10)
+    val tile = Modifier
+        .size(32.dp)
+        .clip(shape)
+        .background(Brush.linearGradient(listOf(AppColors.Accent.copy(alpha = 0.24f), AppColors.Accent.copy(alpha = 0.08f))))
+        .border(1.dp, AppColors.Accent.copy(alpha = 0.16f), shape)
+    when {
+        option.swatch != null -> Box(tile, contentAlignment = Alignment.Center) {
+            Box(Modifier.size(18.dp).clip(CircleShape).background(option.swatch).border(1.dp, AppColors.Line, CircleShape))
+        }
+        option.icon != null -> SettingIcon(option.icon)
+        option.font != null || option.fontLoader != null -> Box(tile, contentAlignment = Alignment.Center) {
+            Text("Аа", color = AppColors.Accent, fontSize = 13.sp, fontFamily = option.typeface, maxLines = 1, softWrap = false)
+        }
+        fallbackIcon != null -> SettingIcon(fallbackIcon)
+        else -> Box(tile, contentAlignment = Alignment.Center) {
+            Text(option.title.take(1).uppercase(), color = AppColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        }
+    }
 }
 
 @Composable
@@ -294,7 +352,7 @@ fun PickerRow(
                 color = AppColors.Accent,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
-                fontFamily = selected?.font,
+                fontFamily = selected?.typeface,
                 maxLines = 1,
                 softWrap = false,
                 autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 15.sp, stepSize = 0.5.sp),
@@ -305,7 +363,7 @@ fun PickerRow(
         Icon(AppIcons.Chevron, null, tint = AppColors.Accent, modifier = Modifier.padding(start = 2.dp).size(18.dp).rotate(90f))
     }
     if (open) {
-        PickerSheet(label, options, selectedId, searchable, onDismiss = { open = false }) {
+        PickerSheet(label, options, selectedId, searchable, icon = icon, onDismiss = { open = false }) {
             onSelect(it)
             open = false
         }
@@ -318,6 +376,7 @@ fun PickerSheet(
     options: List<PickerOption>,
     selectedId: String,
     searchable: Boolean,
+    icon: ImageVector? = null,
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit,
 ) {
@@ -366,37 +425,12 @@ fun PickerSheet(
                 )
                 Spacer(Modifier.height(8.dp))
             }
-            LazyColumn(Modifier.heightIn(max = 520.dp), state = listState) {
-                items(shown, key = { it.id }) { option ->
-                    val isSelected = option.id == selectedId
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .liveClick(appCorner(14), sound = FeedbackSound.Toggle, pressedScale = 0.98f) {
-                                scope.launch { sheetState.hide() }.invokeOnCompletion { onSelect(option.id) }
-                            }
-                            .background(if (isSelected) AppColors.AccentTint else Color.Transparent)
-                            .padding(horizontal = 14.dp, vertical = 13.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (option.swatch != null || option.icon != null) {
-                            OptionLead(option, if (isSelected) AppColors.Accent else AppColors.Muted)
-                            Spacer(Modifier.width(14.dp))
+            Column(Modifier.fillMaxWidth().fieldSurface(appCorner(18)).padding(horizontal = 14.dp, vertical = 6.dp)) {
+                LazyColumn(Modifier.heightIn(max = 520.dp), state = listState) {
+                    items(shown, key = { it.id }) { option ->
+                        SheetOptionRow(option, option.id == selectedId, icon) {
+                            scope.launch { sheetState.hide() }.invokeOnCompletion { onSelect(option.id) }
                         }
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                option.title,
-                                color = if (isSelected) AppColors.Accent else AppColors.Text,
-                                fontSize = 16.sp,
-                                fontFamily = option.font,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            if (option.subtitle != null) {
-                                Text(option.subtitle, color = AppColors.Faint, fontSize = 12.sp, lineHeight = 16.sp, fontFamily = option.font)
-                            }
-                        }
-                        if (isSelected) Icon(AppIcons.Check, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp))
                     }
                 }
             }
