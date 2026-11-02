@@ -410,7 +410,7 @@ fun SmallCover(file: File?, modifier: Modifier, maxWidth: Int = 160) {
     }
 }
 
-val GoalChoices = listOf(0, 5, 10, 15, 20, 30, 45, 60, 90)
+val GoalChoices = listOf(0, 10, 20, 30, 45, 60)
 
 @Composable
 fun GoalRing(todayMs: Long, goalMinutes: Int, size: androidx.compose.ui.unit.Dp, showText: Boolean = true) {
@@ -479,14 +479,22 @@ private fun GoalCard(goalMinutes: Int, perDay: Map<LocalDate, DayEntry>, onGoal:
                 }
             }
         }
+        var custom by remember { mutableStateOf(false) }
         PickerRow(
             label = "Цель на день",
             icon = AppIcons.Target,
             options = GoalChoices.map { m ->
-                if (m == 0) PickerOption("0", "Без цели", "Просто считать время") else PickerOption(m.toString(), "$m мин", null)
-            },
+                if (m == 0) PickerOption("0", "Без цели", "Просто считать время", icon = AppIcons.Close) else PickerOption(m.toString(), "$m мин", null, icon = AppIcons.Clock)
+            } + listOfNotNull(
+                goalMinutes.takeIf { it > 0 && it !in GoalChoices }?.let { PickerOption(it.toString(), "$it мин", "Своя цель", icon = AppIcons.Clock) },
+                PickerOption(CUSTOM_ID, "Своё число", "Впиши любое количество минут", icon = AppIcons.Pencil),
+            ),
             selectedId = goalMinutes.toString(),
-        ) { id -> onGoal(id.toInt()) }
+            searchable = false,
+        ) { id -> if (id == CUSTOM_ID) custom = true else onGoal(id.toInt()) }
+        if (custom) {
+            NumberInputSheet("Цель на день", "мин", goalMinutes.takeIf { it > 0 } ?: 25, 1..1440, onDismiss = { custom = false }) { onGoal(it) }
+        }
     }
 }
 

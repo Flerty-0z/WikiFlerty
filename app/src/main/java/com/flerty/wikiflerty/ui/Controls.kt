@@ -40,6 +40,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
@@ -510,5 +511,52 @@ fun SheetHeader(title: String, onClose: () -> Unit) {
             Modifier.size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onClose).background(AppColors.Field),
             contentAlignment = Alignment.Center,
         ) { Icon(AppIcons.Close, "Закрыть", tint = AppColors.Muted, modifier = Modifier.size(18.dp)) }
+    }
+}
+
+const val CUSTOM_ID = "__custom__"
+
+@Composable
+fun NumberInputSheet(title: String, suffix: String, initial: Int, range: IntRange, onDismiss: () -> Unit, onDone: (Int) -> Unit) {
+    var text by remember { mutableStateOf(initial.toString()) }
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    val value = text.toIntOrNull()
+    val ok = value != null && value in range
+    AppSheet(onDismiss, title = title) {
+        val close = sheetClose(onDismiss)
+        Row(
+            Modifier.fillMaxWidth().height(64.dp).fieldSurface(appCorner(18)).padding(horizontal = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BasicTextField(
+                value = text,
+                onValueChange = { v -> text = v.filter { it.isDigit() }.take(5) },
+                singleLine = true,
+                textStyle = TextStyle(color = AppColors.Text, fontSize = 28.sp, fontWeight = FontWeight.Bold),
+                cursorBrush = SolidColor(AppColors.Accent),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                modifier = Modifier.weight(1f).focusRequester(focus),
+            )
+            Text(suffix, color = AppColors.Muted, fontSize = 17.sp, maxLines = 1)
+        }
+        Text(
+            if (ok || text.isEmpty()) "От ${range.first} до ${range.last}" else "Нужно число от ${range.first} до ${range.last}",
+            color = if (ok || text.isEmpty()) AppColors.Faint else AppColors.Bad,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(start = 4.dp),
+        )
+        val shape = appCorner(16)
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .liveClick(shape, sound = FeedbackSound.Toggle, enabled = ok) {
+                    onDone(value!!)
+                    close()
+                }
+                .then(if (ok) Modifier.accentHighlight(shape) else Modifier.border(1.dp, AppColors.Line, shape)),
+            contentAlignment = Alignment.Center,
+        ) { Text("Сохранить", color = if (ok) accentContent else AppColors.Faint, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold) }
     }
 }

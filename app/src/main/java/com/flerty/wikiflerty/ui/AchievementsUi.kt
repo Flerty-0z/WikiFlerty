@@ -209,7 +209,7 @@ private fun AchievementBadge(
     }
 }
 
-val YearGoalChoices = listOf(0, 3, 5, 6, 10, 12, 15, 20, 24, 30, 36, 40, 50, 52, 60, 75, 100)
+val YearGoalChoices = listOf(0, 5, 8, 12, 16, 20)
 
 @Composable
 fun YearGoalCard(goal: Int, finished: Int, onGoal: (Int) -> Unit) {
@@ -250,19 +250,26 @@ fun YearGoalCard(goal: Int, finished: Int, onGoal: (Int) -> Unit) {
                 }
             }
         }
+        var custom by remember { mutableStateOf(false) }
         PickerRow(
             label = "Цель на год",
             icon = AppIcons.Trophy,
             options = YearGoalChoices.map { n ->
                 if (n == 0) {
-                    PickerOption("0", "Без цели", "Просто считать книги")
+                    PickerOption("0", "Без цели", "Просто считать книги", icon = AppIcons.Close)
                 } else {
-                    PickerOption(n.toString(), "$n " + StatsCalc.plural(n, "книга", "книги", "книг"), null)
+                    PickerOption(n.toString(), "$n " + StatsCalc.plural(n, "книга", "книги", "книг"), null, icon = AppIcons.Book)
                 }
-            },
+            } + listOfNotNull(
+                goal.takeIf { it > 0 && it !in YearGoalChoices }?.let { PickerOption(it.toString(), "$it " + StatsCalc.plural(it, "книга", "книги", "книг"), "Своя цель", icon = AppIcons.Book) },
+                PickerOption(CUSTOM_ID, "Своё число", "Впиши любое количество книг", icon = AppIcons.Pencil),
+            ),
             selectedId = goal.toString(),
             searchable = false,
-        ) { id -> onGoal(id.toInt()) }
+        ) { id -> if (id == CUSTOM_ID) custom = true else onGoal(id.toInt()) }
+        if (custom) {
+            NumberInputSheet("Цель на год", "книг", goal.takeIf { it > 0 } ?: 10, 1..1000, onDismiss = { custom = false }) { onGoal(it) }
+        }
     }
 }
 

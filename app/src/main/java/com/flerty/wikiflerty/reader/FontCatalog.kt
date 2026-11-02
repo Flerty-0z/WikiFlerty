@@ -92,8 +92,39 @@ object FontCatalog {
 
     private val previewCache = java.util.concurrent.ConcurrentHashMap<String, ComposeFontFamily>()
 
+    private val scaleCache = java.util.concurrent.ConcurrentHashMap<String, Float>()
+    private const val SAMPLE = "Съешь же ещё этих мягких французских булок, да выпей чаю. Quick brown fox 0123456789"
+
+    private fun typeface(context: Context, entry: FontEntry?): Typeface? = when {
+        entry == null -> Typeface.DEFAULT
+        entry.regular != null -> runCatching { Typeface.createFromAsset(context.assets, "fonts/${entry.regular}") }.getOrNull()
+        entry.id == "serif" -> Typeface.SERIF
+        else -> Typeface.SANS_SERIF
+    }
+
+    private fun metrics(tf: Typeface?): Pair<Float, Float>? {
+        tf ?: return null
+        val p = android.graphics.Paint().apply {
+            typeface = tf
+            textSize = 100f
+        }
+        val fm = p.fontMetrics
+        return p.measureText(SAMPLE) to (fm.descent - fm.ascent)
+    }
+
+    fun uiScale(context: Context, id: String): Float = scaleCache.getOrPut(id) {
+        runCatching {
+            val ref = metrics(typeface(context, all.firstOrNull { it.id == "nunito" }?.takeIf { e -> e.regular != null && runCatching { context.assets.open("fonts/${e.regular}").close() }.isSuccess }))
+                ?: metrics(Typeface.DEFAULT)!!
+            val own = metrics(if (id == "system") Typeface.DEFAULT else typeface(context, all.firstOrNull { it.id == id })) ?: return@runCatching 1f
+            minOf(ref.first / own.first, ref.second / own.second).coerceIn(0.8f, 1.04f)
+        }.getOrDefault(1f)
+    }
+
     fun warm(context: Context) {
         available(context).filter { it.bundled }.forEach { runCatching { preview(context, it) } }
+        all.forEach { runCatching { uiScale(context, it.id) } }
+        runCatching { uiScale(context, "system") }
     }
 
     fun preview(context: Context, entry: FontEntry): ComposeFontFamily {

@@ -422,19 +422,27 @@ fun WikiFlertyTheme(content: @Composable () -> Unit) {
         } else {
             FontCatalog.all.firstOrNull { it.id == style.font }?.let { FontCatalog.preview(context, it) }
         }
-        if (family == null) Typography() else Typography().withFont(family)
+        Typography().withFont(family)
     }
+    val fontFit = remember(style.font) { FontCatalog.uiScale(context, style.font) }
     val density = LocalDensity.current
     CompositionLocalProvider(
-        LocalDensity provides Density(density.density, density.fontScale * style.textScale),
+        LocalDensity provides Density(density.density, density.fontScale * style.textScale * fontFit),
         androidx.compose.foundation.LocalOverscrollFactory provides null,
     ) {
         MaterialTheme(colorScheme = colors, typography = typography, content = content)
     }
 }
 
-private fun Typography.withFont(family: androidx.compose.ui.text.font.FontFamily): Typography {
-    fun TextStyle.f() = copy(fontFamily = family)
+private fun Typography.withFont(family: androidx.compose.ui.text.font.FontFamily?): Typography {
+    fun TextStyle.f() = copy(
+        fontFamily = family ?: fontFamily,
+        lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+            androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
+            androidx.compose.ui.text.style.LineHeightStyle.Trim.None,
+        ),
+        platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false),
+    )
     return copy(
         displayLarge = displayLarge.f(), displayMedium = displayMedium.f(), displaySmall = displaySmall.f(),
         headlineLarge = headlineLarge.f(), headlineMedium = headlineMedium.f(), headlineSmall = headlineSmall.f(),
