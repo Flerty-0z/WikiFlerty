@@ -66,7 +66,6 @@ fun ReadingWatchCard(book: Book) {
         result?.bookId == book.id -> WatchView.Done(result!!)
         else -> WatchView.Idle
     }
-    val shape = appCorner(22)
     AnimatedContent(
         targetState = view,
         contentKey = { it::class },
@@ -77,18 +76,13 @@ fun ReadingWatchCard(book: Book) {
         },
         label = "reading-watch",
     ) { state ->
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .then(if (state is WatchView.Active) Modifier.background(AppColors.AccentTint, shape).border(1.dp, AppColors.Accent.copy(alpha = 0.45f), shape) else Modifier.fieldSurface(shape))
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+        StopwatchShell(active = state is WatchView.Active) {
             when (state) {
-                WatchView.Idle -> IdleWatch(other = watch != null) { app.readingTimer.start(book.id, book.progress) }
-                is WatchView.Active -> ActiveWatch(
+                WatchView.Idle -> StopwatchIdle(note = if (watch != null) "Секундомер другой книги остановится" else null) { app.readingTimer.start(book.id, book.progress) }
+                is WatchView.Active -> StopwatchActive(
                     state.watch,
+                    elapsed = state.watch::elapsed,
+                    running = state.watch.running,
                     onToggle = { if (state.watch.running) app.readingTimer.pause() else app.readingTimer.resume() },
                     onStop = { app.readingTimer.stop() },
                     onCancel = { app.readingTimer.cancel() },
@@ -97,6 +91,19 @@ fun ReadingWatchCard(book: Book) {
             }
         }
     }
+}
+
+@Composable
+fun StopwatchShell(active: Boolean, content: @Composable () -> Unit) {
+    val shape = appCorner(22)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .then(if (active) Modifier.background(AppColors.AccentTint, shape).border(1.dp, AppColors.Accent.copy(alpha = 0.45f), shape) else Modifier.fieldSurface(shape))
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) { content() }
 }
 
 @Composable
@@ -146,17 +153,16 @@ private fun RoundControl(icon: ImageVector, description: String, size: Int, fill
 }
 
 @Composable
-private fun IdleWatch(other: Boolean, onStart: () -> Unit) {
-    StatePill("Секундомер чтения", AppColors.Muted)
+fun StopwatchIdle(note: String? = null, onStart: () -> Unit) {
     Digits(0L, dim = true)
     RoundControl(AppIcons.Play, "Засечь время", 64, filled = true, sound = FeedbackSound.Toggle, onClick = onStart)
-    if (other) Text("Секундомер другой книги остановится", color = AppColors.Faint, fontSize = 12.sp, maxLines = 1)
+    if (note != null) Text(note, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1)
 }
 
 @Composable
-private fun ActiveWatch(watch: ReadingWatch, onToggle: () -> Unit, onStop: () -> Unit, onCancel: () -> Unit) {
+fun StopwatchActive(key: Any, elapsed: (Long) -> Long, running: Boolean, onToggle: () -> Unit, onStop: () -> Unit, onCancel: () -> Unit) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(watch) {
+    LaunchedEffect(key) {
         while (true) {
             now = System.currentTimeMillis()
             delay(250)
@@ -164,13 +170,13 @@ private fun ActiveWatch(watch: ReadingWatch, onToggle: () -> Unit, onStop: () ->
     }
     val pulse by rememberInfiniteTransition(label = "watch-pulse").animateFloat(1f, 0.25f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "dot")
     AnimatedContent(
-        targetState = watch.running,
+        targetState = running,
         transitionSpec = { fadeIn(Motion.fade(220)) togetherWith fadeOut(Motion.fade(140)) },
         label = "watch-pill",
-    ) { running ->
-        if (running) StatePill("Идёт сеанс чтения", AppColors.Accent, dot = pulse) else StatePill("Пауза", AppColors.Muted)
+    ) { on ->
+        if (on) StatePill("Идёт сеанс чтения", AppColors.Accent, dot = pulse) else StatePill("Пауза", AppColors.Muted)
     }
-    Digits(watch.elapsed(now), dim = !watch.running && pulse < 0.6f)
+    Digits(elapsed(now), dim = !running && pulse < 0.6f)
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
         RoundControl(AppIcons.Close, "Сбросить", 48, filled = false, sound = FeedbackSound.Close, onClick = onCancel)
         Box(
@@ -178,11 +184,11 @@ private fun ActiveWatch(watch: ReadingWatch, onToggle: () -> Unit, onStop: () ->
             contentAlignment = Alignment.Center,
         ) {
             AnimatedContent(
-                targetState = watch.running,
+                targetState = running,
                 transitionSpec = { (fadeIn(Motion.fade(180)) + scaleIn(Motion.tween(220), initialScale = 0.5f)) togetherWith (fadeOut(Motion.fade(120)) + scaleOut(Motion.tween(160), targetScale = 0.5f)) },
                 label = "watch-icon",
-            ) { running ->
-                Icon(if (running) AppIcons.Pause else AppIcons.Play, if (running) "Пауза" else "Продолжить", tint = accentContent, modifier = Modifier.size(28.dp))
+            ) { on ->
+                Icon(if (on) AppIcons.Pause else AppIcons.Play, if (on) "Пауза" else "Продолжить", tint = accentContent, modifier = Modifier.size(28.dp))
             }
         }
         RoundControl(AppIcons.Stop, "Стоп", 48, filled = false, sound = FeedbackSound.Open, onClick = onStop)

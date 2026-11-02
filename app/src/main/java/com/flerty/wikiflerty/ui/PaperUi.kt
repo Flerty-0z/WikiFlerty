@@ -231,53 +231,24 @@ fun PaperMain(book: Book, onEdit: () -> Unit) {
         },
         label = "paper-session",
     ) { shown ->
-    if (shown != null) {
-        StopwatchCard(
-            shown,
-            onToggle = { if (shown.running) app.paper.pauseStopwatch() else app.paper.startStopwatch(book.id) },
-            onStop = {
-                val elapsed = shown.elapsed()
-                app.paper.pauseStopwatch()
-                form = SessionForm(null, current, current, shown.startedAt, elapsed, fromStopwatch = true)
-            },
-            onCancel = { app.paper.stopStopwatch() },
-        )
-    } else {
-      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val shape = appCorner(18)
-            Row(
-                Modifier
-                    .weight(1.4f)
-                    .heightIn(min = 56.dp)
-                    .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f) { app.paper.startStopwatch(book.id) }
-                    .accentHighlight(shape),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(AppIcons.Play, null, tint = accentContent, modifier = Modifier.size(20.dp))
-                Text("Начать сеанс", color = accentContent, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, modifier = Modifier.padding(start = 8.dp))
-            }
-            Row(
-                Modifier
-                    .weight(1f)
-                    .heightIn(min = 56.dp)
-                    .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f) {
-                        form = SessionForm(null, current, current, System.currentTimeMillis(), 0L, fromStopwatch = false)
-                    }
-                    .border(1.dp, AppColors.Accent.copy(alpha = 0.5f), shape),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(AppIcons.Plus, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
-                Text("Вручную", color = AppColors.Accent, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.padding(start = 6.dp))
+        StopwatchShell(active = shown != null) {
+            if (shown != null) {
+                StopwatchActive(
+                    shown,
+                    elapsed = shown::elapsed,
+                    running = shown.running,
+                    onToggle = { if (shown.running) app.paper.pauseStopwatch() else app.paper.startStopwatch(book.id) },
+                    onStop = {
+                        val elapsed = shown.elapsed()
+                        app.paper.pauseStopwatch()
+                        form = SessionForm(null, current, current, shown.startedAt, elapsed, fromStopwatch = true)
+                    },
+                    onCancel = { app.paper.stopStopwatch() },
+                )
+            } else {
+                StopwatchIdle(note = if (watch != null) "Секундомер другой книги остановится" else null) { app.paper.startStopwatch(book.id) }
             }
         }
-        if (watch != null) {
-            Text("Сейчас идёт сеанс другой книги — новый сеанс его заменит", color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
-        }
-      }
-    }
     }
 
     if (sessions.isNotEmpty()) {
@@ -312,15 +283,7 @@ fun PaperMain(book: Book, onEdit: () -> Unit) {
     }
 
     SettingsGroup("Сеансы") {
-        if (sessions.isEmpty()) {
-            Text(
-                "Пока пусто. Нажми «Начать сеанс», когда сядешь читать, или добавь прочитанное вручную.",
-                color = AppColors.Faint,
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
-                modifier = Modifier.padding(vertical = 12.dp),
-            )
-        } else {
+        run {
             val total = book.positions.coerceAtLeast(1)
             val fraction by animateFloatAsState((current.toFloat() / total).coerceIn(0f, 1f), Motion.tween(800), label = "paper")
             Row(Modifier.padding(vertical = 10.dp).height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -338,6 +301,7 @@ fun PaperMain(book: Book, onEdit: () -> Unit) {
                     Icon(AppIcons.Book, null, tint = AppColors.Faint, modifier = Modifier.size(16.dp))
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AddSessionCard { form = SessionForm(null, current, current, System.currentTimeMillis(), 0L, fromStopwatch = false) }
                     (if (showAll) sessions else sessions.take(6)).forEach { s ->
                         SessionCard(s, total) {
                             form = SessionForm(s, s.fromPage, s.toPage, s.startAt, s.durationMs, fromStopwatch = false)
@@ -380,68 +344,27 @@ data class SessionForm(
 )
 
 @Composable
-private fun StopwatchCard(watch: com.flerty.wikiflerty.data.Stopwatch, onToggle: () -> Unit, onStop: () -> Unit, onCancel: () -> Unit) {
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(watch) {
-        while (true) {
-            now = System.currentTimeMillis()
-            delay(250)
-        }
-    }
-    val shape = appCorner(22)
+private fun AddSessionCard(onClick: () -> Unit) {
+    val shape = appCorner(16)
     Column(
-        Modifier.fillMaxWidth().background(AppColors.AccentTint, shape).border(1.dp, AppColors.Accent.copy(alpha = 0.45f), shape).padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        Modifier
+            .fillMaxWidth()
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
+            .background(AppColors.AccentTint, shape)
+            .border(1.dp, AppColors.Accent.copy(alpha = 0.4f), shape)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        val pulse = rememberInfiniteTransition(label = "pulse").animateFloat(
-            1f,
-            0.25f,
-            infiniteRepeatable(tween(700), RepeatMode.Reverse),
-            label = "dot",
-        )
-        AnimatedContent(
-            targetState = watch.running,
-            transitionSpec = { fadeIn(Motion.fade(220)) togetherWith fadeOut(Motion.fade(140)) },
-            label = "watch-state",
-        ) { running ->
-            val tint = if (running) AppColors.Accent else AppColors.Muted
-            Row(
-                Modifier
-                    .clip(CircleShape)
-                    .background(tint.copy(alpha = 0.12f))
-                    .border(1.dp, tint.copy(alpha = 0.45f), CircleShape)
-                    .padding(horizontal = 12.dp, vertical = 5.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                if (running) Box(Modifier.size(7.dp).graphicsLayer { alpha = pulse.value }.background(AppColors.Accent, CircleShape))
-                Text(if (running) "Идёт сеанс чтения" else "Пауза", color = if (running) AppColors.Accent else AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            }
+        Text(dayLabel(LocalDate.now()), color = AppColors.Faint, fontSize = 12.sp, maxLines = 1)
+        Row(
+            Modifier.clip(CircleShape).background(AppColors.Accent.copy(alpha = 0.16f)).border(1.dp, AppColors.Accent.copy(alpha = 0.45f), CircleShape).padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(AppIcons.Plus, null, tint = AppColors.Accent, modifier = Modifier.size(14.dp))
+            Text("Добавить сеанс чтения", color = AppColors.Accent, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
         }
-        RollingClock(clock(watch.elapsed(now)), Modifier.graphicsLayer { alpha = if (watch.running) 1f else 0.6f + 0.4f * pulse.value })
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(48.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onCancel).border(1.dp, AppColors.Line, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) { Icon(AppIcons.Close, "Отменить сеанс", tint = AppColors.Muted, modifier = Modifier.size(18.dp)) }
-            Box(
-                Modifier.size(64.dp).liveClick(CircleShape, sound = FeedbackSound.Toggle, onClick = onToggle).accentHighlight(CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                AnimatedContent(
-                    targetState = watch.running,
-                    transitionSpec = { (fadeIn(Motion.fade(180)) + scaleIn(Motion.tween(220), initialScale = 0.5f)) togetherWith (fadeOut(Motion.fade(120)) + scaleOut(Motion.tween(160), targetScale = 0.5f)) },
-                    label = "watch-icon",
-                ) { running ->
-                    Icon(if (running) AppIcons.Pause else AppIcons.Play, if (running) "Пауза" else "Продолжить", tint = accentContent, modifier = Modifier.size(28.dp))
-                }
-            }
-            Box(
-                Modifier.size(48.dp).liveClick(CircleShape, sound = FeedbackSound.Open, onClick = onStop).border(1.dp, AppColors.Accent.copy(alpha = 0.5f), CircleShape),
-                contentAlignment = Alignment.Center,
-            ) { Icon(AppIcons.Stop, "Завершить", tint = AppColors.Accent, modifier = Modifier.size(18.dp)) }
-        }
+        Text("Сколько страниц прочитано?", color = AppColors.Muted, fontSize = 12.5.sp, maxLines = 1)
     }
 }
 
