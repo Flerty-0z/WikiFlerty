@@ -149,6 +149,7 @@ enum class ReaderSheet(val title: String, val depth: Int) {
     HeroChat("Герой", 1),
     AiHistory("История", 1),
     Ambience("Атмосфера", 1),
+    CharMap("Карта персонажей", 1),
 }
 
 class ReaderUiState {
@@ -1011,6 +1012,7 @@ private fun SheetContent(
                 sheet == ReaderSheet.Heroes -> ReaderSheet.AiChapter
                 sheet == ReaderSheet.HeroChat -> ReaderSheet.Heroes
                 sheet == ReaderSheet.AiHistory -> ReaderSheet.AiChapter
+                sheet == ReaderSheet.CharMap -> ReaderSheet.AiChapter
                 sheet.depth > 0 -> ReaderSheet.Options
                 else -> null
             }
@@ -1065,6 +1067,7 @@ private fun SheetContent(
                 onRecap = { ai.onChapter(AiAction.Recap); onOpen(ReaderSheet.AiChat) },
                 onQuiz = { ai.onChapter(AiAction.Quiz); onOpen(ReaderSheet.AiChat) },
                 onTeacher = { ai.onChapter(AiAction.Teacher); onOpen(ReaderSheet.AiChat) },
+                onMap = { onOpen(ReaderSheet.CharMap) },
                 onHeroes = { onOpen(ReaderSheet.Heroes) },
                 onHistory = { onOpen(ReaderSheet.AiHistory) },
                 onSetup = { onOpen(ReaderSheet.AiSetup) },
@@ -1072,6 +1075,7 @@ private fun SheetContent(
             ReaderSheet.Heroes -> ai.heroes?.let { HeroesContent(it, Modifier.weight(1f, fill = false)) }
             ReaderSheet.HeroChat -> ai.heroes?.let { HeroChatContent(it, Modifier.weight(1f)) }
             ReaderSheet.AiHistory -> ai.history?.let { AiHistoryContent(it, Modifier.weight(1f, fill = false)) }
+            ReaderSheet.CharMap -> ai.charMap?.let { CharacterMapContent(it, Modifier.weight(1f, fill = false)) }
             ReaderSheet.Fonts -> FontList(fonts, settings, onSettingsChange, Modifier.weight(1f, fill = false))
             ReaderSheet.AiMenu -> AiMenuContent(
                 bridge = ai,
@@ -2007,13 +2011,14 @@ private fun JumpContent(jump: JumpInfo, onClose: () -> Unit) {
 }
 
 @Composable
-private fun AiChapterContent(hasAi: Boolean, onRecap: () -> Unit, onQuiz: () -> Unit, onTeacher: () -> Unit, onHeroes: () -> Unit, onHistory: () -> Unit, onSetup: () -> Unit) {
+private fun AiChapterContent(hasAi: Boolean, onRecap: () -> Unit, onQuiz: () -> Unit, onTeacher: () -> Unit, onMap: () -> Unit, onHeroes: () -> Unit, onHistory: () -> Unit, onSetup: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (hasAi) {
             AiChapterButton(AppIcons.Book, "Пересказ главы", "Что было до этого места", onRecap)
             AiChapterButton(AppIcons.Check, "Тест по главе", "5 вопросов, ответы проверит ИИ", onQuiz)
             AiChapterButton(AppIcons.Pencil, "ИИ-Учитель", "Отвечай своими словами, ИИ разберёт", onTeacher)
             AiChapterButton(AppIcons.Voice, "Герои книги", "Поговори с персонажем или автором", onHeroes)
+            AiChapterButton(AppIcons.Graph, "Карта персонажей", "Кто кому кто — без спойлеров", onMap)
             AiChapterButton(AppIcons.Clock, "История", "Прошлые чаты с ИИ по этой книге", onHistory)
             Text(
                 "ИИ видит только прочитанную часть главы",
