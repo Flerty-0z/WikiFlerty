@@ -125,9 +125,93 @@ class LibraryRepository(
         }
     }
 
+    suspend fun addPaper(title: String, author: String, pages: Int, cover: Uri?): Book = withContext(Dispatchers.IO) {
+        val id = UUID.randomUUID().toString()
+        val coverName = cover?.let { saveCover(id, it) }
+        val book = Book(
+            id = id,
+            title = title.trim().ifBlank { "Без названия" },
+            author = author.trim(),
+            fileName = "$id.paper",
+            coverFileName = coverName,
+            addedAt = System.currentTimeMillis(),
+            lastReadAt = null,
+            progress = 0.0,
+            locatorJson = null,
+            fingerprint = "paper:$id",
+            positions = pages.coerceAtLeast(1),
+            paper = true,
+            metaChangedAt = System.currentTimeMillis(),
+        )
+        update { it + book }
+        book
+    }
+
+    suspend fun restorePaper(fingerprint: String, title: String, author: String, progress: Double, lastReadAt: Long, meta: org.json.JSONObject?) {
+        if (_books.value.any { it.fingerprint == fingerprint }) return
+        val id = UUID.randomUUID().toString()
+        val base = Book(
+            id = id,
+            title = title,
+            author = author,
+            fileName = "$id.paper",
+            coverFileName = null,
+            addedAt = System.currentTimeMillis(),
+            lastReadAt = lastReadAt.takeIf { it > 0 },
+            progress = progress,
+            locatorJson = null,
+            fingerprint = fingerprint,
+            paper = true,
+        )
+        val book = meta?.let { base.withMeta(it) } ?: base
+        update { it + book.copy(paper = true) }
+    }
+
+    suspend fun editPaper(bookId: String, title: String, author: String, pages: Int, cover: Uri?) {
+        val coverName = cover?.let { withContext(Dispatchers.IO) { saveCover(bookId, it) } }
+        editMeta(bookId) { b ->
+            val total = pages.coerceAtLeast(1)
+            b.copy(
+                title = title.trim().ifBlank { b.title },
+                author = author.trim(),
+                positions = total,
+                coverFileName = coverName ?: b.coverFileName,
+                progress = if (b.positions > 0) (b.progress * b.positions / total).coerceIn(0.0, 1.0) else b.progress,
+            )
+        }
+    }
+
+    suspend fun setPaperPage(bookId: String, page: Int) {
+        val now = System.currentTimeMillis()
+        editMeta(bookId) { b ->
+            val total = b.positions.coerceAtLeast(1)
+            val p = page.coerceIn(0, total)
+            val done = p >= total
+            b.copy(
+                progress = p.toDouble() / total,
+                lastReadAt = now,
+                status = when {
+                    done -> ReadStatus.Finished
+                    p > 0 && b.status != ReadStatus.Finished -> ReadStatus.Reading
+                    p > 0 -> ReadStatus.Reading
+                    else -> b.status
+                },
+                finishedAt = if (done) (b.finishedAt ?: now) else b.finishedAt,
+            )
+        }
+    }
+
+    private fun saveCover(id: String, uri: Uri): String? = runCatching {
+        val bitmap = context.contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it) } ?: return@runCatching null
+        val name = "$id-${System.currentTimeMillis()}.jpg"
+        File(coversDir, name).outputStream().use { out -> bitmap.scaledToHeight(900).compress(Bitmap.CompressFormat.JPEG, 88, out) }
+        name
+    }.getOrNull()
+
     private val infoDir = File(context.filesDir, "bookinfo").apply { mkdirs() }
 
     suspend fun info(book: Book): BookInfo = withContext(Dispatchers.IO) {
+        if (book.paper) return@withContext BookInfo()
         val cache = File(infoDir, "${book.id}.json")
         runCatching { if (cache.exists()) return@withContext BookInfo.fromJson(org.json.JSONObject(cache.readText())) }
         val info = runCatching {

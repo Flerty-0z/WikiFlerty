@@ -184,7 +184,8 @@ fun BookSheet(
     var showStats by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var rating by remember { mutableStateOf(false) }
-    val inPages = app.libraryPrefs.prefs.value.progressInPages
+    var editPaper by remember { mutableStateOf(false) }
+    val inPages = book.paper || app.libraryPrefs.prefs.value.progressInPages
 
     AppSheet(onDismiss) {
         val close = sheetClose(onDismiss)
@@ -232,17 +233,18 @@ fun BookSheet(
                     BookMainContent(app, book, onRead = {
                         close()
                         onRead()
-                    }, onStats = { showStats = true }, onRate = { rating = true }, onDelete = { confirmDelete = true })
+                    }, onStats = { showStats = true }, onRate = { rating = true }, onDelete = { confirmDelete = true }, onEdit = { editPaper = true })
                 }
             }
         }
     }
 
     if (rating) RatingSheet(book.id, celebrate = false) { rating = false }
+    if (editPaper) PaperBookSheet(book) { editPaper = false }
     if (confirmDelete) {
         ConfirmSheet(
             title = "Удалить книгу?",
-            text = "Книга и заметки к ней удалятся. Словарь и статистика останутся.",
+            text = if (book.paper) "Книга и её сеансы удалятся. Статистика останется." else "Книга и заметки к ней удалятся. Словарь и статистика останутся.",
             confirm = "Удалить",
             onConfirm = onDelete,
             onDismiss = { confirmDelete = false },
@@ -288,8 +290,17 @@ private fun ColumnScope.BookMainContent(
     onStats: () -> Unit,
     onRate: () -> Unit,
     onDelete: () -> Unit,
+    onEdit: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    if (book.paper) {
+        PaperMain(book, onEdit)
+        BookStatusRow(app, book)
+        RateRow(book, onRate)
+        SettingsNavRow(AppIcons.Chart, "Статистика книги", "Время по дням, вклад в цели") { onStats() }
+        DeleteRow("Удалить книгу", onDelete)
+        return
+    }
     var timer by remember { mutableStateOf<Int?>(null) }
     var customTimer by remember { mutableStateOf(false) }
     val readShape = appCorner(18)
@@ -337,6 +348,19 @@ private fun ColumnScope.BookMainContent(
         NumberInputSheet("Таймер чтения", "мин", timer ?: 25, 1..600, onDismiss = { customTimer = false }) { timer = it }
     }
 
+    BookStatusRow(app, book)
+
+    RateRow(book, onRate)
+    BookAbout(app, book)
+
+    SettingsNavRow(AppIcons.Chart, "Статистика книги", "Время, скорость, остаток") { onStats() }
+
+    DeleteRow("Удалить с телефона", onDelete)
+}
+
+@Composable
+private fun BookStatusRow(app: App, book: Book) {
+    val scope = rememberCoroutineScope()
     SettingsGroup(null) {
         PickerRow(
             label = "Статус",
@@ -347,19 +371,17 @@ private fun ColumnScope.BookMainContent(
             selectedId = book.status.id,
         ) { id -> ReadStatus.of(id)?.let { status -> scope.launch { app.library.setStatus(book.id, status) } } }
     }
+}
 
-    RateRow(book, onRate)
-    BookAbout(app, book)
-
-    SettingsNavRow(AppIcons.Chart, "Статистика книги", "Время, скорость, остаток") { onStats() }
-
+@Composable
+private fun DeleteRow(label: String, onDelete: () -> Unit) {
     val shape = appCorner(16)
     Box(
         Modifier.fillMaxWidth().heightIn(min = 50.dp)
             .liveClick(shape, sound = FeedbackSound.Close) { onDelete() }
             .border(1.dp, Danger.copy(alpha = 0.45f), shape),
         contentAlignment = Alignment.Center,
-    ) { Text("Удалить с телефона", color = Danger, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+    ) { Text(label, color = Danger, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
 }
 
 @Composable

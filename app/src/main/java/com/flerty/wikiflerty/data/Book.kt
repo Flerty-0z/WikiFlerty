@@ -34,6 +34,7 @@ data class Book(
     val rating: Float? = null,
     val review: String = "",
     val ratedAt: Long = 0,
+    val paper: Boolean = false,
 ) {
     val statsKey: String get() = fingerprint ?: id
 
@@ -47,6 +48,7 @@ data class Book(
         put("rating", rating?.toDouble() ?: -1.0)
         put("review", review)
         put("ratedAt", ratedAt)
+        put("paper", paper)
     }
 
     fun withMeta(j: JSONObject): Book = copy(
@@ -63,6 +65,7 @@ data class Book(
         },
         review = if (j.has("review")) j.optString("review") else review,
         ratedAt = j.optLong("ratedAt", ratedAt),
+        paper = j.optBoolean("paper", paper),
     )
 
     fun toJson(): JSONObject = metaJson().apply {

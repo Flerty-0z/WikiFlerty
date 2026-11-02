@@ -96,7 +96,9 @@ private fun baseFilters(): List<LibraryFilter> = listOf(
 )
 
 fun progressLabel(book: Book, inPages: Boolean): String =
-    if (inPages && book.positions > 0) {
+    if (book.paper && book.positions > 0) {
+        "${Math.round(book.progress * book.positions).toInt().coerceIn(0, book.positions)}/${book.positions}"
+    } else if (inPages && book.positions > 0) {
         "${(book.progress * book.positions).toInt().coerceIn(1, book.positions)}/${book.positions}"
     } else {
         "${(book.progress * 100).toInt()}%"
@@ -481,6 +483,13 @@ private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean
         }
         book.rating?.takeIf { it > 0f }?.let { RatingBadge(it, Modifier.align(Alignment.TopStart).padding(5.dp), small) }
         if (showStatus) StatusPill(book.status, small, Modifier.align(Alignment.BottomEnd).padding(5.dp))
+        if (book.paper) {
+            Box(
+                Modifier.align(Alignment.BottomStart).padding(if (showStatus) 5.dp else 3.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
+                    .background(Color(0xB0101114)),
+                contentAlignment = Alignment.Center,
+            ) { Icon(AppIcons.Pages, "Бумажная книга", tint = Color.White, modifier = Modifier.size(if (small) 12.dp else 14.dp)) }
+        }
         if (book.favorite) {
             Box(
                 Modifier.align(Alignment.TopEnd).padding(5.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)

@@ -88,6 +88,7 @@ object Backup {
             put("achievements", app.achievements.toJson())
             put("freezes", app.streakFreeze.toJson())
             app.pet.toJson()?.let { put("pet", it) }
+            put("paperSessions", app.paper.toJson())
             put("deletedNotes", JSONObject(state.deletedNotes))
             put("deletedWords", JSONObject(state.deletedWords))
             put("deletedBookmarks", JSONObject(state.deletedBookmarks))
@@ -168,6 +169,10 @@ object Backup {
         remote.optJSONArray("books").objects().forEach { j ->
             val fb = runCatching { ForeignBook.fromJson(j) }.getOrNull() ?: return@forEach
             val local = books.firstOrNull { it.fingerprint == fb.fingerprint }
+            if (local == null && fb.fingerprint.startsWith("paper:")) {
+                app.library.restorePaper(fb.fingerprint, fb.title, fb.author, fb.progress, fb.lastReadAt, fb.meta?.let { JSONObject(it) })
+                return@forEach
+            }
             if (local != null) {
                 if (fb.lastReadAt > (local.lastReadAt ?: 0L)) {
                     app.library.applyProgress(local.id, fb.locatorJson, fb.progress, fb.lastReadAt)
@@ -187,6 +192,7 @@ object Backup {
         app.achievements.merge(remote.optJSONObject("achievements"))
         app.streakFreeze.merge(remote.optJSONArray("freezes"))
         app.pet.restore(remote.optJSONObject("pet"))
+        app.paper.merge(remote.optJSONArray("paperSessions"))
 
         var settingsApplied = false
         val remoteSettings = remote.optJSONObject("settings")

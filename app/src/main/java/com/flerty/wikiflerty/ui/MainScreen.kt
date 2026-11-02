@@ -149,6 +149,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
         "Привет! Сегодня $todayMinutes мин"
     }
     var addMenu by remember { mutableStateOf(false) }
+    var paperSheet by remember { mutableStateOf(false) }
     SideDrawer(
         open = drawerOpen && !bottomNav,
         enabled = !bottomNav,
@@ -261,8 +262,13 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                         section = Section.Library
                         libraryControls.scanFolder = true
                     },
+                    onPaper = {
+                        section = Section.Library
+                        paperSheet = true
+                    },
                 )
             }
+            if (paperSheet) PaperBookSheet(null) { paperSheet = false }
             StartupPrompts()
             StreakRescue()
             AchievementToast()
@@ -560,10 +566,10 @@ private fun BottomItem(item: Section, label: String, current: Section, onSelect:
 }
 
 @Composable
-private fun AddBookSheet(onDismiss: () -> Unit, onFile: () -> Unit, onScan: () -> Unit) {
+private fun AddBookSheet(onDismiss: () -> Unit, onFile: () -> Unit, onScan: () -> Unit, onPaper: () -> Unit) {
     AppSheet(onDismiss = onDismiss, title = "Добавить книгу") {
         val close = sheetClose(onDismiss)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             AddChoice(AppIcons.Book, "Файл", Modifier.weight(1f)) {
                 close()
                 onFile()
@@ -571,6 +577,10 @@ private fun AddBookSheet(onDismiss: () -> Unit, onFile: () -> Unit, onScan: () -
             AddChoice(AppIcons.FolderSearch, "Найти на телефоне", Modifier.weight(1f)) {
                 close()
                 onScan()
+            }
+            AddChoice(AppIcons.Pages, "Бумажная", Modifier.weight(1f)) {
+                close()
+                onPaper()
             }
         }
     }

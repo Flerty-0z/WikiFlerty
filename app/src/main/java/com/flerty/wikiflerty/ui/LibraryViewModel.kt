@@ -77,6 +77,10 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     val notes: StateFlow<List<Note>> = app.notes.notes
 
     fun open(book: Book, startAt: Locator? = null) {
+        if (book.paper) {
+            _messages.tryEmit("Это бумажная книга — отмечай чтение в её карточке")
+            return
+        }
         viewModelScope.launch {
             _busy.value = "Открываю…"
             app.prepareReader(book, startAt)
@@ -124,6 +128,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             app.library.delete(book)
             app.notes.deleteForBook(book.id)
             app.bookmarks.deleteForBook(book.id)
+            if (book.paper) app.paper.removeBook(book)
             _messages.emit("Удалено: ${book.title}")
         }
     }

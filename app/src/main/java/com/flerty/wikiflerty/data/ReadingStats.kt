@@ -29,6 +29,19 @@ class ReadingStatsStore(context: Context) {
     }
 
     @Synchronized
+    fun adjust(day: LocalDate, bookKey: String, ms: Long, pages: Int) {
+        if (ms == 0L && pages == 0) return
+        val key = day.toString()
+        val map = _days.value[key].orEmpty()
+        val old = map[bookKey] ?: DayEntry()
+        val next = DayEntry((old.ms + ms).coerceAtLeast(0), (old.pages + pages).coerceAtLeast(0))
+        val updated = if (next.ms == 0L && next.pages == 0) map - bookKey else map + (bookKey to next)
+        _days.value = if (updated.isEmpty()) _days.value - key else _days.value + (key to updated)
+        dirty = true
+        save()
+    }
+
+    @Synchronized
     fun save() {
         if (!dirty) return
         dirty = false

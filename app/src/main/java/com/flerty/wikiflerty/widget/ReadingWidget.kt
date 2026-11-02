@@ -48,7 +48,7 @@ class ReadingWidget : AppWidgetProvider() {
         private fun update(context: Context, manager: AppWidgetManager, ids: IntArray) {
             val app = context.applicationContext as App
             val book = app.library.books.value
-                .filter { it.lastReadAt != null }
+                .filter { it.lastReadAt != null && !it.paper }
                 .maxByOrNull { it.lastReadAt ?: 0L }
             val views = RemoteViews(context.packageName, R.layout.widget_reading)
 

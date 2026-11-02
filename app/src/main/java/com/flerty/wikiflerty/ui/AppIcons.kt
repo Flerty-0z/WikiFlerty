@@ -153,6 +153,7 @@ object AppIcons {
             "M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3",
         )
     }
+    val Camera by lazy { icon("camera", "M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z", "M12 9.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7z") }
     val Pencil by lazy { icon("pencil", "M4 20h4L19 9l-4-4L4 16v4z", "M13.5 6.5l4 4") }
     val Download by lazy { icon("download", "M12 4v11", "M7.5 10.5L12 15l4.5-4.5", "M5 19h14") }
     val Graph by lazy { icon("graph", "M12 3.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5z", "M5 15.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5z", "M19 15.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5z", "M10.8 8.2L6.2 15.8", "M13.2 8.2l4.6 7.6", "M7.5 18h9") }
