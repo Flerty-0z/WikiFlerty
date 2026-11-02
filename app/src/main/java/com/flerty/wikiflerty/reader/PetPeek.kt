@@ -25,7 +25,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.flerty.wikiflerty.App
-import com.flerty.wikiflerty.pet.PetStage
 import com.flerty.wikiflerty.ui.AppColors
 import com.flerty.wikiflerty.ui.PetCanvas
 import kotlinx.coroutines.delay
@@ -58,6 +57,6 @@ fun PetPeek(modifier: Modifier = Modifier) {
         ) {
             Text("+$gained ✨", color = AppColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
         }
-        PetCanvas(p.species.id, if (p.stage == PetStage.Egg) PetStage.Egg else p.stage, app.pet.look(app.pet.mood(p)), 76.dp)
+        PetCanvas(p.species.id, app.pet.look(app.pet.mood(p)), 76.dp)
     }
 }

@@ -11,6 +11,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,12 +60,11 @@ import com.flerty.wikiflerty.pet.PetArt
 import com.flerty.wikiflerty.pet.PetLevels
 import com.flerty.wikiflerty.pet.PetLook
 import com.flerty.wikiflerty.pet.PetSpecies
-import com.flerty.wikiflerty.pet.PetStage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun PetCanvas(species: String, stage: PetStage, look: PetLook, size: Dp, modifier: Modifier = Modifier, hatching: Boolean = false, onTap: (() -> Unit)? = null) {
+fun PetCanvas(species: String, look: PetLook, size: Dp, modifier: Modifier = Modifier, onTap: (() -> Unit)? = null) {
     val transition = rememberInfiniteTransition(label = "pet")
     val breathe by transition.animateFloat(
         0f,
@@ -96,21 +97,113 @@ fun PetCanvas(species: String, stage: PetStage, look: PetLook, size: Dp, modifie
             .graphicsLayer { translationY = hop.value * size.toPx() * 0.12f },
     ) {
         drawIntoCanvas { c ->
-            PetArt.draw(c.nativeCanvas, species, stage, look, this.size.minDimension, blink.value, kotlin.math.sin(breathe), hatching)
+            PetArt.draw(c.nativeCanvas, species, look, this.size.minDimension, blink.value, kotlin.math.sin(breathe))
         }
     }
 }
 
 @Composable
-private fun StatBar(emoji: String, label: String, value: Float, color: Color) {
-    val v by animateFloatAsState((value / 100f).coerceIn(0f, 1f), Motion.tween(700), label = "bar")
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(emoji, fontSize = 15.sp)
-        Text(label, color = AppColors.Muted, fontSize = 12.5.sp, maxLines = 1, modifier = Modifier.padding(end = 2.dp).fillMaxWidth(0.32f))
-        Box(Modifier.weight(1f).height(8.dp).clip(CircleShape).background(AppColors.Line)) {
-            Box(Modifier.fillMaxHeight().fillMaxWidth(v).clip(CircleShape).background(color))
+private fun EmojiBadge(emoji: String, color: Color) {
+    Box(
+        Modifier
+            .size(34.dp)
+            .clip(appCorner(11))
+            .background(Brush.linearGradient(listOf(color.copy(alpha = 0.28f), color.copy(alpha = 0.08f))))
+            .border(1.dp, color.copy(alpha = 0.22f), appCorner(11)),
+        contentAlignment = Alignment.Center,
+    ) { Text(emoji, fontSize = 17.sp) }
+}
+
+@Composable
+private fun WellTile(emoji: String, label: String, value: String, level: Float?, color: Color, info: String) {
+    var open by remember { mutableStateOf(false) }
+    val v by animateFloatAsState(((level ?: 0f) / 100f).coerceIn(0f, 1f), Motion.tween(700), label = "bar")
+    val shape = appCorner(18)
+    Column(
+        Modifier.fillMaxWidth().fieldSurface(shape).padding(horizontal = 12.dp, vertical = 10.dp).animateContentSize(Motion.tween(240)),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            EmojiBadge(emoji, color)
+            Text(label, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Box(
+                Modifier
+                    .size(24.dp)
+                    .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.85f) { open = !open }
+                    .background(if (open) color.copy(alpha = 0.18f) else Color.Transparent, CircleShape)
+                    .border(1.dp, if (open) color.copy(alpha = 0.6f) else AppColors.Line, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) { Text("?", color = if (open) color else AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold) }
+            Spacer(Modifier.weight(1f))
+            Text(value, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
         }
-        Text("${value.toInt()}", color = AppColors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        if (level != null) {
+            Box(Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(AppColors.Line)) {
+                Box(Modifier.fillMaxHeight().fillMaxWidth(v).clip(CircleShape).background(color))
+            }
+        }
+        if (open) {
+            Text(
+                info,
+                color = AppColors.Muted,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(color.copy(alpha = 0.08f), appCorner(12))
+                    .border(1.dp, color.copy(alpha = 0.25f), appCorner(12))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            )
+        }
+    }
+}
+
+private class XpRule(val emoji: String, val title: String, val text: String, val value: String, val color: Long)
+
+private val XpRules = listOf(
+    XpRule("📖", "Страница", "За каждую прочитанную страницу", "+1", 0xFFF2A65A),
+    XpRule("📑", "Глава", "Когда дочитываешь главу до конца", "+15", 0xFFF7D774),
+    XpRule("📕", "Книга", "Когда отмечаешь книгу прочитанной", "+100", 0xFFFF8A80),
+    XpRule("🎯", "Цель дня", "Когда выполняешь дневную цель по времени", "+20", 0xFF7ED3A0),
+    XpRule("🔥", "Серия дней", "Опыт за страницы растёт на 2% за каждый день серии, максимум ×1.5", "×1.5", 0xFFFFA25A),
+    XpRule("📝", "Заметка", "За каждую заметку или выделение", "+3", 0xFF9FC4FF),
+    XpRule("🔤", "Слово", "За каждое слово, добавленное в словарь", "+2", 0xFFB9A2FF),
+    XpRule("🃏", "Карточка", "За каждую повторённую карточку", "+1", 0xFF7DD3FC),
+    XpRule("🎓", "Учитель", "За верный ответ ИИ-учителю, за почти верный — +2", "+5", 0xFFFFC94D),
+    XpRule("🏆", "Достижение", "За каждое новое достижение", "+25", 0xFFFFD76A),
+)
+
+@Composable
+private fun XpGuideSheet(onDismiss: () -> Unit) {
+    AppSheet(onDismiss, title = "Как получать опыт") {
+        Text(
+            "Опыт копится от чтения и занятий с книгами. Уровень — это просто показатель твоей активности.",
+            color = AppColors.Muted,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+        )
+        XpRules.forEach { rule ->
+            val color = Color(rule.color)
+            Row(
+                Modifier.fillMaxWidth().fieldSurface(appCorner(16)).padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                EmojiBadge(rule.emoji, color)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text(rule.title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    Text(rule.text, color = AppColors.Faint, fontSize = 12.sp, lineHeight = 16.sp)
+                }
+                Text(
+                    rule.value,
+                    color = AppColors.Accent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    modifier = Modifier.clip(CircleShape).background(AppColors.AccentTint).border(1.dp, AppColors.Accent.copy(alpha = 0.35f), CircleShape).padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+            }
+        }
     }
 }
 
@@ -148,15 +241,15 @@ fun PetCard(onOpen: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         if (p == null) {
-            PetCanvas("cat", PetStage.Egg, PetLook.Happy, 64.dp)
+            PetCanvas("cat", PetLook.Happy, 64.dp)
             Column(Modifier.weight(1f)) {
                 Text("Заведи питомца", color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
-                Text("Он растёт, пока ты читаешь", color = AppColors.Muted, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("Он радуется, когда ты читаешь", color = AppColors.Muted, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Icon(AppIcons.Forward, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
         } else {
             val mood = app.pet.mood(p)
-            PetCanvas(p.species.id, p.stage, app.pet.look(mood), 72.dp, hatching = p.stage == PetStage.Egg && p.xp >= PetLevels.total(1) * 2 / 3)
+            PetCanvas(p.species.id, app.pet.look(mood), 72.dp)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(p.name, color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(mood.text, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -175,7 +268,7 @@ fun AdoptSheet(onDismiss: () -> Unit) {
     AppSheet(onDismiss, title = "Твой питомец") {
         val close = sheetClose(onDismiss)
         Text(
-            "Выбери зверька один раз — он будет с тобой всегда и расти от твоего чтения.",
+            "Выбери зверька один раз — он будет с тобой всегда и радоваться твоему чтению.",
             color = AppColors.Muted,
             fontSize = 13.sp,
             lineHeight = 18.sp,
@@ -193,7 +286,7 @@ fun AdoptSheet(onDismiss: () -> Unit) {
                             .padding(vertical = 8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        PetCanvas(s.id, PetStage.Baby, PetLook.Happy, 76.dp)
+                        PetCanvas(s.id, PetLook.Happy, 76.dp)
                         Text(s.title, color = if (on) AppColors.Accent else AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                     }
                 }
@@ -226,7 +319,7 @@ fun AdoptSheet(onDismiss: () -> Unit) {
                 }
                 .then(if (ready) Modifier.accentHighlight(shape) else Modifier.border(1.dp, AppColors.Line, shape)),
             contentAlignment = Alignment.Center,
-        ) { Text("Завести 🥚", color = if (ready) accentContent else AppColors.Faint, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold) }
+        ) { Text("Завести", color = if (ready) accentContent else AppColors.Faint, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold) }
     }
 }
 
@@ -242,6 +335,7 @@ fun PetPage(modifier: Modifier = Modifier, onBack: () -> Unit) {
         }
     }
     var renaming by remember { mutableStateOf(false) }
+    var guide by remember { mutableStateOf(false) }
     var hearts by remember { mutableStateOf(0) }
     val pet = petState ?: run {
         LaunchedEffect(Unit) { onBack() }
@@ -266,13 +360,7 @@ fun PetPage(modifier: Modifier = Modifier, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Box(contentAlignment = Alignment.TopCenter) {
-                PetCanvas(
-                    pet.species.id,
-                    pet.stage,
-                    app.pet.look(mood),
-                    200.dp,
-                    hatching = pet.stage == PetStage.Egg && pet.xp >= PetLevels.total(1) * 2 / 3,
-                ) { hearts++ }
+                PetCanvas(pet.species.id, app.pet.look(mood), 200.dp) { hearts++ }
                 if (hearts > 0) {
                     val rise = remember(hearts) { Animatable(0f) }
                     LaunchedEffect(hearts) { rise.animateTo(1f, tween(900)) }
@@ -294,88 +382,29 @@ fun PetPage(modifier: Modifier = Modifier, onBack: () -> Unit) {
                     contentAlignment = Alignment.Center,
                 ) { Icon(AppIcons.Pencil, "Переименовать", tint = AppColors.Faint, modifier = Modifier.size(15.dp)) }
             }
-            Text("${pet.species.title} · ${pet.stage.title}", color = AppColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text(pet.species.title, color = AppColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             Text(mood.text, color = AppColors.Muted, fontSize = 13.sp, textAlign = TextAlign.Center)
             Box(Modifier.padding(top = 6.dp)) { XpBar(pet) }
         }
 
-        SettingsGroup("Самочувствие") {
-            Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatBar("🍎", "Сытость", pet.food, Color(0xFFF2A65A))
-                StatBar("😊", "Настроение", pet.mood, Color(0xFFF7D774))
-                StatBar("⚡", "Энергия", pet.energy, Color(0xFF7DD3FC))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("🧠", fontSize = 15.sp)
-                    Text("Мудрость", color = AppColors.Muted, fontSize = 12.5.sp, modifier = Modifier.weight(1f))
-                    Text(
-                        "${pet.counters.books} " + StatsCalc.plural(pet.counters.books, "книга", "книги", "книг"),
-                        color = AppColors.Text,
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-                Text(
-                    "Сытость — от прочитанных страниц, настроение — от заметок, слов, карточек и глав. Ночью питомец спит, а при заморозке серии уходит в отпуск и не скучает.",
-                    color = AppColors.Faint,
-                    fontSize = 11.5.sp,
-                    lineHeight = 16.sp,
-                )
-            }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SectionHeader("Самочувствие")
+            WellTile("🍎", "Сытость", "${pet.food.toInt()}", pet.food, Color(0xFFF2A65A), "Растёт от прочитанных страниц и законченных книг. Без чтения питомец понемногу голодает.")
+            WellTile("😊", "Настроение", "${pet.mood.toInt()}", pet.mood, Color(0xFFF7D774), "Поднимают заметки, новые слова, карточки, главы и достижения. При заморозке серии питомец уходит в отпуск и не скучает.")
+            WellTile("⚡", "Энергия", "${pet.energy.toInt()}", pet.energy, Color(0xFF7DD3FC), "Восстанавливается сама, ночью быстрее — с 23:00 до 7:00 питомец спит. Падает, если читать с часу до пяти ночи.")
+            WellTile(
+                "🧠",
+                "Мудрость",
+                "${pet.counters.books} " + StatsCalc.plural(pet.counters.books, "книга", "книги", "книг"),
+                null,
+                Color(0xFFFF9AA8),
+                "Сколько книг вы прочитали вместе. Каждая книга даёт много опыта.",
+            )
         }
 
-        SettingsGroup("Рост") {
-            Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                PetStage.entries.forEach { st ->
-                    val reached = pet.level >= st.fromLevel
-                    val current = st == pet.stage
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Box(
-                            Modifier.size(42.dp).clip(appCorner(12)).background(if (current) AppColors.AccentTint else AppColors.Line.copy(alpha = 0.4f)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            PetCanvas(pet.species.id, st, PetLook.Happy, 38.dp, modifier = Modifier.graphicsLayer { alpha = if (reached) 1f else 0.25f })
-                        }
-                        Text(st.title, color = if (current) AppColors.Accent else if (reached) AppColors.Text else AppColors.Faint, fontSize = 14.sp, fontWeight = if (current) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.weight(1f))
-                        Text(if (st.fromLevel == 0) "старт" else "ур. ${st.fromLevel}", color = AppColors.Faint, fontSize = 12.sp)
-                    }
-                }
-            }
-        }
-
-        SettingsGroup("Как растить") {
-            Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(
-                    "📖 Страница" to "+1",
-                    "📑 Глава" to "+15",
-                    "📕 Книга" to "+100",
-                    "🎯 Цель дня" to "+20",
-                    "🔥 Серия дней" to "×1.02 за день, до ×1.5",
-                    "📝 Заметка · слово" to "+3 · +2",
-                    "🃏 Карточка" to "+1",
-                    "✎ Верный ответ учителю" to "+5",
-                    "🏆 Достижение" to "+25",
-                ).forEach { (a, b) ->
-                    Row {
-                        Text(a, color = AppColors.Text, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                        Text(b, color = AppColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-
-        if (pet.log.isNotEmpty()) {
-            SettingsGroup("Недавно") {
-                Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    pet.log.take(12).forEach { l ->
-                        Row {
-                            Text(l.label, color = AppColors.Text, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                            if (l.xp > 0) Text("+${l.xp}", color = AppColors.Good, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-        }
+        SettingsNavRow(AppIcons.Info, "Как получать опыт", "Уровень показывает, насколько ты активен") { guide = true }
     }
+    if (guide) XpGuideSheet { guide = false }
     if (renaming) RenameSheet(pet.name) { renaming = false }
 }
 

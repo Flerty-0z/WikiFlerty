@@ -36,18 +36,6 @@ enum class PetSpecies(val id: String, val title: String, val hint: String) {
     }
 }
 
-enum class PetStage(val title: String, val fromLevel: Int) {
-    Egg("Яйцо", 0),
-    Baby("Малыш", 1),
-    Teen("Подросток", 5),
-    Adult("Взрослый", 10),
-    Legend("Легендарный", 20);
-
-    companion object {
-        fun of(level: Int) = entries.last { level >= it.fromLevel }
-    }
-}
-
 data class PetCounters(
     val pages: Long = 0,
     val books: Int = 0,
@@ -82,7 +70,6 @@ data class Pet(
     val log: List<PetLog> = emptyList(),
 ) {
     val level: Int get() = PetLevels.level(xp)
-    val stage: PetStage get() = PetStage.of(level)
 
     fun toJson(): JSONObject = JSONObject()
         .put("species", species.id)
@@ -275,12 +262,7 @@ class PetManager(private val app: App) {
 
     private fun levelUps(from: Int, to: Int, now: Long): List<PetLog> {
         if (to <= from) return emptyList()
-        val stageFrom = PetStage.of(from)
-        val stageTo = PetStage.of(to)
-        return listOfNotNull(
-            PetLog(now, "Уровень $to ⭐", 0),
-            if (stageTo != stageFrom) PetLog(now, if (stageFrom == PetStage.Egg) "Вылупился! 🐣" else "Вырос: ${stageTo.title}", 0) else null,
-        )
+        return listOf(PetLog(now, "Уровень $to ⭐", 0))
     }
 
     fun mood(p: Pet, now: LocalDateTime = LocalDateTime.now()): PetMood = when {

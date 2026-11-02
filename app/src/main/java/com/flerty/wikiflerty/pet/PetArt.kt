@@ -174,15 +174,8 @@ object PetArt {
 
     )
 
-    private val eggColors = mapOf(
-        "cat" to 0xFFF2A65A.toInt(), "dog" to 0xFFD9A066.toInt(), "owl" to 0xFF9B7653.toInt(),
-        "parrot" to 0xFF5CC46B.toInt(), "raccoon" to 0xFF9AA0A8.toInt(), "bear" to 0xFFA8744A.toInt(),
-    )
     private val mouthY = mapOf("cat" to 55f, "dog" to 56f, "raccoon" to 55f, "bear" to 56f)
 
-    private val egg by lazy { PathParser.createPathFromPathData("M50 18 C68 18 78 50 78 66 C78 84 66 94 50 94 C34 94 22 84 22 66 C22 50 32 18 50 18 Z") }
-    private val crack by lazy { PathParser.createPathFromPathData("M34 50 L40 46 L44 52 L50 47 L55 53 L61 48 L66 52") }
-    private val crown by lazy { PathParser.createPathFromPathData("M38 20 L40 9 L45 15 L50 6 L55 15 L60 9 L62 20 Z") }
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -193,47 +186,24 @@ object PetArt {
     private val oval = RectF()
     private val tmp = Path()
 
-    private fun scales(stage: PetStage): Triple<Float, Float, Float> = when (stage) {
-        PetStage.Baby -> Triple(0.72f, 1.14f, 0.88f)
-        PetStage.Teen -> Triple(0.86f, 1.06f, 1f)
-        else -> Triple(1f, 1f, 1f)
-    }
-
     @Synchronized
     fun draw(
         canvas: Canvas,
         species: String,
-        stage: PetStage,
         look: PetLook,
         size: Float,
         blink: Float = 1f,
         breathe: Float = 0f,
-        hatching: Boolean = false,
     ) {
         canvas.save()
         canvas.scale(size / 100f, size / 100f)
-        if (stage == PetStage.Egg) {
-            drawEgg(canvas, species, hatching, breathe)
-            canvas.restore()
-            return
-        }
-        val (whole, head, body) = scales(stage)
-        if (stage == PetStage.Legend) {
-            fill.shader = RadialGradient(50f, 55f, 52f, intArrayOf(0x88FFD76A.toInt(), 0x00FFD76A), null, Shader.TileMode.CLAMP)
-            canvas.drawRect(-10f, -10f, 110f, 110f, fill)
-            fill.shader = null
-        }
         canvas.save()
-        canvas.scale(whole, whole * (1f + 0.018f * breathe), 50f, 95f)
+        canvas.scale(1f, 1f + 0.018f * breathe, 50f, 95f)
         val sleep = look == PetLook.Sleep
         val tired = look == PetLook.Tired
         val sad = look == PetLook.Sad
         for (s in shapes[species] ?: shapes.getValue("cat")) {
             canvas.save()
-            when (s.tag) {
-                "head", "eye", "shine", "cheek" -> canvas.scale(head, head, 50f, 60f)
-                "body" -> canvas.scale(body, body, 50f, 92f)
-            }
             val e = s.ellipse
             if (s.tag == "eye" && e != null && (sleep || tired)) {
                 val (cx, cy, rx, ry) = listOf(e[0], e[1], e[2], e[3])
@@ -264,7 +234,6 @@ object PetArt {
         }
         mouthY[species]?.let { m ->
             canvas.save()
-            canvas.scale(head, head, 50f, 60f)
             line.color = 0xFF2B2320.toInt()
             line.strokeWidth = 1.6f
             tmp.reset()
@@ -277,23 +246,6 @@ object PetArt {
             canvas.restore()
         }
         canvas.restore()
-        if (stage == PetStage.Legend) {
-            fill.color = 0xFFFFC93C.toInt()
-            canvas.drawPath(crown, fill)
-            line.color = 0xFFC98A12.toInt()
-            line.strokeWidth = 1f
-            canvas.drawPath(crown, line)
-            fill.color = 0xFFFF5E7A.toInt()
-            canvas.drawCircle(50f, 15f, 1.8f, fill)
-            fill.color = 0xFFFFE7A0.toInt()
-            listOf(14f to 30f, 86f to 24f, 90f to 70f, 10f to 76f).forEachIndexed { i, (a, b) ->
-                val k = 0.7f + 0.3f * sin(breathe * 3f + i)
-                tmp.reset()
-                tmp.moveTo(a, b - 4f * k); tmp.lineTo(a + 1.2f, b - 1.2f); tmp.lineTo(a + 4f * k, b); tmp.lineTo(a + 1.2f, b + 1.2f)
-                tmp.lineTo(a, b + 4f * k); tmp.lineTo(a - 1.2f, b + 1.2f); tmp.lineTo(a - 4f * k, b); tmp.lineTo(a - 1.2f, b - 1.2f); tmp.close()
-                canvas.drawPath(tmp, fill)
-            }
-        }
         if (sleep) {
             fill.color = 0xFFBFD3FF.toInt()
             fill.textSize = 10f
@@ -302,33 +254,6 @@ object PetArt {
             fill.textSize = 14f
             canvas.drawText("Z", 82f, 16f, fill)
             fill.isFakeBoldText = false
-        }
-        canvas.restore()
-    }
-
-    private fun drawEgg(canvas: Canvas, species: String, hatching: Boolean, wobble: Float) {
-        canvas.save()
-        canvas.rotate(if (hatching) 6f * sin(wobble * 6f) else 2f * sin(wobble), 50f, 94f)
-        fill.color = 0xFFFFF4E2.toInt()
-        canvas.drawPath(egg, fill)
-        canvas.save()
-        canvas.clipPath(egg)
-        fill.color = eggColors[species] ?: 0xFFF2A65A.toInt()
-        listOf(floatArrayOf(40f, 40f, 7f, 9f), floatArrayOf(62f, 52f, 9f, 7f), floatArrayOf(44f, 72f, 10f, 8f), floatArrayOf(64f, 80f, 6f, 5f), floatArrayOf(30f, 58f, 5f, 6f)).forEach { o ->
-            oval.set(o[0] - o[2], o[1] - o[3], o[0] + o[2], o[1] + o[3])
-            canvas.drawOval(oval, fill)
-        }
-        fill.color = 0x14000000
-        oval.set(36f, 44f, 80f, 96f)
-        canvas.drawOval(oval, fill)
-        canvas.restore()
-        line.color = 0x22000000
-        line.strokeWidth = 1.5f
-        canvas.drawPath(egg, line)
-        if (hatching) {
-            line.color = 0xFF5A4A3A.toInt()
-            line.strokeWidth = 1.6f
-            canvas.drawPath(crack, line)
         }
         canvas.restore()
     }
@@ -349,9 +274,9 @@ object PetArt {
         }
     }
 
-    fun bitmap(species: String, stage: PetStage, look: PetLook, px: Int): android.graphics.Bitmap {
+    fun bitmap(species: String, look: PetLook, px: Int): android.graphics.Bitmap {
         val bmp = android.graphics.Bitmap.createBitmap(px, px, android.graphics.Bitmap.Config.ARGB_8888)
-        draw(Canvas(bmp), species, stage, look, px.toFloat())
+        draw(Canvas(bmp), species, look, px.toFloat())
         return bmp
     }
 }

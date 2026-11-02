@@ -3,7 +3,23 @@ package com.flerty.wikiflerty.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.runtime.key
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -203,18 +219,29 @@ fun PaperMain(book: Book, onEdit: () -> Unit) {
     val current = sessions.maxOfOrNull { it.toPage } ?: 0
     val mine = watch?.takeIf { it.bookId == book.id }
 
-    if (mine != null) {
+    AnimatedContent(
+        targetState = mine,
+        contentKey = { it != null },
+        transitionSpec = {
+            val enter = fadeIn(Motion.fade(260)) + scaleIn(Motion.tween(320), initialScale = 0.9f)
+            val exit = fadeOut(Motion.fade(160)) + scaleOut(Motion.tween(200), targetScale = 0.94f)
+            (enter togetherWith exit).using(SizeTransform(clip = false) { _, _ -> Motion.tween(320) })
+        },
+        label = "paper-session",
+    ) { shown ->
+    if (shown != null) {
         StopwatchCard(
-            mine,
-            onToggle = { if (mine.running) app.paper.pauseStopwatch() else app.paper.startStopwatch(book.id) },
+            shown,
+            onToggle = { if (shown.running) app.paper.pauseStopwatch() else app.paper.startStopwatch(book.id) },
             onStop = {
-                val elapsed = mine.elapsed()
+                val elapsed = shown.elapsed()
                 app.paper.pauseStopwatch()
-                form = SessionForm(null, current, current, mine.startedAt, elapsed, fromStopwatch = true)
+                form = SessionForm(null, current, current, shown.startedAt, elapsed, fromStopwatch = true)
             },
             onCancel = { app.paper.stopStopwatch() },
         )
     } else {
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val shape = appCorner(18)
             Row(
@@ -247,6 +274,8 @@ fun PaperMain(book: Book, onEdit: () -> Unit) {
         if (watch != null) {
             Text("Сейчас идёт сеанс другой книги — новый сеанс его заменит", color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
         }
+      }
+    }
     }
 
     if (sessions.isNotEmpty()) {
@@ -363,8 +392,23 @@ private fun StopwatchCard(watch: com.flerty.wikiflerty.data.Stopwatch, onToggle:
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(if (watch.running) "● Идёт сеанс чтения" else "Пауза", color = if (watch.running) AppColors.Accent else AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-        Text(clock(watch.elapsed(now)), color = AppColors.Text, fontSize = 44.sp, fontWeight = FontWeight.Black, maxLines = 1)
+        val pulse = rememberInfiniteTransition(label = "pulse").animateFloat(
+            1f,
+            0.25f,
+            infiniteRepeatable(tween(700), RepeatMode.Reverse),
+            label = "dot",
+        )
+        AnimatedContent(
+            targetState = watch.running,
+            transitionSpec = { fadeIn(Motion.fade(220)) togetherWith fadeOut(Motion.fade(140)) },
+            label = "watch-state",
+        ) { running ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (running) Box(Modifier.size(7.dp).graphicsLayer { alpha = pulse.value }.background(AppColors.Accent, CircleShape))
+                Text(if (running) "Идёт сеанс чтения" else "Пауза", color = if (running) AppColors.Accent else AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        RollingClock(clock(watch.elapsed(now)), Modifier.graphicsLayer { alpha = if (watch.running) 1f else 0.6f + 0.4f * pulse.value })
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier.size(48.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onCancel).border(1.dp, AppColors.Line, CircleShape),
@@ -373,13 +417,41 @@ private fun StopwatchCard(watch: com.flerty.wikiflerty.data.Stopwatch, onToggle:
             Box(
                 Modifier.size(64.dp).liveClick(CircleShape, sound = FeedbackSound.Toggle, onClick = onToggle).accentHighlight(CircleShape),
                 contentAlignment = Alignment.Center,
-            ) { Icon(if (watch.running) AppIcons.Pause else AppIcons.Play, if (watch.running) "Пауза" else "Продолжить", tint = accentContent, modifier = Modifier.size(28.dp)) }
+            ) {
+                AnimatedContent(
+                    targetState = watch.running,
+                    transitionSpec = { (fadeIn(Motion.fade(180)) + scaleIn(Motion.tween(220), initialScale = 0.5f)) togetherWith (fadeOut(Motion.fade(120)) + scaleOut(Motion.tween(160), targetScale = 0.5f)) },
+                    label = "watch-icon",
+                ) { running ->
+                    Icon(if (running) AppIcons.Pause else AppIcons.Play, if (running) "Пауза" else "Продолжить", tint = accentContent, modifier = Modifier.size(28.dp))
+                }
+            }
             Box(
                 Modifier.size(48.dp).liveClick(CircleShape, sound = FeedbackSound.Open, onClick = onStop).border(1.dp, AppColors.Accent.copy(alpha = 0.5f), CircleShape),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Stop, "Завершить", tint = AppColors.Accent, modifier = Modifier.size(18.dp)) }
         }
         Text("Можно свернуть приложение — время идёт", color = AppColors.Faint, fontSize = 11.5.sp)
+    }
+}
+
+@Composable
+private fun RollingClock(text: String, modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        text.forEachIndexed { i, ch ->
+            key(text.length - i) {
+                AnimatedContent(
+                    targetState = ch,
+                    transitionSpec = {
+                        (slideInVertically(Motion.tween(260)) { -it / 2 } + fadeIn(Motion.fade(200))) togetherWith
+                            (slideOutVertically(Motion.tween(220)) { it / 2 } + fadeOut(Motion.fade(160)))
+                    },
+                    label = "digit",
+                ) { c ->
+                    Text(c.toString(), color = AppColors.Text, fontSize = 44.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                }
+            }
+        }
     }
 }
 

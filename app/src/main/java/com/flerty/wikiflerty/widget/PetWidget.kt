@@ -12,7 +12,6 @@ import com.flerty.wikiflerty.R
 import com.flerty.wikiflerty.pet.PetArt
 import com.flerty.wikiflerty.pet.PetLevels
 import com.flerty.wikiflerty.pet.PetLook
-import com.flerty.wikiflerty.pet.PetStage
 import com.flerty.wikiflerty.ui.MainActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -54,14 +53,14 @@ class PetWidget : AppWidgetProvider() {
             )
             val pet = app.pet.pet.value
             if (pet == null) {
-                views.setImageViewBitmap(R.id.pet_image, PetArt.bitmap("cat", PetStage.Egg, PetLook.Happy, 240))
+                views.setImageViewBitmap(R.id.pet_image, PetArt.bitmap("cat", PetLook.Happy, 240))
                 views.setTextViewText(R.id.pet_name, "Питомец")
                 views.setTextViewText(R.id.pet_status, "Заведи питомца в «Итогах»")
                 views.setProgressBar(R.id.pet_food, 100, 0, false)
                 return views
             }
             val mood = app.pet.mood(pet)
-            views.setImageViewBitmap(R.id.pet_image, PetArt.bitmap(pet.species.id, pet.stage, app.pet.look(mood), 240))
+            views.setImageViewBitmap(R.id.pet_image, PetArt.bitmap(pet.species.id, app.pet.look(mood), 240))
             val level = pet.level
             views.setTextViewText(R.id.pet_name, "${pet.name} · ур. $level")
             views.setTextViewText(R.id.pet_status, mood.text)
