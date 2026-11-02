@@ -1,30 +1,47 @@
 package com.flerty.wikiflerty.system
 
+import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-data class ReadingTimerState(val minutes: Int, val endsAt: Long, val finished: Boolean = false)
+data class ReadingSessionResult(val bookId: String, val ms: Long, val startProgress: Double)
 
-class ReadingTimer {
-    private val _state = MutableStateFlow<ReadingTimerState?>(null)
-    val state: StateFlow<ReadingTimerState?> = _state.asStateFlow()
+class ReadingTimer(context: Context) {
+    private val prefs = context.getSharedPreferences("reading_timer", Context.MODE_PRIVATE)
+    private val _armed = MutableStateFlow(prefs.getBoolean("armed", false))
+    val armed: StateFlow<Boolean> = _armed.asStateFlow()
 
-    fun start(minutes: Int) {
-        _state.value = ReadingTimerState(minutes, System.currentTimeMillis() + minutes * 60_000L)
+    private val _result = MutableStateFlow<ReadingSessionResult?>(null)
+    val result: StateFlow<ReadingSessionResult?> = _result.asStateFlow()
+
+    private var bookId: String? = null
+    private var startedAt = 0L
+    private var startProgress = 0.0
+
+    fun setArmed(value: Boolean) {
+        _armed.value = value
+        prefs.edit().putBoolean("armed", value).apply()
     }
 
-    fun extend(minutes: Int) {
-        val s = _state.value ?: return start(minutes)
-        val base = maxOf(System.currentTimeMillis(), s.endsAt)
-        _state.value = s.copy(minutes = s.minutes + minutes, endsAt = base + minutes * 60_000L, finished = false)
+    fun begin(id: String, progress: Double) {
+        if (!_armed.value) {
+            bookId = null
+            return
+        }
+        bookId = id
+        startedAt = System.currentTimeMillis()
+        startProgress = progress
     }
 
-    fun finish() {
-        _state.value = _state.value?.copy(finished = true)
+    fun end() {
+        val id = bookId ?: return
+        bookId = null
+        val ms = System.currentTimeMillis() - startedAt
+        if (ms >= 10_000) _result.value = ReadingSessionResult(id, ms, startProgress)
     }
 
-    fun stop() {
-        _state.value = null
+    fun dismissResult() {
+        _result.value = null
     }
 }

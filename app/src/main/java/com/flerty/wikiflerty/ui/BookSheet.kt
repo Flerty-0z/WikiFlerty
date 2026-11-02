@@ -279,8 +279,6 @@ private fun InfoTile(icon: androidx.compose.ui.graphics.vector.ImageVector, text
     }
 }
 
-private val TimerChoices = listOf(10, 20, 30, 45)
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ColumnScope.BookMainContent(
@@ -301,51 +299,36 @@ private fun ColumnScope.BookMainContent(
         DeleteRow("Удалить книгу", onDelete)
         return
     }
-    var timer by remember { mutableStateOf<Int?>(null) }
-    var customTimer by remember { mutableStateOf(false) }
+    val armed by app.readingTimer.armed.collectAsStateWithLifecycle()
     val readShape = appCorner(18)
     Row(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            .liveClick(readShape, sound = FeedbackSound.Open, pressedScale = 0.97f) {
-                timer?.let { app.readingTimer.start(it) } ?: app.readingTimer.stop()
-                onRead()
-            }
+            .liveClick(readShape, sound = FeedbackSound.Open, pressedScale = 0.97f) { onRead() }
             .accentHighlight(readShape),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(AppIcons.Play, null, tint = accentContent, modifier = Modifier.size(20.dp))
         Text(
-            (if (book.progress > 0.0) "Продолжить" else "Читать") + (timer?.let { " · $it мин" } ?: ""),
+            if (book.progress > 0.0) "Продолжить" else "Читать",
             color = accentContent,
             fontSize = 16.sp,
             fontWeight = FontWeight.ExtraBold,
             maxLines = 1,
             modifier = Modifier.padding(start = 8.dp),
         )
+        if (armed) Icon(AppIcons.Clock, null, tint = accentContent, modifier = Modifier.padding(start = 8.dp).size(18.dp))
     }
 
     SettingsGroup(null) {
-        Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                SettingIcon(AppIcons.Clock)
-                Column(Modifier.weight(1f)) {
-                    Text("Таймер чтения", color = AppColors.Text, fontSize = 15.sp, maxLines = 1)
-                    Text(timer?.let { "Напомню через $it мин" } ?: "Сколько хочешь почитать?", color = AppColors.Faint, fontSize = 12.sp, maxLines = 1)
-                }
-            }
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SmallChip("Без таймера", timer == null) { timer = null }
-                TimerChoices.forEach { m -> SmallChip("$m мин", timer == m) { timer = if (timer == m) null else m } }
-                val custom = timer?.takeIf { it !in TimerChoices }
-                SmallChip(custom?.let { "$it мин" } ?: "Своё", custom != null, icon = AppIcons.Pencil) { customTimer = true }
-            }
-        }
-    }
-    if (customTimer) {
-        NumberInputSheet("Таймер чтения", "мин", timer ?: 25, 1..600, onDismiss = { customTimer = false }) { timer = it }
+        SettingSwitch(
+            label = "Засечь время",
+            checked = armed,
+            hint = if (armed) "Итог покажу, когда закроешь книгу" else "Посчитаю, сколько ты читал",
+            icon = AppIcons.Clock,
+        ) { app.readingTimer.setArmed(it) }
     }
 
     BookStatusRow(app, book)
@@ -699,5 +682,46 @@ fun ShelfDialogView(dialog: ShelfDialog, shelves: List<String>, onDismiss: () ->
             },
             onDismiss = { confirmDelete = false },
         )
+    }
+}
+
+@Composable
+fun ReadingSessionSheet() {
+    val app = LocalContext.current.applicationContext as App
+    val result by app.readingTimer.result.collectAsStateWithLifecycle()
+    val r = result ?: return
+    val books by app.library.books.collectAsStateWithLifecycle()
+    val book = books.firstOrNull { it.id == r.bookId }
+    AppSheet({ app.readingTimer.dismissResult() }, title = "Сеанс чтения") {
+        val close = sheetClose { app.readingTimer.dismissResult() }
+        val s = r.ms / 1000
+        Text(
+            if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%02d:%02d".format(s / 60, s % 60),
+            color = AppColors.Text,
+            fontSize = 48.sp,
+            fontWeight = FontWeight.Black,
+            maxLines = 1,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (book != null) {
+            Text(book.title, color = AppColors.Muted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            val delta = (book.progress - r.startProgress).coerceAtLeast(0.0)
+            val pages = if (book.positions > 0) Math.round(delta * book.positions).toInt() else 0
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                InfoTile(AppIcons.Clock, StatsCalc.duration(r.ms), Modifier.weight(1f))
+                InfoTile(
+                    AppIcons.Pages,
+                    if (book.positions > 0) "+$pages стр." else "+${(delta * 100).toInt()}%",
+                    Modifier.weight(1f),
+                )
+            }
+            if (pages > 0 && r.ms >= 60_000) {
+                Row(Modifier.height(IntrinsicSize.Min)) {
+                    InfoTile(AppIcons.Speed, "${(pages / (r.ms / 3_600_000.0)).toInt()} стр/ч", Modifier.weight(1f))
+                }
+            }
+        }
+        AppButton("Готово", primary = true, modifier = Modifier.fillMaxWidth()) { close() }
     }
 }

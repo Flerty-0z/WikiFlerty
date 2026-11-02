@@ -387,8 +387,6 @@ fun ReaderOverlay(
         }
 
         PetPeek(Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = FlagBottom + 30.dp))
-        ReadingTimerChip(Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 12.dp))
-        ReadingTimerDone(Modifier.align(Alignment.Center).padding(horizontal = 28.dp))
 
         AnimatedVisibility(
             visible = state.brightnessHint != null,

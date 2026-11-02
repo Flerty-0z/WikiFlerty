@@ -481,11 +481,10 @@ private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean
                 modifier = Modifier.padding(8.dp),
             )
         }
-        book.rating?.takeIf { it > 0f }?.let { RatingBadge(it, Modifier.align(Alignment.TopStart).padding(5.dp), small) }
-        if (showStatus) StatusPill(book.status, small, Modifier.align(Alignment.BottomEnd).padding(5.dp))
+        book.rating?.takeIf { it > 0f }?.let { RatingBadge(it, Modifier.align(Alignment.BottomStart).padding(5.dp), small) }
         if (book.paper) {
             Box(
-                Modifier.align(Alignment.BottomStart).padding(if (showStatus) 5.dp else 3.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
+                Modifier.align(Alignment.TopStart).padding(if (showStatus) 5.dp else 3.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
                     .background(Color(0xB0101114)),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Pages, "Бумажная книга", tint = Color.White, modifier = Modifier.size(if (small) 12.dp else 14.dp)) }
@@ -529,6 +528,8 @@ private fun BookCard(book: Book, coverFile: File?, small: Boolean, inPages: Bool
         )
         Spacer(Modifier.height(6.dp))
         ThickProgress(book, inPages, small)
+        Spacer(Modifier.height(6.dp))
+        StatusPill(book.status, small, Modifier.fillMaxWidth().padding(horizontal = 2.dp), framed = true, wide = true)
     }
 }
 
@@ -696,7 +697,7 @@ fun relativeDay(time: Long): String {
 }
 
 @Composable
-fun StatusPill(status: ReadStatus, small: Boolean, modifier: Modifier = Modifier, framed: Boolean = false) {
+fun StatusPill(status: ReadStatus, small: Boolean, modifier: Modifier = Modifier, framed: Boolean = false, wide: Boolean = false) {
     val color = statusColor(status)
     val label = when (status) {
         ReadStatus.Reading -> "Читаю"
@@ -709,12 +710,23 @@ fun StatusPill(status: ReadStatus, small: Boolean, modifier: Modifier = Modifier
             .clip(CircleShape)
             .background(if (framed) color.copy(alpha = 0.12f) else Color(0xD9100D0B))
             .border(1.dp, color.copy(alpha = 0.5f), CircleShape)
-            .padding(horizontal = if (small) 5.dp else 7.dp, vertical = 3.dp),
+            .padding(horizontal = if (small) 5.dp else 7.dp, vertical = if (wide) 4.dp else 3.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
     ) {
         Icon(statusIcon(status), null, tint = color, modifier = Modifier.size(if (small) 11.dp else 12.dp))
-        if (!small) Text(label, color = color, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
+        if (wide) {
+            Text(
+                label,
+                color = color,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+                softWrap = false,
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = if (small) 10.sp else 11.5.sp, stepSize = 0.5.sp),
+            )
+        } else if (!small) {
+            Text(label, color = color, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
+        }
     }
 }
 
@@ -728,25 +740,25 @@ fun ThickProgress(book: Book, inPages: Boolean, small: Boolean, modifier: Modifi
         else -> progressLabel(book, inPages)
     }
     val fill = if (finished) AppColors.Good else AppColors.Accent
-    val onFill = if (fill.luminance() > 0.45f) Color(0xFF14110E) else Color.White
-    Box(
-        modifier
-            .fillMaxWidth()
-            .height(if (small) 15.dp else 18.dp)
-            .clip(CircleShape)
-            .background(AppColors.Line),
-    ) {
-        Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).clip(CircleShape).background(fill))
-        Box(Modifier.matchParentSize(), contentAlignment = Alignment.Center) {
-            Text(label, color = AppColors.Text, fontSize = if (small) 9.5.sp else 10.5.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
+    Box(modifier.fillMaxWidth().height(if (small) 18.dp else 20.dp), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(if (small) 10.dp else 12.dp)
+                .clip(CircleShape)
+                .background(AppColors.Line),
+        ) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).clip(CircleShape).background(fill))
         }
         Box(
-            Modifier.matchParentSize().drawWithContent {
-                clipRect(right = size.width * fraction) { this@drawWithContent.drawContent() }
-            },
+            Modifier
+                .clip(CircleShape)
+                .background(AppColors.Panel)
+                .border(1.dp, fill.copy(alpha = 0.6f), CircleShape)
+                .padding(horizontal = if (small) 6.dp else 8.dp, vertical = 1.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Text(label, color = onFill, fontSize = if (small) 9.5.sp else 10.5.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
+            Text(label, color = AppColors.Text, fontSize = if (small) 9.5.sp else 10.5.sp, lineHeight = if (small) 12.sp else 13.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
         }
     }
 }

@@ -56,7 +56,7 @@ class App : Application() {
 
     val achievements: com.flerty.wikiflerty.data.AchievementStore by lazy { com.flerty.wikiflerty.data.AchievementStore(this) }
 
-    val readingTimer = com.flerty.wikiflerty.system.ReadingTimer()
+    val readingTimer by lazy { com.flerty.wikiflerty.system.ReadingTimer(this) }
 
     val paper: com.flerty.wikiflerty.data.PaperSessionStore by lazy { com.flerty.wikiflerty.data.PaperSessionStore(this) }
 
