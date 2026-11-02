@@ -56,6 +56,8 @@ class App : Application() {
 
     val achievements: com.flerty.wikiflerty.data.AchievementStore by lazy { com.flerty.wikiflerty.data.AchievementStore(this) }
 
+    val readingTimer = com.flerty.wikiflerty.system.ReadingTimer()
+
     val pet: com.flerty.wikiflerty.pet.PetManager by lazy { com.flerty.wikiflerty.pet.PetManager(this) }
 
     val ambient: com.flerty.wikiflerty.system.AmbientPlayer by lazy { com.flerty.wikiflerty.system.AmbientPlayer(this) }

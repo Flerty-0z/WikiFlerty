@@ -1,5 +1,9 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.ui.draw.clip
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -167,13 +171,11 @@ private fun SmallChip(title: String, selected: Boolean, icon: androidx.compose.u
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BookSheet(
     book: Book,
-    shelves: List<String>,
     coverFile: File?,
-    onNewShelf: () -> Unit,
+    onRead: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -182,21 +184,24 @@ fun BookSheet(
     var showStats by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var rating by remember { mutableStateOf(false) }
+    val inPages = app.libraryPrefs.prefs.value.progressInPages
 
     AppSheet(onDismiss) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            SmallCover(coverFile, Modifier.size(width = 54.dp, height = 81.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(book.title, color = AppColors.Text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (book.author.isNotBlank()) Text(book.author, color = AppColors.Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    InfoChip(progressLabel(book, app.libraryPrefs.prefs.value.progressInPages), AppColors.Accent)
-                    InfoChip(book.status.title, book.status.chipColor)
+        val close = sheetClose(onDismiss)
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            SmallCover(coverFile, Modifier.size(width = 84.dp, height = 126.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(book.title, color = AppColors.Text, fontSize = 18.sp, lineHeight = 23.sp, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                if (book.author.isNotBlank()) Text(book.author, color = AppColors.Muted, fontSize = 13.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                book.rating?.takeIf { it > 0f }?.let { r ->
+                    Row(Modifier.padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        StarRating(r, 14.dp, gap = 2.dp)
+                        Text(ratingText(r), color = AppColors.Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                RoundButton(AppIcons.Close, "Закрыть", AppColors.Muted, FeedbackSound.Close, sheetClose(onDismiss))
+                RoundButton(AppIcons.Close, "Закрыть", AppColors.Muted, FeedbackSound.Close, close)
                 RoundButton(
                     if (book.favorite) AppIcons.StarFilled else AppIcons.Star,
                     "Избранное",
@@ -204,6 +209,11 @@ fun BookSheet(
                     FeedbackSound.Toggle,
                 ) { scope.launch { app.library.setFavorite(book.id, !book.favorite) } }
             }
+        }
+
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            InfoTile(AppIcons.Pages, if (book.progress > 0 || inPages) progressLabel(book, inPages) else "Не начата", Modifier.weight(1f))
+            InfoTile(statusIcon(book.status), book.status.title, Modifier.weight(1f), statusColor(book.status))
         }
 
         androidx.compose.animation.AnimatedContent(
@@ -219,7 +229,10 @@ fun BookSheet(
                 if (stats) {
                     BookStatsContent(app, book, onBack = { showStats = false })
                 } else {
-                    BookMainContent(app, book, shelves, onNewShelf, onStats = { showStats = true }, onRate = { rating = true }, onDelete = { confirmDelete = true })
+                    BookMainContent(app, book, onRead = {
+                        close()
+                        onRead()
+                    }, onStats = { showStats = true }, onRate = { rating = true }, onDelete = { confirmDelete = true })
                 }
             }
         }
@@ -237,60 +250,156 @@ fun BookSheet(
     }
 }
 
+@Composable
+private fun InfoTile(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, modifier: Modifier, tint: Color = AppColors.Accent) {
+    val shape = appCorner(16)
+    Row(
+        modifier.fillMaxHeight().fieldSurface(shape).padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(
+            Modifier
+                .size(32.dp)
+                .clip(appCorner(10))
+                .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.26f), tint.copy(alpha = 0.08f))))
+                .border(1.dp, tint.copy(alpha = 0.18f), appCorner(10)),
+            contentAlignment = Alignment.Center,
+        ) { Icon(icon, null, tint = tint, modifier = Modifier.size(17.dp)) }
+        Text(
+            text,
+            color = AppColors.Text,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            softWrap = false,
+            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 15.sp, stepSize = 0.5.sp),
+        )
+    }
+}
+
+private val TimerChoices = listOf(10, 20, 30, 45)
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ColumnScope.BookMainContent(
     app: App,
     book: Book,
-    shelves: List<String>,
-    onNewShelf: () -> Unit,
+    onRead: () -> Unit,
     onStats: () -> Unit,
     onRate: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-        SettingsGroup(null) {
-            PickerRow(
-                label = "Статус",
-                icon = AppIcons.Bookmark,
-                options = listOf(ReadStatus.Reading, ReadStatus.Planned, ReadStatus.Finished, ReadStatus.New).map { status ->
-                    PickerOption(
-                        status.id,
-                        status.title,
-                        icon = when (status) {
-                            ReadStatus.Reading -> AppIcons.Book
-                            ReadStatus.Planned -> AppIcons.Clock
-                            ReadStatus.Finished -> AppIcons.Check
-                            ReadStatus.New -> AppIcons.Plus
-                        },
-                    )
-                },
-                selectedId = book.status.id,
-            ) { id -> ReadStatus.of(id)?.let { status -> scope.launch { app.library.setStatus(book.id, status) } } }
-        }
+    var timer by remember { mutableStateOf<Int?>(null) }
+    var customTimer by remember { mutableStateOf(false) }
+    val readShape = appCorner(18)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .liveClick(readShape, sound = FeedbackSound.Open, pressedScale = 0.97f) {
+                timer?.let { app.readingTimer.start(it) } ?: app.readingTimer.stop()
+                onRead()
+            }
+            .accentHighlight(readShape),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(AppIcons.Play, null, tint = accentContent, modifier = Modifier.size(20.dp))
+        Text(
+            (if (book.progress > 0.0) "Продолжить" else "Читать") + (timer?.let { " · $it мин" } ?: ""),
+            color = accentContent,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            modifier = Modifier.padding(start = 8.dp),
+        )
+    }
 
-        SectionHeader("Полки", icon = AppIcons.Shelf, count = book.shelves.size.takeIf { it > 0 })
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            shelves.forEach { shelf ->
-                val on = shelf in book.shelves
-                SmallChip(shelf, on, icon = if (on) AppIcons.Check else null) {
-                    scope.launch { app.library.setShelves(book.id, if (on) book.shelves - shelf else book.shelves + shelf) }
+    SettingsGroup(null) {
+        Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                SettingIcon(AppIcons.Clock)
+                Column(Modifier.weight(1f)) {
+                    Text("Таймер чтения", color = AppColors.Text, fontSize = 15.sp, maxLines = 1)
+                    Text(timer?.let { "Напомню через $it мин" } ?: "Сколько хочешь почитать?", color = AppColors.Faint, fontSize = 12.sp, maxLines = 1)
                 }
             }
-            SmallChip("Новая полка", false, icon = AppIcons.Plus, onClick = onNewShelf)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SmallChip("Без таймера", timer == null) { timer = null }
+                TimerChoices.forEach { m -> SmallChip("$m мин", timer == m) { timer = if (timer == m) null else m } }
+                val custom = timer?.takeIf { it !in TimerChoices }
+                SmallChip(custom?.let { "$it мин" } ?: "Своё", custom != null, icon = AppIcons.Pencil) { customTimer = true }
+            }
         }
+    }
+    if (customTimer) {
+        NumberInputSheet("Таймер чтения", "мин", timer ?: 25, 1..600, onDismiss = { customTimer = false }) { timer = it }
+    }
 
-        Spacer(Modifier.height(2.dp))
-        RateRow(book, onRate)
-        SettingsNavRow(AppIcons.Chart, "Статистика книги", "Время, скорость, остаток") { onStats() }
+    SettingsGroup(null) {
+        PickerRow(
+            label = "Статус",
+            icon = AppIcons.Bookmark,
+            options = listOf(ReadStatus.Reading, ReadStatus.Planned, ReadStatus.Finished, ReadStatus.New).map { status ->
+                PickerOption(status.id, status.title, icon = statusIcon(status))
+            },
+            selectedId = book.status.id,
+        ) { id -> ReadStatus.of(id)?.let { status -> scope.launch { app.library.setStatus(book.id, status) } } }
+    }
 
-        val shape = appCorner(16)
-        Box(
-            Modifier.fillMaxWidth().heightIn(min = 50.dp)
-                .liveClick(shape, sound = FeedbackSound.Close) { onDelete() }
-                .border(1.dp, Danger.copy(alpha = 0.45f), shape),
-            contentAlignment = Alignment.Center,
-        ) { Text("Удалить с телефона", color = Danger, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+    RateRow(book, onRate)
+    BookAbout(app, book)
+
+    SettingsNavRow(AppIcons.Chart, "Статистика книги", "Время, скорость, остаток") { onStats() }
+
+    val shape = appCorner(16)
+    Box(
+        Modifier.fillMaxWidth().heightIn(min = 50.dp)
+            .liveClick(shape, sound = FeedbackSound.Close) { onDelete() }
+            .border(1.dp, Danger.copy(alpha = 0.45f), shape),
+        contentAlignment = Alignment.Center,
+    ) { Text("Удалить с телефона", color = Danger, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+}
+
+@Composable
+private fun BookAbout(app: App, book: Book) {
+    val info by androidx.compose.runtime.produceState<com.flerty.wikiflerty.data.BookInfo?>(null, book.id) { value = app.library.info(book) }
+    val data = info ?: return
+    val facts = listOfNotNull(
+        data.publisher.takeIf { it.isNotBlank() },
+        data.year.takeIf { it.isNotBlank() },
+        data.language.takeIf { it.isNotBlank() },
+        book.positions.takeIf { it > 0 }?.let { "$it стр." },
+    )
+    if (data.description.isBlank() && facts.isEmpty()) return
+    var expanded by remember { mutableStateOf(false) }
+    SettingsGroup("О книге") {
+        Column(Modifier.padding(vertical = 10.dp).animateContentSize(Motion.tween(260)), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (data.description.isNotBlank()) {
+                Text(
+                    data.description,
+                    color = AppColors.Text,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    maxLines = if (expanded) Int.MAX_VALUE else 5,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (data.description.length > 260) {
+                    Text(
+                        if (expanded) "Свернуть" else "Читать полностью",
+                        color = AppColors.Accent,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.liveClick(appCorner(8), sound = FeedbackSound.Toggle) { expanded = !expanded }.padding(vertical = 2.dp),
+                    )
+                }
+            }
+            if (facts.isNotEmpty()) {
+                Text(facts.joinToString(" · "), color = AppColors.Faint, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
 }
 
 @Composable
@@ -457,79 +566,116 @@ sealed class ShelfDialog {
 @Composable
 fun ShelfDialogView(dialog: ShelfDialog, shelves: List<String>, onDismiss: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
-    val scope = rememberCoroutineScope()
+    val books by app.library.books.collectAsStateWithLifecycle()
     val original = (dialog as? ShelfDialog.Edit)?.name.orEmpty()
     var name by remember(dialog) { mutableStateOf(original) }
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(dialog) { runCatching { focus.requestFocus() } }
+    val initial = remember(dialog) {
+        when (dialog) {
+            is ShelfDialog.Edit -> books.filter { original in it.shelves }.map { it.id }.toSet()
+            is ShelfDialog.Create -> setOfNotNull(dialog.bookId)
+        }
+    }
+    var chosen by remember(dialog) { mutableStateOf(initial) }
+    var confirmDelete by remember { mutableStateOf(false) }
     val clean = name.trim()
     val taken = clean != original && clean in shelves
+    val ready = clean.isNotEmpty() && !taken
 
     fun save() {
-        if (clean.isEmpty() || taken) return
-        when (dialog) {
-            is ShelfDialog.Create -> {
-                app.libraryPrefs.update { it.copy(shelves = (it.shelves + clean).distinct()) }
-                dialog.bookId?.let { id ->
-                    val book = app.library.books.value.firstOrNull { it.id == id }
-                    if (book != null) scope.launch { app.library.setShelves(id, book.shelves + clean) }
-                }
-            }
-            is ShelfDialog.Edit -> if (clean != original) {
-                scope.launch { app.library.renameShelf(original, clean) }
-                app.libraryPrefs.update { p ->
-                    p.copy(
-                        shelves = (p.shelves.map { if (it == original) clean else it } + clean).distinct(),
-                        filter = if (p.filter == "shelf:$original") "shelf:$clean" else p.filter,
-                    )
-                }
+        if (!ready) return
+        app.appScope.launch {
+            if (dialog is ShelfDialog.Edit && clean != original) app.library.renameShelf(original, clean)
+            app.library.books.value.forEach { b ->
+                val has = clean in b.shelves
+                val want = b.id in chosen
+                if (has != want) app.library.setShelves(b.id, if (want) b.shelves + clean else b.shelves - clean)
             }
         }
-        onDismiss()
+        app.libraryPrefs.update { p ->
+            p.copy(
+                shelves = (p.shelves.map { if (it == original && original.isNotEmpty()) clean else it } + clean).distinct(),
+                filter = if (original.isNotEmpty() && p.filter == "shelf:$original") "shelf:$clean" else p.filter,
+            )
+        }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = AppColors.Panel,
-        title = { Text(if (dialog is ShelfDialog.Create) "Новая полка" else "Полка", color = AppColors.Text) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                BasicTextField(
-                    value = name,
-                    onValueChange = { name = it.take(40) },
-                    singleLine = true,
-                    textStyle = TextStyle(color = AppColors.Text, fontSize = 16.sp),
-                    cursorBrush = SolidColor(AppColors.Accent),
-                    modifier = Modifier.fillMaxWidth().height(48.dp).fieldSurface(appCorner(14)).padding(horizontal = 14.dp).focusRequester(focus),
-                    decorationBox = { inner ->
-                        Row(Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.weight(1f)) {
-                                if (name.isEmpty()) Text("Например, «Психология»", color = AppColors.Faint, fontSize = 16.sp, maxLines = 1)
-                                inner()
-                            }
-                        }
-                    },
-                )
-                if (taken) Text("Такая полка уже есть", color = Danger, fontSize = 12.sp)
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { save() }, enabled = clean.isNotEmpty() && !taken) {
-                Text(if (dialog is ShelfDialog.Create) "Создать" else "Сохранить", color = AppColors.Accent)
-            }
-        },
-        dismissButton = {
-            if (dialog is ShelfDialog.Edit) {
-                TextButton(onClick = {
-                    scope.launch { app.library.renameShelf(original, null) }
-                    app.libraryPrefs.update { p ->
-                        p.copy(shelves = p.shelves - original, filter = if (p.filter == "shelf:$original") "all" else p.filter)
+    AppSheet(onDismiss, title = if (dialog is ShelfDialog.Create) "Новая полка" else "Полка") {
+        val close = sheetClose(onDismiss)
+        BasicTextField(
+            value = name,
+            onValueChange = { name = it.take(40) },
+            singleLine = true,
+            textStyle = TextStyle(color = AppColors.Text, fontSize = 16.sp),
+            cursorBrush = SolidColor(AppColors.Accent),
+            modifier = Modifier.fillMaxWidth().height(50.dp).fieldSurface(appCorner(16)).padding(horizontal = 16.dp),
+            decorationBox = { inner ->
+                Row(Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(AppIcons.Shelf, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
+                    Box(Modifier.weight(1f).padding(start = 10.dp)) {
+                        if (name.isEmpty()) Text("Название, например «Психология»", color = AppColors.Faint, fontSize = 16.sp, maxLines = 1)
+                        inner()
                     }
-                    onDismiss()
-                }) { Text("Удалить полку", color = Danger) }
-            } else {
-                TextButton(onClick = onDismiss) { Text("Отмена", color = AppColors.Muted) }
+                }
+            },
+        )
+        if (taken) Text("Такая полка уже есть", color = Danger, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
+        SettingsGroup("Книги на полке · ${chosen.size}/${books.size}") {
+            Column(Modifier.padding(vertical = 6.dp)) {
+                books.sortedBy { it.title.lowercase() }.forEach { b ->
+                    val on = b.id in chosen
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 58.dp)
+                            .liveClick(appCorner(12), sound = FeedbackSound.Toggle, pressedScale = 0.98f) { chosen = if (on) chosen - b.id else chosen + b.id }
+                            .padding(vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        BookCover(b.id, 32.dp)
+                        Text(b.title, color = if (on) AppColors.Accent else AppColors.Text, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Box(
+                            Modifier
+                                .size(24.dp)
+                                .clip(appCorner(7))
+                                .background(if (on) AppColors.Accent else Color.Transparent)
+                                .border(1.5.dp, if (on) AppColors.Accent else AppColors.Line, appCorner(7)),
+                            contentAlignment = Alignment.Center,
+                        ) { if (on) Icon(AppIcons.Check, null, tint = AppColors.OnAccent, modifier = Modifier.size(15.dp)) }
+                    }
+                }
+                if (books.isEmpty()) Text("Сначала добавь книги", color = AppColors.Faint, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
             }
-        },
-    )
+        }
+        AppButton(if (dialog is ShelfDialog.Create) "Создать полку" else "Сохранить", primary = true, modifier = Modifier.fillMaxWidth()) {
+            if (ready) {
+                save()
+                close()
+            }
+        }
+        if (dialog is ShelfDialog.Edit) {
+            Text(
+                "Удалить полку",
+                color = Danger,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.align(Alignment.CenterHorizontally).liveClick(appCorner(8), sound = FeedbackSound.Close) { confirmDelete = true }.padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+        }
+    }
+    if (confirmDelete) {
+        ConfirmSheet(
+            title = "Удалить полку?",
+            text = "Книги останутся в библиотеке, удалится только полка «$original».",
+            confirm = "Удалить",
+            onConfirm = {
+                app.appScope.launch { app.library.renameShelf(original, null) }
+                app.libraryPrefs.update { p ->
+                    p.copy(shelves = p.shelves - original, filter = if (p.filter == "shelf:$original") "all" else p.filter)
+                }
+                onDismiss()
+            },
+            onDismiss = { confirmDelete = false },
+        )
+    }
 }

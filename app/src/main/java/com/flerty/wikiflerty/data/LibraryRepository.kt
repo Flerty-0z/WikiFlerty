@@ -125,6 +125,36 @@ class LibraryRepository(
         }
     }
 
+    private val infoDir = File(context.filesDir, "bookinfo").apply { mkdirs() }
+
+    suspend fun info(book: Book): BookInfo = withContext(Dispatchers.IO) {
+        val cache = File(infoDir, "${book.id}.json")
+        runCatching { if (cache.exists()) return@withContext BookInfo.fromJson(org.json.JSONObject(cache.readText())) }
+        val info = runCatching {
+            val publication = readium.open(bookFile(book)).getOrThrow()
+            try {
+                val m = publication.metadata
+                val raw = m.description.orEmpty()
+                val text = runCatching { org.jsoup.Jsoup.parse(raw).wholeText() }.getOrDefault(raw)
+                    .replace(Regex("[ \\t\\u00A0]+"), " ")
+                    .replace(Regex("\\s*\\n\\s*\\n\\s*"), "\n\n")
+                    .trim()
+                BookInfo(
+                    description = text,
+                    publisher = m.publishers.joinToString(", ") { it.name },
+                    year = m.published?.toString()?.take(4).orEmpty(),
+                    language = m.languages.firstOrNull()?.let { code ->
+                        java.util.Locale.forLanguageTag(code).getDisplayLanguage(java.util.Locale("ru")).replaceFirstChar { it.uppercase() }
+                    }.orEmpty(),
+                )
+            } finally {
+                publication.close()
+            }
+        }.getOrDefault(BookInfo())
+        runCatching { cache.writeText(info.toJson().toString()) }
+        info
+    }
+
     suspend fun ensureFingerprints() = withContext(Dispatchers.IO) {
         val missing = _books.value.filter { it.fingerprint == null }
         if (missing.isEmpty()) return@withContext
@@ -285,5 +315,13 @@ class LibraryRepository(
         if (height <= maxHeight) return this
         val width = (width * maxHeight.toFloat() / height).toInt().coerceAtLeast(1)
         return Bitmap.createScaledBitmap(this, width, maxHeight, true)
+    }
+}
+
+data class BookInfo(val description: String = "", val publisher: String = "", val year: String = "", val language: String = "") {
+    fun toJson(): org.json.JSONObject = org.json.JSONObject().put("description", description).put("publisher", publisher).put("year", year).put("language", language)
+
+    companion object {
+        fun fromJson(j: org.json.JSONObject) = BookInfo(j.optString("description"), j.optString("publisher"), j.optString("year"), j.optString("language"))
     }
 }

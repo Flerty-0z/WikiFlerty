@@ -48,6 +48,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -238,9 +241,9 @@ fun LibraryScreen(
             items(shown, key = { it.id }) { book ->
                 Box(motionItem()) {
                     if (grid) {
-                        BookCard(book, viewModel.coverFile(book), small = prefs.coverSize == 0, inPages = prefs.progressInPages, onClick = { open(book) }, onLongClick = { longPress(book) })
+                        BookCard(book, viewModel.coverFile(book), small = prefs.coverSize == 0, inPages = prefs.progressInPages, onClick = { longPress(book) }, onLongClick = { longPress(book) })
                     } else {
-                        BookRow(book, viewModel.coverFile(book), inPages = prefs.progressInPages, onClick = { open(book) }, onLongClick = { longPress(book) })
+                        BookRow(book, viewModel.coverFile(book), inPages = prefs.progressInPages, onClick = { longPress(book) }, onLongClick = { longPress(book) })
                     }
                 }
             }
@@ -255,9 +258,8 @@ fun LibraryScreen(
     books.firstOrNull { it.id == menuBookId }?.let { book ->
         BookSheet(
             book = book,
-            shelves = shelves,
             coverFile = viewModel.coverFile(book),
-            onNewShelf = { controls.shelfDialog = ShelfDialog.Create(book.id) },
+            onRead = { viewModel.open(book) },
             onDelete = {
                 menuBookId = null
                 viewModel.delete(book)
@@ -461,7 +463,7 @@ private fun rememberCover(file: File?): ImageBitmap? {
 }
 
 @Composable
-private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean = false) {
+private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean = false, showStatus: Boolean = true) {
     val cover = rememberCover(file)
     Box(modifier.background(AppColors.Field), contentAlignment = Alignment.Center) {
         if (cover != null) {
@@ -477,7 +479,8 @@ private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean
                 modifier = Modifier.padding(8.dp),
             )
         }
-        book.rating?.takeIf { it > 0f }?.let { RatingBadge(it, Modifier.align(Alignment.BottomStart).padding(5.dp), small) }
+        book.rating?.takeIf { it > 0f }?.let { RatingBadge(it, Modifier.align(Alignment.TopStart).padding(5.dp), small) }
+        if (showStatus) StatusPill(book.status, small, Modifier.align(Alignment.BottomEnd).padding(5.dp))
         if (book.favorite) {
             Box(
                 Modifier.align(Alignment.TopEnd).padding(5.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
@@ -516,11 +519,7 @@ private fun BookCard(book: Book, coverFile: File?, small: Boolean, inPages: Bool
             modifier = Modifier.padding(top = 8.dp),
         )
         Spacer(Modifier.height(6.dp))
-        if (book.status == ReadStatus.Reading) {
-            ProgressWithPercent(book, inPages)
-        } else {
-            StatusBadge(book, inPages, compact = small)
-        }
+        ThickProgress(book, inPages, small)
     }
 }
 
@@ -536,17 +535,17 @@ private fun BookRow(book: Book, coverFile: File?, inPages: Boolean, onClick: () 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        CoverBox(book, coverFile, Modifier.size(width = 46.dp, height = 68.dp).coverShadow(appCorner(6)).clip(appCorner(6)), small = true)
+        CoverBox(book, coverFile, Modifier.size(width = 46.dp, height = 68.dp).coverShadow(appCorner(6)).clip(appCorner(6)), small = true, showStatus = false)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(book.title, color = AppColors.Text, fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (book.author.isNotBlank()) {
                 Text(book.author, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            if (book.status == ReadStatus.Reading) {
-                ProgressWithPercent(book, inPages, Modifier.padding(top = 6.dp))
+            Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ThickProgress(book, inPages, false, Modifier.weight(1f))
+                StatusPill(book.status, false, framed = true)
             }
         }
-        if (book.status != ReadStatus.Reading) StatusBadge(book, inPages)
     }
 }
 
@@ -684,5 +683,61 @@ fun relativeDay(time: Long): String {
         diff == 1L -> "вчера"
         diff < 7L -> "${diff} " + StatsCalc.plural(diff.toInt(), "день", "дня", "дней") + " назад"
         else -> StatsCalc.date(day)
+    }
+}
+
+@Composable
+fun StatusPill(status: ReadStatus, small: Boolean, modifier: Modifier = Modifier, framed: Boolean = false) {
+    val color = statusColor(status)
+    val label = when (status) {
+        ReadStatus.Reading -> "Читаю"
+        ReadStatus.Planned -> "В планах"
+        ReadStatus.Finished -> "Прочитано"
+        ReadStatus.New -> "Новая"
+    }
+    Row(
+        modifier
+            .clip(CircleShape)
+            .background(if (framed) color.copy(alpha = 0.12f) else Color(0xD9100D0B))
+            .border(1.dp, color.copy(alpha = 0.5f), CircleShape)
+            .padding(horizontal = if (small) 5.dp else 7.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Icon(statusIcon(status), null, tint = color, modifier = Modifier.size(if (small) 11.dp else 12.dp))
+        if (!small) Text(label, color = color, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
+    }
+}
+
+@Composable
+fun ThickProgress(book: Book, inPages: Boolean, small: Boolean, modifier: Modifier = Modifier) {
+    val finished = book.status == ReadStatus.Finished
+    val fraction = if (finished) 1f else book.progress.toFloat().coerceIn(0f, 1f)
+    val label = when {
+        finished && book.positions > 0 && inPages -> "${book.positions}/${book.positions}"
+        finished -> "100%"
+        else -> progressLabel(book, inPages)
+    }
+    val fill = if (finished) AppColors.Good else AppColors.Accent
+    val onFill = if (fill.luminance() > 0.45f) Color(0xFF14110E) else Color.White
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(if (small) 15.dp else 18.dp)
+            .clip(CircleShape)
+            .background(AppColors.Line),
+    ) {
+        Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).clip(CircleShape).background(fill))
+        Box(Modifier.matchParentSize(), contentAlignment = Alignment.Center) {
+            Text(label, color = AppColors.Text, fontSize = if (small) 9.5.sp else 10.5.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
+        }
+        Box(
+            Modifier.matchParentSize().drawWithContent {
+                clipRect(right = size.width * fraction) { this@drawWithContent.drawContent() }
+            },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(label, color = onFill, fontSize = if (small) 9.5.sp else 10.5.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
+        }
     }
 }
