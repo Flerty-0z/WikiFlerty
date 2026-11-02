@@ -1,5 +1,13 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
@@ -78,14 +86,60 @@ fun StreakCard(perDay: Map<LocalDate, DayEntry>, today: LocalDate) {
     val active = freezes.lastOrNull { !it.end.isBefore(today) }
     var sheet by remember { mutableStateOf(false) }
     val shape = appCorner(20)
+    val feedback = LocalFeedback.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    var snow by remember { mutableIntStateOf(0) }
+    var thaw by remember { mutableIntStateOf(0) }
+    var hadActive by remember { mutableStateOf(active != null) }
+    LaunchedEffect(active != null) {
+        val now = active != null
+        if (now != hadActive) {
+            if (now) {
+                snow++
+                feedback?.play(FeedbackSound.Freeze, view)
+            } else {
+                thaw++
+                feedback?.play(FeedbackSound.Thaw, view)
+            }
+        }
+        hadActive = now
+    }
+    val flame = rememberInfiniteTransition(label = "flame")
+    val flicker by flame.animateFloat(0f, 1f, infiniteRepeatable(tween(1400, easing = LinearEasing), RepeatMode.Restart), label = "flicker")
+    val lit = current > 0 && Motion.enabled
 
     Column(
-        Modifier.fillMaxWidth().fieldSurface(shape).padding(16.dp),
+        Modifier.fillMaxWidth().snowfall(snow, IceColor).thawDrops(thaw, IceColor).fieldSurface(shape).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(Modifier.size(50.dp).clip(CircleShape).background(AppColors.AccentSoft), contentAlignment = Alignment.Center) {
-                Icon(AppIcons.Fire, null, tint = AppColors.Accent, modifier = Modifier.size(26.dp))
+            Box(
+                Modifier
+                    .size(50.dp)
+                    .drawBehind {
+                        if (lit) {
+                            val w = (kotlin.math.sin(flicker * 2f * Math.PI.toFloat()) + 1f) / 2f
+                            drawCircle(Color(0xFFFF9A3C).copy(alpha = 0.10f + 0.12f * w), size.minDimension * (0.56f + 0.06f * w))
+                        }
+                    }
+                    .clip(CircleShape)
+                    .background(if (active != null) IceColor.copy(alpha = 0.16f) else AppColors.AccentSoft),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (active != null) AppIcons.Snow else AppIcons.Fire,
+                    null,
+                    tint = if (active != null) IceColor else AppColors.Accent,
+                    modifier = Modifier.size(26.dp).graphicsLayer {
+                        if (lit && active == null) {
+                            val t = flicker * 2f * Math.PI.toFloat()
+                            scaleX = 1f + 0.05f * kotlin.math.sin(t * 2f)
+                            scaleY = 1f + 0.08f * kotlin.math.sin(t * 3f + 1f)
+                            rotationZ = 4f * kotlin.math.sin(t)
+                            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0.9f)
+                        }
+                    },
+                )
             }
             Column(Modifier.weight(1f)) {
                 Text(
@@ -141,7 +195,10 @@ fun FreezeSheet(onDismiss: () -> Unit) {
         val active = freezes.lastOrNull { !it.end.isBefore(today) }
         if (cooldown > 0) {
             val last = app.streakFreeze.last()
-            CooldownView(cooldown, last, onUnfreeze = if (active != null) ({ app.streakFreeze.unfreeze(today) }) else null)
+            CooldownView(cooldown, last, onUnfreeze = if (active != null) ({
+                app.streakFreeze.unfreeze(today)
+                close()
+            }) else null)
         } else {
             FreezePicker(today, onFreeze = { start, days ->
                 app.streakFreeze.add(start, days)

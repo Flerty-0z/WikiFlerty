@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -131,9 +132,16 @@ fun AppSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable 
         shape = RoundedCornerShape(topStart = (26 * AppStyle.current.corners).dp, topEnd = (26 * AppStyle.current.corners).dp),
     ) {
         KeepHostBars()
+        val enter = remember { androidx.compose.animation.core.Animatable(if (Motion.enabled) 0f else 1f) }
+        LaunchedEffect(Unit) { enter.animateTo(1f, Motion.tween(340, 60)) }
         androidx.compose.runtime.CompositionLocalProvider(LocalSheetClose provides close) {
             Column(
-                Modifier.padding(horizontal = 16.dp).navigationBarsPadding().verticalScroll(rememberScrollState()).padding(top = if (title == null) 16.dp else 0.dp, bottom = 16.dp),
+                Modifier
+                    .graphicsLayer {
+                        alpha = 0.35f + 0.65f * enter.value
+                        translationY = (1f - enter.value) * 22f * density
+                    }
+                    .padding(horizontal = 16.dp).navigationBarsPadding().verticalScroll(rememberScrollState()).padding(top = if (title == null) 16.dp else 0.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (title != null) SheetHeader(title, close)
@@ -187,6 +195,51 @@ private fun RoundButton(icon: androidx.compose.ui.graphics.vector.ImageVector, d
 val StarYellow = Color(0xFFFFC94D)
 
 @Composable
+private fun FavoriteButton(on: Boolean, onClick: () -> Unit) {
+    val feedback = LocalFeedback.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    var burst by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val pop = remember { androidx.compose.animation.core.Animatable(1f) }
+    var last by remember { mutableStateOf(on) }
+    LaunchedEffect(on) {
+        if (on == last) return@LaunchedEffect
+        last = on
+        if (!Motion.enabled) return@LaunchedEffect
+        if (on) {
+            burst++
+            pop.snapTo(0.6f)
+            pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.35f, stiffness = 420f))
+        } else {
+            pop.snapTo(0.85f)
+            pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 600f))
+        }
+    }
+    val tint by androidx.compose.animation.animateColorAsState(if (on) StarYellow else AppColors.Muted, Motion.fade(220), label = "fav")
+    Box(
+        Modifier
+            .size(40.dp)
+            .sparkBurst(burst, listOf(StarYellow, AppColors.Accent, Color.White), count = 14, reach = 0.9f)
+            .liveClick(CircleShape, sound = FeedbackSound.Toggle) {
+                if (!on) feedback?.play(FeedbackSound.Star, view, 1.25f)
+                onClick()
+            }
+            .background(AppColors.Field),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            if (on) AppIcons.StarFilled else AppIcons.Star,
+            "Избранное",
+            tint = tint,
+            modifier = Modifier.size(20.dp).graphicsLayer {
+                scaleX = pop.value
+                scaleY = pop.value
+                rotationZ = (1f - pop.value) * 70f
+            },
+        )
+    }
+}
+
+@Composable
 private fun SmallChip(title: String, selected: Boolean, icon: androidx.compose.ui.graphics.vector.ImageVector? = null, onClick: () -> Unit) {
     val shape = appCorner(18)
     Row(
@@ -235,12 +288,7 @@ fun BookSheet(
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 RoundButton(AppIcons.Close, "Закрыть", AppColors.Muted, FeedbackSound.Close, close)
-                RoundButton(
-                    if (book.favorite) AppIcons.StarFilled else AppIcons.Star,
-                    "Избранное",
-                    if (book.favorite) StarYellow else AppColors.Muted,
-                    FeedbackSound.Toggle,
-                ) { scope.launch { app.library.setFavorite(book.id, !book.favorite) } }
+                FavoriteButton(book.favorite) { scope.launch { app.library.setFavorite(book.id, !book.favorite) } }
             }
         }
 

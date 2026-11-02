@@ -207,7 +207,17 @@ private fun WatchResult(app: App, book: Book, result: ReadingSessionResult, onDo
     val leftPages = if (total > 0) Math.round((1.0 - book.progress).coerceAtLeast(0.0) * total).toInt() else null
     val leftMs = if (leftPages != null && speed != null && speed > 0) (leftPages / speed * 3_600_000).toLong() else null
 
-    StatePill("Итог сеанса", AppColors.Good)
+    val feedback = LocalFeedback.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    var shine by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    LaunchedEffect(result) {
+        delay(160)
+        shine++
+        feedback?.play(FeedbackSound.Success, view)
+    }
+    Box(Modifier.sparkBurst(shine, listOf(AppColors.Good, AppColors.Accent, StarYellow), count = 16, reach = 0.8f)) {
+        StatePill("Итог сеанса", AppColors.Good)
+    }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatTile("Время", StatsCalc.duration(result.ms).ifBlank { "<1 мин" }, Modifier.weight(1f), icon = AppIcons.Clock)

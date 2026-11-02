@@ -1,5 +1,9 @@
 package com.flerty.wikiflerty.reader
 
+import com.flerty.wikiflerty.ui.riseIn
+import kotlinx.coroutines.launch
+import androidx.compose.ui.graphics.graphicsLayer
+import com.flerty.wikiflerty.ui.sparkBurst
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -254,12 +258,13 @@ fun AiHistoryContent(bridge: HistoryBridge, modifier: Modifier = Modifier) {
                 }
             }
         }
-        itemsIndexed(records, key = { _, r -> r.id }) { _, record ->
+        itemsIndexed(records, key = { _, r -> r.id }) { index, record ->
             val action = AiAction.entries.firstOrNull { it.id == record.action } ?: AiAction.Explain
             val shape = appCorner(16)
             val count = record.messages.count { !it.fromUser && it.shown.isNotBlank() }
             Row(
                 Modifier
+                    .riseIn(state.book + "|" + record.id, index)
                     .fillMaxWidth()
                     .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onLongClick = { toDelete = record }) { bridge.onOpen(record) }
                     .fieldSurface(shape)
@@ -808,6 +813,51 @@ private fun TeacherScore(answers: List<String>) {
 }
 
 @Composable
+private fun VerdictPill(verdict: Verdict, live: Boolean) {
+    val color = verdictColor(verdict)
+    val feedback = com.flerty.wikiflerty.ui.LocalFeedback.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    val animate = live && com.flerty.wikiflerty.ui.Motion.enabled
+    val pop = remember { androidx.compose.animation.core.Animatable(if (animate) 0.4f else 1f) }
+    val shake = remember { androidx.compose.animation.core.Animatable(0f) }
+    var burst by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (!animate) return@LaunchedEffect
+        when (verdict) {
+            Verdict.Good -> {
+                feedback?.play(FeedbackSound.Success, view)
+                burst++
+            }
+            Verdict.Part -> feedback?.play(FeedbackSound.Star, view, 0.9f)
+            Verdict.Bad -> feedback?.play(FeedbackSound.Close, view)
+        }
+        kotlinx.coroutines.coroutineScope {
+            launch { pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.38f, stiffness = 420f)) }
+            if (verdict == Verdict.Bad) launch {
+                listOf(10f, -8f, 6f, -4f, 2f, 0f).forEach { shake.animateTo(it, androidx.compose.animation.core.tween(55)) }
+            }
+        }
+    }
+    Row(
+        Modifier
+            .sparkBurst(burst, listOf(color, com.flerty.wikiflerty.ui.StarYellow, Color.White), count = 14, reach = 0.7f)
+            .graphicsLayer {
+                scaleX = pop.value
+                scaleY = pop.value
+                translationX = shake.value * density
+            }
+            .clip(CircleShape)
+            .background(color.copy(alpha = 0.16f))
+            .padding(horizontal = 12.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(verdict.mark, fontSize = 13.sp)
+        Text(verdict.label, color = color, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+    }
+}
+
+@Composable
 private fun TeacherBubble(text: String, writing: Boolean, bridge: AiBridge) {
     val count = rememberRevealCount(text, writing)
     val shown = text.take(count)
@@ -828,17 +878,7 @@ private fun TeacherBubble(text: String, writing: Boolean, bridge: AiBridge) {
             val last = i == lines.lastIndex && live
             val verdict = verdictOf(line)
             when {
-                verdict != null -> {
-                    val color = verdictColor(verdict)
-                    Row(
-                        Modifier.clip(CircleShape).background(color.copy(alpha = 0.16f)).padding(horizontal = 12.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Text(verdict.mark, fontSize = 13.sp)
-                        Text(verdict.label, color = color, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
-                    }
-                }
+                verdict != null -> VerdictPill(verdict, live)
                 line.startsWith("Цитата:", ignoreCase = true) -> {
                     val quote = line.substringAfter(':').trim().trim('«', '»', '"', ' ')
                     Row(

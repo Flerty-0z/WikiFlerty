@@ -1,5 +1,10 @@
 package com.flerty.wikiflerty.reader
 
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.size
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -59,7 +64,7 @@ fun AmbienceOptions() {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        Text(sound.emoji, fontSize = 24.sp)
+                        AmbientEmoji(sound.emoji, on)
                         Text(
                             sound.title,
                             color = if (on) AppColors.Accent else AppColors.Text,
@@ -128,5 +133,47 @@ private fun MixChip(label: String, emoji: String?, selected: Boolean, modifier: 
     ) {
         if (emoji != null) Text(emoji, fontSize = 14.sp)
         Text(label, color = if (selected) AppColors.OnAccent else AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+    }
+}
+
+@Composable
+private fun AmbientEmoji(emoji: String, on: Boolean) {
+    val level by androidx.compose.animation.core.animateFloatAsState(if (on) 1f else 0f, com.flerty.wikiflerty.ui.Motion.tween(400), label = "amb-on")
+    val idle = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val breath: androidx.compose.runtime.State<Float> = if (level > 0f && com.flerty.wikiflerty.ui.Motion.enabled) {
+        androidx.compose.animation.core.rememberInfiniteTransition(label = "amb").animateFloat(
+            0f,
+            1f,
+            androidx.compose.animation.core.infiniteRepeatable(
+                androidx.compose.animation.core.tween(1700, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                androidx.compose.animation.core.RepeatMode.Reverse,
+            ),
+            label = "amb-breath",
+        )
+    } else {
+        idle
+    }
+    val accent = AppColors.Accent
+    Box(
+        Modifier
+            .size(40.dp)
+            .drawBehind {
+                if (level > 0f && com.flerty.wikiflerty.ui.Motion.enabled) {
+                    val b = breath.value
+                    drawCircle(accent.copy(alpha = 0.10f * level + 0.10f * level * b), size.minDimension * (0.42f + 0.08f * b))
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            emoji,
+            fontSize = 24.sp,
+            modifier = Modifier.graphicsLayer {
+                val b = if (com.flerty.wikiflerty.ui.Motion.enabled) breath.value * level else 0f
+                scaleX = 1f + 0.08f * b
+                scaleY = 1f + 0.08f * b
+                translationY = -2f * density * b
+            },
+        )
     }
 }

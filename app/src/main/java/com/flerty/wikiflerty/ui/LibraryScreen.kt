@@ -31,6 +31,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
@@ -244,8 +245,8 @@ fun LibraryScreen(
                     )
                 }
             }
-            items(shown, key = { it.id }) { book ->
-                Box(motionItem()) {
+            itemsIndexed(shown, key = { _, b -> b.id }) { index, book ->
+                Box(motionItem().riseIn(active.id + "|" + q.isEmpty(), index)) {
                     if (grid) {
                         BookCard(book, viewModel.coverFile(book), small = prefs.coverSize == 0, inPages = prefs.progressInPages, onClick = { longPress(book) }, onLongClick = { longPress(book) })
                     } else {
@@ -561,7 +562,13 @@ private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean
                         .padding(horizontal = if (small) 5.dp else 7.dp, vertical = 1.dp),
                 )
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End) {
-                    if (book.favorite) Icon(AppIcons.StarFilled, "Избранное", tint = StarYellow, modifier = Modifier.size(if (small) 11.dp else 13.dp))
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = book.favorite,
+                        enter = androidx.compose.animation.scaleIn(androidx.compose.animation.core.spring(dampingRatio = 0.4f, stiffness = 500f), initialScale = 0.2f) + androidx.compose.animation.fadeIn(Motion.fade(160)),
+                        exit = androidx.compose.animation.scaleOut(Motion.tween(160), targetScale = 0.4f) + androidx.compose.animation.fadeOut(Motion.fade(140)),
+                    ) {
+                        Icon(AppIcons.StarFilled, "Избранное", tint = StarYellow, modifier = Modifier.size(if (small) 11.dp else 13.dp))
+                    }
                 }
             }
         } else {

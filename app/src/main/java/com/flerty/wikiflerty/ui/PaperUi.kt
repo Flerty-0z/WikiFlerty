@@ -286,9 +286,22 @@ fun PaperMain(book: Book, onEdit: () -> Unit) {
         run {
             val total = book.positions.coerceAtLeast(1)
             val fraction by animateFloatAsState((current.toFloat() / total).coerceIn(0f, 1f), Motion.tween(800), label = "paper")
+            var grew by remember { mutableIntStateOf(0) }
+            var lastPage by remember { mutableIntStateOf(current) }
+            LaunchedEffect(current) {
+                if (current > lastPage) grew++
+                lastPage = current
+            }
             Row(Modifier.padding(vertical = 10.dp).height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.width(34.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("${(fraction * 100).toInt()}%", color = AppColors.Accent, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                    Text(
+                        "${(fraction * 100).toInt()}%",
+                        color = AppColors.Accent,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        maxLines = 1,
+                        modifier = Modifier.sparkBurst(grew, listOf(AppColors.AccentLight, AppColors.Accent, StarYellow), count = 10, reach = 1.4f),
+                    )
                     Box(Modifier.weight(1f).width(12.dp).clip(CircleShape).background(AppColors.Line), contentAlignment = Alignment.BottomCenter) {
                         Box(
                             Modifier
@@ -302,9 +315,11 @@ fun PaperMain(book: Book, onEdit: () -> Unit) {
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     AddSessionCard { form = SessionForm(null, current, current, System.currentTimeMillis(), 0L, fromStopwatch = false) }
-                    (if (showAll) sessions else sessions.take(6)).forEach { s ->
-                        SessionCard(s, total) {
+                    (if (showAll) sessions else sessions.take(6)).forEachIndexed { index, s ->
+                        androidx.compose.runtime.key(s.id) {
+                        SessionCard(s, total, Modifier.riseIn(s.id, index)) {
                             form = SessionForm(s, s.fromPage, s.toPage, s.startAt, s.durationMs, fromStopwatch = false)
+                        }
                         }
                     }
                     if (sessions.size > 6) {
@@ -389,10 +404,10 @@ internal fun RollingClock(text: String, modifier: Modifier = Modifier, size: and
 }
 
 @Composable
-private fun SessionCard(s: PaperSession, total: Int, onClick: () -> Unit) {
+private fun SessionCard(s: PaperSession, total: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val shape = appCorner(16)
     Column(
-        Modifier.fillMaxWidth().liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick).fieldSurface(shape).padding(horizontal = 12.dp, vertical = 10.dp),
+        modifier.fillMaxWidth().liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick).fieldSurface(shape).padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -419,6 +434,8 @@ private fun SessionCard(s: PaperSession, total: Int, onClick: () -> Unit) {
 @Composable
 private fun SessionSheet(book: Book, form: SessionForm, onSaved: (Boolean) -> Unit, onDismiss: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
+    val feedback = LocalFeedback.current
+    val view = androidx.compose.ui.platform.LocalView.current
     val total = book.positions.coerceAtLeast(1)
     var from by remember { mutableIntStateOf(form.from.coerceIn(0, total)) }
     var to by remember { mutableIntStateOf(form.to.coerceIn(0, total)) }
@@ -481,6 +498,7 @@ private fun SessionSheet(book: Book, form: SessionForm, onSaved: (Boolean) -> Un
             val ms = minutes * 60_000L
             val existing = form.session
             if (existing == null) {
+                feedback?.play(FeedbackSound.Success, view)
                 app.paper.add(book, from, to, start, ms, note)
             } else {
                 app.paper.update(book, existing.copy(fromPage = from, toPage = to, startAt = start, durationMs = ms, note = note.trim()))

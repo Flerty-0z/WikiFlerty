@@ -1,6 +1,7 @@
 package com.flerty.wikiflerty.ui
 
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.runtime.LaunchedEffect
 import android.content.ClipData
@@ -42,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -202,9 +204,25 @@ fun RatingSheet(bookId: String, celebrate: Boolean, onDismiss: () -> Unit) {
     var review by remember { mutableStateOf(book.review) }
     var sharing by remember { mutableStateOf(false) }
 
+    val feedback = LocalFeedback.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    var party by remember { mutableIntStateOf(0) }
+    val titlePop = remember { androidx.compose.animation.core.Animatable(if (celebrate && Motion.enabled) 0.6f else 1f) }
+    LaunchedEffect(Unit) {
+        if (!celebrate) return@LaunchedEffect
+        kotlinx.coroutines.delay(180)
+        party = 1
+        feedback?.play(FeedbackSound.Success, view)
+        titlePop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.4f, stiffness = 380f))
+    }
+
     AppSheet(onDismiss) {
         val close = sheetClose(onDismiss)
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(
+            Modifier.fillMaxWidth().confetti(party, listOf(AppColors.Accent, StarYellow, Color(0xFFFF8FB1), Color(0xFF7ED3A0), Color(0xFF7DD3FC), Color(0xFFB9A2FF))),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             Text(
                 if (celebrate) "Книга прочитана! 🎉" else "Оценка книги",
                 color = AppColors.Text,
@@ -213,7 +231,11 @@ fun RatingSheet(bookId: String, celebrate: Boolean, onDismiss: () -> Unit) {
                 maxLines = 1,
                 softWrap = false,
                 autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 14.sp, maxFontSize = 22.sp, stepSize = 0.5.sp),
-                modifier = Modifier.padding(bottom = 6.dp),
+                modifier = Modifier.padding(bottom = 6.dp).graphicsLayer {
+                    scaleX = titlePop.value
+                    scaleY = titlePop.value
+                    alpha = ((titlePop.value - 0.6f) / 0.4f).coerceIn(0f, 1f)
+                },
             )
             Row(
                 Modifier.fillMaxWidth().fieldSurface(appCorner(16)).padding(10.dp),

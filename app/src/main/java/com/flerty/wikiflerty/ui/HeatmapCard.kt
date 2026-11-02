@@ -1,5 +1,6 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.fadeIn
@@ -213,6 +214,13 @@ private fun YearGrid(year: Int, perDay: Map<LocalDate, DayEntry>, frozen: Set<Lo
         }
         val feedback = LocalFeedback.current
         val view = androidx.compose.ui.platform.LocalView.current
+        val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "today").animateFloat(
+            0f,
+            1f,
+            androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1800, easing = androidx.compose.animation.core.LinearEasing)),
+            label = "today-pulse",
+        )
+        val pulseColor = AppColors.Accent
         Box(Modifier.weight(1f).horizontalScroll(scroll)) {
             androidx.compose.foundation.Canvas(
                 Modifier
@@ -260,6 +268,17 @@ private fun YearGrid(year: Int, perDay: Map<LocalDate, DayEntry>, frozen: Set<Lo
                         val x = wi * step
                         val y = top + d * step + (cell - h) / 2
                         drawRoundRect(color.copy(alpha = color.alpha * a), androidx.compose.ui.geometry.Offset(x, y), androidx.compose.ui.geometry.Size(cell, h), r)
+                        if (day == today && Motion.enabled && a >= 1f) {
+                            val p = pulse.value
+                            val grow = 4.dp.toPx() * p
+                            drawRoundRect(
+                                pulseColor.copy(alpha = 0.55f * (1f - p)),
+                                androidx.compose.ui.geometry.Offset(x - grow, y - grow),
+                                androidx.compose.ui.geometry.Size(cell + grow * 2, h + grow * 2),
+                                androidx.compose.ui.geometry.CornerRadius(r.x + grow, r.y + grow),
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()),
+                            )
+                        }
                         if (day == selected) {
                             val sw = 1.5.dp.toPx()
                             drawRoundRect(
