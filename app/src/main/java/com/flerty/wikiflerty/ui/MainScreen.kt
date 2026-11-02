@@ -130,6 +130,10 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
     LaunchedEffect(Unit) {
         libraryViewModel.messages.collect { snackbar.showSnackbar(it) }
     }
+    LaunchedEffect(Unit) {
+        val app = context.applicationContext as com.flerty.wikiflerty.App
+        app.pet.open.collect { if (it) section = Section.Stats }
+    }
 
     BackHandler(enabled = drawerOpen || section != Section.Library) {
         if (drawerOpen) drawerOpen = false else section = Section.Library

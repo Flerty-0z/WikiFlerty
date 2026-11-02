@@ -56,6 +56,8 @@ class App : Application() {
 
     val achievements: com.flerty.wikiflerty.data.AchievementStore by lazy { com.flerty.wikiflerty.data.AchievementStore(this) }
 
+    val pet: com.flerty.wikiflerty.pet.PetManager by lazy { com.flerty.wikiflerty.pet.PetManager(this) }
+
     val ambient: com.flerty.wikiflerty.system.AmbientPlayer by lazy { com.flerty.wikiflerty.system.AmbientPlayer(this) }
 
     val streakFreeze: com.flerty.wikiflerty.data.StreakFreezeStore by lazy { com.flerty.wikiflerty.data.StreakFreezeStore(this) }
@@ -101,6 +103,8 @@ class App : Application() {
         appScope.launch { library.ensureFingerprints() }
         backgroundAudio.install()
         achievements.start(appScope)
+        pet.start()
+        flashcards.onAnswer = { pet.event(com.flerty.wikiflerty.pet.PetEvent.Card) }
         appScope.launch {
             var first = true
             notes.notes.collectLatest {

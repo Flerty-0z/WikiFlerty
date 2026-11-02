@@ -383,6 +383,8 @@ fun ReaderOverlay(
             FinishedPrompt(onMark = onMarkFinished, onDismiss = { state.askFinished = false })
         }
 
+        PetPeek(Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = FlagBottom + 30.dp))
+
         AnimatedVisibility(
             visible = state.brightnessHint != null,
             enter = fadeIn() + scaleIn(initialScale = 0.9f),

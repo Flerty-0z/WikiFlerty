@@ -6,6 +6,7 @@
     <string name="widget_quote_title">Цитата дня</string>
     <string name="widget_quote_open">Открыть</string>
     <string name="widget_quote_next">Другая цитата</string>
+    <string name="widget_pet_description">Твой питомец и его настроение</string>
     <string name="widget_quote_description">Цитата дня из твоих заметок</string>
     <string name="widget_quote_small_description">Цитата дня — маленький</string>
 </resources>

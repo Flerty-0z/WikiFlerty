@@ -171,11 +171,19 @@ object StatsCalc {
 
 @Composable
 fun StatsScreen(modifier: Modifier = Modifier) {
-    var achievements by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    var achievements by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(0) }
+    val app = LocalContext.current.applicationContext as App
+    val openPet by app.pet.open.collectAsStateWithLifecycle()
+    androidx.compose.runtime.LaunchedEffect(openPet) {
+        if (openPet) {
+            app.pet.open.value = false
+            if (app.pet.pet.value != null) achievements = 2
+        }
+    }
     androidx.compose.animation.AnimatedContent(
         targetState = achievements,
         transitionSpec = {
-            val dir = if (targetState) 1 else -1
+            val dir = if (targetState > initialState) 1 else -1
             (androidx.compose.animation.fadeIn(Motion.fade(220)) +
                 androidx.compose.animation.slideInHorizontally(Motion.tween(280)) { dir * it / 5 })
                 .togetherWith(
@@ -185,16 +193,16 @@ fun StatsScreen(modifier: Modifier = Modifier) {
         },
         label = "statsPage",
     ) { page ->
-        if (page) {
-            AchievementsPage(modifier) { achievements = false }
-        } else {
-            StatsMain(modifier) { achievements = true }
+        when (page) {
+            1 -> AchievementsPage(modifier) { achievements = 0 }
+            2 -> PetPage(modifier) { achievements = 0 }
+            else -> StatsMain(modifier, onPet = { achievements = 2 }) { achievements = 1 }
         }
     }
 }
 
 @Composable
-private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
+private fun StatsMain(modifier: Modifier, onPet: () -> Unit, onAchievements: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
     val days by app.stats.days.collectAsStateWithLifecycle()
     val books by app.library.books.collectAsStateWithLifecycle()
@@ -233,6 +241,7 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
                 )
             }
         }
+        item(key = "pet") { PetCard(onPet) }
         item(key = "goal") {
             GoalCard(prefs.dailyGoalMinutes, perDay) { minutes -> app.libraryPrefs.update { it.copy(dailyGoalMinutes = minutes) } }
         }

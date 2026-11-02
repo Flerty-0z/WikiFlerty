@@ -190,6 +190,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
     private var bookTitle: String = ""
     private var rateBook by androidx.compose.runtime.mutableStateOf(false)
+    private var petChapterHref: String? = null
+    private var petChapterProg = 0.0
     private var bookAuthor: String = ""
     private val chat = AiChatState()
 
@@ -1275,6 +1277,14 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     navigator.currentLocator.collect { locator ->
                         injectScripts()
                         val href = locator.href.toString()
+                        val chapterHref = href.substringBefore('#')
+                        val prog = locator.locations.totalProgression ?: 0.0
+                        val prevHref = petChapterHref
+                        if (prevHref != null && chapterHref != prevHref && prog > petChapterProg) {
+                            app.pet.event(com.flerty.wikiflerty.pet.PetEvent.Chapter, key = "$bookId|$prevHref")
+                        }
+                        petChapterHref = chapterHref
+                        petChapterProg = prog
                         if (href != autoHref) {
                             autoHref = href
                             if (ui.autoActive && !ui.autoPaused && settings.scroll) startAutoScrollJs()
@@ -1592,6 +1602,13 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 chat.retryNote = null
                 chat.streaming = false
                 if (answer.isNotEmpty()) saveHistory()
+                if (answer.isNotEmpty() && chat.action == AiAction.Teacher) {
+                    val first = answer.toString().trimStart()
+                    when {
+                        first.startsWith("✅") -> app.pet.event(com.flerty.wikiflerty.pet.PetEvent.TeacherGood)
+                        first.startsWith("🟡") -> app.pet.event(com.flerty.wikiflerty.pet.PetEvent.TeacherPart)
+                    }
+                }
             }
         }
     }

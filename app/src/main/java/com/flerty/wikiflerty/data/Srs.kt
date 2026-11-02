@@ -173,6 +173,7 @@ class FlashcardStore(context: Context) {
     private val file = File(context.filesDir, "flashcards.json")
     private val _prefs = MutableStateFlow(load())
     val prefs: StateFlow<FlashcardPrefs> = _prefs.asStateFlow()
+    var onAnswer: (() -> Unit)? = null
 
     @Synchronized
     fun update(transform: (FlashcardPrefs) -> FlashcardPrefs) {
@@ -183,6 +184,7 @@ class FlashcardStore(context: Context) {
     }
 
     fun recordAnswer(correct: Boolean, wasNew: Boolean) = update { p ->
+        onAnswer?.invoke()
         val today = LocalDate.now().toString()
         val (n, ok) = p.history[today] ?: (0 to 0)
         val history = (p.history + (today to (n + 1 to ok + if (correct) 1 else 0))).entries
