@@ -372,14 +372,14 @@ private fun AddSessionCard(onClick: () -> Unit) {
     ) {
         Text(dayLabel(LocalDate.now()), color = AppColors.Faint, fontSize = 12.sp, maxLines = 1)
         Row(
-            Modifier.clip(CircleShape).background(AppColors.Accent.copy(alpha = 0.16f)).border(1.dp, AppColors.Accent.copy(alpha = 0.45f), CircleShape).padding(horizontal = 10.dp, vertical = 5.dp),
+            Modifier.fillMaxWidth().clip(CircleShape).background(AppColors.Accent.copy(alpha = 0.16f)).border(1.dp, AppColors.Accent.copy(alpha = 0.45f), CircleShape).padding(horizontal = 10.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
         ) {
             Icon(AppIcons.Plus, null, tint = AppColors.Accent, modifier = Modifier.size(14.dp))
-            Text("Добавить сеанс чтения", color = AppColors.Accent, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            FitText("Добавить сеанс", AppColors.Accent, 13.5.sp, weight = FontWeight.Bold)
         }
-        Text("Сколько страниц прочитано?", color = AppColors.Muted, fontSize = 12.5.sp, maxLines = 1)
+        FitText("Сколько прочитано?", AppColors.Muted, 12.5.sp)
     }
 }
 
@@ -410,22 +410,37 @@ private fun SessionCard(s: PaperSession, total: Int, modifier: Modifier = Modifi
         modifier.fillMaxWidth().liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick).fieldSurface(shape).padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("+${s.pages} ${pagesWord(s.pages)}", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, modifier = Modifier.weight(1f))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FitText("+${s.pages} ${pagesWord(s.pages)}", AppColors.Text, 15.sp, Modifier.weight(1f), weight = FontWeight.ExtraBold)
             if (s.toPage >= total) {
-                StatusPill(com.flerty.wikiflerty.data.ReadStatus.Finished, small = false, framed = true)
+                StatusPill(com.flerty.wikiflerty.data.ReadStatus.Finished, small = true, framed = true)
             }
         }
-        Text("${s.toPage}/$total · ${(s.toPage * 100 / total.coerceAtLeast(1))}%", color = AppColors.Accent, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
-        val speed = if (s.durationMs >= 60_000 && s.pages > 0) " · ${(s.pages / (s.durationMs / 3_600_000.0)).toInt()} стр/ч" else ""
-        Text(
-            SessionFormat.format(Instant.ofEpochMilli(s.startAt).atZone(ZoneId.systemDefault())) +
-                (if (s.durationMs >= 60_000) " · " + StatsCalc.duration(s.durationMs) else "") + speed,
-            color = AppColors.Faint,
-            fontSize = 12.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+        FitText("${s.toPage}/$total · ${(s.toPage * 100 / total.coerceAtLeast(1))}%", AppColors.Accent, 12.5.sp, weight = FontWeight.SemiBold)
+        FitText(SessionFormat.format(Instant.ofEpochMilli(s.startAt).atZone(ZoneId.systemDefault())), AppColors.Faint, 12.sp)
+        val chips = listOfNotNull(
+            if (s.durationMs >= 60_000) AppIcons.Clock to StatsCalc.duration(s.durationMs) else null,
+            if (s.durationMs >= 60_000 && s.pages > 0) AppIcons.Speed to "${(s.pages / (s.durationMs / 3_600_000.0)).toInt()} стр/ч" else null,
         )
+        if (chips.isNotEmpty()) {
+            Row(Modifier.padding(top = 3.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                chips.forEach { (icon, text) ->
+                    Row(
+                        Modifier
+                            .weight(1f, fill = false)
+                            .clip(appCorner(10))
+                            .background(AppColors.Line.copy(alpha = 0.35f))
+                            .border(1.dp, AppColors.PanelBorder, appCorner(10))
+                            .padding(horizontal = 7.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(12.dp))
+                        FitText(text, AppColors.Muted, 11.5.sp)
+                    }
+                }
+            }
+        }
         if (s.note.isNotBlank()) Text("«${s.note}»", color = AppColors.Muted, fontSize = 13.sp, fontStyle = FontStyle.Italic, lineHeight = 18.sp)
     }
 }

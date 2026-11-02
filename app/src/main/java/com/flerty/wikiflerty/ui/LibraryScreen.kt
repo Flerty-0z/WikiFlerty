@@ -524,7 +524,7 @@ private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean
         val rating = book.rating?.takeIf { it > 0f }
         if (book.paper) {
             Box(
-                Modifier.align(if (plaque) Alignment.BottomStart else Alignment.TopStart).padding(if (showStatus) 5.dp else 3.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
+                Modifier.align(Alignment.TopStart).padding(if (showStatus) 5.dp else 3.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
                     .background(Color(0xB0101114)),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Pages, "Бумажная книга", tint = Color.White, modifier = Modifier.size(if (small) 12.dp else 14.dp)) }
@@ -534,7 +534,7 @@ private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean
                 val text = if (small) 9.5.sp else 10.5.sp
                 Row(
                     Modifier
-                        .align(Alignment.TopCenter)
+                        .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .padding(horizontal = if (small) 4.dp else 6.dp, vertical = if (small) 4.dp else 6.dp)
                         .clip(CircleShape)
@@ -600,8 +600,8 @@ private fun BookCard(book: Book, coverFile: File?, small: Boolean, inPages: Bool
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 8.dp),
         )
-        Spacer(Modifier.height(6.dp))
-        StatusProgress(book, inPages, small)
+        ProgressLineWithLabel(book, inPages, small, Modifier.padding(top = 6.dp))
+        StatusPill(book.status, small, Modifier.fillMaxWidth().padding(top = 6.dp), framed = true, wide = true)
     }
 }
 
@@ -623,7 +623,10 @@ private fun BookRow(book: Book, coverFile: File?, inPages: Boolean, onClick: () 
             if (book.author.isNotBlank()) {
                 Text(book.author, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            StatusProgress(book, inPages, small = false, modifier = Modifier.padding(top = 6.dp))
+            Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ProgressLineWithLabel(book, inPages, false, Modifier.weight(1f))
+                StatusPill(book.status, false, framed = true)
+            }
         }
     }
 }
@@ -766,56 +769,16 @@ fun relativeDay(time: Long): String {
 }
 
 @Composable
-private fun StatusProgress(book: Book, inPages: Boolean, small: Boolean, modifier: Modifier = Modifier) {
+private fun ProgressLineWithLabel(book: Book, inPages: Boolean, small: Boolean, modifier: Modifier = Modifier) {
     val (label, color) = progressBadge(book, inPages)
     val finished = book.status == ReadStatus.Finished
-    val fraction by animateFloatAsState(if (finished) 1f else book.progress.toFloat().coerceIn(0f, 1f), Motion.tween(700), label = "status-progress")
-    val tint = AppColors.Accent
-    val shape = appCorner(if (small) 10 else 12)
-    val box = if (small) 20.dp else 24.dp
-    val track = AppColors.Line
-    Row(
-        modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(AppColors.Line.copy(alpha = 0.35f))
-            .border(1.dp, AppColors.PanelBorder, shape)
-            .drawWithContent {
-                drawContent()
-                val h = 3.dp.toPx()
-                drawRect(track, androidx.compose.ui.geometry.Offset(0f, size.height - h), androidx.compose.ui.geometry.Size(size.width, h))
-                drawRect(color, androidx.compose.ui.geometry.Offset(0f, size.height - h), androidx.compose.ui.geometry.Size(size.width * fraction, h))
-            }
-            .padding(start = 4.dp, end = if (small) 6.dp else 9.dp, top = 4.dp, bottom = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(if (small) 5.dp else 7.dp),
-    ) {
-        Box(
-            Modifier
-                .size(box)
-                .clip(appCorner(7))
-                .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.26f), tint.copy(alpha = 0.08f))))
-                .border(1.dp, tint.copy(alpha = 0.18f), appCorner(7)),
-            contentAlignment = Alignment.Center,
-        ) { Icon(statusIcon(book.status), null, tint = tint, modifier = Modifier.size(box * 0.55f)) }
-        Text(
-            statusLabel(book.status),
-            color = AppColors.Text,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            softWrap = false,
-            modifier = Modifier.weight(1f),
-            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = if (small) 11.sp else 12.5.sp, stepSize = 0.5.sp),
-        )
-        Text(label, color = color, fontSize = if (small) 10.sp else 11.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
+    val fraction by animateFloatAsState(if (finished) 1f else book.progress.toFloat().coerceIn(0f, 1f), Motion.tween(700), label = "card-progress")
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.weight(1f).height(if (small) 5.dp else 6.dp).clip(CircleShape).background(AppColors.Line)) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).clip(CircleShape).background(color))
+        }
+        Text(label, color = color, fontSize = if (small) 9.5.sp else 10.5.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
     }
-}
-
-private fun statusLabel(status: ReadStatus): String = when (status) {
-    ReadStatus.Reading -> "Читаю"
-    ReadStatus.Planned -> "В планах"
-    ReadStatus.Finished -> "Прочитано"
-    ReadStatus.New -> "Новая"
 }
 
 @Composable

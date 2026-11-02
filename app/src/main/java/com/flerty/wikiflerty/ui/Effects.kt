@@ -208,3 +208,25 @@ fun Modifier.riseIn(key: Any?, index: Int = 0): Modifier {
 }
 
 
+
+@Composable
+fun FitText(
+    text: String,
+    color: Color,
+    maxSize: androidx.compose.ui.unit.TextUnit,
+    modifier: Modifier = Modifier,
+    weight: androidx.compose.ui.text.font.FontWeight? = null,
+    minSize: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit(maxSize.value * 0.72f, androidx.compose.ui.unit.TextUnitType.Sp),
+) {
+    androidx.compose.material3.Text(
+        text,
+        color = color,
+        fontWeight = weight,
+        maxLines = 1,
+        softWrap = false,
+        modifier = modifier,
+        autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = minSize, maxFontSize = maxSize, stepSize = 0.25.sp2()),
+    )
+}
+
+private fun Double.sp2(): androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit(this.toFloat(), androidx.compose.ui.unit.TextUnitType.Sp)

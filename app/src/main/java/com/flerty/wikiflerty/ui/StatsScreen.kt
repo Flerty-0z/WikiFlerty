@@ -340,7 +340,7 @@ fun StatTile(label: String, value: String, modifier: Modifier = Modifier, hint: 
                     Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(14.dp))
                 }
             }
-            Text(label, color = AppColors.Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            FitText(label, AppColors.Muted, 12.sp, weight = FontWeight.SemiBold)
         }
         Text(
             value,
