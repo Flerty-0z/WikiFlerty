@@ -550,80 +550,15 @@ private val DayLetters = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", 
 
 @Composable
 private fun MinutesCard(perDay: Map<LocalDate, DayEntry>, today: LocalDate) {
-    var month by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     Column(
         Modifier.fillMaxWidth().fieldSurface(appCorner(20)).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Минуты по дням", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f), maxLines = 1)
-            PeriodToggle(month) { month = it }
-        }
-        androidx.compose.animation.AnimatedContent(
-            targetState = month,
-            transitionSpec = {
-                val dir = if (targetState) 1 else -1
-                (androidx.compose.animation.fadeIn(Motion.fade(260)) +
-                    androidx.compose.animation.slideInHorizontally(Motion.tween(420, 0, GrowEasing)) { dir * it / 6 })
-                    .togetherWith(
-                        androidx.compose.animation.fadeOut(Motion.fade(160)) +
-                            androidx.compose.animation.slideOutHorizontally(Motion.tween(300)) { -dir * it / 6 },
-                    )
-                    .using(androidx.compose.animation.SizeTransform(clip = false))
-            },
-            label = "period",
-        ) { isMonth ->
-            MinutesBars(StatsCalc.series(perDay, if (isMonth) 30 else 7, today), isMonth, today)
-        }
+        Text("Минуты по дням", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+        MinutesBars(StatsCalc.series(perDay, 7, today), false, today)
     }
 }
 
-@Composable
-private fun PeriodToggle(month: Boolean, onChange: (Boolean) -> Unit) {
-    val bounds = remember { androidx.compose.runtime.mutableStateMapOf<Boolean, Pair<Float, Float>>() }
-    val selected = bounds[month]
-    val x by androidx.compose.animation.core.animateFloatAsState(selected?.first ?: 0f, Motion.tween(380, 0, GrowEasing), label = "toggleX")
-    val w by androidx.compose.animation.core.animateFloatAsState(selected?.second ?: 0f, Motion.tween(380, 0, GrowEasing), label = "toggleW")
-    val accent = AppColors.Accent
-    Row(
-        Modifier
-            .clip(CircleShape)
-            .background(AppColors.Line.copy(alpha = 0.6f))
-            .drawBehind {
-                if (w > 0f) {
-                    drawRoundRect(
-                        accent,
-                        topLeft = Offset(x, 3.dp.toPx()),
-                        size = Size(w, size.height - 6.dp.toPx()),
-                        cornerRadius = CornerRadius(size.height / 2),
-                    )
-                }
-            }
-            .padding(3.dp),
-    ) {
-        listOf(false to "Неделя", true to "30 дней").forEach { (m, title) ->
-            val color by androidx.compose.animation.animateColorAsState(
-                if (m == month) AppColors.OnAccent else AppColors.Muted,
-                Motion.fade(260),
-                label = "toggleText",
-            )
-            Text(
-                title,
-                color = color,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                modifier = Modifier
-                    .onGloballyPositioned { c ->
-                        bounds[m] = c.positionInParent().x to c.size.width.toFloat()
-                    }
-                    .clip(CircleShape)
-                    .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.93f) { onChange(m) }
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
-            )
-        }
-    }
-}
 
 @Composable
 private fun MinutesBars(values: List<Long>, month: Boolean, today: LocalDate) {

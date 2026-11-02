@@ -54,9 +54,6 @@ class AmbientPlayer(private val context: Context) {
     private val _mix = MutableStateFlow<Map<AmbientSound, Float>>(emptyMap())
     val mix: StateFlow<Map<AmbientSound, Float>> = _mix.asStateFlow()
 
-    private val _timer = MutableStateFlow<Int?>(null)
-    val timer: StateFlow<Int?> = _timer.asStateFlow()
-    private var timerJob: Job? = null
     private var master = 1f
 
     val saved: Map<AmbientSound, Float>
@@ -124,26 +121,7 @@ class AmbientPlayer(private val context: Context) {
     }
 
     fun stopAll() {
-        timerJob?.cancel()
-        _timer.value = null
         _mix.value.keys.toList().forEach { stop(it, persist = false) }
-    }
-
-    fun setTimer(minutes: Int?) {
-        timerJob?.cancel()
-        _timer.value = minutes
-        if (minutes == null) return
-        timerJob = scope.launch {
-            delay(minutes * 60_000L - 8_000L)
-            val steps = 40
-            for (i in 1..steps) {
-                master = 1f - i / steps.toFloat()
-                players.forEach { (s, p) -> val v = (_mix.value[s] ?: 0f) * master; runCatching { p.setVolume(v, v) } }
-                delay(200)
-            }
-            stopAll()
-            master = 1f
-        }
     }
 
     private fun persist() {

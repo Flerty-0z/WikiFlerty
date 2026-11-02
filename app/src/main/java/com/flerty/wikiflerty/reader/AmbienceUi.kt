@@ -42,7 +42,6 @@ fun AmbienceOptions() {
     val app = LocalContext.current.applicationContext as App
     val player = app.ambient
     val mix by player.mix.collectAsStateWithLifecycle()
-    val timer by player.timer.collectAsStateWithLifecycle()
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         AmbientSound.entries.chunked(3).forEach { row ->
@@ -101,14 +100,6 @@ fun AmbienceOptions() {
             if (mix.isEmpty() && saved.isNotEmpty()) MixChip("Мой микс", "▶", false) { player.applyMix(saved) }
             AmbientPresets.forEach { preset ->
                 MixChip(preset.title, preset.emoji, preset.mix.keys == mix.keys) { player.preset(preset) }
-            }
-        }
-    }
-
-    SettingsGroup("Таймер") {
-        Row(Modifier.padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(null to "Выкл", 15 to "15 мин", 30 to "30 мин", 60 to "1 час").forEach { (m, label) ->
-                MixChip(label, null, timer == m, Modifier.weight(1f)) { player.setTimer(m) }
             }
         }
     }

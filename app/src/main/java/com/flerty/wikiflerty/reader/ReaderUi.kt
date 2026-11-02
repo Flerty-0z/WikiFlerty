@@ -122,6 +122,7 @@ private const val FlagHeight = 24
 internal val PanelMaxWidth = 620.dp
 
 private val FlagBottom = ((52 - FlagHeight) / 2).dp
+private val MiniBottom = FlagBottom + FlagHeight.dp + 8.dp
 
 enum class ReaderSheet(val title: String, val depth: Int) {
     Options("Опции", 0),
@@ -132,7 +133,7 @@ enum class ReaderSheet(val title: String, val depth: Int) {
     Panel("Панель", 1),
     Gestures("Жесты", 1),
     Screen("Экран", 1),
-    Sound("Звук", 1),
+    Sound("Звук/Атмосфера", 1),
     Listen("Чтение вслух", 1),
     Fonts("Шрифт", 2),
     Notes("Заметки", 0),
@@ -148,7 +149,6 @@ enum class ReaderSheet(val title: String, val depth: Int) {
     Heroes("Герои книги", 1),
     HeroChat("Герой", 1),
     AiHistory("История", 1),
-    Ambience("Атмосфера", 1),
     CharMap("Карта персонажей", 1),
 }
 
@@ -360,7 +360,7 @@ fun ReaderOverlay(
             visible = state.ttsActive && state.ttsCollapsed && state.sheet == null && !state.panelsVisible,
             enter = fadeIn(Motion.fade(200)) + slideInHorizontally(Motion.tween(260)) { -it },
             exit = fadeOut(Motion.fade(160)) + slideOutHorizontally(Motion.tween(220)) { -it },
-            modifier = Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = FlagBottom + (FlagHeight.dp - 36.dp) / 2),
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = MiniBottom),
         ) {
             TtsMini(state.ttsPlaying) { state.ttsCollapsed = false }
         }
@@ -542,7 +542,7 @@ fun ReaderOverlay(
         visible = state.autoActive && state.autoCollapsed && state.sheet == null && state.footnote == null && state.selection == null,
         enter = fadeIn(Motion.fade(200)) + slideInHorizontally(Motion.tween(260)) { -it },
         exit = fadeOut(Motion.fade(160)) + slideOutHorizontally(Motion.tween(220)) { -it },
-        modifier = Modifier.align(Alignment.BottomStart).windowInsetsPadding(WindowInsets.systemBars).padding(start = 16.dp, bottom = 8.dp),
+        modifier = Modifier.align(Alignment.BottomStart).windowInsetsPadding(WindowInsets.systemBars).padding(start = 16.dp, bottom = MiniBottom),
     ) {
         AutoMini(
             paused = state.autoPaused,
@@ -1119,9 +1119,12 @@ private fun SheetContent(
                     ReaderSheet.Panel -> PanelOptions(settings, onSettingsChange)
                     ReaderSheet.Gestures -> GestureOptions(settings, onSettingsChange)
                     ReaderSheet.Screen -> ScreenOptions(settings, onSettingsChange)
-                    ReaderSheet.Sound -> SoundOptions(settings, onSettingsChange)
+                    ReaderSheet.Sound -> {
+                        SoundOptions(settings, onSettingsChange)
+                        com.flerty.wikiflerty.ui.SectionHeader("Атмосфера")
+                        AmbienceOptions()
+                    }
                     ReaderSheet.Listen -> TtsOptions(settings, bookLanguage, ttsActive, ttsPlaying, ttsSleep, tts, onSettingsChange)
-                    ReaderSheet.Ambience -> AmbienceOptions()
                     else -> Unit
                 }
             }
@@ -1140,8 +1143,7 @@ private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
         Tile(ReaderSheet.Gestures, "Тапы, свайпы", AppIcons.Gesture, 0xFFF49AC1, 0xFFD45A93),
         Tile(ReaderSheet.Screen, "Яркость, поворот", AppIcons.Screen, 0xFFF7D774, 0xFFD9A92B, dark = true),
         Tile(ReaderSheet.Listen, "Голос, скорость", AppIcons.Headphones, 0xFF8BD3A5, 0xFF3E9E66, dark = true),
-        Tile(ReaderSheet.Sound, "Звуки, вибрация", AppIcons.Sound, 0xFFF6A26B, 0xFFD9692B),
-        Tile(ReaderSheet.Ambience, "Дождь, камин, кафе", AppIcons.Moon, 0xFF9DB4FF, 0xFF5B6FD6),
+        Tile(ReaderSheet.Sound, "Звуки, дождь, камин", AppIcons.Sound, 0xFFF6A26B, 0xFFD9692B),
         Tile(ReaderSheet.AiChapter, "Пересказ, тест", AppIcons.Book, 0xFF7DD3FC, 0xFF3B82C4),
         Tile(ReaderSheet.AiSetup, "Нейросети, модели", AppIcons.Sparkle, 0xFF8AB4F8, 0xFF7653E0),
     )
