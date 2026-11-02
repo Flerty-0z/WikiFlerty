@@ -148,6 +148,7 @@ enum class ReaderSheet(val title: String, val depth: Int) {
     Heroes("Герои книги", 1),
     HeroChat("Герой", 1),
     AiHistory("История", 1),
+    Ambience("Атмосфера", 1),
 }
 
 class ReaderUiState {
@@ -1108,6 +1109,7 @@ private fun SheetContent(
                     ReaderSheet.Screen -> ScreenOptions(settings, onSettingsChange)
                     ReaderSheet.Sound -> SoundOptions(settings, onSettingsChange)
                     ReaderSheet.Listen -> TtsOptions(settings, bookLanguage, ttsActive, ttsPlaying, ttsSleep, tts, onSettingsChange)
+                    ReaderSheet.Ambience -> AmbienceOptions()
                     else -> Unit
                 }
             }
@@ -1127,6 +1129,7 @@ private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
         Tile(ReaderSheet.Screen, "Яркость, поворот", AppIcons.Screen, 0xFFF7D774, 0xFFD9A92B, dark = true),
         Tile(ReaderSheet.Listen, "Голос, скорость", AppIcons.Headphones, 0xFF8BD3A5, 0xFF3E9E66, dark = true),
         Tile(ReaderSheet.Sound, "Звуки, вибрация", AppIcons.Sound, 0xFFF6A26B, 0xFFD9692B),
+        Tile(ReaderSheet.Ambience, "Дождь, камин, кафе", AppIcons.Moon, 0xFF9DB4FF, 0xFF5B6FD6),
         Tile(ReaderSheet.AiChapter, "Пересказ, тест", AppIcons.Book, 0xFF7DD3FC, 0xFF3B82C4),
         Tile(ReaderSheet.AiSetup, "Нейросети, модели", AppIcons.Sparkle, 0xFF8AB4F8, 0xFF7653E0),
     )

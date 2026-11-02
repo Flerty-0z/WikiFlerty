@@ -1971,6 +1971,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         super.onDestroy()
         if (isFinishing) {
             if (mySession != null) app.readAloud.stop()
+            app.ambient.stopAll()
             app.closeReader()
         }
     }

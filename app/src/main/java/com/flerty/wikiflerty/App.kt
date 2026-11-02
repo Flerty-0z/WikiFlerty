@@ -56,6 +56,8 @@ class App : Application() {
 
     val achievements: com.flerty.wikiflerty.data.AchievementStore by lazy { com.flerty.wikiflerty.data.AchievementStore(this) }
 
+    val ambient: com.flerty.wikiflerty.system.AmbientPlayer by lazy { com.flerty.wikiflerty.system.AmbientPlayer(this) }
+
     val streakFreeze: com.flerty.wikiflerty.data.StreakFreezeStore by lazy { com.flerty.wikiflerty.data.StreakFreezeStore(this) }
 
     val libraryPrefs: com.flerty.wikiflerty.data.LibraryPrefsStore by lazy { com.flerty.wikiflerty.data.LibraryPrefsStore(this) }

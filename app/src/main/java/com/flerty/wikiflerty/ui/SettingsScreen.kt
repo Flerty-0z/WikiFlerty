@@ -225,6 +225,8 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
     }
     }
 
+    item(key = "app-icon") { AppIconGroup() }
+
     if (AppStyle.base.ambience != null) item(key = "ambience") {
         SettingsGroup(null) {
             SettingSwitch("Свечение фона", style.ambience, hint = null, icon = AppIcons.Sparkle) { v ->
@@ -640,5 +642,58 @@ private fun TemplateCard(template: StyleTemplate, selected: Boolean, onClick: ()
             }
             Box(Modifier.width(40.dp).height(6.dp).clip(CircleShape).background(accent))
         }
+    }
+}
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun AppIconGroup() {
+    val context = LocalContext.current
+    var current by remember { mutableStateOf(AppIconStyle.current(context)) }
+    var asking by remember { mutableStateOf<AppIconStyle?>(null) }
+    SettingsGroup("Иконка приложения") {
+        Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            AppIconStyle.entries.chunked(3).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { style ->
+                        val selected = style == current
+                        Column(
+                            Modifier
+                                .weight(1f)
+                                .liveClick(appCorner(16), sound = FeedbackSound.Toggle, pressedScale = 0.92f) { if (!selected) asking = style }
+                                .padding(vertical = 6.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Box(
+                                Modifier
+                                    .border(2.dp, if (selected) AppColors.Accent else Color.Transparent, appCorner(20))
+                                    .padding(4.dp),
+                            ) { AppIconPreview(style, 56.dp) }
+                            Text(
+                                style.title,
+                                color = if (selected) AppColors.Accent else AppColors.Muted,
+                                fontSize = 12.sp,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+    asking?.let { style ->
+        ConfirmSheet(
+            title = "Сменить иконку?",
+            text = "Иконка обновится через пару секунд. На некоторых телефонах ярлык пропадёт с рабочего стола — его нужно будет заново вынести из меню приложений.",
+            confirm = "Сменить",
+            danger = false,
+            onConfirm = {
+                AppIconStyle.apply(context, style)
+                current = style
+            },
+            onDismiss = { asking = null },
+        )
     }
 }
