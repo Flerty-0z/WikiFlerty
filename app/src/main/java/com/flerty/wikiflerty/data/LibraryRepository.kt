@@ -135,7 +135,7 @@ class LibraryRepository(
             try {
                 val m = publication.metadata
                 val raw = m.description.orEmpty()
-                val text = runCatching { org.jsoup.Jsoup.parse(raw).wholeText() }.getOrDefault(raw)
+                val text = runCatching { android.text.Html.fromHtml(raw, android.text.Html.FROM_HTML_MODE_LEGACY).toString() }.getOrDefault(raw)
                     .replace(Regex("[ \\t\\u00A0]+"), " ")
                     .replace(Regex("\\s*\\n\\s*\\n\\s*"), "\n\n")
                     .trim()
