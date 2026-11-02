@@ -293,7 +293,7 @@ fun LibraryScreen(
 }
 
 @Composable
-private fun SearchField(value: String, onChange: (String) -> Unit, modifier: Modifier) {
+fun SearchField(value: String, onChange: (String) -> Unit, modifier: Modifier, placeholder: String = "Поиск по книгам") {
     BasicTextField(
         value = value,
         onValueChange = onChange,
@@ -305,7 +305,7 @@ private fun SearchField(value: String, onChange: (String) -> Unit, modifier: Mod
             Row(Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
                 Icon(AppIcons.Search, null, tint = AppColors.Muted, modifier = Modifier.size(18.dp))
                 Box(Modifier.padding(start = 10.dp).weight(1f)) {
-                    if (value.isEmpty()) Text("Поиск по книгам", color = AppColors.Faint, fontSize = 15.sp, maxLines = 1)
+                    if (value.isEmpty()) Text(placeholder, color = AppColors.Faint, fontSize = 15.sp, maxLines = 1)
                     inner()
                 }
                 if (value.isNotEmpty()) {
@@ -482,6 +482,7 @@ private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean
                 modifier = Modifier.padding(8.dp),
             )
         }
+        book.rating?.takeIf { it > 0f }?.let { RatingBadge(it, Modifier.align(Alignment.BottomStart).padding(5.dp), small) }
         if (book.favorite) {
             Box(
                 Modifier.align(Alignment.TopEnd).padding(5.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)

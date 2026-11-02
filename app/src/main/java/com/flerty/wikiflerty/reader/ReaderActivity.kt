@@ -188,6 +188,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
     }
     private var bookTitle: String = ""
+    private var rateBook by androidx.compose.runtime.mutableStateOf(false)
     private var bookAuthor: String = ""
     private val chat = AiChatState()
 
@@ -1152,6 +1153,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         onMarkFinished = {
                             ui.askFinished = false
                             app.appScope.launch { app.library.setStatus(bookId, ReadStatus.Finished) }
+                            rateBook = true
                         },
                         tts = ttsActions,
                         bookLanguage = session.publication.metadata.language?.code,
@@ -1169,6 +1171,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         },
                     )
                     com.flerty.wikiflerty.ui.AchievementToast()
+                    if (rateBook) com.flerty.wikiflerty.ui.RatingSheet(session.bookId, celebrate = true) { rateBook = false }
                 }
             }
         }

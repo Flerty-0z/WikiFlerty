@@ -56,6 +56,8 @@ class App : Application() {
 
     val achievements: com.flerty.wikiflerty.data.AchievementStore by lazy { com.flerty.wikiflerty.data.AchievementStore(this) }
 
+    val streakFreeze: com.flerty.wikiflerty.data.StreakFreezeStore by lazy { com.flerty.wikiflerty.data.StreakFreezeStore(this) }
+
     val libraryPrefs: com.flerty.wikiflerty.data.LibraryPrefsStore by lazy { com.flerty.wikiflerty.data.LibraryPrefsStore(this) }
 
     val ai: AiManager by lazy { AiManager(this) }
@@ -76,6 +78,7 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         crashLog.install()
+        streakFreeze
         style = StyleStore(this)
         readium = ReadiumServices(this)
         library = LibraryRepository(this, readium)

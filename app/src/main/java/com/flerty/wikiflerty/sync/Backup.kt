@@ -86,6 +86,7 @@ object Backup {
             })
             put("stats", app.stats.toJson())
             put("achievements", app.achievements.toJson())
+            put("freezes", app.streakFreeze.toJson())
             put("deletedNotes", JSONObject(state.deletedNotes))
             put("deletedWords", JSONObject(state.deletedWords))
             put("deletedBookmarks", JSONObject(state.deletedBookmarks))
@@ -183,6 +184,7 @@ object Backup {
 
         app.stats.merge(remote.optJSONObject("stats"))
         app.achievements.merge(remote.optJSONObject("achievements"))
+        app.streakFreeze.merge(remote.optJSONArray("freezes"))
 
         var settingsApplied = false
         val remoteSettings = remote.optJSONObject("settings")

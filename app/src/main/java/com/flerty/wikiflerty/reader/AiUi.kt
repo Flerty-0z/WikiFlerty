@@ -141,6 +141,51 @@ class HistoryBridge(
     val onClear: () -> Unit,
 )
 
+private fun com.flerty.wikiflerty.data.AiRecord.matches(q: String): Boolean {
+    val title = AiAction.entries.firstOrNull { it.id == action }?.title.orEmpty()
+    return title.contains(q, true) || fragment.contains(q, true) || messages.any { it.shown.contains(q, true) }
+}
+
+private fun snippet(text: String, q: String): String {
+    val flat = text.replace(Regex("[*#_`>]+"), "").replace(Regex("\\s+"), " ").trim()
+    val i = flat.indexOf(q, ignoreCase = true)
+    if (i < 0) return flat.take(140)
+    val start = (i - 40).coerceAtLeast(0).let { s -> if (s > 0) flat.lastIndexOf(' ', s).let { if (it < 0) s else it + 1 } else 0 }
+    val end = (i + q.length + 90).coerceAtMost(flat.length)
+    return (if (start > 0) "…" else "") + flat.substring(start, end) + if (end < flat.length) "…" else ""
+}
+
+@Composable
+private fun highlighted(text: String, q: String): androidx.compose.ui.text.AnnotatedString = androidx.compose.ui.text.buildAnnotatedString {
+    append(text)
+    if (q.isEmpty()) return@buildAnnotatedString
+    var from = 0
+    while (true) {
+        val i = text.indexOf(q, from, ignoreCase = true)
+        if (i < 0) break
+        addStyle(androidx.compose.ui.text.SpanStyle(background = AppColors.Accent.copy(alpha = 0.35f), color = AppColors.Text), i, i + q.length)
+        from = i + q.length
+    }
+}
+
+@Composable
+private fun HistoryChip(label: String, mark: String?, selected: Boolean, onClick: () -> Unit) {
+    val shape = CircleShape
+    Row(
+        Modifier
+            .height(34.dp)
+            .liveClick(shape, sound = FeedbackSound.Toggle, onClick = onClick)
+            .background(if (selected) AppColors.Accent else Color.Transparent)
+            .border(1.dp, if (selected) AppColors.Accent else AppColors.Line, shape)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (mark != null) Text(mark, color = if (selected) AppColors.OnAccent else AppColors.Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Text(label, color = if (selected) AppColors.OnAccent else AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+    }
+}
+
 private val historyDate = java.time.format.DateTimeFormatter.ofPattern("d MMM, HH:mm", java.util.Locale.forLanguageTag("ru"))
 
 @Composable
@@ -148,9 +193,16 @@ fun AiHistoryContent(bridge: HistoryBridge, modifier: Modifier = Modifier) {
     var toDelete by remember { mutableStateOf<com.flerty.wikiflerty.data.AiRecord?>(null) }
     var clearing by remember { mutableStateOf(false) }
     var picking by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    var actionFilter by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { bridge.onLoad() }
     val state = bridge.state
-    val records = state.records
+    val all = state.records
+    val actions = all.map { it.action }.distinct()
+    val q = query.trim()
+    val records = all.filter { r ->
+        (actionFilter == null || r.action == actionFilter) && (q.isEmpty() || r.matches(q))
+    }
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (state.choices.isNotEmpty()) {
             item(key = "book") {
@@ -162,7 +214,36 @@ fun AiHistoryContent(bridge: HistoryBridge, modifier: Modifier = Modifier) {
                 ) { picking = true }
             }
         }
-        if (records.isEmpty()) {
+        if (all.isNotEmpty()) {
+            item(key = "search") {
+                com.flerty.wikiflerty.ui.SearchField(query, { query = it }, Modifier.fillMaxWidth(), placeholder = "Поиск по истории")
+            }
+        }
+        if (actions.size > 1) {
+            item(key = "actions") {
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    HistoryChip("Все", null, actionFilter == null) { actionFilter = null }
+                    actions.forEach { id ->
+                        val a = AiAction.entries.firstOrNull { it.id == id } ?: return@forEach
+                        HistoryChip(a.title, a.mark, actionFilter == id) { actionFilter = if (actionFilter == id) null else id }
+                    }
+                }
+            }
+        }
+        if (q.isNotEmpty() && records.isNotEmpty()) {
+            item(key = "found") {
+                Text("Найдено: ${records.size}", color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 4.dp))
+            }
+        }
+        if (records.isEmpty() && all.isNotEmpty()) {
+            item(key = "nothing") {
+                Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(AppIcons.Search, null, tint = AppColors.Faint, modifier = Modifier.size(28.dp))
+                    Text("Ничего не найдено", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+        if (all.isEmpty()) {
             item(key = "empty") {
                 Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(AppIcons.Clock, null, tint = AppColors.Faint, modifier = Modifier.size(28.dp))
@@ -202,7 +283,7 @@ fun AiHistoryContent(bridge: HistoryBridge, modifier: Modifier = Modifier) {
                         )
                     }
                     Text(
-                        record.fragment.ifBlank { "Без отрывка" },
+                        highlighted(record.fragment.ifBlank { "Без отрывка" }, q),
                         color = AppColors.Text,
                         fontFamily = if (action.forSelection) FontFamily.Serif else FontFamily.Default,
                         fontSize = 14.sp,
@@ -210,6 +291,18 @@ fun AiHistoryContent(bridge: HistoryBridge, modifier: Modifier = Modifier) {
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    if (q.isNotEmpty() && !record.fragment.contains(q, ignoreCase = true)) {
+                        record.messages.firstOrNull { it.shown.contains(q, ignoreCase = true) }?.let { m ->
+                            Text(
+                                highlighted(snippet(m.shown, q), q),
+                                color = AppColors.Muted,
+                                fontSize = 12.5.sp,
+                                lineHeight = 17.sp,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                     com.flerty.wikiflerty.ui.BookTag(
                         record.bookId.takeIf { it.isNotBlank() },
                         state.choices.firstOrNull { it.id == record.bookId }?.title,
@@ -228,7 +321,7 @@ fun AiHistoryContent(bridge: HistoryBridge, modifier: Modifier = Modifier) {
                 }
             }
         }
-        if (records.isNotEmpty()) item(key = "clear") {
+        if (all.isNotEmpty() && q.isEmpty() && actionFilter == null) item(key = "clear") {
             Text(
                 if (state.book == null) "Очистить всю историю" else "Очистить историю книги",
                 color = AppColors.Bad,

@@ -198,6 +198,16 @@ class LibraryRepository(
         it.copy(status = status, finishedAt = if (status == ReadStatus.Finished) System.currentTimeMillis() else it.finishedAt)
     }
 
+    suspend fun setRating(bookId: String, rating: Float?, review: String) = editMeta(bookId) {
+        it.copy(
+            rating = rating,
+            review = review.trim(),
+            ratedAt = System.currentTimeMillis(),
+            status = ReadStatus.Finished,
+            finishedAt = it.finishedAt ?: System.currentTimeMillis(),
+        )
+    }
+
     suspend fun setFavorite(bookId: String, favorite: Boolean) = editMeta(bookId) { it.copy(favorite = favorite) }
 
     suspend fun setShelves(bookId: String, shelves: List<String>) = editMeta(bookId) { it.copy(shelves = shelves.distinct()) }

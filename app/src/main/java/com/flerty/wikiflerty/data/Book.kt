@@ -31,6 +31,9 @@ data class Book(
     val finishedAt: Long? = null,
     val metaChangedAt: Long = 0,
     val positions: Int = 0,
+    val rating: Float? = null,
+    val review: String = "",
+    val ratedAt: Long = 0,
 ) {
     val statsKey: String get() = fingerprint ?: id
 
@@ -41,6 +44,9 @@ data class Book(
         put("finishedAt", finishedAt)
         put("metaChangedAt", metaChangedAt)
         put("positions", positions)
+        put("rating", rating?.toDouble() ?: -1.0)
+        put("review", review)
+        put("ratedAt", ratedAt)
     }
 
     fun withMeta(j: JSONObject): Book = copy(
@@ -50,6 +56,13 @@ data class Book(
         finishedAt = if (j.isNull("finishedAt")) null else j.optLong("finishedAt"),
         metaChangedAt = j.optLong("metaChangedAt", metaChangedAt),
         positions = j.optInt("positions", 0).takeIf { it > 0 } ?: positions,
+        rating = when (val r = j.optDouble("rating", -2.0)) {
+            -2.0 -> rating
+            -1.0 -> null
+            else -> r.toFloat().coerceIn(0f, 5f)
+        },
+        review = if (j.has("review")) j.optString("review") else review,
+        ratedAt = j.optLong("ratedAt", ratedAt),
     )
 
     fun toJson(): JSONObject = metaJson().apply {

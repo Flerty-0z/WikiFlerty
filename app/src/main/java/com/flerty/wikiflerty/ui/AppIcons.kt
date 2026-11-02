@@ -108,6 +108,7 @@ object AppIcons {
     }
     val Book by lazy { icon("book", "M5 5.5A2.5 2.5 0 0 1 7.5 3H19v15H7.5A2.5 2.5 0 0 0 5 20.5z", "M5 20.5A2.5 2.5 0 0 0 7.5 23H19") }
     val Translate by lazy { icon("translate", "M4 5h9M8.5 3v2", "M11 5c-.5 4-3 7-6.5 8.5", "M6.5 8.5c1 2 3 3.8 5 4.5", "M13 21l4-9 4 9", "M14.6 17.5h4.8") }
+    val Snow by lazy { icon("snow", "M12 3v18", "M4.2 7.5l15.6 9", "M4.2 16.5l15.6-9", "M9.5 4.5L12 7l2.5-2.5", "M9.5 19.5L12 17l2.5 2.5", "M4.6 10.6l3.4-.9-.9-3.4", "M19.4 13.4l-3.4.9.9 3.4", "M4.6 13.4l3.4.9-.9 3.4", "M19.4 10.6l-3.4-.9.9-3.4") }
     val Fire by lazy { icon("fire", "M12 3c.8 3.5 5 5 5 10a5 5 0 0 1-10 0c0-2.6 1.4-3.8 2-6 1 1.2 1.6 2 3 2.5-.6-2-.6-4.3 0-6.5z") }
     val Calendar by lazy { icon("calendar", "M5 6h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z", "M4 10h16", "M8 3.5v4M16 3.5v4") }
     val Sliders by lazy { icon("sliders", "M4 6h16M4 12h16M4 18h16", "M9 4v4M15 10v4M7 16v4") }

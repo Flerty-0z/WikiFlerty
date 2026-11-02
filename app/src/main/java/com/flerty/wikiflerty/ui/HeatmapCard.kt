@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -82,6 +83,9 @@ fun YearHeatmapCard(days: Map<String, Map<String, DayEntry>>, perDay: Map<LocalD
     val years = remember(perDay) { (perDay.filterValues { it.ms > 0 }.keys.map { it.year } + today.year).distinct().sorted() }
     var year by rememberSaveable { mutableStateOf(today.year) }
     var selected by remember { mutableStateOf(today) }
+    val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.flerty.wikiflerty.App
+    val freezes by app.streakFreeze.freezes.collectAsStateWithLifecycle()
+    val frozen = remember(freezes) { com.flerty.wikiflerty.data.StreakFreezeStore.days(freezes) }
 
     Column(
         Modifier.fillMaxWidth().fieldSurface(appCorner(20)).padding(16.dp),
@@ -112,17 +116,21 @@ fun YearHeatmapCard(days: Map<String, Map<String, DayEntry>>, perDay: Map<LocalD
             transitionSpec = { fadeIn(Motion.fade(260)).togetherWith(fadeOut(Motion.fade(160))) },
             label = "year",
         ) { y ->
-            YearGrid(y, perDay, selected) { selected = it }
+            YearGrid(y, perDay, frozen, selected) { selected = it }
         }
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             Text("Нажми на день", color = AppColors.Faint, fontSize = 10.5.sp, maxLines = 1, modifier = Modifier.weight(1f))
+            if (frozen.any { it.year == year }) {
+                Icon(AppIcons.Snow, null, tint = IceColor, modifier = Modifier.size(11.dp))
+                Text("пауза", color = IceColor, fontSize = 10.sp, modifier = Modifier.padding(end = 6.dp))
+            }
             Text("меньше", color = AppColors.Faint, fontSize = 10.sp, modifier = Modifier.padding(end = 2.dp))
             (0..4).forEach { Box(Modifier.size(10.dp).clip(appCorner(3)).background(cellColor(it))) }
             Text("больше", color = AppColors.Faint, fontSize = 10.sp, modifier = Modifier.padding(start = 2.dp))
         }
 
-        DayDetail(selected, days, perDay, books)
+        DayDetail(selected, days, perDay, books, selected in frozen)
 
         val inYear = perDay.filter { it.key.year == year && it.value.ms >= 60_000 }
         val readDays = inYear.size
@@ -149,7 +157,7 @@ fun YearHeatmapCard(days: Map<String, Map<String, DayEntry>>, perDay: Map<LocalD
 }
 
 @Composable
-private fun YearGrid(year: Int, perDay: Map<LocalDate, DayEntry>, selected: LocalDate, onSelect: (LocalDate) -> Unit) {
+private fun YearGrid(year: Int, perDay: Map<LocalDate, DayEntry>, frozen: Set<LocalDate>, selected: LocalDate, onSelect: (LocalDate) -> Unit) {
     val today = LocalDate.now()
     val first = LocalDate.of(year, 1, 1).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     val last = LocalDate.of(year, 12, 31)
@@ -226,6 +234,7 @@ private fun YearGrid(year: Int, perDay: Map<LocalDate, DayEntry>, selected: Loca
                                 .background(
                                     when {
                                         !inYear -> Color.Transparent
+                                        day in frozen && lv == 0 -> IceColor.copy(alpha = if (future) 0.3f else 0.6f)
                                         future -> AppColors.Line.copy(alpha = 0.25f)
                                         else -> cellColor(lv)
                                     },
@@ -247,7 +256,7 @@ private fun YearGrid(year: Int, perDay: Map<LocalDate, DayEntry>, selected: Loca
 }
 
 @Composable
-private fun DayDetail(day: LocalDate, days: Map<String, Map<String, DayEntry>>, perDay: Map<LocalDate, DayEntry>, books: List<Book>) {
+private fun DayDetail(day: LocalDate, days: Map<String, Map<String, DayEntry>>, perDay: Map<LocalDate, DayEntry>, books: List<Book>, frozen: Boolean) {
     val entry = perDay[day]
     val minutes = (entry?.ms ?: 0) / 60_000
     val perBook = days[day.toString()].orEmpty().filterValues { it.ms > 0 }.entries.sortedByDescending { it.value.ms }
@@ -265,10 +274,11 @@ private fun DayDetail(day: LocalDate, days: Map<String, Map<String, DayEntry>>, 
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(Modifier.width(5.dp).height(18.dp).clip(CircleShape).background(cellColor(level(entry?.ms ?: 0)).let { if (minutes == 0L) AppColors.Line else it }))
+                Box(Modifier.width(5.dp).height(18.dp).clip(CircleShape).background(cellColor(level(entry?.ms ?: 0)).let { if (minutes == 0L) (if (frozen) IceColor else AppColors.Line) else it }))
                 Text(
                     dayTitle(day) + when {
                         minutes > 0 -> " · $minutes мин"
+                        frozen -> " · заморозка ❄"
                         read.isEmpty() -> " · без чтения"
                         else -> ""
                     },

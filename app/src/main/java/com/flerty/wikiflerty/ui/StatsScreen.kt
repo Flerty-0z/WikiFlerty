@@ -100,24 +100,43 @@ object StatsCalc {
     fun sumSince(perDay: Map<LocalDate, DayEntry>, from: LocalDate): DayEntry =
         perDay.filterKeys { !it.isBefore(from) }.values.fold(DayEntry()) { a, b -> a + b }
 
-    fun streaks(perDay: Map<LocalDate, DayEntry>, today: LocalDate = LocalDate.now(), minMs: Long = STREAK_MS): Pair<Int, Int> {
-        val read = perDay.filterValues { it.ms >= minMs }.keys.sorted()
+    fun streaks(
+        perDay: Map<LocalDate, DayEntry>,
+        today: LocalDate = LocalDate.now(),
+        minMs: Long = STREAK_MS,
+        frozen: Set<LocalDate> = com.flerty.wikiflerty.data.StreakFreezeStore.frozen,
+    ): Pair<Int, Int> {
+        val read = perDay.filterValues { it.ms >= minMs }.keys.toSet()
+        val ice = frozen.filter { !it.isAfter(today) }.toSet()
         var best = 0
         var run = 0
         var prev: LocalDate? = null
-        read.forEach { d ->
-            run = if (prev != null && prev!!.plusDays(1) == d) run + 1 else 1
+        (read + ice).sorted().forEach { d ->
+            val counts = if (d in read) 1 else 0
+            run = if (prev != null && prev!!.plusDays(1) == d) run + counts else counts
             best = maxOf(best, run)
             prev = d
         }
-        val set = read.toSet()
-        var day = if (today in set) today else today.minusDays(1)
+        val start = if (today in read || today in ice) today else today.minusDays(1)
+        return streakEnding(read, ice, start) to best
+    }
+
+    fun streakEnding(read: Set<LocalDate>, ice: Set<LocalDate>, end: LocalDate): Int {
+        var day = end
         var current = 0
-        while (day in set) {
-            current++
+        while (day in read || day in ice) {
+            if (day in read) current++
             day = day.minusDays(1)
         }
-        return current to best
+        return current
+    }
+
+    fun rescuable(perDay: Map<LocalDate, DayEntry>, today: LocalDate = LocalDate.now()): Int {
+        val read = perDay.filterValues { it.ms >= STREAK_MS }.keys.toSet()
+        val ice = com.flerty.wikiflerty.data.StreakFreezeStore.frozen
+        val yesterday = today.minusDays(1)
+        if (yesterday in read || yesterday in ice) return 0
+        return streakEnding(read, ice, yesterday.minusDays(1))
     }
 
     fun duration(ms: Long): String {
@@ -201,18 +220,23 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
         val finishedThisYear = books.count { it.status == ReadStatus.Finished && (it.finishedAt ?: 0) >= yearStart }
         YearGoalCard(prefs.yearGoalBooks, finishedThisYear) { n -> app.libraryPrefs.update { it.copy(yearGoalBooks = n) } }
 
+        StreakCard(perDay, today)
+
         MinutesCard(perDay, today)
 
         YearHeatmapCard(days, perDay, books)
 
         StatusCard(books)
 
-        val (current, best) = StatsCalc.streaks(perDay, today)
+        RatingsCard(books, yearStart)
+
+        val freezes by app.streakFreeze.freezes.collectAsStateWithLifecycle()
+        val (_, best) = StatsCalc.streaks(perDay, today, frozen = com.flerty.wikiflerty.data.StreakFreezeStore.days(freezes))
         val total = perDay.values.fold(DayEntry()) { a, b -> a + b }
         val readingDays = perDay.values.count { it.ms >= 60_000 }
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatTile("Сегодня", StatsCalc.duration(perDay[today]?.ms ?: 0), Modifier.weight(1f), icon = AppIcons.Clock)
-            StatTile("Серия", StatsCalc.days(current), Modifier.weight(1f), hint = "Лучшая: ${StatsCalc.days(best)}", icon = AppIcons.Fire)
+            StatTile("Дней чтения", "$readingDays", Modifier.weight(1f), hint = "Лучшая серия: ${StatsCalc.days(best)}", icon = AppIcons.Fire)
         }
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatTile("За неделю", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(6)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
@@ -249,6 +273,26 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
         if (top.isNotEmpty()) {
             SettingsGroup("Больше всего времени") {
                 top.forEach { (book, stats) -> TopBookRow(app, book, stats) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RatingsCard(books: List<Book>, yearStart: Long) {
+    val rated = books.filter { (it.rating ?: 0f) > 0f }
+    if (rated.isEmpty()) return
+    val avg = rated.map { it.rating!! }.average().toFloat()
+    val best = rated.filter { (it.finishedAt ?: it.ratedAt) >= yearStart }.maxWithOrNull(compareBy<Book> { it.rating }.thenBy { it.ratedAt })
+    SettingsGroup("Оценки") {
+        Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatTile("Средняя", "★ ${ratingText(Math.round(avg * 10) / 10f)}", Modifier.weight(1f), icon = AppIcons.StarFilled)
+                StatTile("Оценено", "${rated.size}", Modifier.weight(1f), icon = AppIcons.Check)
+            }
+            if (best != null) {
+                Text("Лучшая книга года", color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
+                BookTag(best.id, best.title) { RatingBadge(best.rating ?: 0f, Modifier.padding(end = 4.dp)) }
             }
         }
     }

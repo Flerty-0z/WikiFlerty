@@ -177,6 +177,7 @@ fun BookSheet(
     val scope = rememberCoroutineScope()
     var showStats by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var rating by remember { mutableStateOf(false) }
 
     AppSheet(onDismiss) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -214,12 +215,13 @@ fun BookSheet(
                 if (stats) {
                     BookStatsContent(app, book, onBack = { showStats = false })
                 } else {
-                    BookMainContent(app, book, shelves, onNewShelf, onStats = { showStats = true }, onDelete = { confirmDelete = true })
+                    BookMainContent(app, book, shelves, onNewShelf, onStats = { showStats = true }, onRate = { rating = true }, onDelete = { confirmDelete = true })
                 }
             }
         }
     }
 
+    if (rating) RatingSheet(book.id, celebrate = false) { rating = false }
     if (confirmDelete) {
         ConfirmSheet(
             title = "Удалить книгу?",
@@ -239,6 +241,7 @@ private fun ColumnScope.BookMainContent(
     shelves: List<String>,
     onNewShelf: () -> Unit,
     onStats: () -> Unit,
+    onRate: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -274,6 +277,7 @@ private fun ColumnScope.BookMainContent(
         }
 
         Spacer(Modifier.height(2.dp))
+        RateRow(book, onRate)
         SettingsNavRow(AppIcons.Chart, "Статистика книги", "Время, скорость, остаток") { onStats() }
 
         val shape = appCorner(16)
@@ -283,6 +287,33 @@ private fun ColumnScope.BookMainContent(
                 .border(1.dp, Danger.copy(alpha = 0.45f), shape),
             contentAlignment = Alignment.Center,
         ) { Text("Удалить с телефона", color = Danger, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+}
+
+@Composable
+private fun RateRow(book: Book, onClick: () -> Unit) {
+    val shape = appCorner(16)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
+            .fieldSurface(shape)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Оценка", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(
+                book.review.ifBlank { if (book.rating != null) "Без отзыва" else "Оценить и написать отзыв" },
+                color = AppColors.Faint,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        StarRating(book.rating ?: 0f, 18.dp, gap = 3.dp)
+    }
 }
 
 @Composable

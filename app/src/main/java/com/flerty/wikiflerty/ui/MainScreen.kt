@@ -260,6 +260,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 )
             }
             StartupPrompts()
+            StreakRescue()
             AchievementToast()
         }
     }
