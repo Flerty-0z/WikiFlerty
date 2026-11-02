@@ -59,6 +59,16 @@ class StreakFreezeStore(context: Context) {
         set(_freezes.value - freeze)
     }
 
+    @Synchronized
+    fun unfreeze(today: LocalDate = LocalDate.now()) {
+        val current = _freezes.value.filter { !it.end.isBefore(today) }
+        if (current.isEmpty()) return
+        val kept = current.mapNotNull { f ->
+            if (!f.start.isBefore(today)) null else f.copy(days = ChronoUnit.DAYS.between(f.start, today).toInt())
+        }
+        set(_freezes.value - current.toSet() + kept)
+    }
+
     var rescueDismissed: String?
         get() = prefs.getString("rescue_dismissed", null)
         set(value) = prefs.edit().putString("rescue_dismissed", value).apply()

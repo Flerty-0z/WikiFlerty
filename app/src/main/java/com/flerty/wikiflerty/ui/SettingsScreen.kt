@@ -346,17 +346,7 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
     }
 
     item(key = "font") {
-    SettingsGroup("Шрифт интерфейса") {
-        val fonts = remember { FontCatalog.available(context).filter { it.css != null && it.category != FontCategory.Mono || it.id == "jetbrainsmono" } }
-        PickerRow(
-            label = "Шрифт",
-            icon = AppIcons.TextSize,
-            options = listOf(PickerOption("system", "Системный", "Как в Android")) +
-                fonts.filter { it.bundled }.map {
-                    PickerOption(it.id, it.title, "Съешь же ещё этих мягких французских булок", fontLoader = { FontCatalog.preview(context, it) })
-                },
-            selectedId = style.font,
-        ) { id -> store.update { it.copy(font = id) } }
+    SettingsGroup("Текст интерфейса") {
         SettingSlider(
             label = "Размер текста",
             icon = AppIcons.LineHeight,

@@ -212,7 +212,6 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
                             Text(
                                 "«${contextAround(entry.context, entry.word)}»",
                                 color = AppColors.Text.copy(alpha = 0.75f),
-                                fontFamily = FontFamily.Serif,
                                 fontSize = 14.sp,
                                 lineHeight = 20.sp,
                                 maxLines = 3,

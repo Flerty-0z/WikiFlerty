@@ -179,7 +179,7 @@ data class UiStyle(
     val corners: Float = 1.1f,
     val outline: Boolean = true,
     val buttons: String = ButtonLook.Filled.id,
-    val font: String = "nunito",
+    val font: String = UI_FONT,
     val textScale: Float = 1f,
     val pressEffect: Boolean = true,
     val background: String = BackgroundKind.None.id,
@@ -378,6 +378,8 @@ object AppColors {
 
 fun appCorner(radius: Int): RoundedCornerShape = RoundedCornerShape((radius * AppStyle.current.corners).dp)
 
+const val UI_FONT = "jetbrainsmono"
+
 @Composable
 fun WikiFlertyTheme(content: @Composable () -> Unit) {
     val style = AppStyle.current
@@ -416,15 +418,10 @@ fun WikiFlertyTheme(content: @Composable () -> Unit) {
         outline = AppColors.Line,
         outlineVariant = AppColors.PanelBorder,
     )
-    val typography = remember(style.font) {
-        val family = if (style.font == "system") {
-            null
-        } else {
-            FontCatalog.all.firstOrNull { it.id == style.font }?.let { FontCatalog.preview(context, it) }
-        }
-        Typography().withFont(family)
+    val typography = remember {
+        Typography().withFont(FontCatalog.all.firstOrNull { it.id == UI_FONT }?.let { FontCatalog.preview(context, it) })
     }
-    val fontFit = remember(style.font) { FontCatalog.uiScale(context, style.font) }
+    val fontFit = remember { FontCatalog.uiScale(context, UI_FONT) }
     val density = LocalDensity.current
     CompositionLocalProvider(
         LocalDensity provides Density(density.density, density.fontScale * style.textScale * fontFit),

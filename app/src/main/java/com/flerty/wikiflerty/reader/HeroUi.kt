@@ -533,7 +533,6 @@ private fun HeroBubble(bridge: HeroBridge, hero: Hero, text: String, writing: Bo
                 Text(
                     revealText(text, count, writing, AppColors.Text),
                     color = AppColors.Text,
-                    fontFamily = FontFamily.Serif,
                     fontSize = 15.sp,
                     lineHeight = 22.sp,
                 )

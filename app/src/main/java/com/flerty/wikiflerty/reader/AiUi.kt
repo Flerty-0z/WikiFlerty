@@ -287,7 +287,7 @@ fun AiHistoryContent(bridge: HistoryBridge, modifier: Modifier = Modifier) {
                     Text(
                         highlighted(record.fragment.ifBlank { "Без отрывка" }, q),
                         color = AppColors.Text,
-                        fontFamily = if (action.forSelection) FontFamily.Serif else FontFamily.Default,
+                        
                         fontSize = 14.sp,
                         lineHeight = 19.sp,
                         maxLines = 2,
@@ -667,7 +667,6 @@ private fun UserBubble(bubble: AiBubble, first: Boolean, fragment: String) {
                 Text(
                     fragment,
                     color = AppColors.Text,
-                    fontFamily = FontFamily.Serif,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
                     maxLines = 4,
@@ -855,7 +854,6 @@ private fun TeacherBubble(text: String, writing: Boolean, bridge: AiBridge) {
                         Text(
                             revealText("«$quote»", quote.length + 2, last, AppColors.Text),
                             color = AppColors.Text,
-                            fontFamily = FontFamily.Serif,
                             fontSize = 14.sp,
                             lineHeight = 20.sp,
                             modifier = Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 8.dp),
@@ -1036,7 +1034,6 @@ private fun QuoteBox(text: String, maxLines: Int) {
         Text(
             text,
             color = AppColors.Text.copy(alpha = 0.85f),
-            fontFamily = FontFamily.Serif,
             fontSize = 15.sp,
             lineHeight = 22.sp,
             maxLines = maxLines,

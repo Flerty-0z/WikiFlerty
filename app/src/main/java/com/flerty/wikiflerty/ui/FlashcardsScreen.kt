@@ -474,7 +474,6 @@ private fun CardFront(entry: DictionaryEntry, reverse: Boolean, onSpeak: () -> U
                 color = AppColors.Text,
                 fontSize = 32.sp,
                 lineHeight = 38.sp,
-                fontFamily = FontFamily.Serif,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
             )
@@ -485,7 +484,6 @@ private fun CardFront(entry: DictionaryEntry, reverse: Boolean, onSpeak: () -> U
                     color = AppColors.Muted,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
-                    fontFamily = FontFamily.Serif,
                     textAlign = TextAlign.Center,
                     maxLines = 6,
                     overflow = TextOverflow.Ellipsis,
@@ -526,7 +524,6 @@ private fun CardBack(entry: DictionaryEntry, onSpeak: () -> Unit) {
                 color = AppColors.Text,
                 fontSize = 26.sp,
                 lineHeight = 32.sp,
-                fontFamily = FontFamily.Serif,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
             )
@@ -542,7 +539,6 @@ private fun CardBack(entry: DictionaryEntry, onSpeak: () -> Unit) {
                 Text(
                     highlightWord("«${entry.context}»", entry.word, AppColors.Accent),
                     color = AppColors.Text.copy(alpha = 0.75f),
-                    fontFamily = FontFamily.Serif,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
                 )

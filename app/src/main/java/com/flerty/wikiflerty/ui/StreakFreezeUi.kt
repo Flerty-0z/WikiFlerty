@@ -8,6 +8,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -137,22 +138,15 @@ fun FreezeSheet(onDismiss: () -> Unit) {
     val cooldown = app.streakFreeze.cooldownLeft(today)
     AppSheet(onDismiss, title = "Заморозка серии") {
         val close = sheetClose(onDismiss)
+        val active = freezes.lastOrNull { !it.end.isBefore(today) }
         if (cooldown > 0) {
             val last = app.streakFreeze.last()
-            CooldownView(cooldown, last, onCancel = last?.takeIf { it.start.isAfter(today) }?.let { f -> { app.streakFreeze.cancel(f) } })
+            CooldownView(cooldown, last, onUnfreeze = if (active != null) ({ app.streakFreeze.unfreeze(today) }) else null)
         } else {
             FreezePicker(today, onFreeze = { start, days ->
                 app.streakFreeze.add(start, days)
                 close()
             })
-        }
-        if (freezes.isEmpty() && cooldown == 0) {
-            Text(
-                "Серия и прогресс встанут на паузу. Заморозку можно брать раз в 30 дней, от 1 до 7 дней.",
-                color = AppColors.Faint,
-                fontSize = 12.sp,
-                lineHeight = 17.sp,
-            )
         }
     }
 }
@@ -161,7 +155,7 @@ fun FreezeSheet(onDismiss: () -> Unit) {
 private fun FreezePicker(today: LocalDate, onFreeze: (LocalDate, Int) -> Unit) {
     var days by remember { mutableIntStateOf(1) }
     var start by remember { mutableStateOf(today) }
-    Text("Сколько дней", color = AppColors.Faint, fontSize = 12.5.sp, modifier = Modifier.padding(start = 2.dp))
+    FreezeFrame("Сколько дней") {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         (1..StreakFreezeStore.MAX_DAYS).forEach { n ->
             val on = n == days
@@ -177,7 +171,8 @@ private fun FreezePicker(today: LocalDate, onFreeze: (LocalDate, Int) -> Unit) {
             ) { Text("$n", color = if (on) IceColor else AppColors.Muted, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold) }
         }
     }
-    Text("С какого дня", color = AppColors.Faint, fontSize = 12.5.sp, modifier = Modifier.padding(start = 2.dp, top = 4.dp))
+    }
+    FreezeFrame("С какого дня") {
     val first = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row {
@@ -215,19 +210,33 @@ private fun FreezePicker(today: LocalDate, onFreeze: (LocalDate, Int) -> Unit) {
         }
     }
     val preview = Freeze(start, days, 0)
-    Text(
-        "Пауза: ${freezeRange(preview)}. Следующая заморозка — через 30 дней.",
-        color = AppColors.Muted,
-        fontSize = 12.5.sp,
-        lineHeight = 17.sp,
-    )
+    Row(
+        Modifier.fillMaxWidth().clip(appCorner(12)).background(IceColor.copy(alpha = 0.08f)).border(1.dp, IceColor.copy(alpha = 0.25f), appCorner(12)).padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(AppIcons.Snow, null, tint = IceColor, modifier = Modifier.size(14.dp))
+        Text("Пауза: ${freezeRange(preview)}", color = IceColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+    }
+    }
     IceButton("Заморозить", Modifier.fillMaxWidth()) { onFreeze(start, days) }
 }
 
 @Composable
-private fun CooldownView(left: Int, last: Freeze?, onCancel: (() -> Unit)?) {
+private fun FreezeFrame(title: String, content: @Composable () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().fieldSurface(appCorner(18)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(title, color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 2.dp))
+        content()
+    }
+}
+
+@Composable
+private fun CooldownView(left: Int, last: Freeze?, onUnfreeze: (() -> Unit)?) {
     val progress by animateFloatAsState(1f - left / StreakFreezeStore.COOLDOWN_DAYS.toFloat(), Motion.tween(700), label = "cool")
-    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(Modifier.fillMaxWidth().fieldSurface(appCorner(18)).padding(vertical = 16.dp, horizontal = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Box(Modifier.size(112.dp), contentAlignment = Alignment.Center) {
             val track = AppColors.Line
             Canvas(Modifier.fillMaxSize()) {
@@ -249,14 +258,20 @@ private fun CooldownView(left: Int, last: Freeze?, onCancel: (() -> Unit)?) {
                 modifier = Modifier.padding(top = 8.dp).clip(appCorner(12)).background(IceColor.copy(alpha = 0.08f)).padding(horizontal = 12.dp, vertical = 8.dp),
             )
         }
-        if (onCancel != null) {
-            Text(
-                "Отменить заморозку",
-                color = AppColors.Bad,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 6.dp).liveClick(appCorner(8), sound = FeedbackSound.Close, onClick = onCancel).padding(horizontal = 10.dp, vertical = 6.dp),
-            )
+    }
+    if (onUnfreeze != null) {
+        val shape = appCorner(16)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 52.dp)
+                .liveClick(shape, sound = FeedbackSound.Close, pressedScale = 0.97f, onClick = onUnfreeze)
+                .border(1.dp, IceColor.copy(alpha = 0.6f), shape),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(AppIcons.Fire, null, tint = IceColor, modifier = Modifier.size(18.dp))
+            Text("Разморозить", color = IceColor, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(start = 8.dp))
         }
     }
 }

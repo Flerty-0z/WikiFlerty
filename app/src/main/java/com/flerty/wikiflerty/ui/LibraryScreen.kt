@@ -519,38 +519,60 @@ private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean
                 modifier = Modifier.padding(8.dp),
             )
         }
-        book.rating?.takeIf { it > 0f }?.let { RatingBadge(it, Modifier.align(Alignment.BottomStart).padding(5.dp), small) }
+        val rating = book.rating?.takeIf { it > 0f }
         if (book.paper) {
             Box(
-                Modifier.align(Alignment.TopStart).padding(if (showStatus) 5.dp else 3.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
+                Modifier.align(if (progress != null) Alignment.BottomStart else Alignment.TopStart).padding(if (showStatus) 5.dp else 3.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
                     .background(Color(0xB0101114)),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Pages, "Бумажная книга", tint = Color.White, modifier = Modifier.size(if (small) 12.dp else 14.dp)) }
         }
-        progress?.let { (label, color) ->
-            Text(
-                label,
-                color = Color.White,
-                fontSize = if (small) 9.5.sp else 10.5.sp,
-                lineHeight = if (small) 12.sp else 13.sp,
-                fontWeight = FontWeight.ExtraBold,
-                maxLines = 1,
-                softWrap = false,
-                modifier = Modifier
+        if (progress != null) {
+            val (label, color) = progress
+            val text = if (small) 9.5.sp else 10.5.sp
+            Row(
+                Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = if (small) 5.dp else 7.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = if (small) 4.dp else 6.dp, vertical = if (small) 4.dp else 6.dp)
                     .clip(CircleShape)
                     .background(Color(0xD9100D0B))
-                    .border(1.dp, color.copy(alpha = 0.75f), CircleShape)
-                    .padding(horizontal = if (small) 6.dp else 8.dp, vertical = 2.dp),
-            )
-        }
-        if (book.favorite) {
-            Box(
-                Modifier.align(if (showStatus) Alignment.BottomEnd else Alignment.TopEnd).padding(5.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
-                    .background(Color(0xB0101114)),
-                contentAlignment = Alignment.Center,
-            ) { Icon(AppIcons.StarFilled, "Избранное", tint = StarYellow, modifier = Modifier.size(if (small) 12.dp else 15.dp)) }
+                    .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape)
+                    .padding(horizontal = if (small) 5.dp else 7.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    if (rating != null) {
+                        Icon(AppIcons.StarFilled, "Оценка", tint = AppColors.Accent, modifier = Modifier.size(if (small) 9.dp else 11.dp))
+                        Text(ratingText(rating), color = AppColors.Accent, fontSize = text, lineHeight = text, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
+                    }
+                }
+                Text(
+                    label,
+                    color = Color.White,
+                    fontSize = text,
+                    lineHeight = text,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .border(1.dp, color.copy(alpha = 0.75f), CircleShape)
+                        .padding(horizontal = if (small) 5.dp else 7.dp, vertical = 1.dp),
+                )
+                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End) {
+                    if (book.favorite) Icon(AppIcons.StarFilled, "Избранное", tint = StarYellow, modifier = Modifier.size(if (small) 11.dp else 13.dp))
+                }
+            }
+        } else {
+            rating?.let { RatingBadge(it, Modifier.align(Alignment.BottomStart).padding(5.dp), small) }
+            if (book.favorite) {
+                Box(
+                    Modifier.align(Alignment.TopEnd).padding(5.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
+                        .background(Color(0xB0101114)),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(AppIcons.StarFilled, "Избранное", tint = StarYellow, modifier = Modifier.size(if (small) 12.dp else 15.dp)) }
+            }
         }
     }
 }

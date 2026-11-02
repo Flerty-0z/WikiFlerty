@@ -236,7 +236,6 @@ private fun BookmarkRow(bookmark: Bookmark, onOpen: () -> Unit, onDelete: () -> 
                         bookmark.snippet,
                         color = AppColors.Muted,
                         fontSize = 13.sp,
-                        fontFamily = FontFamily.Serif,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )

@@ -208,7 +208,6 @@ fun NoteCard(
             Text(
                 "«${note.text}»",
                 color = AppColors.Text,
-                fontFamily = FontFamily.Serif,
                 fontSize = 15.sp,
                 lineHeight = 21.sp,
                 maxLines = 3,
@@ -310,7 +309,6 @@ fun NoteEditor(
             Text(
                 draft.text,
                 color = AppColors.Text.copy(alpha = 0.85f),
-                fontFamily = FontFamily.Serif,
                 fontSize = 15.sp,
                 lineHeight = 22.sp,
                 maxLines = 6,
