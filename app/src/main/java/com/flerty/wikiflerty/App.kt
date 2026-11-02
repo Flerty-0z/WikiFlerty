@@ -60,7 +60,6 @@ class App : Application() {
 
     val paper: com.flerty.wikiflerty.data.PaperSessionStore by lazy { com.flerty.wikiflerty.data.PaperSessionStore(this) }
 
-    val pet: com.flerty.wikiflerty.pet.PetManager by lazy { com.flerty.wikiflerty.pet.PetManager(this) }
 
     val ambient: com.flerty.wikiflerty.system.AmbientPlayer by lazy { com.flerty.wikiflerty.system.AmbientPlayer(this) }
 
@@ -87,7 +86,7 @@ class App : Application() {
         super.onCreate()
         crashLog.install()
         streakFreeze
-        Thread({ runCatching { com.flerty.wikiflerty.reader.FontCatalog.warm(this) }; runCatching { java.io.File(filesDir, "charmap").deleteRecursively() } }, "font-warm").apply { priority = Thread.MIN_PRIORITY }.start()
+        Thread({ runCatching { com.flerty.wikiflerty.reader.FontCatalog.warm(this) }; runCatching { java.io.File(filesDir, "charmap").deleteRecursively(); java.io.File(filesDir, "pet.json").delete() } }, "font-warm").apply { priority = Thread.MIN_PRIORITY }.start()
         style = StyleStore(this)
         readium = ReadiumServices(this)
         library = LibraryRepository(this, readium)
@@ -107,8 +106,6 @@ class App : Application() {
         appScope.launch { library.ensureFingerprints() }
         backgroundAudio.install()
         achievements.start(appScope)
-        pet.start()
-        flashcards.onAnswer = { pet.event(com.flerty.wikiflerty.pet.PetEvent.Card) }
         appScope.launch {
             var first = true
             notes.notes.collectLatest {

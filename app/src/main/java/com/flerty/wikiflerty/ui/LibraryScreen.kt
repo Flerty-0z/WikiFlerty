@@ -168,7 +168,6 @@ fun LibraryScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var menuBookId by rememberSaveable { mutableStateOf<String?>(null) }
     var showFilterSheet by rememberSaveable { mutableStateOf(false) }
-    var petOpen by rememberSaveable { mutableStateOf(false) }
 
     if (books.isEmpty()) {
         EmptyLibrary(onAddBook, { controls.scanFolder = true }, modifier)
@@ -206,25 +205,7 @@ fun LibraryScreen(
         else -> 110.dp
     } * (if (tablet) 1.35f else 1f)
 
-    val openPet by app.pet.open.collectAsStateWithLifecycle()
-    LaunchedEffect(openPet) {
-        if (openPet) {
-            app.pet.open.value = false
-            if (app.pet.pet.value != null) petOpen = true
-        }
-    }
-    androidx.compose.animation.AnimatedContent(
-        targetState = petOpen,
-        transitionSpec = {
-            val dir = if (targetState) 1 else -1
-            (androidx.compose.animation.fadeIn(Motion.fade(220)) + androidx.compose.animation.slideInHorizontally(Motion.tween(280)) { dir * it / 5 })
-                .togetherWith(androidx.compose.animation.fadeOut(Motion.fade(160)) + androidx.compose.animation.slideOutHorizontally(Motion.tween(240)) { -dir * it / 6 })
-        },
-        label = "libraryPage",
-    ) { petPage ->
-    if (petPage) {
-        PetPage(modifier) { petOpen = false }
-    } else Column(modifier) {
+    Column(modifier) {
         androidx.compose.animation.AnimatedVisibility(visible = controls.searchOpen || query.isNotEmpty()) {
             SearchField(query, { query = it }, Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 10.dp))
         }
@@ -252,11 +233,6 @@ fun LibraryScreen(
             verticalArrangement = Arrangement.spacedBy(if (grid) 16.dp else 10.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
-            if (q.isEmpty()) {
-                item(key = "pet", span = { GridItemSpan(maxLineSpan) }) {
-                    PetCard { petOpen = true }
-                }
-            }
             if (shown.isEmpty()) {
                 item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
                     Text(
@@ -283,7 +259,6 @@ fun LibraryScreen(
                 }
             }
         }
-    }
     }
 
     books.firstOrNull { it.id == menuBookId }?.let { book ->

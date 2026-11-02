@@ -40,11 +40,6 @@ class MainActivity : ComponentActivity() {
             intent.setAction(null)
             return
         }
-        if (intent != null && intent.action == com.flerty.wikiflerty.widget.PetWidget.ACTION_OPEN_PET) {
-            (applicationContext as com.flerty.wikiflerty.App).pet.open.value = true
-            intent.setAction(null)
-            return
-        }
         if (intent != null && intent.action == com.flerty.wikiflerty.widget.ReadingWidget.ACTION_OPEN_BOOK) {
             intent.getStringExtra(com.flerty.wikiflerty.widget.ReadingWidget.EXTRA_BOOK_ID)?.let { libraryViewModel.openById(it) }
             intent.setAction(null)
