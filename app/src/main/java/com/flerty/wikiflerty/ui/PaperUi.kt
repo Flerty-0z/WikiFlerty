@@ -95,7 +95,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private val SessionFormat = DateTimeFormatter.ofPattern("d MMM, HH:mm", Locale("ru"))
-private val FinishFormat = DateTimeFormatter.ofPattern("d MMMM", Locale("ru"))
+private val MonthsGen = listOf("января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря")
+
+private fun dayMonth(d: LocalDate): String = "${d.dayOfMonth} ${MonthsGen[d.monthValue - 1]}"
 
 internal fun clock(ms: Long): String {
     val s = ms / 1000
@@ -274,7 +276,7 @@ fun PaperMain(book: Book, onEdit: () -> Unit) {
                 ),
                 StatCell(
                     "Финиш",
-                    pace.finishDate?.let { "≈ " + FinishFormat.format(it) } ?: if (pace.leftPages == 0) "🎉" else "—",
+                    pace.finishDate?.let { "≈ " + dayMonth(it) } ?: if (pace.leftPages == 0) "🎉" else "—",
                     hint = pace.leftDays?.takeIf { pace.leftPages > 0 }?.let { "через ${StatsCalc.days(it)}" } ?: if (pace.pagesPerHour == null && pace.leftPages > 0) "засеки время сеанса" else null,
                     icon = AppIcons.Calendar,
                 ),
@@ -386,7 +388,16 @@ internal fun RollingClock(text: String, modifier: Modifier = Modifier, size: and
 @Composable
 private fun BookProgressBlock(current: Int, total: Int, fraction: Float, grew: Int, pace: com.flerty.wikiflerty.data.PaperPace) {
     val done = current >= total
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val shape = appCorner(16)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Brush.linearGradient(listOf(AppColors.Accent.copy(alpha = 0.12f), AppColors.Field)))
+            .border(1.dp, AppColors.Accent.copy(alpha = 0.3f), shape)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(9.dp),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             FitText("Прогресс книги", AppColors.Muted, 12.5.sp, Modifier.weight(1f), weight = FontWeight.SemiBold)
             Text(
@@ -411,7 +422,7 @@ private fun BookProgressBlock(current: Int, total: Int, fraction: Float, grew: I
             StatusPill(com.flerty.wikiflerty.data.ReadStatus.Finished, small = true, framed = true)
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                SessionPill(AppIcons.Pages, "ещё ${total - current} ${pagesWord(total - current)}")
+                pace.pagesPerHour?.let { SessionPill(AppIcons.Speed, "${it.toInt()} стр/ч") }
                 pace.leftMs?.let { SessionPill(AppIcons.Clock, "≈ " + StatsCalc.duration(it)) }
             }
         }
@@ -475,7 +486,13 @@ private fun SessionRow(s: PaperSession, total: Int, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(TimeFormat.format(time), color = AppColors.Faint, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Column(Modifier.width(30.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("%02d".format(time.hour), color = AppColors.Muted, fontSize = 15.sp, lineHeight = 16.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+            Row(Modifier.padding(vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                repeat(2) { Box(Modifier.size(3.dp).clip(CircleShape).background(AppColors.Accent.copy(alpha = 0.8f))) }
+            }
+            Text("%02d".format(time.minute), color = AppColors.Muted, fontSize = 15.sp, lineHeight = 16.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+        }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             FitText("Стр. ${s.fromPage} → ${s.toPage}", AppColors.Text, 14.sp, weight = FontWeight.Bold)
             if (sub.isNotEmpty()) Text(sub, color = AppColors.Faint, fontSize = 11.5.sp, lineHeight = 15.sp, maxLines = 2)
@@ -488,15 +505,13 @@ private fun SessionRow(s: PaperSession, total: Int, onClick: () -> Unit) {
     }
 }
 
-private val TimeFormat = DateTimeFormatter.ofPattern("HH:mm", Locale("ru"))
-private val DayFullFormat = DateTimeFormatter.ofPattern("d MMMM", Locale("ru"))
 
 private fun dayTitle(d: LocalDate): String {
     val today = LocalDate.now()
     return when (d) {
         today -> "Сегодня"
         today.minusDays(1) -> "Вчера"
-        else -> DayFullFormat.format(d)
+        else -> dayMonth(d)
     }
 }
 
