@@ -108,6 +108,8 @@ private class Spark(val angle: Float, val distance: Float, val radius: Float, va
 private fun AnimatedStar(fill: Float, size: Dp, index: Int, interactive: Boolean) {
     val pop = remember { androidx.compose.animation.core.Animatable(1f) }
     val burst = remember { androidx.compose.animation.core.Animatable(1f) }
+    val fade = remember { androidx.compose.animation.core.Animatable(1f) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val shown by androidx.compose.animation.core.animateFloatAsState(fill, Motion.tween(180), label = "star-fill")
     var previous by remember { mutableFloatStateOf(fill) }
     val sparks = remember(index) {
@@ -120,19 +122,24 @@ private fun AnimatedStar(fill: Float, size: Dp, index: Int, interactive: Boolean
         previous = fill
         if (!interactive || !Motion.enabled) return@LaunchedEffect
         if (grew) {
-            kotlinx.coroutines.coroutineScope {
-                launch {
-                    pop.snapTo(0.82f)
-                    pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.32f, stiffness = 520f))
-                }
-                if (fill >= 1f) launch {
-                    burst.snapTo(0f)
-                    burst.animateTo(1f, androidx.compose.animation.core.tween(620, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
-                }
+            scope.launch {
+                pop.snapTo(0.82f)
+                pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.32f, stiffness = 520f))
+            }
+            if (fill >= 1f) scope.launch {
+                burst.snapTo(0f)
+                burst.animateTo(1f, androidx.compose.animation.core.tween(620, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
             }
         } else if (shrank) {
-            pop.snapTo(0.9f)
-            pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.5f, stiffness = 700f))
+            scope.launch { burst.snapTo(1f) }
+            scope.launch {
+                pop.snapTo(0.9f)
+                pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.5f, stiffness = 700f))
+            }
+            scope.launch {
+                fade.snapTo(0f)
+                fade.animateTo(1f, androidx.compose.animation.core.tween(360, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+            }
         }
     }
     val accent = AppColors.Accent
@@ -157,6 +164,16 @@ private fun AnimatedStar(fill: Float, size: Dp, index: Int, interactive: Boolean
                         drawCircle(accent.copy(alpha = alpha * 0.5f), r * 1.9f, androidx.compose.ui.geometry.Offset(x, y))
                     }
                     drawCircle(glow.copy(alpha = (1f - p) * 0.22f), base * (0.45f + p * 0.35f), c)
+                }
+                val f = fade.value
+                if (f < 1f) {
+                    val base = this.size.minDimension
+                    drawCircle(
+                        accent.copy(alpha = (1f - f) * 0.45f),
+                        base * (0.62f - f * 0.3f),
+                        center,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = base * 0.05f * (1f - f) + 1f),
+                    )
                 }
             }
             .graphicsLayer {

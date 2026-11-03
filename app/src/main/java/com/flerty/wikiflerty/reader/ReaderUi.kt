@@ -1307,38 +1307,9 @@ private fun FontList(
     modifier: Modifier,
 ) {
     val context = LocalContext.current
-    var filter by remember { mutableStateOf<FontCategory?>(null) }
-    val shown = fonts.filter { filter == null || it.category == filter }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(
-            Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            val chips = listOf<FontCategory?>(null) + FontCategory.entries.filter { c -> fonts.any { it.category == c } }
-            chips.forEach { category ->
-                val selected = filter == category
-                val shape = appCorner(18)
-                val bg by animateColorAsState(if (selected) AppColors.Accent else AppColors.Field, label = "chip")
-                Box(
-                    modifier = Modifier
-                        .height(36.dp)
-                        .liveClick(shape, sound = FeedbackSound.Toggle) { filter = category }
-                        .background(bg)
-                        .border(1.dp, if (selected) AppColors.Accent else AppColors.PanelBorder, shape)
-                        .padding(horizontal = 14.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        category?.title ?: "Все",
-                        color = if (selected) AppColors.OnAccent else AppColors.Text,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-            }
-        }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(shown, key = { it.id }) { entry ->
+            items(fonts, key = { it.id }) { entry ->
                 Reveal {
                     val selected = settings.font == entry.id
                     val shape = appCorner(14)
@@ -1363,7 +1334,8 @@ private fun FontList(
                                 fontSize = 13.sp,
                                 fontFamily = family,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                                softWrap = false,
+                                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 13.sp, stepSize = 0.25.sp),
                             )
                         }
                         AnimatedVisibility(visible = selected, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
