@@ -160,7 +160,7 @@ private fun Modifier.bookcaseWall(): Modifier = this.drawBehind {
 
 @Composable
 private fun Shelf(name: String, units: List<ShelfUnit>, highlighted: Boolean, index: Int, onBook: (Book) -> Unit, onEdit: () -> Unit) {
-    Column(Modifier.fillMaxWidth()) {
+    Column(Modifier.fillMaxWidth().scrollReveal()) {
         LazyRow(
             modifier = Modifier.fillMaxWidth().height(BookWidth * 1.5f + 14.dp),
             contentPadding = PaddingValues(horizontal = 22.dp),
@@ -182,14 +182,11 @@ private fun Shelf(name: String, units: List<ShelfUnit>, highlighted: Boolean, in
 @Composable
 private fun Modifier.dropIn(shelf: Int, item: Int): Modifier {
     val p = remember { androidx.compose.animation.core.Animatable(if (Motion.enabled) 0f else 1f) }
-    val lift = with(androidx.compose.ui.platform.LocalDensity.current) { 26.dp.toPx() }
     androidx.compose.runtime.LaunchedEffect(Unit) {
-        p.animateTo(1f, Motion.tween(520, 140 + shelf.coerceAtMost(4) * 110 + item.coerceAtMost(8) * 65, GrowEasing))
+        p.animateTo(1f, Motion.tween(480, 120 + shelf.coerceAtMost(4) * 90 + item.coerceAtMost(8) * 55, androidx.compose.animation.core.FastOutSlowInEasing))
     }
     return this.graphicsLayer {
-        val v = p.value
-        alpha = v.coerceIn(0f, 1f)
-        translationY = (1f - v) * -lift
+        alpha = p.value.coerceIn(0f, 1f)
     }
 }
 
@@ -202,7 +199,6 @@ private fun Modifier.plankIn(shelf: Int): Modifier {
     return this.graphicsLayer {
         val v = p.value
         alpha = v
-        scaleX = 0.86f + 0.14f * v
     }
 }
 
@@ -289,25 +285,7 @@ private fun LyingBook(book: Book, width: Dp, top: Boolean, pagesOut: Boolean, mo
                         }
                     }
                 },
-            contentAlignment = Alignment.Center,
-        ) {
-            if (!pagesOut) {
-                val darkText = main.luminanceApprox() > 0.6f
-                Text(
-                    book.title.uppercase(),
-                    style = TextStyle(
-                        color = if (darkText) Color(0xD9261C12) else Color(0xE6F7EBD8),
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                        shadow = Shadow(if (darkText) Color(0x40FFFFFF) else Color(0x80000000), Offset(0f, 1.5f), 1f),
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                )
-            }
-        }
+        )
     }
 }
 
