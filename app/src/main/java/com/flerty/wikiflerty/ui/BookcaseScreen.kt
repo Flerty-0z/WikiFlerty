@@ -160,7 +160,7 @@ private fun Modifier.bookcaseWall(): Modifier = this.drawBehind {
 
 @Composable
 private fun Shelf(name: String, units: List<ShelfUnit>, highlighted: Boolean, index: Int, onBook: (Book) -> Unit, onEdit: () -> Unit) {
-    Column(Modifier.fillMaxWidth().riseIn("shelf:$name", index)) {
+    Column(Modifier.fillMaxWidth()) {
         LazyRow(
             modifier = Modifier.fillMaxWidth().height(BookWidth * 1.5f + 14.dp),
             contentPadding = PaddingValues(horizontal = 22.dp),
@@ -169,13 +169,40 @@ private fun Shelf(name: String, units: List<ShelfUnit>, highlighted: Boolean, in
         ) {
             itemsIndexed(units, key = { _, u -> u.key }) { i, unit ->
                 when (unit) {
-                    is ShelfUnit.Standing -> StandingBook(unit.book, unit.lean, Modifier.riseIn("${name}:${unit.key}", i)) { onBook(unit.book) }
-                    is ShelfUnit.Stack -> BookStack(unit.books, Modifier.riseIn("${name}:${unit.key}", i), onBook)
-                    is ShelfUnit.Add -> AddSlot(onEdit)
+                    is ShelfUnit.Standing -> StandingBook(unit.book, unit.lean, Modifier.dropIn(index, i)) { onBook(unit.book) }
+                    is ShelfUnit.Stack -> BookStack(unit.books, Modifier.dropIn(index, i), onBook)
+                    is ShelfUnit.Add -> Box(Modifier.dropIn(index, i)) { AddSlot(onEdit) }
                 }
             }
         }
-        Plank(name, highlighted, onEdit)
+        Box(Modifier.plankIn(index)) { Plank(name, highlighted, onEdit) }
+    }
+}
+
+@Composable
+private fun Modifier.dropIn(shelf: Int, item: Int): Modifier {
+    val p = remember { androidx.compose.animation.core.Animatable(if (Motion.enabled) 0f else 1f) }
+    val lift = with(androidx.compose.ui.platform.LocalDensity.current) { 26.dp.toPx() }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        p.animateTo(1f, Motion.tween(520, 140 + shelf.coerceAtMost(4) * 110 + item.coerceAtMost(8) * 65, GrowEasing))
+    }
+    return this.graphicsLayer {
+        val v = p.value
+        alpha = v.coerceIn(0f, 1f)
+        translationY = (1f - v) * -lift
+    }
+}
+
+@Composable
+private fun Modifier.plankIn(shelf: Int): Modifier {
+    val p = remember { androidx.compose.animation.core.Animatable(if (Motion.enabled) 0f else 1f) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        p.animateTo(1f, Motion.tween(460, 40 + shelf.coerceAtMost(4) * 110, androidx.compose.animation.core.FastOutSlowInEasing))
+    }
+    return this.graphicsLayer {
+        val v = p.value
+        alpha = v
+        scaleX = 0.86f + 0.14f * v
     }
 }
 
@@ -200,48 +227,87 @@ private fun StandingBook(book: Book, lean: Boolean, modifier: Modifier = Modifie
 @Composable
 private fun BookStack(books: List<Book>, modifier: Modifier = Modifier, onBook: (Book) -> Unit) {
     Column(modifier.padding(start = 6.dp, end = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        books.reversed().forEach { b ->
-            val h = b.id.hashCode()
-            val width = 112.dp + ((h and 0x1F) % 26).dp
+        val order = books.reversed()
+        order.forEachIndexed { i, b ->
+            val h = b.id.hashCode() and 0x7FFFFFFF
+            val width = 114.dp + (h % 26).dp
             val shift = (((h shr 5) and 0x0F) - 7).dp
-            LyingSpine(b, width, Modifier.offset(x = shift)) { onBook(b) }
+            val pages = i > 0 && (h shr 9) % 3 == 0
+            LyingBook(b, width, top = i == 0, pagesOut = pages, modifier = Modifier.offset(x = shift)) { onBook(b) }
         }
+        Box(Modifier.width(150.dp).height(6.dp).background(Brush.verticalGradient(listOf(Color(0x66000000), Color(0x00000000)))))
     }
 }
 
 @Composable
-private fun LyingSpine(book: Book, width: Dp, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val base = rememberCoverColor(book)
+private fun LyingBook(book: Book, width: Dp, top: Boolean, pagesOut: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val tones = rememberCoverTones(book)
+    val main = tones[tones.size / 2]
     val shape = appCorner(3)
-    Box(
-        modifier
-            .width(width)
-            .height(SpineHeight)
-            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onLongClick = onClick, onClick = onClick)
-            .drawBehind {
-                val dark = Color(
-                    red = base.red * 0.55f,
-                    green = base.green * 0.55f,
-                    blue = base.blue * 0.55f,
+    val board = 4.dp
+    Column(modifier.width(width).liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onLongClick = onClick, onClick = onClick)) {
+        if (top) {
+            Box(
+                Modifier.fillMaxWidth().height(board).drawBehind {
+                    val path = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(5.dp.toPx(), 0f)
+                        lineTo(size.width - 3.dp.toPx(), 0f)
+                        lineTo(size.width, size.height)
+                        lineTo(0f, size.height)
+                        close()
+                    }
+                    drawPath(path, Brush.horizontalGradient(tones.map { lighten(it, 0.28f) }))
+                    drawPath(path, Color(0x22FFFFFF))
+                },
+            )
+        }
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(SpineHeight)
+                .drawBehind {
+                    if (pagesOut) {
+                        val b = 3.dp.toPx()
+                        drawRect(Brush.verticalGradient(listOf(Color(0xFFEDE3CC), Color(0xFFD2C3A3))), Offset(0f, b), androidx.compose.ui.geometry.Size(size.width - 4.dp.toPx(), size.height - 2 * b))
+                        val line = Color(0x26000000)
+                        var y = b + 2.dp.toPx()
+                        while (y < size.height - b - 1f) {
+                            drawLine(line, Offset(2.dp.toPx(), y), Offset(size.width - 6.dp.toPx(), y), 0.7f)
+                            y += 2.2.dp.toPx()
+                        }
+                        drawRect(main, size = androidx.compose.ui.geometry.Size(size.width, b))
+                        drawRect(darken(main, 0.6f), Offset(0f, size.height - b), androidx.compose.ui.geometry.Size(size.width, b))
+                        drawRect(darken(main, 0.75f), Offset(size.width - 4.dp.toPx(), 0f), androidx.compose.ui.geometry.Size(4.dp.toPx(), size.height))
+                    } else {
+                        drawRect(Brush.horizontalGradient(tones))
+                        drawRect(Brush.verticalGradient(0f to Color(0x30FFFFFF), 0.32f to Color(0x14FFFFFF), 0.55f to Color(0x00000000), 1f to Color(0x66000000)))
+                        val band = Color(0xA6E7B877)
+                        val w = 2.dp.toPx()
+                        listOf(7.dp.toPx(), 11.dp.toPx()).forEach { x ->
+                            drawRect(band, Offset(x, 0f), androidx.compose.ui.geometry.Size(w, size.height))
+                            drawRect(band, Offset(size.width - x - w, 0f), androidx.compose.ui.geometry.Size(w, size.height))
+                        }
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            if (!pagesOut) {
+                val darkText = main.luminanceApprox() > 0.6f
+                Text(
+                    book.title.uppercase(),
+                    style = TextStyle(
+                        color = if (darkText) Color(0xD9261C12) else Color(0xE6F7EBD8),
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        shadow = Shadow(if (darkText) Color(0x40FFFFFF) else Color(0x80000000), Offset(0f, 1.5f), 1f),
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 20.dp),
                 )
-                drawRect(Brush.verticalGradient(listOf(lighten(base, 0.18f), base, dark)))
-                val band = Color(0x8CF2C38B)
-                val w = 2.5.dp.toPx()
-                drawRect(band, Offset(8.dp.toPx(), 0f), androidx.compose.ui.geometry.Size(w, size.height))
-                drawRect(band, Offset(size.width - 8.dp.toPx() - w, 0f), androidx.compose.ui.geometry.Size(w, size.height))
-                drawRect(Color(0x33000000), Offset(0f, size.height - 1.dp.toPx()), androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx()))
-            },
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            book.title,
-            color = if (base.luminanceApprox() > 0.6f) Color(0xE6261C12) else Color(0xE6FFFFFF),
-            fontSize = 9.5.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 16.dp),
-        )
+            }
+        }
     }
 }
 
@@ -317,47 +383,53 @@ private fun Plank(name: String, highlighted: Boolean, onEdit: () -> Unit) {
 }
 
 @Composable
-private fun rememberCoverColor(book: Book): Color {
+private fun rememberCoverTones(book: Book): List<Color> {
     val app = LocalContext.current.applicationContext as App
     val fallback = remember(book.id) {
         val hues = listOf(0xFF3B5F7A, 0xFF8A3B2B, 0xFF5F7A4E, 0xFF7A4FA0, 0xFF2C2F5A, 0xFFB2763A, 0xFF1F6F8B, 0xFF6E2F3F)
-        Color(hues[(book.id.hashCode() and 0x7FFFFFFF) % hues.size])
+        val c = Color(hues[(book.id.hashCode() and 0x7FFFFFFF) % hues.size])
+        listOf(darken(c, 0.8f), c, lighten(c, 0.1f), c, darken(c, 0.8f))
     }
     val file = app.library.coverFile(book)
-    val color by produceState(fallback, file) {
-        val c = withContext(Dispatchers.IO) { file?.takeIf { it.exists() }?.let { CoverCache.load(it, 48) }?.let { averageColor(it.asAndroidBitmap()) } }
-        if (c != null) value = c
+    val tones by produceState(fallback, file) {
+        val t = withContext(Dispatchers.IO) { file?.takeIf { it.exists() }?.let { CoverCache.load(it, 64) }?.let { coverTones(it.asAndroidBitmap()) } }
+        if (t != null) value = t
     }
-    return color
+    return tones
 }
 
-private fun averageColor(bitmap: android.graphics.Bitmap): Color? {
-    var r = 0L
-    var g = 0L
-    var b = 0L
-    var n = 0
-    val stepX = (bitmap.width / 12).coerceAtLeast(1)
-    val stepY = (bitmap.height / 16).coerceAtLeast(1)
-    var y = 0
-    while (y < bitmap.height) {
-        var x = 0
-        while (x < bitmap.width) {
-            val p = bitmap.getPixel(x, y)
-            r += (p shr 16) and 0xFF
-            g += (p shr 8) and 0xFF
-            b += p and 0xFF
-            n++
-            x += stepX
+private fun coverTones(bitmap: android.graphics.Bitmap): List<Color>? {
+    if (bitmap.width == 0 || bitmap.height == 0) return null
+    val bands = 7
+    return (0 until bands).map { band ->
+        val y0 = bitmap.height * band / bands
+        val y1 = (bitmap.height * (band + 1) / bands).coerceAtLeast(y0 + 1)
+        var r = 0L
+        var g = 0L
+        var b = 0L
+        var n = 0
+        var y = y0
+        while (y < y1) {
+            var x = 0
+            while (x < bitmap.width) {
+                val p = bitmap.getPixel(x, y)
+                r += (p shr 16) and 0xFF
+                g += (p shr 8) and 0xFF
+                b += p and 0xFF
+                n++
+                x += 3
+            }
+            y += 2
         }
-        y += stepY
+        val hsv = FloatArray(3)
+        android.graphics.Color.RGBToHSV((r / n.coerceAtLeast(1)).toInt(), (g / n.coerceAtLeast(1)).toInt(), (b / n.coerceAtLeast(1)).toInt(), hsv)
+        hsv[1] = (hsv[1] * 1.25f).coerceIn(0.12f, 0.85f)
+        hsv[2] = hsv[2].coerceIn(0.22f, 0.82f)
+        Color(android.graphics.Color.HSVToColor(hsv))
     }
-    if (n == 0) return null
-    val hsv = FloatArray(3)
-    android.graphics.Color.RGBToHSV((r / n).toInt(), (g / n).toInt(), (b / n).toInt(), hsv)
-    hsv[1] = (hsv[1] * 1.35f).coerceIn(0.18f, 0.85f)
-    hsv[2] = hsv[2].coerceIn(0.28f, 0.78f)
-    return Color(android.graphics.Color.HSVToColor(hsv))
 }
+
+private fun darken(c: Color, factor: Float): Color = Color(red = c.red * factor, green = c.green * factor, blue = c.blue * factor, alpha = c.alpha)
 
 private fun lighten(c: Color, amount: Float): Color = Color(
     red = c.red + (1f - c.red) * amount,
