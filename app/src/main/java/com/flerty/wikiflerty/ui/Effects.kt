@@ -237,29 +237,35 @@ private fun Double.sp2(): androidx.compose.ui.unit.TextUnit = androidx.compose.u
 
 fun Modifier.scrollReveal(): Modifier = composed {
     if (!Motion.enabled) return@composed this
-    val edge = with(LocalDensity.current) { 64.dp.toPx() }
-    val lift = with(LocalDensity.current) { 16.dp.toPx() }
-    val state = remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
-    val leaving = remember { androidx.compose.runtime.mutableStateOf(false) }
+    val density = LocalDensity.current
+    val edge = with(density) { 96.dp.toPx() }
+    val lift = with(density) { 28.dp.toPx() }
+    val enter = remember { Animatable(0f) }
+    val seen = remember { androidx.compose.runtime.mutableStateOf(false) }
+    val fromAbove = remember { androidx.compose.runtime.mutableStateOf(false) }
+    val exit = remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
+    LaunchedEffect(seen.value) {
+        if (seen.value) enter.animateTo(1f, tween(Motion.ms(560), easing = androidx.compose.animation.core.FastOutSlowInEasing))
+    }
     this
         .onGloballyPositioned { c ->
             val parent = c.parentLayoutCoordinates ?: return@onGloballyPositioned
             val y = c.positionInParent().y
             val h = c.size.height.toFloat()
             val vh = parent.size.height.toFloat()
-            val fromBottom = if (y + h <= vh) 1f else ((vh - y) / minOf(edge, h)).coerceIn(0f, 1f)
-            val fromTop = if (y >= 0f) 1f else ((y + h) / minOf(edge, h)).coerceIn(0f, 1f)
-            leaving.value = fromTop < fromBottom
-            state.floatValue = minOf(fromBottom, fromTop)
+            if (!seen.value && y < vh && y + h > 0f) {
+                fromAbove.value = y < 0f
+                seen.value = true
+            }
+            exit.floatValue = if (y >= 0f) 1f else ((y + h) / minOf(edge, h)).coerceIn(0f, 1f)
         }
         .graphicsLayer {
-            val v = state.floatValue
-            val e = 1f - (1f - v) * (1f - v)
-            alpha = e
-            translationY = (1f - e) * lift * (if (leaving.value) -0.6f else 1f)
-            val s = 0.96f + 0.04f * e
-            scaleX = s
-            scaleY = s
+            val v = enter.value
+            alpha = v * exit.floatValue
+            translationY = (1f - v) * lift * (if (fromAbove.value) -1f else 1f)
+            val sc = 0.94f + 0.06f * v
+            scaleX = sc
+            scaleY = sc
         }
 }
 
