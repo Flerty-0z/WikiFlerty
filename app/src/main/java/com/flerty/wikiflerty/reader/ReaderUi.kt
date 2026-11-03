@@ -76,6 +76,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import com.flerty.wikiflerty.ui.AppStyle
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.text.TextAutoSize
@@ -1024,6 +1025,8 @@ private fun SheetContent(
             }
             if (parent != null) {
                 RoundIconButton(AppIcons.Back, "Назад", sound = FeedbackSound.Close) { onOpen(parent) }
+            } else if (sheet !in NavSheets) {
+                Spacer(Modifier.size(44.dp))
             }
             if (sheet in NavSheets) {
                 NavTabs(sheet, onSelect = onOpen, modifier = Modifier.weight(1f).padding(end = 6.dp))
@@ -1112,17 +1115,17 @@ private fun SheetContent(
             ) {
                 when (sheet) {
                     ReaderSheet.Options -> OptionsHome(onOpen)
-                    ReaderSheet.Text -> TextOptions(settings, fonts, onSettingsChange, onOpen)
-                    ReaderSheet.Scroll -> ScrollOptions(settings, onSettingsChange, auto.onStart)
-                    ReaderSheet.Theme -> ThemeOptions(settings, onSettingsChange)
-                    ReaderSheet.Panel -> PanelOptions(settings, onSettingsChange)
-                    ReaderSheet.Gestures -> GestureOptions(settings, onSettingsChange)
-                    ReaderSheet.Screen -> ScreenOptions(settings, onSettingsChange)
+                    ReaderSheet.Text -> OptionFrame { TextOptions(settings, fonts, onSettingsChange, onOpen) }
+                    ReaderSheet.Scroll -> OptionFrame { ScrollOptions(settings, onSettingsChange, auto.onStart) }
+                    ReaderSheet.Theme -> OptionFrame { ThemeOptions(settings, onSettingsChange) }
+                    ReaderSheet.Panel -> OptionFrame { PanelOptions(settings, onSettingsChange) }
+                    ReaderSheet.Gestures -> OptionFrame { GestureOptions(settings, onSettingsChange) }
+                    ReaderSheet.Screen -> OptionFrame { ScreenOptions(settings, onSettingsChange) }
                     ReaderSheet.Sound -> {
-                        SoundOptions(settings, onSettingsChange)
+                        OptionFrame { SoundOptions(settings, onSettingsChange) }
                         AmbienceOptions(title = "Атмосфера")
                     }
-                    ReaderSheet.Listen -> TtsOptions(settings, bookLanguage, ttsActive, ttsPlaying, ttsSleep, tts, onSettingsChange)
+                    ReaderSheet.Listen -> OptionFrame { TtsOptions(settings, bookLanguage, ttsActive, ttsPlaying, ttsSleep, tts, onSettingsChange) }
                     else -> Unit
                 }
             }
@@ -1210,8 +1213,7 @@ private fun TextOptions(
         modifier = Modifier
             .fillMaxWidth()
             .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f) { onOpen(ReaderSheet.Fonts) }
-            .fieldSurface(shape)
-            .padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+            .padding(start = 2.dp, end = 0.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
@@ -1255,6 +1257,7 @@ private fun TextOptions(
         format = { String.format(Locale.US, "%.2f", it) },
         onCommit = { v -> onSettingsChange { it.copy(margins = v) } },
     )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         ToggleTile("Жирный", settings.bold, Modifier.weight(1f), onClick = { onSettingsChange { it.copy(bold = !it.bold) } }) {
             Text("Ж", color = AppColors.Text, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
@@ -1278,7 +1281,9 @@ private fun TextOptions(
     if (!entry.supportsItalic) {
         Text("У этого шрифта нет курсива", color = AppColors.Faint, fontSize = 12.sp)
     }
+    }
     SwitchRow("Переносы", settings.hyphens, icon = AppIcons.Wrap) { v -> onSettingsChange { it.copy(hyphens = v) } }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     Column(Modifier.alpha(if (settings.scroll) 0.45f else 1f)) {
         Segmented(
             "Колонки",
@@ -1298,6 +1303,7 @@ private fun TextOptions(
             fontSize = 12.sp,
             lineHeight = 16.sp,
         )
+    }
     }
 }
 
@@ -1511,7 +1517,6 @@ private fun PanelOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
             }
         }
     }
-    Hint("До пяти кнопок, в порядке выбора.")
 }
 
 @Composable
@@ -1629,8 +1634,65 @@ private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: M
 
 @Composable
 internal fun Group(label: String, icon: ImageVector? = null, content: @Composable () -> Unit) {
+    if (LocalInOptionFrame.current) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.heightIn(min = 36.dp), verticalAlignment = Alignment.CenterVertically) {
+                SettingIcon(icon ?: com.flerty.wikiflerty.ui.titleIcon(label), 30.dp)
+                Spacer(Modifier.width(12.dp))
+                Text(label, color = AppColors.Text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            content()
+        }
+        return
+    }
     com.flerty.wikiflerty.ui.TabbedFrame(label, icon = icon) {
         Column(Modifier.padding(vertical = 8.dp)) { content() }
+    }
+}
+
+internal val LocalInOptionFrame = androidx.compose.runtime.staticCompositionLocalOf { false }
+
+@Composable
+internal fun OptionFrame(content: @Composable () -> Unit) {
+    val lines = remember { mutableListOf<Float>() }
+    val line = AppColors.PanelBorder
+    androidx.compose.runtime.CompositionLocalProvider(LocalInOptionFrame provides true) {
+        androidx.compose.ui.layout.Layout(
+            content = content,
+            modifier = Modifier
+                .fillMaxWidth()
+                .fieldSurface(appCorner(18))
+                .drawWithContent {
+                    drawContent()
+                    val inset = 14.dp.toPx()
+                    lines.forEach { y ->
+                        drawLine(line, androidx.compose.ui.geometry.Offset(inset, y), androidx.compose.ui.geometry.Offset(size.width - inset, y), 1.dp.toPx())
+                    }
+                },
+        ) { measurables, constraints ->
+            val side = 14.dp.roundToPx()
+            val edge = 10.dp.roundToPx()
+            val gap = 12.dp.roundToPx()
+            val width = constraints.maxWidth
+            val inner = constraints.copy(minWidth = 0, maxWidth = (width - side * 2).coerceAtLeast(0), minHeight = 0, maxHeight = androidx.compose.ui.unit.Constraints.Infinity)
+            val placeables = measurables.map { it.measure(inner) }.filter { it.height > 0 }
+            val ys = mutableListOf<Int>()
+            val dividers = mutableListOf<Float>()
+            var y = edge
+            placeables.forEachIndexed { i, p ->
+                if (i > 0) {
+                    y += gap
+                    dividers += y.toFloat()
+                    y += gap
+                }
+                ys += y
+                y += p.height
+            }
+            y += edge
+            lines.clear()
+            lines.addAll(dividers)
+            layout(width, y) { placeables.forEachIndexed { i, p -> p.place(side, ys[i]) } }
+        }
     }
 }
 
