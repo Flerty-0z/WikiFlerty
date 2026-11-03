@@ -1777,22 +1777,67 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         when (settings.animation) {
             PageAnimation.Slide -> go(forward, animated = true)
             PageAnimation.None -> go(forward, animated = false)
-            PageAnimation.Curl -> curlTurn(forward)
-            PageAnimation.Fade, PageAnimation.Cover, PageAnimation.Flip, PageAnimation.Depth -> animatedTurn(forward, settings.animation)
+            PageAnimation.Curl, PageAnimation.Fade, PageAnimation.Cover, PageAnimation.Flip, PageAnimation.Depth -> requestTurn(forward, settings.animation)
         }
         resyncListening()
     }
 
-    private fun animatedTurn(forward: Boolean, animation: PageAnimation) {
-        if (turning) {
-            go(forward, animated = false)
+    private var capturing = false
+    private var pendingTurn: Boolean? = null
+    private var pendingCount = 0
+    private var curlStart: Runnable? = null
+    private val drainTurn = Runnable { drainPending() }
+
+    private fun requestTurn(forward: Boolean, animation: PageAnimation) {
+        if (capturing) {
+            if (pendingTurn != forward) pendingCount = 0
+            pendingTurn = forward
+            pendingCount = (pendingCount + 1).coerceAtMost(4)
             return
         }
+        if (turning) finishTurnNow()
+        if (animation == PageAnimation.Curl) curlTurn(forward) else animatedTurn(forward, animation)
+    }
+
+    private fun finishTurnNow() {
+        curlStart?.let { curl.removeCallbacks(it) }
+        curlStart = null
+        snapshot.animate().setListener(null).cancel()
+        curl.cancel()
+        hideSnapshot()
+    }
+
+    private fun schedulePending() {
+        bookArea.removeCallbacks(drainTurn)
+        if (pendingCount > 0) bookArea.postDelayed(drainTurn, 110)
+    }
+
+    private fun drainPending() {
+        val dir = pendingTurn ?: return
+        if (pendingCount <= 0) {
+            pendingTurn = null
+            return
+        }
+        pendingCount--
+        if (pendingCount == 0) pendingTurn = null
+        val animation = settings.animation
+        if (settings.scroll || animation == PageAnimation.Slide || animation == PageAnimation.None) {
+            go(dir, animated = animation == PageAnimation.Slide)
+            schedulePending()
+            return
+        }
+        requestTurn(dir, animation)
+    }
+
+    private fun animatedTurn(forward: Boolean, animation: PageAnimation) {
         turning = true
+        capturing = true
         capturePage { bitmap ->
+            capturing = false
             if (bitmap == null) {
                 turning = false
                 go(forward, animated = false)
+                schedulePending()
                 return@capturePage
             }
             snapshot.animate().cancel()
@@ -1802,6 +1847,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             snapshot.visibility = View.VISIBLE
             if (!go(forward, animated = false)) {
                 hideSnapshot()
+                pendingTurn = null
+                pendingCount = 0
                 return@capturePage
             }
             val width = bookArea.width.toFloat()
@@ -1823,6 +1870,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 else -> animator.translationX(if (forward) -width else width).setDuration(320)
             }
             animator.start()
+            schedulePending()
         }
     }
 
@@ -1838,15 +1886,14 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private fun curlTurn(forward: Boolean) {
-        if (turning) {
-            go(forward, animated = false)
-            return
-        }
         turning = true
+        capturing = true
         capturePage { bitmap ->
+            capturing = false
             if (bitmap == null) {
                 turning = false
                 go(forward, animated = false)
+                schedulePending()
                 return@capturePage
             }
             curl.paper = settings.pageTheme.background.toInt()
@@ -1854,13 +1901,19 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             snapshot.visibility = View.VISIBLE
             if (!go(forward, animated = false)) {
                 hideSnapshot()
+                pendingTurn = null
+                pendingCount = 0
                 return@capturePage
             }
-            curl.postDelayed({
+            val start = Runnable {
+                curlStart = null
                 curl.play(bitmap, forward) { turning = false }
                 snapshot.visibility = View.GONE
                 snapshot.setImageDrawable(null)
-            }, 60)
+            }
+            curlStart = start
+            curl.postDelayed(start, 60)
+            schedulePending()
         }
     }
 
