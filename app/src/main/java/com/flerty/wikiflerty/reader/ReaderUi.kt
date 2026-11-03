@@ -1035,18 +1035,18 @@ private fun SheetContent(
                     sheet == ReaderSheet.HeroChat -> ai.heroes?.state?.current?.name ?: sheet.title
                     else -> sheet.title
                 }
-                com.flerty.wikiflerty.ui.TitlePill(
+                com.flerty.wikiflerty.ui.HeaderLabel(
                     title,
                     icon = when (sheet) {
                         ReaderSheet.HeroChat -> AppIcons.Voice
                         ReaderSheet.AiChat -> AppIcons.Sparkle
                         else -> null
                     },
-                    size = 16.sp,
                 )
             }
             RoundIconButton(AppIcons.Close, "Закрыть", filled = true, sound = FeedbackSound.Close, onClick = onClose)
         }
+        com.flerty.wikiflerty.ui.SheetDivider()
 
         when (sheet) {
             ReaderSheet.Toc, ReaderSheet.Notes, ReaderSheet.Bookmarks -> AnimatedContent(

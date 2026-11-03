@@ -28,6 +28,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -539,73 +541,66 @@ private val DayLetters = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", 
 @Composable
 private fun MinutesCard(perDay: Map<LocalDate, DayEntry>, today: LocalDate) {
     TabbedFrame("Минуты по дням", icon = AppIcons.Chart) {
-        Box(Modifier.padding(top = 6.dp, bottom = 8.dp)) { MinutesBars(StatsCalc.series(perDay, 7, today), false, today) }
+        Box(Modifier.padding(top = 8.dp, bottom = 10.dp)) { MinutesBars(StatsCalc.series(perDay, 7, today), today) }
     }
 }
 
 
 @Composable
-private fun MinutesBars(values: List<Long>, month: Boolean, today: LocalDate) {
+private fun MinutesBars(values: List<Long>, today: LocalDate) {
     val max = values.maxOrNull()?.takeIf { it > 0 } ?: 1L
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(Modifier.fillMaxWidth().height(130.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(if (month) 3.dp else 10.dp)) {
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().height(184.dp)) {
+        val track = maxHeight - 56.dp
+        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             values.forEachIndexed { i, v ->
                 val last = i == values.lastIndex
-                val target = if (v > 0) (v.toFloat() / max).coerceIn(0.06f, 1f) else 0f
+                val day = today.minusDays((values.size - 1 - i).toLong())
+                val target = if (v > 0) (v.toFloat() / max).coerceIn(0.08f, 1f) else 0f
                 val grow = remember { androidx.compose.animation.core.Animatable(0f) }
                 LaunchedEffect(target) {
-                    grow.animateTo(target, Motion.tween(if (month) 560 else 700, (if (month) 14 else 55) * i + 80, GrowEasing))
+                    grow.animateTo(target, Motion.tween(700, 55 * i + 80, GrowEasing))
                 }
                 val g = grow.value.coerceIn(0f, 1.1f)
-                Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Bottom, horizontalAlignment = Alignment.CenterHorizontally) {
-                    if (!month && v > 0) {
-                        Text(
-                            "${v / 60_000}",
-                            color = if (last) AppColors.Accent else AppColors.Muted,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            maxLines = 1,
-                            modifier = Modifier.graphicsLayer { alpha = (g / target.coerceAtLeast(0.01f)).coerceIn(0f, 1f) },
+                val shape = appCorner(12)
+                val edge = if (last) AppColors.Accent.copy(alpha = 0.7f) else AppColors.PanelBorder
+                androidx.compose.foundation.layout.Column(
+                    Modifier
+                        .weight(1f)
+                        .clip(shape)
+                        .background(AppColors.Field)
+                        .border(1.dp, edge, shape),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    if (v > 0) {
+                        Box(
+                            Modifier.fillMaxWidth().height(26.dp).graphicsLayer { alpha = (g / target.coerceAtLeast(0.01f)).coerceIn(0f, 1f) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            FitText("${v / 60_000}", if (last) AppColors.Accent else AppColors.Text, 12.sp, Modifier.padding(horizontal = 3.dp), weight = FontWeight.ExtraBold)
+                        }
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(track * g.coerceIn(0f, 1f))
+                                .background(if (last) AppColors.Accent else AppColors.Accent.copy(alpha = 0.45f)),
                         )
-                        Spacer(Modifier.height(4.dp))
                     }
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .then(if (target > 0f) Modifier.fillMaxHeight((g * 0.82f).coerceIn(0.02f, 0.9f)) else Modifier.height(6.dp))
-                            .clip(appCorner(if (month) 3 else 6))
-                            .background(
-                                if (v <= 0) {
-                                    AppColors.Line
-                                } else if (last) {
-                                    AppColors.Accent
-                                } else {
-                                    AppColors.Accent.copy(alpha = 0.45f)
-                                },
-                            ),
-                    )
+                            .height(30.dp)
+                            .then(if (v > 0) Modifier else Modifier.background(AppColors.Line.copy(alpha = 0.35f))),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        FitText(
+                            DayLetters[day.dayOfWeek.value - 1],
+                            if (last) AppColors.Accent else AppColors.Muted,
+                            11.sp,
+                            Modifier.padding(horizontal = 2.dp),
+                            weight = if (last) FontWeight.ExtraBold else FontWeight.SemiBold,
+                        )
+                    }
                 }
-            }
-        }
-        if (!month) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                values.indices.forEach { i ->
-                    val day = today.minusDays((values.size - 1 - i).toLong())
-                    val last = i == values.lastIndex
-                    Text(
-                        DayLetters[day.dayOfWeek.value - 1],
-                        color = if (last) AppColors.Accent else AppColors.Faint,
-                        fontSize = 11.sp,
-                        fontWeight = if (last) FontWeight.ExtraBold else FontWeight.SemiBold,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-        } else {
-            Row {
-                Text("30 дн. назад", color = AppColors.Faint, fontSize = 11.sp, modifier = Modifier.weight(1f))
-                Text("сегодня", color = AppColors.Faint, fontSize = 11.sp)
             }
         }
     }

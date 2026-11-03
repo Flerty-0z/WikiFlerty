@@ -2,6 +2,7 @@ package com.flerty.wikiflerty.ui
 
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.background
@@ -117,7 +118,7 @@ fun TitlePill(
 }
 
 @Composable
-fun TabbedFrame(title: String, icon: ImageVector? = null, content: @Composable () -> Unit) {
+fun TabbedFrame(title: String, icon: ImageVector? = null, inset: Boolean = true, content: @Composable () -> Unit) {
     val tint = AppColors.Accent
     androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().fieldSurface(appCorner(18))) {
         Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
@@ -145,6 +146,44 @@ fun TabbedFrame(title: String, icon: ImageVector? = null, content: @Composable (
             }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.PanelBorder))
-        androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp)) { content() }
+        androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().then(if (inset) Modifier.padding(horizontal = 14.dp, vertical = 6.dp) else Modifier)) { content() }
     }
+}
+
+@Composable
+fun HeaderLabel(title: String, modifier: Modifier = Modifier, icon: ImageVector? = null, size: TextUnit = 16.sp) {
+    val tint = AppColors.Accent
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+        Box(
+            Modifier
+                .size(28.dp)
+                .clip(appCorner(9))
+                .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.28f), tint.copy(alpha = 0.08f))))
+                .border(1.dp, tint.copy(alpha = 0.2f), appCorner(9)),
+            contentAlignment = Alignment.Center,
+        ) { Icon(icon ?: titleIcon(title), null, tint = tint, modifier = Modifier.size(16.dp)) }
+        Text(
+            title,
+            color = AppColors.Text,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.weight(1f, fill = false),
+            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = size, stepSize = 0.5.sp),
+        )
+    }
+}
+
+fun Modifier.bleed(horizontal: Dp): Modifier = this.then(
+    androidx.compose.ui.Modifier.layout { measurable, constraints ->
+        val extra = (horizontal * 2).roundToPx()
+        val max = if (constraints.hasBoundedWidth) constraints.maxWidth + extra else constraints.maxWidth
+        val placeable = measurable.measure(constraints.copy(minWidth = (constraints.minWidth + extra).coerceAtMost(max), maxWidth = max))
+        layout((placeable.width - extra).coerceAtLeast(0), placeable.height) { placeable.place(-extra / 2, 0) }
+    },
+)
+
+@Composable
+fun SheetDivider(horizontal: Dp = 16.dp) {
+    Box(Modifier.fillMaxWidth().bleed(horizontal).height(1.dp).background(AppColors.PanelBorder))
 }

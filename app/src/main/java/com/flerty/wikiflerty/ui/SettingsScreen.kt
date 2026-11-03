@@ -223,13 +223,18 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
     revealItem(key = "preview") { StylePreview() }
 
     revealItem(key = "templates") {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-    Text("Шаблоны оформления", color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp))
-    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        StyleTemplates.forEach { template ->
-            TemplateCard(template, selected = template.matches(style)) { store.update { template.applyTo(it) } }
+    TabbedFrame("Шаблоны оформления", icon = AppIcons.Palette, inset = false) {
+        val start = StyleTemplates.indexOfFirst { it.matches(style) }.coerceAtLeast(0)
+        androidx.compose.foundation.lazy.LazyRow(
+            state = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = (start - 1).coerceAtLeast(0)),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            items(StyleTemplates.size) { i ->
+                val template = StyleTemplates[i]
+                TemplateCard(template, selected = template.matches(style)) { store.update { template.applyTo(it) } }
+            }
         }
-    }
     }
     }
 
@@ -649,34 +654,29 @@ private fun AppIconGroup() {
     val context = LocalContext.current
     var current by remember { mutableStateOf(AppIconStyle.current(context)) }
     var asking by remember { mutableStateOf<AppIconStyle?>(null) }
-    SettingsGroup("Иконка приложения") {
-        Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            AppIconStyle.entries.chunked(3).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    row.forEach { style ->
-                        val selected = style == current
-                        Column(
-                            Modifier
-                                .weight(1f)
-                                .liveClick(appCorner(16), sound = FeedbackSound.Toggle, pressedScale = 0.92f) { if (!selected) asking = style }
-                                .padding(vertical = 6.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            Box(
-                                Modifier
-                                    .border(2.dp, if (selected) AppColors.Accent else Color.Transparent, appCorner(20))
-                                    .padding(4.dp),
-                            ) { AppIconPreview(style, 56.dp) }
-                            Text(
-                                style.title,
-                                color = if (selected) AppColors.Accent else AppColors.Muted,
-                                fontSize = 12.sp,
-                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                maxLines = 1,
-                            )
-                        }
-                    }
+    TabbedFrame("Иконка приложения", icon = AppIcons.Grid, inset = false) {
+        val styles = AppIconStyle.entries
+        val start = styles.indexOf(current).coerceAtLeast(0)
+        androidx.compose.foundation.lazy.LazyRow(
+            state = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = (start - 1).coerceAtLeast(0)),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            items(styles.size) { i ->
+                val style = styles[i]
+                val selected = style == current
+                val shape = appCorner(18)
+                Column(
+                    Modifier
+                        .width(96.dp)
+                        .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.92f) { if (!selected) asking = style }
+                        .fieldSurface(shape, selected = selected)
+                        .padding(horizontal = 8.dp, vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    AppIconPreview(style, 60.dp)
+                    FitText(style.title, if (selected) AppColors.Accent else AppColors.Muted, 13.sp, weight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
                 }
             }
         }

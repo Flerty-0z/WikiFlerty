@@ -442,6 +442,7 @@ fun PickerSheet(
         KeepHostBars()
         Column(Modifier.padding(horizontal = 16.dp).navigationBarsPadding()) {
             SheetHeader(title, close)
+            Spacer(Modifier.height(12.dp))
             if (searchable) {
                 BasicTextField(
                     value = query,
@@ -536,12 +537,15 @@ fun percent(value: Float): String = "${(value * 100).roundToInt()}%"
 
 @Composable
 fun SheetHeader(title: String, onClose: () -> Unit) {
-    Box(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 10.dp), contentAlignment = Alignment.Center) {
-        TitlePill(title, size = 16.sp, maxWidth = 250.dp)
-        Box(
-            Modifier.align(Alignment.CenterEnd).size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onClose).background(AppColors.Field),
-            contentAlignment = Alignment.Center,
-        ) { Icon(AppIcons.Close, "Закрыть", tint = AppColors.Muted, modifier = Modifier.size(18.dp)) }
+    Column(Modifier.fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 12.dp), contentAlignment = Alignment.Center) {
+            HeaderLabel(title, Modifier.padding(horizontal = 46.dp))
+            Box(
+                Modifier.align(Alignment.CenterEnd).size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onClose).background(AppColors.Field),
+                contentAlignment = Alignment.Center,
+            ) { Icon(AppIcons.Close, "Закрыть", tint = AppColors.Muted, modifier = Modifier.size(18.dp)) }
+        }
+        SheetDivider()
     }
 }
 
