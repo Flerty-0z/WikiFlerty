@@ -60,88 +60,89 @@ private val SpineHeight = 22.dp
 private sealed class ShelfUnit(val key: String) {
     class Standing(val book: Book, val lean: Boolean) : ShelfUnit("b:" + book.id)
     class Stack(val books: List<Book>) : ShelfUnit("s:" + books.joinToString(",") { it.id })
-    class Add(val shelf: String) : ShelfUnit("add")
+    class Add(val onAdd: () -> Unit) : ShelfUnit("add")
 }
 
-private fun arrange(books: List<Book>, shelf: String): List<ShelfUnit> {
+class PlankSpec(val key: String, val name: String?, val books: List<Book>, val onAdd: (() -> Unit)?, val onEdit: (() -> Unit)?, val wrap: Boolean)
+
+private class PlankRow(val key: String, val name: String?, val units: List<ShelfUnit>, val onEdit: (() -> Unit)?, val scroll: Boolean)
+
+private fun arrange(books: List<Book>, onAdd: (() -> Unit)?): List<ShelfUnit> {
     val standing = books.filter { it.status != ReadStatus.Finished }
         .sortedWith(compareBy<Book> { if (it.status == ReadStatus.Reading) 0 else 1 }.thenByDescending { it.lastReadAt ?: it.addedAt })
     val lying = books.filter { it.status == ReadStatus.Finished }.sortedByDescending { it.finishedAt ?: it.addedAt }
     val units = mutableListOf<ShelfUnit>()
     standing.forEachIndexed { i, b -> units += ShelfUnit.Standing(b, lean = standing.size >= 3 && i == standing.lastIndex) }
     lying.chunked(4).forEach { units += ShelfUnit.Stack(it) }
-    units += ShelfUnit.Add(shelf)
+    if (onAdd != null) units += ShelfUnit.Add(onAdd)
     return units
 }
 
-@Composable
-fun BookcaseScreen(viewModel: LibraryViewModel, focus: String?, modifier: Modifier = Modifier) {
-    val app = LocalContext.current.applicationContext as App
-    val books by viewModel.books.collectAsStateWithLifecycle()
-    val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
-    val shelves = allShelves(prefs, books)
-    var menuBookId by rememberSaveable { mutableStateOf<String?>(null) }
-    var dialog by remember { mutableStateOf<ShelfDialog?>(null) }
-    val start = shelves.indexOf(focus).coerceAtLeast(0)
-    val state = rememberLazyListState(initialFirstVisibleItemIndex = start)
+private fun unitWidth(u: ShelfUnit): Float = when (u) {
+    is ShelfUnit.Standing -> 97f + if (u.lean) 14f else 0f
+    is ShelfUnit.Stack -> 160f
+    is ShelfUnit.Add -> 84f
+}
 
-    Box(modifier.fillMaxSize().bookcaseWall()) {
-        if (shelves.isEmpty()) {
-            Column(Modifier.align(Alignment.Center).padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text("Полок пока нет", color = AppColors.Text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                AppButton("Новая полка", primary = true) { dialog = ShelfDialog.Create(null) }
-            }
-        } else {
+private fun rows(planks: List<PlankSpec>, width: Float): List<PlankRow> = planks.flatMap { p ->
+    val units = arrange(p.books, p.onAdd)
+    if (!p.wrap) return@flatMap listOf(PlankRow(p.key, p.name, units, p.onEdit, scroll = true))
+    val out = mutableListOf<MutableList<ShelfUnit>>(mutableListOf())
+    var used = 0f
+    units.forEach { u ->
+        val w = unitWidth(u)
+        if (used + w > width && out.last().isNotEmpty()) {
+            out += mutableListOf<ShelfUnit>()
+            used = 0f
+        }
+        out.last() += u
+        used += w
+    }
+    out.mapIndexed { i, r -> PlankRow(p.key + "#" + i, if (i == 0) p.name else null, r, p.onEdit, scroll = false) }
+}
+
+@Composable
+fun BookcaseView(
+    planks: List<PlankSpec>,
+    onBook: (Book) -> Unit,
+    modifier: Modifier = Modifier,
+    animationKey: Any? = null,
+    footer: (@Composable () -> Unit)? = null,
+) {
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxSize().bookcaseWall()) {
+        val width = maxWidth.value - 44f
+        val list = remember(planks, width) { rows(planks, width) }
+        androidx.compose.runtime.key(animationKey) {
             LazyColumn(
-                state = state,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 18.dp, bottom = 120.dp),
-                verticalArrangement = Arrangement.spacedBy(30.dp),
+                contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp),
+                verticalArrangement = Arrangement.spacedBy(28.dp),
             ) {
-                itemsIndexed(shelves, key = { _, name -> name }) { index, name ->
-                    val onShelf = books.filter { name in it.shelves }
-                    Shelf(
-                        name = name,
-                        units = arrange(onShelf, name),
-                        highlighted = name == focus,
-                        index = index,
-                        onBook = { menuBookId = it.id },
-                        onEdit = { dialog = ShelfDialog.Edit(name) },
-                    )
+                itemsIndexed(list, key = { _, r -> r.key }) { index, row ->
+                    Shelf(row, index, onBook)
                 }
-                item(key = "new-shelf") {
-                    Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
-                        val shape = appCorner(16)
-                        Row(
-                            Modifier
-                                .liveClick(shape, sound = FeedbackSound.Open) { dialog = ShelfDialog.Create(null) }
-                                .border(1.dp, AppColors.Accent.copy(alpha = 0.4f), shape)
-                                .padding(horizontal = 18.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            Icon(AppIcons.ShelfAdd, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
-                            Text("Новая полка", color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
+                if (footer != null) item(key = "footer") { footer() }
             }
         }
     }
+}
 
-    books.firstOrNull { it.id == menuBookId }?.let { book ->
-        BookSheet(
-            book = book,
-            coverFile = viewModel.coverFile(book),
-            onRead = { viewModel.open(book) },
-            onDelete = {
-                menuBookId = null
-                viewModel.delete(book)
-            },
-            onDismiss = { menuBookId = null },
-        )
+@Composable
+fun NewShelfButton(onClick: () -> Unit) {
+    Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
+        val shape = appCorner(16)
+        Row(
+            Modifier
+                .liveClick(shape, sound = FeedbackSound.Open, onClick = onClick)
+                .border(1.dp, AppColors.Accent.copy(alpha = 0.4f), shape)
+                .padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(AppIcons.ShelfAdd, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
+            Text("Новая полка", color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        }
     }
-    dialog?.let { d -> ShelfDialogView(d, shelves, onDismiss = { dialog = null }) }
 }
 
 private fun Modifier.bookcaseWall(): Modifier = this.drawBehind {
@@ -159,23 +160,34 @@ private fun Modifier.bookcaseWall(): Modifier = this.drawBehind {
 }
 
 @Composable
-private fun Shelf(name: String, units: List<ShelfUnit>, highlighted: Boolean, index: Int, onBook: (Book) -> Unit, onEdit: () -> Unit) {
+private fun Shelf(row: PlankRow, index: Int, onBook: (Book) -> Unit) {
     Column(Modifier.fillMaxWidth().scrollReveal()) {
-        LazyRow(
-            modifier = Modifier.fillMaxWidth().height(BookWidth * 1.5f + 14.dp),
-            contentPadding = PaddingValues(horizontal = 22.dp),
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            itemsIndexed(units, key = { _, u -> u.key }) { i, unit ->
-                when (unit) {
-                    is ShelfUnit.Standing -> StandingBook(unit.book, unit.lean, Modifier.dropIn(index, i)) { onBook(unit.book) }
-                    is ShelfUnit.Stack -> BookStack(unit.books, Modifier.dropIn(index, i), onBook)
-                    is ShelfUnit.Add -> Box(Modifier.dropIn(index, i)) { AddSlot(onEdit) }
-                }
+        val content: @Composable (Int, ShelfUnit) -> Unit = { i, unit ->
+            when (unit) {
+                is ShelfUnit.Standing -> StandingBook(unit.book, unit.lean, Modifier.dropIn(index, i)) { onBook(unit.book) }
+                is ShelfUnit.Stack -> BookStack(unit.books, Modifier.dropIn(index, i), onBook)
+                is ShelfUnit.Add -> Box(Modifier.dropIn(index, i)) { AddSlot(unit.onAdd) }
             }
         }
-        Box(Modifier.plankIn(index)) { Plank(name, highlighted, onEdit) }
+        if (row.scroll) {
+            LazyRow(
+                modifier = Modifier.fillMaxWidth().height(BookWidth * 1.5f + 14.dp),
+                contentPadding = PaddingValues(horizontal = 22.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                itemsIndexed(row.units, key = { _, u -> u.key }) { i, unit -> content(i, unit) }
+            }
+        } else {
+            Row(
+                Modifier.fillMaxWidth().height(BookWidth * 1.5f + 14.dp).padding(horizontal = 22.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                row.units.forEachIndexed { i, unit -> androidx.compose.runtime.key(unit.key) { content(i, unit) } }
+            }
+        }
+        Box(Modifier.plankIn(index)) { Plank(row.name, false, row.onEdit) }
     }
 }
 
@@ -310,7 +322,7 @@ private fun AddSlot(onClick: () -> Unit) {
 }
 
 @Composable
-private fun Plank(name: String, highlighted: Boolean, onEdit: () -> Unit) {
+private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
     val light = AppStyle.light
     val wood = if (light) listOf(Color(0xFFC9A375), Color(0xFFB08656), Color(0xFF8E6538)) else listOf(Color(0xFFA8743F), Color(0xFF8A5A30), Color(0xFF6B4322))
     val engrave = if (light) Color(0xCC4A2E12) else Color(0xD9341F0E)
@@ -320,7 +332,7 @@ private fun Plank(name: String, highlighted: Boolean, onEdit: () -> Unit) {
                 .fillMaxWidth()
                 .padding(horizontal = 10.dp)
                 .height(20.dp)
-                .liveClick(appCorner(4), sound = FeedbackSound.Open, pressedScale = 0.99f, onLongClick = onEdit, onClick = onEdit)
+                .then(if (onEdit != null) Modifier.liveClick(appCorner(4), sound = FeedbackSound.Open, pressedScale = 0.99f, onLongClick = onEdit, onClick = onEdit) else Modifier)
                 .drawBehind {
                     drawRect(Brush.verticalGradient(wood))
                     drawRect(Color(0x73FFDCAA), size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx()))
@@ -336,7 +348,7 @@ private fun Plank(name: String, highlighted: Boolean, onEdit: () -> Unit) {
                 },
             contentAlignment = Alignment.Center,
         ) {
-            Text(
+            if (name != null) Text(
                 name,
                 style = TextStyle(
                     color = engrave,

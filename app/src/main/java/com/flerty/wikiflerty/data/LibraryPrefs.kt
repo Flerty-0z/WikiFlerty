@@ -21,10 +21,10 @@ enum class LibrarySort(val id: String, val title: String) {
 }
 
 enum class LibraryView(val id: String) {
-    Grid("grid"), List("list");
+    Shelves("shelves"), Grid("grid"), List("list");
 
     companion object {
-        fun of(id: String?) = entries.firstOrNull { it.id == id } ?: Grid
+        fun of(id: String?) = entries.firstOrNull { it.id == id } ?: Shelves
     }
 }
 
@@ -32,7 +32,7 @@ data class LibraryPrefs(
     val filter: String = "all",
     val sort: LibrarySort = LibrarySort.Recent,
     val descending: Boolean = true,
-    val view: LibraryView = LibraryView.Grid,
+    val view: LibraryView = LibraryView.Shelves,
     val coverSize: Int = 1,
     val shelves: List<String> = emptyList(),
     val dailyGoalMinutes: Int = 0,
@@ -46,6 +46,7 @@ data class LibraryPrefs(
         put("sort", sort.id)
         put("descending", descending)
         put("view", view.id)
+        put("shelvesDefault", true)
         put("coverSize", coverSize)
         put("shelves", JSONArray(shelves))
         put("dailyGoalMinutes", dailyGoalMinutes)
@@ -60,7 +61,7 @@ data class LibraryPrefs(
             filter = j.optString("filter", "all"),
             sort = LibrarySort.of(j.optString("sort")),
             descending = j.optBoolean("descending", true),
-            view = LibraryView.of(j.optString("view")),
+            view = if (j.has("shelvesDefault")) LibraryView.of(j.optString("view")) else LibraryView.Shelves,
             coverSize = j.optInt("coverSize", 1).coerceIn(0, 2),
             dailyGoalMinutes = j.optInt("dailyGoalMinutes", 0).coerceAtLeast(0),
             yearGoalBooks = j.optInt("yearGoalBooks", 0).coerceAtLeast(0),

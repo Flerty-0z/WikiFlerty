@@ -616,8 +616,8 @@ fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
                 ),
                 selectedId = if (prefs.progressInPages) "pages" else "percent",
             ) { id -> app.libraryPrefs.update { it.copy(progressInPages = id == "pages") } }
-            SettingSegmented(null, listOf("Сетка", "Список"), if (prefs.view == LibraryView.Grid) 0 else 1) { i ->
-                app.libraryPrefs.update { it.copy(view = if (i == 0) LibraryView.Grid else LibraryView.List) }
+            SettingSegmented(null, listOf("Полки", "Сетка", "Список"), LibraryView.entries.indexOf(prefs.view)) { i ->
+                app.libraryPrefs.update { it.copy(view = LibraryView.entries[i]) }
             }
             if (prefs.view == LibraryView.Grid) {
                 SettingSegmented("Размер обложек", listOf("Мелкие", "Средние", "Крупные"), prefs.coverSize) { i ->

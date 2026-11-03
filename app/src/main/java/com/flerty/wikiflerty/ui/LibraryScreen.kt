@@ -150,8 +150,9 @@ fun LibraryTopActions(controls: LibraryControls) {
     val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
     Row(Modifier.padding(end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         ToolButton(AppIcons.ShelfAdd, "Новая полка") { controls.shelfDialog = ShelfDialog.Create(null) }
-        ToolButton(if (prefs.view == LibraryView.Grid) AppIcons.ListView else AppIcons.Grid, "Вид") {
-            app.libraryPrefs.update { it.copy(view = if (it.view == LibraryView.Grid) LibraryView.List else LibraryView.Grid) }
+        val next = LibraryView.entries[(prefs.view.ordinal + 1) % LibraryView.entries.size]
+        ToolButton(when (next) { LibraryView.Shelves -> AppIcons.Shelf; LibraryView.Grid -> AppIcons.Grid; LibraryView.List -> AppIcons.ListView }, "Вид") {
+            app.libraryPrefs.update { it.copy(view = next) }
         }
         ToolButton(AppIcons.Sort, "Вид и сортировка") { controls.showViewSheet = true }
     }
@@ -163,7 +164,6 @@ fun LibraryScreen(
     onAddBook: () -> Unit,
     controls: LibraryControls,
     modifier: Modifier = Modifier,
-    onOpenShelf: (String?) -> Unit = {},
 ) {
     val app = LocalContext.current.applicationContext as App
     val books by viewModel.books.collectAsStateWithLifecycle()
@@ -229,7 +229,31 @@ fun LibraryScreen(
             ) { Icon(AppIcons.Sort, "Вид и сортировка", tint = AppColors.Text, modifier = Modifier.size(20.dp)) }
         }
 
-        LazyVerticalGrid(
+        if (prefs.view == LibraryView.Shelves) {
+            val planks = if (active.id == "all" && q.isEmpty()) {
+                val named = shelves.map { name ->
+                    PlankSpec("shelf:$name", name, books.filter { name in it.shelves }, { controls.shelfDialog = ShelfDialog.Edit(name) }, { controls.shelfDialog = ShelfDialog.Edit(name) }, wrap = false)
+                }
+                val rest = books.filter { b -> b.shelves.none { it in shelves } }
+                named + if (rest.isNotEmpty() || named.isEmpty()) listOf(PlankSpec("rest", if (named.isEmpty()) null else "Без полки", rest, onAddBook, null, wrap = named.isEmpty())) else emptyList()
+            } else {
+                val edit = if (active.isShelf) ({ controls.shelfDialog = ShelfDialog.Edit(active.title) }) else null
+                listOf(PlankSpec(active.id, if (active.isShelf) active.title else null, shown, edit ?: if (q.isEmpty()) onAddBook else null, edit, wrap = true))
+            }
+            BookcaseView(
+                planks = planks,
+                onBook = { longPress(it) },
+                modifier = Modifier.fillMaxSize(),
+                animationKey = active.id + "|" + q,
+                footer = {
+                    if (shown.isEmpty() && q.isNotEmpty()) {
+                        Text("Ничего не нашлось", color = AppColors.Muted, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    } else if (active.id == "all" && q.isEmpty()) {
+                        NewShelfButton { controls.shelfDialog = ShelfDialog.Create(null) }
+                    }
+                },
+            )
+        } else LazyVerticalGrid(
             columns = if (grid) GridCells.Adaptive(minSize = minSize) else GridCells.Fixed(1),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 110.dp),
             horizontalArrangement = Arrangement.spacedBy(if (grid) 12.dp else 0.dp),
@@ -291,10 +315,6 @@ fun LibraryScreen(
                 showFilterSheet = false
             },
             onEditShelf = { name -> controls.shelfDialog = ShelfDialog.Edit(name) },
-            onOpenShelf = { name ->
-                showFilterSheet = false
-                onOpenShelf(name)
-            },
             onNewShelf = {
                 showFilterSheet = false
                 controls.shelfDialog = ShelfDialog.Create(null)
@@ -400,7 +420,6 @@ private fun LibraryFilterSheet(
     selectedId: String,
     onSelect: (String) -> Unit,
     onEditShelf: (String) -> Unit,
-    onOpenShelf: (String) -> Unit,
     onNewShelf: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -415,7 +434,7 @@ private fun LibraryFilterSheet(
             TabbedFrame("Полки", icon = AppIcons.Shelf, trailing = { CountBadge(shelves.size) }) {
                 Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     shelves.forEach { f ->
-                        FilterRow(f, coversFor[f.id].orEmpty(), counts[f.id] ?: 0, f.id == selectedId, onEdit = { onEditShelf(f.title) }) { onOpenShelf(f.title) }
+                        FilterRow(f, coversFor[f.id].orEmpty(), counts[f.id] ?: 0, f.id == selectedId, onEdit = { onEditShelf(f.title) }) { onSelect(f.id) }
                     }
                 }
             }
