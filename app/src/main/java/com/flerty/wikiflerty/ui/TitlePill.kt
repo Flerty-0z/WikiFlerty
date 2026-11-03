@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private val TitleIcons: List<Pair<List<String>, () -> ImageVector>> = listOf(
+    listOf("фокус") to { AppIcons.Moon },
     listOf("цвет") to { AppIcons.Palette },
     listOf("форма", "кноп") to { AppIcons.Corners },
     listOf("фон") to { AppIcons.Image },

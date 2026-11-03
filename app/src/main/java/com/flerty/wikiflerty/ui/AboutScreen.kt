@@ -245,14 +245,7 @@ fun AppButton(text: String, primary: Boolean, modifier: Modifier = Modifier, onC
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text,
-            color = if (primary) AppColors.OnAccent else AppColors.Accent,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        FitText(text, if (primary) AppColors.OnAccent else AppColors.Accent, 14.sp, weight = FontWeight.SemiBold)
     }
 }
 

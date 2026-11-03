@@ -151,8 +151,8 @@ private fun FocusMoon(modifier: Modifier = Modifier) {
     if (askAccess) {
         ConfirmSheet(
             title = "Фокус-режим",
-            text = "Чтобы во время сеанса включался «Не беспокоить», разреши приложению управлять этим режимом. Откроются настройки — найди там WikiFlerty и включи доступ.",
-            confirm = "Открыть настройки",
+            text = "Пока идёт сеанс, телефон будет в режиме «Не беспокоить», а после — вернётся как было.\n\nДля этого нужен доступ: в открывшихся настройках найди WikiFlerty и включи его.",
+            confirm = "Открыть",
             danger = false,
             onConfirm = {
                 com.flerty.wikiflerty.system.FocusMode.setEnabled(context, true)

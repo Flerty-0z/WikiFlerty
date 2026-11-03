@@ -162,7 +162,13 @@ fun ConfirmSheet(
 ) {
     AppSheet(onDismiss = onDismiss, title = title) {
         val close = sheetClose(onDismiss)
-        Text(text, color = AppColors.Muted, fontSize = 14.sp, lineHeight = 20.sp)
+        Text(
+            text,
+            color = AppColors.Muted,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+            modifier = Modifier.fillMaxWidth().fieldSurface(appCorner(16)).padding(horizontal = 14.dp, vertical = 12.dp),
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val shape = appCorner(12)
             Box(
@@ -177,7 +183,7 @@ fun ConfirmSheet(
                     .border(1.dp, if (danger) Danger.copy(alpha = 0.5f) else AppColors.Accent, shape),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(confirm, color = if (danger) Danger else AppColors.OnAccent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                FitText(confirm, if (danger) Danger else AppColors.OnAccent, 15.sp, Modifier.padding(horizontal = 10.dp), weight = FontWeight.SemiBold)
             }
             AppButton("Отмена", primary = false, modifier = Modifier.weight(1f), onClick = close)
         }
