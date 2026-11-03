@@ -1516,6 +1516,7 @@ private fun PanelOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
                 }
             }
         }
+        Hint("До пяти кнопок, в порядке выбора.")
     }
 }
 
