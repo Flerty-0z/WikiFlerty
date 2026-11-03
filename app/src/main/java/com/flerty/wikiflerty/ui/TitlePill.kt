@@ -1,5 +1,6 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.foundation.layout.height
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -116,69 +117,21 @@ fun TitlePill(
 
 @Composable
 fun TabbedFrame(title: String, icon: ImageVector? = null, content: @Composable () -> Unit) {
-    val tabW = androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-    val tabH = androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-    val fill = AppColors.Field
-    val border = AppColors.PanelBorder
     val tint = AppColors.Accent
-    val corners = AppStyle.current.corners
-    androidx.compose.foundation.layout.Column(
-        Modifier
-            .fillMaxWidth()
-            .drawBehind {
-                val tw = tabW.floatValue
-                val t = tabH.floatValue
-                if (tw <= 0f) return@drawBehind
-                val w = size.width
-                val h = size.height
-                val r = (18.dp.toPx() * corners).coerceAtMost((h - t) / 2f)
-                val rt = (13.dp.toPx() * corners).coerceAtMost(t / 2f)
-                val f = (10.dp.toPx() * corners).coerceAtMost(t / 2f)
-                val l = (w - tw) / 2f
-                val rr = l + tw
-                val path = androidx.compose.ui.graphics.Path().apply {
-                    moveTo(0f, t + r)
-                    quadraticTo(0f, t, r, t)
-                    lineTo(l - f, t)
-                    quadraticTo(l, t, l, t - f)
-                    lineTo(l, rt)
-                    quadraticTo(l, 0f, l + rt, 0f)
-                    lineTo(rr - rt, 0f)
-                    quadraticTo(rr, 0f, rr, rt)
-                    lineTo(rr, t - f)
-                    quadraticTo(rr, t, rr + f, t)
-                    lineTo(w - r, t)
-                    quadraticTo(w, t, w, t + r)
-                    lineTo(w, h - r)
-                    quadraticTo(w, h, w - r, h)
-                    lineTo(r, h)
-                    quadraticTo(0f, h, 0f, h - r)
-                    close()
-                }
-                drawPath(path, fill)
-                drawPath(path, border, style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
-            },
-    ) {
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+    androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().fieldSurface(appCorner(18))) {
+        Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
             Row(
-                Modifier
-                    .onSizeChanged {
-                        tabW.floatValue = it.width.toFloat()
-                        tabH.floatValue = it.height.toFloat()
-                    }
-                    .widthIn(max = 300.dp)
-                    .padding(start = 8.dp, end = 16.dp, top = 7.dp, bottom = 5.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(9.dp),
             ) {
                 Box(
                     Modifier
-                        .size(26.dp)
+                        .size(28.dp)
                         .clip(appCorner(9))
                         .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.28f), tint.copy(alpha = 0.08f))))
                         .border(1.dp, tint.copy(alpha = 0.2f), appCorner(9)),
                     contentAlignment = Alignment.Center,
-                ) { Icon(icon ?: titleIcon(title), null, tint = tint, modifier = Modifier.size(15.dp)) }
+                ) { Icon(icon ?: titleIcon(title), null, tint = tint, modifier = Modifier.size(16.dp)) }
                 Text(
                     title,
                     color = AppColors.Text,
@@ -190,7 +143,7 @@ fun TabbedFrame(title: String, icon: ImageVector? = null, content: @Composable (
                 )
             }
         }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.PanelBorder))
         androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp)) { content() }
     }
 }
-
