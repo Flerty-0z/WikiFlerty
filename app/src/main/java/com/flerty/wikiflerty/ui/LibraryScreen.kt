@@ -163,6 +163,7 @@ fun LibraryScreen(
     onAddBook: () -> Unit,
     controls: LibraryControls,
     modifier: Modifier = Modifier,
+    onOpenShelf: (String?) -> Unit = {},
 ) {
     val app = LocalContext.current.applicationContext as App
     val books by viewModel.books.collectAsStateWithLifecycle()
@@ -290,6 +291,10 @@ fun LibraryScreen(
                 showFilterSheet = false
             },
             onEditShelf = { name -> controls.shelfDialog = ShelfDialog.Edit(name) },
+            onOpenShelf = { name ->
+                showFilterSheet = false
+                onOpenShelf(name)
+            },
             onNewShelf = {
                 showFilterSheet = false
                 controls.shelfDialog = ShelfDialog.Create(null)
@@ -395,6 +400,7 @@ private fun LibraryFilterSheet(
     selectedId: String,
     onSelect: (String) -> Unit,
     onEditShelf: (String) -> Unit,
+    onOpenShelf: (String) -> Unit,
     onNewShelf: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -409,7 +415,7 @@ private fun LibraryFilterSheet(
             TabbedFrame("Полки", icon = AppIcons.Shelf, trailing = { CountBadge(shelves.size) }) {
                 Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     shelves.forEach { f ->
-                        FilterRow(f, coversFor[f.id].orEmpty(), counts[f.id] ?: 0, f.id == selectedId, onEdit = { onEditShelf(f.title) }) { onSelect(f.id) }
+                        FilterRow(f, coversFor[f.id].orEmpty(), counts[f.id] ?: 0, f.id == selectedId, onEdit = { onEditShelf(f.title) }) { onOpenShelf(f.title) }
                     }
                 }
             }

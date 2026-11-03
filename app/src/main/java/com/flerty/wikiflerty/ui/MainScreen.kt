@@ -96,6 +96,7 @@ import kotlin.math.roundToInt
 
 enum class Section(val title: String, val icon: ImageVector) {
     Library("Библиотека", AppIcons.Book),
+    Shelves("Мои полки", AppIcons.Shelf),
     Notes("Заметки", AppIcons.Note),
     Dictionary("Словарь", AppIcons.TextSize),
     Stats("Статистика", AppIcons.Chart),
@@ -131,6 +132,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
         libraryViewModel.messages.collect { snackbar.showSnackbar(it) }
     }
 
+    var shelfFocus by rememberSaveable { mutableStateOf<String?>(null) }
     BackHandler(enabled = drawerOpen || section != Section.Library) {
         if (drawerOpen) drawerOpen = false else section = Section.Library
     }
@@ -188,6 +190,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                             onBack = when (section) {
                                 Section.Settings -> { { section = Section.Library } }
                                 Section.About -> { { section = Section.Settings } }
+                                Section.Shelves -> { { section = Section.Library } }
                                 else -> null
                             },
                         ) {
@@ -211,7 +214,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 },
                 bottomBar = {
                     if (bottomNav) {
-                        BottomNav(section, onSelect = { section = it }, onAdd = { addMenu = true })
+                        BottomNav(if (section == Section.Shelves) Section.Library else section, onSelect = { section = it }, onAdd = { addMenu = true })
                     }
                 },
                 floatingActionButton = {
@@ -238,6 +241,10 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                         viewModel = libraryViewModel,
                         onAddBook = { pickBook.launch(arrayOf("*/*")) },
                         controls = libraryControls,
+                        onOpenShelf = { name ->
+                            shelfFocus = name
+                            section = Section.Shelves
+                        },
                         modifier = Modifier.fillMaxSize().padding(padding),
                     )
                 } else {
@@ -249,6 +256,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                             Section.Stats -> StatsScreen(modifier)
                             Section.Settings -> SettingsScreen(modifier, onAbout = if (bottomNav) { { section = Section.About } } else null)
                             Section.About -> AboutScreen(modifier)
+                            Section.Shelves -> BookcaseScreen(libraryViewModel, shelfFocus, Modifier.fillMaxSize())
                             Section.Library -> Unit
                         }
                     }
@@ -623,6 +631,7 @@ private fun AddChoice(icon: androidx.compose.ui.graphics.vector.ImageVector, tit
 private fun sectionTitle(section: Section): String = when (section) {
     Section.Library -> "Моя полка"
     Section.Stats -> "Итоги"
+    Section.Shelves -> "Мои полки"
     else -> section.title
 }
 
