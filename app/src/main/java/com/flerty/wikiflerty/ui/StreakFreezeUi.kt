@@ -231,8 +231,16 @@ private fun FreezePicker(today: LocalDate, onFreeze: (LocalDate, Int) -> Unit) {
     }
     FreezeFrame("С какого дня") {
     val first = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(appCorner(16))
+            .background(AppColors.Line.copy(alpha = 0.3f))
+            .border(1.dp, AppColors.PanelBorder, appCorner(16))
+            .padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Row(Modifier.padding(bottom = 2.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             WeekShort.forEach { Text(it, color = AppColors.Faint, fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.weight(1f)) }
         }
         (0 until 3).forEach { w ->
@@ -247,8 +255,17 @@ private fun FreezePicker(today: LocalDate, onFreeze: (LocalDate, Int) -> Unit) {
                             .weight(1f)
                             .height(36.dp)
                             .then(if (!past) Modifier.liveClick(shape, sound = FeedbackSound.Tap) { start = day } else Modifier)
-                            .background(if (inRange) IceColor.copy(alpha = 0.2f) else Color.Transparent, shape)
-                            .then(if (day == today) Modifier.border(1.dp, AppColors.Accent, shape) else Modifier),
+                            .background(if (inRange) IceColor.copy(alpha = 0.2f) else AppColors.Field.copy(alpha = if (past) 0.35f else 1f), shape)
+                            .border(
+                                1.dp,
+                                when {
+                                    inRange -> IceColor.copy(alpha = 0.7f)
+                                    day == today -> AppColors.Accent
+                                    past -> AppColors.PanelBorder.copy(alpha = 0.5f)
+                                    else -> AppColors.PanelBorder
+                                },
+                                shape,
+                            ),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(

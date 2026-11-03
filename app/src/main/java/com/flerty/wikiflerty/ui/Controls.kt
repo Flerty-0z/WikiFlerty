@@ -73,13 +73,13 @@ fun SettingsGroup(title: String?, content: @Composable () -> Unit) {
 }
 
 @Composable
-fun SettingsNavRow(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
+fun SettingsNavRow(icon: ImageVector, title: String, subtitle: String, framed: Boolean = true, onClick: () -> Unit) {
     val shape = appCorner(18)
     Row(
         Modifier
             .fillMaxWidth()
             .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
-            .fieldSurface(shape)
+            .then(if (framed) Modifier.fieldSurface(shape) else Modifier)
             .padding(horizontal = 14.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -320,6 +320,38 @@ private fun OptionLead(option: PickerOption, tint: Color) {
 }
 
 @Composable
+fun ValueRow(label: String, value: String, icon: ImageVector? = null, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 54.dp)
+            .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (icon != null) {
+            SettingIcon(icon)
+            Spacer(Modifier.width(12.dp))
+        }
+        Text(label, color = AppColors.Text, fontSize = 15.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(end = 12.dp))
+        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                value,
+                color = AppColors.Accent,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                softWrap = false,
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 15.sp, stepSize = 0.5.sp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+        }
+        Icon(AppIcons.Chevron, null, tint = AppColors.Accent, modifier = Modifier.padding(start = 2.dp).size(18.dp).rotate(90f))
+    }
+}
+
+@Composable
 fun PickerRow(
     label: String,
     options: List<PickerOption>,
@@ -524,7 +556,7 @@ fun SheetHeader(title: String, onClose: () -> Unit) {
 const val CUSTOM_ID = "__custom__"
 
 @Composable
-fun NumberInputSheet(title: String, suffix: String, initial: Int, range: IntRange, onDismiss: () -> Unit, onDone: (Int) -> Unit) {
+fun NumberInputSheet(title: String, suffix: String, initial: Int, range: IntRange, onDismiss: () -> Unit, onClear: (() -> Unit)? = null, onDone: (Int) -> Unit) {
     var text by remember { mutableStateOf(initial.toString()) }
     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
     androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
@@ -565,5 +597,18 @@ fun NumberInputSheet(title: String, suffix: String, initial: Int, range: IntRang
                 .then(if (ok) Modifier.accentHighlight(shape) else Modifier.border(1.dp, AppColors.Line, shape)),
             contentAlignment = Alignment.Center,
         ) { Text("Сохранить", color = if (ok) accentContent else AppColors.Faint, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold) }
+        if (onClear != null) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .liveClick(shape, sound = FeedbackSound.Close) {
+                        onClear()
+                        close()
+                    }
+                    .border(1.dp, AppColors.Line, shape),
+                contentAlignment = Alignment.Center,
+            ) { Text("Без цели", color = AppColors.Muted, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
+        }
     }
 }

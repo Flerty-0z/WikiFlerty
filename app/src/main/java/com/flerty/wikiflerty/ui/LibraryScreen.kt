@@ -505,7 +505,7 @@ private fun rememberCover(file: File?): ImageBitmap? {
 }
 
 @Composable
-private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean = false, showStatus: Boolean = true, plaque: Boolean = false) {
+private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean = false, showStatus: Boolean = true, plaque: Boolean = false, inPages: Boolean = false) {
     val cover = rememberCover(file)
     Box(modifier.background(AppColors.Field), contentAlignment = Alignment.Center) {
         if (cover != null) {
@@ -524,12 +524,13 @@ private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean
         val rating = book.rating?.takeIf { it > 0f }
         if (book.paper) {
             Box(
-                Modifier.align(Alignment.TopStart).padding(if (showStatus) 5.dp else 3.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
+                Modifier.align(if (plaque) Alignment.CenterStart else Alignment.TopStart).padding(if (showStatus) 5.dp else 3.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
                     .background(Color(0xB0101114)),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Pages, "Бумажная книга", tint = Color.White, modifier = Modifier.size(if (small) 12.dp else 14.dp)) }
         }
         if (plaque) {
+            CoverProgress(book, inPages, small, Modifier.align(Alignment.TopCenter))
             if (rating != null || book.favorite) {
                 val text = if (small) 9.5.sp else 10.5.sp
                 Row(
@@ -588,6 +589,7 @@ private fun BookCard(book: Book, coverFile: File?, small: Boolean, inPages: Bool
             Modifier.fillMaxWidth().aspectRatio(2f / 3f).coverShadow(appCorner(10)).clip(appCorner(10)),
             small,
             plaque = true,
+            inPages = inPages,
         )
         Text(
             book.title,
@@ -600,7 +602,6 @@ private fun BookCard(book: Book, coverFile: File?, small: Boolean, inPages: Bool
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 8.dp),
         )
-        ProgressLineWithLabel(book, inPages, small, Modifier.padding(top = 6.dp))
         StatusPill(book.status, small, Modifier.fillMaxWidth().padding(top = 6.dp), framed = true, wide = true)
     }
 }
@@ -765,6 +766,43 @@ fun relativeDay(time: Long): String {
         diff == 1L -> "вчера"
         diff < 7L -> "${diff} " + StatsCalc.plural(diff.toInt(), "день", "дня", "дней") + " назад"
         else -> StatsCalc.date(day)
+    }
+}
+
+@Composable
+private fun CoverProgress(book: Book, inPages: Boolean, small: Boolean, modifier: Modifier = Modifier) {
+    val (label, color) = progressBadge(book, inPages)
+    val finished = book.status == ReadStatus.Finished
+    val fraction by animateFloatAsState(if (finished) 1f else book.progress.toFloat().coerceIn(0f, 1f), Motion.tween(700), label = "cover-progress")
+    val text = if (small) 9.5.sp else 10.5.sp
+    Box(
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = if (small) 4.dp else 6.dp, vertical = if (small) 4.dp else 6.dp)
+            .clip(CircleShape)
+            .background(Color(0xD9100D0B))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape)
+            .heightIn(min = if (small) 18.dp else 22.dp)
+            .padding(horizontal = if (small) 6.dp else 8.dp, vertical = 2.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(Modifier.fillMaxWidth().height(if (small) 4.dp else 5.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.14f))) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).clip(CircleShape).background(color))
+        }
+        Text(
+            label,
+            color = Color.White,
+            fontSize = text,
+            lineHeight = text,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(Color(0xFF16120F))
+                .border(1.dp, color.copy(alpha = 0.8f), CircleShape)
+                .padding(horizontal = if (small) 5.dp else 7.dp, vertical = 1.dp),
+        )
     }
 }
 

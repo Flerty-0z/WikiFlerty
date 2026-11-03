@@ -76,7 +76,7 @@ fun ReadingWatchCard(book: Book) {
         },
         label = "reading-watch",
     ) { state ->
-        StopwatchShell(active = state is WatchView.Active) {
+        StopwatchShell(active = state is WatchView.Active, moon = state !is WatchView.Done) {
             when (state) {
                 WatchView.Idle -> StopwatchIdle(note = if (watch != null) "Секундомер другой книги остановится" else null) { app.readingTimer.start(book.id, book.progress) }
                 is WatchView.Active -> StopwatchActive(
@@ -94,16 +94,73 @@ fun ReadingWatchCard(book: Book) {
 }
 
 @Composable
-fun StopwatchShell(active: Boolean, content: @Composable () -> Unit) {
+fun StopwatchShell(active: Boolean, moon: Boolean = true, content: @Composable () -> Unit) {
     val shape = appCorner(22)
-    Column(
+    Box(
         Modifier
             .fillMaxWidth()
-            .then(if (active) Modifier.background(AppColors.AccentTint, shape).border(1.dp, AppColors.Accent.copy(alpha = 0.45f), shape) else Modifier.fieldSurface(shape))
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) { content() }
+            .then(if (active) Modifier.background(AppColors.AccentTint, shape).border(1.dp, AppColors.Accent.copy(alpha = 0.45f), shape) else Modifier.fieldSurface(shape)),
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) { content() }
+        if (moon) FocusMoon(Modifier.align(Alignment.BottomStart).padding(14.dp))
+    }
+}
+
+@Composable
+private fun FocusMoon(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val on by com.flerty.wikiflerty.system.FocusMode.enabled.collectAsStateWithLifecycle()
+    var askAccess by remember { androidx.compose.runtime.mutableStateOf(false) }
+    val fill by androidx.compose.animation.core.animateFloatAsState(if (on) 1f else 0f, Motion.tween(260), label = "moon")
+    val pop = remember { androidx.compose.animation.core.Animatable(1f) }
+    LaunchedEffect(on) {
+        if (Motion.enabled) {
+            pop.snapTo(0.8f)
+            pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.45f, stiffness = 500f))
+        }
+    }
+    Box(
+        modifier
+            .size(44.dp)
+            .graphicsLayer {
+                scaleX = pop.value
+                scaleY = pop.value
+            }
+            .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.88f) {
+                if (!on && !com.flerty.wikiflerty.system.FocusMode.hasAccess(context)) {
+                    askAccess = true
+                } else {
+                    com.flerty.wikiflerty.system.FocusMode.setEnabled(context, !on)
+                }
+            }
+            .background(AppColors.Accent.copy(alpha = 0.18f * fill), CircleShape)
+            .border(1.dp, if (on) AppColors.Accent.copy(alpha = 0.7f) else AppColors.Line, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            AppIcons.Moon,
+            if (on) "Фокус включён" else "Фокус выключен",
+            tint = if (on) AppColors.Accent else AppColors.Muted,
+            modifier = Modifier.size(20.dp).graphicsLayer { rotationZ = -20f * fill },
+        )
+    }
+    if (askAccess) {
+        ConfirmSheet(
+            title = "Фокус-режим",
+            text = "Чтобы во время сеанса включался «Не беспокоить», разреши приложению управлять этим режимом. Откроются настройки — найди там WikiFlerty и включи доступ.",
+            confirm = "Открыть настройки",
+            danger = false,
+            onConfirm = {
+                com.flerty.wikiflerty.system.FocusMode.setEnabled(context, true)
+                com.flerty.wikiflerty.system.FocusMode.requestAccess(context)
+            },
+            onDismiss = { askAccess = false },
+        )
+    }
 }
 
 @Composable

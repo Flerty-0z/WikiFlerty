@@ -111,6 +111,12 @@ class App : Application() {
         backgroundAudio.install()
         achievements.start(appScope)
         runCatching { com.flerty.wikiflerty.system.ReadingReminder.schedule(this) }
+        com.flerty.wikiflerty.system.FocusMode.load(this)
+        appScope.launch {
+            kotlinx.coroutines.flow.combine(readingTimer.watch, paper.stopwatch, com.flerty.wikiflerty.system.FocusMode.enabled) { w, p, _ ->
+                (w?.running == true) || (p?.running == true)
+            }.collect { reading -> runCatching { com.flerty.wikiflerty.system.FocusMode.update(this@App, reading) } }
+        }
         appScope.launch {
             var first = true
             notes.notes.collectLatest {

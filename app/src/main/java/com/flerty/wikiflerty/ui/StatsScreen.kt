@@ -238,8 +238,6 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
                 GoalCard(prefs.dailyGoalMinutes, perDay, framed = false) { minutes -> app.libraryPrefs.update { it.copy(dailyGoalMinutes = minutes) } }
                 Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(1.dp).background(AppColors.PanelBorder))
                 YearGoalCard(prefs.yearGoalBooks, finishedThisYear, framed = false) { n -> app.libraryPrefs.update { it.copy(yearGoalBooks = n) } }
-                Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(1.dp).background(AppColors.PanelBorder))
-                ReminderRow()
             }
         }
         revealItem(key = "streak") { StreakCard(perDay, today) }
@@ -474,20 +472,16 @@ private fun GoalCard(goalMinutes: Int, perDay: Map<LocalDate, DayEntry>, framed:
             }
         }
         var custom by remember { mutableStateOf(false) }
-        PickerRow(
-            label = "Цель на день",
-            icon = AppIcons.Target,
-            options = GoalChoices.map { m ->
-                if (m == 0) PickerOption("0", "Без цели", "Просто считать время", icon = AppIcons.Close) else PickerOption(m.toString(), "$m мин", null, icon = AppIcons.Clock)
-            } + listOfNotNull(
-                goalMinutes.takeIf { it > 0 && it !in GoalChoices }?.let { PickerOption(it.toString(), "$it мин", "Своя цель", icon = AppIcons.Clock) },
-                PickerOption(CUSTOM_ID, "Своё число", "Впиши любое количество минут", icon = AppIcons.Pencil),
-            ),
-            selectedId = goalMinutes.toString(),
-            searchable = false,
-        ) { id -> if (id == CUSTOM_ID) custom = true else onGoal(id.toInt()) }
+        ValueRow("Цель на день", if (goalMinutes > 0) "$goalMinutes мин" else "Без цели", AppIcons.Target) { custom = true }
         if (custom) {
-            NumberInputSheet("Цель на день", "мин", goalMinutes.takeIf { it > 0 } ?: 25, 1..1440, onDismiss = { custom = false }) { onGoal(it) }
+            NumberInputSheet(
+                "Цель на день",
+                "мин",
+                goalMinutes.takeIf { it > 0 } ?: 25,
+                1..1440,
+                onDismiss = { custom = false },
+                onClear = if (goalMinutes > 0) ({ onGoal(0) }) else null,
+            ) { onGoal(it) }
         }
     }
 }

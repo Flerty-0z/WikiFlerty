@@ -146,6 +146,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
     }
     var addMenu by remember { mutableStateOf(false) }
     var paperSheet by remember { mutableStateOf(false) }
+    var reminderSheet by remember { mutableStateOf(false) }
     SideDrawer(
         open = drawerOpen && !bottomNav,
         enabled = !bottomNav,
@@ -189,6 +190,8 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                             },
                         ) {
                             if (section == Section.Library) {
+                                val reminder by com.flerty.wikiflerty.system.ReadingReminder.minutes.collectAsStateWithLifecycle()
+                                HeaderButton(AppIcons.Bell, "Напоминание", tint = if (reminder >= 0) AppColors.Accent else AppColors.Text) { reminderSheet = true }
                                 HeaderButton(if (libraryControls.searchOpen) AppIcons.Close else AppIcons.Search, "Поиск") {
                                     libraryControls.searchOpen = !libraryControls.searchOpen
                                 }
@@ -265,6 +268,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 )
             }
             if (paperSheet) PaperBookSheet(null) { paperSheet = false }
+            if (reminderSheet) ReminderSheet { reminderSheet = false }
             StartupPrompts()
             StreakRescue()
             AchievementToast()
@@ -651,12 +655,12 @@ private fun MainHeader(section: Section, greeting: String?, onBack: (() -> Unit)
 }
 
 @Composable
-private fun HeaderButton(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, onClick: () -> Unit) {
+private fun HeaderButton(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, tint: androidx.compose.ui.graphics.Color = AppColors.Text, onClick: () -> Unit) {
     Box(
         Modifier
             .size(44.dp)
             .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.88f, onClick = onClick)
             .fieldSurface(CircleShape),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, description, tint = AppColors.Text, modifier = Modifier.size(20.dp)) }
+    ) { Icon(icon, description, tint = tint, modifier = Modifier.size(20.dp)) }
 }

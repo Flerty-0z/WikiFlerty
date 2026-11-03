@@ -251,24 +251,16 @@ fun YearGoalCard(goal: Int, finished: Int, framed: Boolean = true, onGoal: (Int)
             }
         }
         var custom by remember { mutableStateOf(false) }
-        PickerRow(
-            label = "Цель на год",
-            icon = AppIcons.Trophy,
-            options = YearGoalChoices.map { n ->
-                if (n == 0) {
-                    PickerOption("0", "Без цели", "Просто считать книги", icon = AppIcons.Close)
-                } else {
-                    PickerOption(n.toString(), "$n " + StatsCalc.plural(n, "книга", "книги", "книг"), null, icon = AppIcons.Book)
-                }
-            } + listOfNotNull(
-                goal.takeIf { it > 0 && it !in YearGoalChoices }?.let { PickerOption(it.toString(), "$it " + StatsCalc.plural(it, "книга", "книги", "книг"), "Своя цель", icon = AppIcons.Book) },
-                PickerOption(CUSTOM_ID, "Своё число", "Впиши любое количество книг", icon = AppIcons.Pencil),
-            ),
-            selectedId = goal.toString(),
-            searchable = false,
-        ) { id -> if (id == CUSTOM_ID) custom = true else onGoal(id.toInt()) }
+        ValueRow("Цель на год", if (goal > 0) "$goal " + StatsCalc.plural(goal, "книга", "книги", "книг") else "Без цели", AppIcons.Trophy) { custom = true }
         if (custom) {
-            NumberInputSheet("Цель на год", "книг", goal.takeIf { it > 0 } ?: 10, 1..1000, onDismiss = { custom = false }) { onGoal(it) }
+            NumberInputSheet(
+                "Цель на год",
+                "книг",
+                goal.takeIf { it > 0 } ?: 10,
+                1..1000,
+                onDismiss = { custom = false },
+                onClear = if (goal > 0) ({ onGoal(0) }) else null,
+            ) { onGoal(it) }
         }
     }
 }

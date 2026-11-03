@@ -123,11 +123,19 @@ fun SettingsScreen(modifier: Modifier = Modifier, onAbout: (() -> Unit)? = null)
 
 @Composable
 private fun SettingsHome(onAbout: (() -> Unit)?, onOpen: (SettingsPage) -> Unit) {
-    SettingsNavRow(AppIcons.Sparkle, "ИИ-помощник", "Ключи, модели, перевод") { onOpen(SettingsPage.Ai) }
-    SettingsNavRow(AppIcons.Theme, "Кастомизация", "Цвета, форма, шрифт, фон") { onOpen(SettingsPage.Custom) }
-    SettingsNavRow(AppIcons.Sound, "Звук и отклик", "Звуки и вибрация") { onOpen(SettingsPage.Sound) }
-    SettingsNavRow(AppIcons.Backup, "Резервная копия", "Экспорт и импорт") { onOpen(SettingsPage.Backup) }
-    if (onAbout != null) SettingsNavRow(AppIcons.Info, "О приложении", "Обновления, журнал сбоев", onAbout)
+    val rows = listOfNotNull<Triple<androidx.compose.ui.graphics.vector.ImageVector, Pair<String, String>, () -> Unit>>(
+        Triple(AppIcons.Sparkle, "ИИ-помощник" to "Ключи, модели, перевод") { onOpen(SettingsPage.Ai) },
+        Triple(AppIcons.Theme, "Кастомизация" to "Цвета, форма, фон") { onOpen(SettingsPage.Custom) },
+        Triple(AppIcons.Sound, "Звук и отклик" to "Звуки и вибрация") { onOpen(SettingsPage.Sound) },
+        Triple(AppIcons.Backup, "Резервная копия" to "Экспорт и импорт") { onOpen(SettingsPage.Backup) },
+        onAbout?.let { Triple(AppIcons.Info, "О приложении" to "Обновления, журнал сбоев", it) },
+    )
+    Column(Modifier.fillMaxWidth().fieldSurface(appCorner(20))) {
+        rows.forEachIndexed { i, (icon, text, action) ->
+            if (i > 0) Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(1.dp).background(AppColors.PanelBorder))
+            SettingsNavRow(icon, text.first, text.second, framed = false, onClick = action)
+        }
+    }
 }
 
 @Composable
