@@ -1027,21 +1027,24 @@ private fun SheetContent(
             }
             if (sheet in NavSheets) {
                 NavTabs(sheet, onSelect = onOpen, modifier = Modifier.weight(1f).padding(end = 6.dp))
-            } else Text(
-                when {
+            } else Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                val title = when {
                     sheet == ReaderSheet.NoteEditor && editor?.id == null -> "Новая заметка"
                     sheet == ReaderSheet.Notes && notes.isNotEmpty() -> "Заметки · ${notes.size}"
                     sheet == ReaderSheet.AiChat -> ai.chat.action.title
                     sheet == ReaderSheet.HeroChat -> ai.heroes?.state?.current?.name ?: sheet.title
                     else -> sheet.title
-                },
-                color = AppColors.Text,
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).padding(start = if (parent != null) 0.dp else 4.dp),
-            )
+                }
+                com.flerty.wikiflerty.ui.TitlePill(
+                    title,
+                    icon = when (sheet) {
+                        ReaderSheet.HeroChat -> AppIcons.Voice
+                        ReaderSheet.AiChat -> AppIcons.Sparkle
+                        else -> null
+                    },
+                    size = 16.sp,
+                )
+            }
             RoundIconButton(AppIcons.Close, "Закрыть", filled = true, sound = FeedbackSound.Close, onClick = onClose)
         }
 

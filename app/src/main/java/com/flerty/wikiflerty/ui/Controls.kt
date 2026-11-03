@@ -135,7 +135,7 @@ fun SettingSwitch(
             Spacer(Modifier.width(12.dp))
         }
         Column(Modifier.weight(1f).padding(end = 8.dp)) {
-            Text(label, color = AppColors.Text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            FitText(label, AppColors.Text, 15.sp)
             if (hint != null) Text(hint, color = AppColors.Faint, fontSize = 12.sp, lineHeight = 16.sp)
         }
         Switch(
@@ -533,21 +533,10 @@ fun percent(value: Float): String = "${(value * 100).roundToInt()}%"
 
 @Composable
 fun SheetHeader(title: String, onClose: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            title,
-            color = AppColors.Text,
-            fontSize = 19.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).padding(start = 4.dp),
-        )
+    Box(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 10.dp), contentAlignment = Alignment.Center) {
+        TitlePill(title, size = 16.sp, maxWidth = 250.dp)
         Box(
-            Modifier.size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onClose).background(AppColors.Field),
+            Modifier.align(Alignment.CenterEnd).size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onClose).background(AppColors.Field),
             contentAlignment = Alignment.Center,
         ) { Icon(AppIcons.Close, "Закрыть", tint = AppColors.Muted, modifier = Modifier.size(18.dp)) }
     }

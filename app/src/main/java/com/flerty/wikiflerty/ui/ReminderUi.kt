@@ -47,7 +47,7 @@ fun ReminderSheet(onDismiss: () -> Unit) {
     AppSheet(onDismiss, title = "Напоминание") {
         val close = sheetClose(onDismiss)
         SettingsGroup(null) {
-            SettingSwitch("Напоминать почитать", on, icon = AppIcons.Bell) { on = it }
+            SettingSwitch("Напоминать", on, icon = AppIcons.Bell) { on = it }
         }
         AnimatedVisibility(visible = on, enter = expandVertically(Motion.tween(280)) + fadeIn(Motion.fade(220)), exit = shrinkVertically(Motion.tween(220)) + fadeOut(Motion.fade(160))) {
             Column(

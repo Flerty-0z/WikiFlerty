@@ -140,12 +140,12 @@ private fun SettingsHome(onAbout: (() -> Unit)?, onOpen: (SettingsPage) -> Unit)
 
 @Composable
 private fun PageHeader(title: String, onBack: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Box(
-            Modifier.size(44.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onBack),
+            Modifier.align(Alignment.CenterStart).size(44.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onBack).fieldSurface(CircleShape),
             contentAlignment = Alignment.Center,
         ) { Icon(AppIcons.Back, "Назад", tint = AppColors.Text, modifier = Modifier.size(22.dp)) }
-        Text(title, color = AppColors.Text, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+        TitlePill(title, size = 17.sp, maxWidth = 240.dp)
     }
 }
 

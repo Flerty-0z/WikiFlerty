@@ -36,35 +36,15 @@ fun SectionHeader(
     count: Int? = null,
     action: (@Composable () -> Unit)? = null,
 ) {
-    Row(
-        modifier.fillMaxWidth().heightIn(min = 34.dp).padding(start = 2.dp, end = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (icon != null) {
-            Box(
-                Modifier.size(26.dp).clip(CircleShape).background(AppColors.AccentSoft),
-                contentAlignment = Alignment.Center,
-            ) { Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(15.dp)) }
-            Spacer(Modifier.width(8.dp))
-        }
-        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                title,
-                color = AppColors.Text,
-                fontWeight = FontWeight.ExtraBold,
-                maxLines = 1,
-                softWrap = false,
-                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 17.sp, stepSize = 0.5.sp),
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            if (count != null) {
-                Spacer(Modifier.width(8.dp))
-                CountBadge(count)
-            }
-        }
+    Box(modifier.fillMaxWidth().heightIn(min = 38.dp).padding(horizontal = 2.dp), contentAlignment = Alignment.Center) {
+        TitlePill(
+            title,
+            icon = icon,
+            maxWidth = if (action != null) 220.dp else 320.dp,
+            trailing = count?.let { { CountBadge(it) } },
+        )
         if (action != null) {
-            Spacer(Modifier.width(8.dp))
-            Box(Modifier.widthIn(max = 150.dp)) { action() }
+            Box(Modifier.align(Alignment.CenterEnd).widthIn(max = 120.dp)) { action() }
         }
     }
 }
