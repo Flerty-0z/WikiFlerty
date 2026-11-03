@@ -91,12 +91,7 @@ fun YearHeatmapCard(days: Map<String, Map<String, DayEntry>>, perDay: Map<LocalD
     val freezes by app.streakFreeze.freezes.collectAsStateWithLifecycle()
     val frozen = remember(freezes) { com.flerty.wikiflerty.data.StreakFreezeStore.days(freezes) }
 
-    Column(
-        Modifier.fillMaxWidth().fieldSurface(appCorner(20)).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Год чтения", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, modifier = Modifier.weight(1f))
+    TabbedFrame("Год чтения", icon = AppIcons.Calendar, inset = false, trailing = {
             Row(
                 Modifier.clip(CircleShape).border(1.dp, AppColors.Line, CircleShape).padding(horizontal = 4.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -113,7 +108,8 @@ fun YearHeatmapCard(days: Map<String, Map<String, DayEntry>>, perDay: Map<LocalD
                     contentAlignment = Alignment.Center,
                 ) { Icon(AppIcons.Back, "Следующий год", tint = if (next != null) AppColors.Text else AppColors.Line, modifier = Modifier.size(14.dp).rotate(180f)) }
             }
-        }
+    }) {
+    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
 
         AnimatedContent(
             targetState = year,
@@ -157,6 +153,7 @@ fun YearHeatmapCard(days: Map<String, Map<String, DayEntry>>, perDay: Map<LocalD
             MiniStat("Лучшая серия", StatsCalc.days(best), Modifier.weight(1f))
             MiniStat("Сильнее всего", strongest?.let { DayShort[it.value - 1] } ?: "—", Modifier.weight(1f))
         }
+    }
     }
 }
 

@@ -1120,8 +1120,7 @@ private fun SheetContent(
                     ReaderSheet.Screen -> ScreenOptions(settings, onSettingsChange)
                     ReaderSheet.Sound -> {
                         SoundOptions(settings, onSettingsChange)
-                        com.flerty.wikiflerty.ui.SectionHeader("Атмосфера")
-                        AmbienceOptions()
+                        AmbienceOptions(title = "Атмосфера")
                     }
                     ReaderSheet.Listen -> TtsOptions(settings, bookLanguage, ttsActive, ttsPlaying, ttsSleep, tts, onSettingsChange)
                     else -> Unit
@@ -1627,17 +1626,8 @@ private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: M
 
 @Composable
 internal fun Group(label: String, icon: ImageVector? = null, content: @Composable () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (icon != null) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                SettingIcon(icon, 30.dp)
-                Spacer(Modifier.width(12.dp))
-                Text(label, color = AppColors.Text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        } else {
-            Text(label, color = AppColors.Muted, fontSize = 13.sp)
-        }
-        content()
+    com.flerty.wikiflerty.ui.TabbedFrame(label, icon = icon) {
+        Column(Modifier.padding(vertical = 8.dp)) { content() }
     }
 }
 

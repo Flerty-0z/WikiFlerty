@@ -110,8 +110,11 @@ fun AiSettingsContent(ai: AiManager, modifier: Modifier = Modifier) {
         }
 
         if (connected.isNotEmpty()) {
-            SectionLabel("Подключены")
-            connected.forEach { card(it) }
+            TabbedFrame("Подключены", icon = AppIcons.Sparkle, trailing = { CountBadge(connected.size) }) {
+                Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    connected.forEach { card(it) }
+                }
+            }
         }
         AllProvidersRow(all, connected.size) { showAll = true }
 
@@ -435,11 +438,6 @@ private fun AllProvidersRow(all: List<AiProvider>, connected: Int, onClick: () -
         Text("${all.size + 1}", color = AppColors.Muted, fontSize = 14.sp, maxLines = 1)
         Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(20.dp))
     }
-}
-
-@Composable
-private fun SectionLabel(text: String) {
-    SectionHeader(text, modifier = Modifier.padding(top = 4.dp))
 }
 
 @Composable

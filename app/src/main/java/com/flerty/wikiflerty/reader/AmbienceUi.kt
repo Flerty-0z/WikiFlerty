@@ -43,12 +43,13 @@ import com.flerty.wikiflerty.ui.fieldSurface
 import com.flerty.wikiflerty.ui.liveClick
 
 @Composable
-fun AmbienceOptions() {
+fun AmbienceOptions(title: String = "Атмосфера") {
     val app = LocalContext.current.applicationContext as App
     val player = app.ambient
     val mix by player.mix.collectAsStateWithLifecycle()
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    com.flerty.wikiflerty.ui.TabbedFrame(title) {
+    Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         AmbientSound.entries.chunked(3).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { sound ->
@@ -78,6 +79,7 @@ fun AmbienceOptions() {
                 repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
+    }
     }
 
     if (mix.isNotEmpty()) {

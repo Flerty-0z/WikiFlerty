@@ -516,24 +516,13 @@ private fun RateRow(book: Book, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SheetLabel(text: String) {
-    Text(text, color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
-}
-
-@Composable
 private fun BookStatsContent(app: App, book: Book, onBack: () -> Unit) {
     val days by app.stats.days.collectAsStateWithLifecycle()
     val notes by app.notes.notes.collectAsStateWithLifecycle()
     val words by app.dictionary.entries.collectAsStateWithLifecycle()
     val stats = remember(days, book.statsKey) { StatsCalc.book(days, book.statsKey) }
 
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            Modifier.size(40.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onBack),
-            contentAlignment = Alignment.Center,
-        ) { Icon(AppIcons.Back, "Назад", tint = AppColors.Text, modifier = Modifier.size(20.dp)) }
-        Text("Статистика книги", color = AppColors.Text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-    }
+    PageBar("Статистика книги", onBack, icon = AppIcons.Chart)
 
     val speed = stats.pagesPerHour
     val remaining = if (speed != null && book.positions > 0 && book.status != ReadStatus.Finished) {

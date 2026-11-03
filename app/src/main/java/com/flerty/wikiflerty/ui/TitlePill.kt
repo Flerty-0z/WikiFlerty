@@ -1,6 +1,9 @@
 package com.flerty.wikiflerty.ui
 
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.draw.drawBehind
@@ -118,35 +121,41 @@ fun TitlePill(
 }
 
 @Composable
-fun TabbedFrame(title: String, icon: ImageVector? = null, inset: Boolean = true, content: @Composable () -> Unit) {
-    val tint = AppColors.Accent
-    androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().fieldSurface(appCorner(18))) {
-        Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(9.dp),
-            ) {
-                Box(
-                    Modifier
-                        .size(28.dp)
-                        .clip(appCorner(9))
-                        .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.28f), tint.copy(alpha = 0.08f))))
-                        .border(1.dp, tint.copy(alpha = 0.2f), appCorner(9)),
-                    contentAlignment = Alignment.Center,
-                ) { Icon(icon ?: titleIcon(title), null, tint = tint, modifier = Modifier.size(16.dp)) }
-                Text(
-                    title,
-                    color = AppColors.Text,
-                    fontWeight = FontWeight.ExtraBold,
-                    maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier.weight(1f, fill = false),
-                    autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 15.sp, stepSize = 0.5.sp),
-                )
+fun TabbedFrame(
+    title: String,
+    icon: ImageVector? = null,
+    inset: Boolean = true,
+    modifier: Modifier = Modifier,
+    trailing: (@Composable () -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    androidx.compose.foundation.layout.Column(modifier.fillMaxWidth().fieldSurface(appCorner(18))) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            var side by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+            if (trailing != null) androidx.compose.foundation.layout.Spacer(Modifier.width(with(density) { side.toDp() }))
+            Box(Modifier.weight(1f).padding(horizontal = if (trailing != null) 6.dp else 0.dp), contentAlignment = Alignment.Center) {
+                HeaderLabel(title, icon = icon, size = 15.sp)
             }
+            if (trailing != null) Box(Modifier.onSizeChanged { side = it.width }) { trailing() }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.PanelBorder))
         androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().then(if (inset) Modifier.padding(horizontal = 14.dp, vertical = 6.dp) else Modifier)) { content() }
+    }
+}
+
+@Composable
+fun PageBar(title: String, onBack: () -> Unit, icon: ImageVector? = null, trailing: (@Composable () -> Unit)? = null) {
+    androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(42.dp).liveClick(CircleShape, sound = FeedbackSound.Close, pressedScale = 0.88f, onClick = onBack).fieldSurface(CircleShape),
+                contentAlignment = Alignment.Center,
+            ) { Icon(AppIcons.Back, "Назад", tint = AppColors.Text, modifier = Modifier.size(20.dp)) }
+            Box(Modifier.weight(1f).padding(horizontal = 8.dp), contentAlignment = Alignment.Center) { HeaderLabel(title, icon = icon, size = 17.sp) }
+            Box(Modifier.widthIn(min = 42.dp), contentAlignment = Alignment.Center) { trailing?.invoke() }
+        }
+        SheetDivider()
     }
 }
 

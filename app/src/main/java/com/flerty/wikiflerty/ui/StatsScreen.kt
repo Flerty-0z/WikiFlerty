@@ -360,14 +360,9 @@ fun StatTile(label: String, value: String, modifier: Modifier = Modifier, hint: 
 @Composable
 fun ChartCard(title: String, values: List<Long>) {
     val max = values.maxOrNull()?.takeIf { it > 0 } ?: 1L
-    Column(
-        Modifier.fillMaxWidth().fieldSurface(appCorner(18)).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Text("макс. ${StatsCalc.duration(values.maxOrNull() ?: 0)}", color = AppColors.Faint, fontSize = 11.sp)
-        }
+    TabbedFrame(title, icon = AppIcons.Chart, inset = false) {
+    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("макс. ${StatsCalc.duration(values.maxOrNull() ?: 0)}", color = AppColors.Faint, fontSize = 11.sp)
         val accent = AppColors.Accent
         val line = AppColors.Line
         Canvas(Modifier.fillMaxWidth().height(110.dp)) {
@@ -390,6 +385,7 @@ fun ChartCard(title: String, values: List<Long>) {
             Text("${values.size} дн. назад", color = AppColors.Faint, fontSize = 11.sp, modifier = Modifier.weight(1f))
             Text("сегодня", color = AppColors.Faint, fontSize = 11.sp)
         }
+    }
     }
 }
 

@@ -140,13 +140,7 @@ private fun SettingsHome(onAbout: (() -> Unit)?, onOpen: (SettingsPage) -> Unit)
 
 @Composable
 private fun PageHeader(title: String, onBack: () -> Unit) {
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Box(
-            Modifier.align(Alignment.CenterStart).size(44.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onBack).fieldSurface(CircleShape),
-            contentAlignment = Alignment.Center,
-        ) { Icon(AppIcons.Back, "Назад", tint = AppColors.Text, modifier = Modifier.size(22.dp)) }
-        TitlePill(title, size = 17.sp, maxWidth = 240.dp)
-    }
+    PageBar(title, onBack)
 }
 
 @Composable

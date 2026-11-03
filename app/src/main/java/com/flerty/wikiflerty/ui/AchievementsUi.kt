@@ -149,13 +149,9 @@ private fun progressLabel(achievement: Achievement, progress: AchievementProgres
 @Composable
 fun AchievementsSection(progress: AchievementProgress, unlocked: Map<String, Long>) {
     val earnedCount = Achievements.all.count { it.id in unlocked }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Достижения", color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Text("$earnedCount/${Achievements.all.size}", color = AppColors.Faint, fontSize = 12.sp)
-        }
+    TabbedFrame("Достижения", icon = AppIcons.Trophy, inset = false, trailing = { InfoChip("$earnedCount/${Achievements.all.size}", AppColors.Accent) }) {
         Column(
-            Modifier.fillMaxWidth().fieldSurface(appCorner(18)).padding(horizontal = 6.dp, vertical = 14.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Achievements.all.chunked(3).forEach { row ->
@@ -473,17 +469,7 @@ fun AchievementsPage(modifier: Modifier = Modifier, onBack: () -> Unit) {
         modifier.revealScroll().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .liveClick(CircleShape, sound = FeedbackSound.Close, pressedScale = 0.88f, onClick = onBack)
-                    .fieldSurface(CircleShape),
-                contentAlignment = Alignment.Center,
-            ) { Icon(AppIcons.Back, "Назад", tint = AppColors.Text, modifier = Modifier.size(20.dp)) }
-            Text("Достижения", color = AppColors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
-            CountBadge(earned)
-        }
+        PageBar("Достижения", onBack, icon = AppIcons.Trophy, trailing = { CountBadge(earned) })
 
         Row(
             Modifier.fillMaxWidth().fieldSurface(appCorner(22)).padding(16.dp),
@@ -526,14 +512,9 @@ fun AchievementsPage(modifier: Modifier = Modifier, onBack: () -> Unit) {
             val group = all.filter { it.kind == kind }
             if (group.isEmpty()) return@forEach
             val style = medalStyle(kind)
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionHeader(
-                    kindTitle(kind),
-                    icon = style.icon,
-                    action = { InfoChip("${group.count { it.id in unlocked }}/${group.size}", Color(style.from)) },
-                )
+            TabbedFrame(kindTitle(kind), icon = style.icon, inset = false, trailing = { InfoChip("${group.count { it.id in unlocked }}/${group.size}", Color(style.from)) }) {
                 Column(
-                    Modifier.fillMaxWidth().fieldSurface(appCorner(18)).padding(horizontal = 6.dp, vertical = 14.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     group.chunked(3).forEach { row ->

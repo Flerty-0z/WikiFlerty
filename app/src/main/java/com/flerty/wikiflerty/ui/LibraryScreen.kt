@@ -406,10 +406,11 @@ private fun LibraryFilterSheet(
         }
         val shelves = filters.filter { it.isShelf }
         if (shelves.isNotEmpty()) {
-            SectionHeader("Полки")
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                shelves.forEach { f ->
-                    FilterRow(f, coversFor[f.id].orEmpty(), counts[f.id] ?: 0, f.id == selectedId, onEdit = { onEditShelf(f.title) }) { onSelect(f.id) }
+            TabbedFrame("Полки", icon = AppIcons.Shelf, trailing = { CountBadge(shelves.size) }) {
+                Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    shelves.forEach { f ->
+                        FilterRow(f, coversFor[f.id].orEmpty(), counts[f.id] ?: 0, f.id == selectedId, onEdit = { onEditShelf(f.title) }) { onSelect(f.id) }
+                    }
                 }
             }
         }

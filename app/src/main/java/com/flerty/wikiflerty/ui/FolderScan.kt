@@ -153,31 +153,30 @@ fun FolderScanSheet(onDismiss: () -> Unit, onImport: (List<Uri>) -> Unit) {
                 Text("Ищу книги…", color = AppColors.Muted, fontSize = 14.sp, modifier = Modifier.padding(start = 12.dp))
             }
             is ScanStage.Found -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                SectionHeader(
-                    s.folder,
-                    icon = AppIcons.Folder,
-                    count = found.size,
-                    action = {
-                        ActionPill("Другая", AppIcons.FolderSearch) { launcher.launch(null) }
-                    },
-                )
-                if (found.isEmpty()) {
-                    Text("Книг в этой папке не нашлось", color = AppColors.Muted, fontSize = 14.sp, modifier = Modifier.padding(vertical = 12.dp))
-                } else {
-                    val fresh = found.filter { !it.known }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        val all = checked.size == found.size
-                        ActionPill(if (all) "Снять все" else "Выбрать все", AppIcons.Check) {
-                            checked.clear()
-                            if (!all) checked.addAll(found.map { it.uri })
+                TabbedFrame(s.folder, icon = AppIcons.Folder, trailing = { CountBadge(found.size) }) {
+                    Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (found.isNotEmpty()) {
+                                val all = checked.size == found.size
+                                ActionPill(if (all) "Снять все" else "Выбрать все", AppIcons.Check) {
+                                    checked.clear()
+                                    if (!all) checked.addAll(found.map { it.uri })
+                                }
+                            }
+                            ActionPill("Другая папка", AppIcons.FolderSearch) { launcher.launch(null) }
                         }
-                        if (fresh.size != found.size) InfoChip("Уже есть: ${found.size - fresh.size}", AppColors.Muted, AppIcons.Book)
-                    }
-                    LazyColumn(Modifier.heightIn(max = 380.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(found, key = { it.uri.toString() }) { book ->
-                            Reveal {
-                                FoundRow(book, book.uri in checked) {
-                                    if (book.uri in checked) checked.remove(book.uri) else checked.add(book.uri)
+                        if (found.isEmpty()) {
+                            Text("Книг в этой папке не нашлось", color = AppColors.Muted, fontSize = 14.sp, modifier = Modifier.padding(vertical = 12.dp))
+                        } else {
+                            val fresh = found.filter { !it.known }
+                            if (fresh.size != found.size) InfoChip("Уже есть: ${found.size - fresh.size}", AppColors.Muted, AppIcons.Book)
+                            LazyColumn(Modifier.heightIn(max = 380.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                items(found, key = { it.uri.toString() }) { book ->
+                                    Reveal {
+                                        FoundRow(book, book.uri in checked) {
+                                            if (book.uri in checked) checked.remove(book.uri) else checked.add(book.uri)
+                                        }
+                                    }
                                 }
                             }
                         }
