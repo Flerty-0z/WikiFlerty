@@ -19,15 +19,10 @@ enum class AmbientSound(val id: String, val title: String, val emoji: String, va
     Rain("rain", "Дождь", "🌧️", R.raw.amb_rain),
     Storm("storm", "Гроза", "⛈️", R.raw.amb_storm),
     Fire("fire", "Камин", "🔥", R.raw.amb_fire),
-    Cafe("cafe", "Кофейня", "☕", R.raw.amb_cafe),
     Waves("waves", "Волны", "🌊", R.raw.amb_waves),
     Forest("forest", "Лес", "🌲", R.raw.amb_forest),
     Wind("wind", "Ветер", "💨", R.raw.amb_wind),
-    Stream("stream", "Ручей", "🏞️", R.raw.amb_stream),
-    Train("train", "Поезд", "🚂", R.raw.amb_train),
-    Clock("clock", "Часы", "🕰️", R.raw.amb_clock),
-    City("city", "Ночной город", "🌃", R.raw.amb_city),
-    Noise("noise", "Белый шум", "🤍", R.raw.amb_noise);
+    Stream("stream", "Ручей", "🏞️", R.raw.amb_stream);
 
     companion object {
         fun of(id: String) = entries.firstOrNull { it.id == id }
@@ -37,12 +32,12 @@ enum class AmbientSound(val id: String, val title: String, val emoji: String, va
 data class AmbientPreset(val title: String, val emoji: String, val mix: Map<AmbientSound, Float>)
 
 val AmbientPresets = listOf(
-    AmbientPreset("Уютный вечер", "🛋️", mapOf(AmbientSound.Fire to 0.8f, AmbientSound.Rain to 0.35f, AmbientSound.Clock to 0.3f)),
-    AmbientPreset("Библиотека", "📚", mapOf(AmbientSound.Clock to 0.45f, AmbientSound.Rain to 0.25f, AmbientSound.Noise to 0.15f)),
+    AmbientPreset("Уютный вечер", "🛋️", mapOf(AmbientSound.Fire to 0.8f, AmbientSound.Rain to 0.35f)),
     AmbientPreset("Шторм", "⛈️", mapOf(AmbientSound.Storm to 0.85f, AmbientSound.Wind to 0.45f)),
-    AmbientPreset("Кофейня", "☕", mapOf(AmbientSound.Cafe to 0.7f, AmbientSound.Rain to 0.3f)),
     AmbientPreset("Лес у ручья", "🌿", mapOf(AmbientSound.Forest to 0.7f, AmbientSound.Stream to 0.5f)),
-    AmbientPreset("Ночной поезд", "🌙", mapOf(AmbientSound.Train to 0.7f, AmbientSound.Rain to 0.3f)),
+    AmbientPreset("Морской бриз", "🏖️", mapOf(AmbientSound.Waves to 0.8f, AmbientSound.Wind to 0.3f)),
+    AmbientPreset("Дождь в лесу", "🍃", mapOf(AmbientSound.Rain to 0.6f, AmbientSound.Forest to 0.4f)),
+    AmbientPreset("Гроза у камина", "🕯️", mapOf(AmbientSound.Fire to 0.7f, AmbientSound.Storm to 0.35f)),
 )
 
 class AmbientPlayer(private val context: Context) {

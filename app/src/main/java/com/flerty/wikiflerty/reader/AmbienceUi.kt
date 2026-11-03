@@ -48,53 +48,66 @@ fun AmbienceOptions(title: String = "Атмосфера") {
     val player = app.ambient
     val mix by player.mix.collectAsStateWithLifecycle()
 
-    com.flerty.wikiflerty.ui.TabbedFrame(title) {
-    Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        AmbientSound.entries.chunked(3).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { sound ->
-                    val on = sound in mix
-                    val shape = appCorner(16)
-                    Column(
-                        Modifier
-                            .weight(1f)
-                            .heightIn(min = 76.dp)
-                            .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.94f) { player.toggle(sound) }
-                            .then(if (on) Modifier.background(AppColors.AccentTint, shape).border(1.5.dp, AppColors.Accent, shape) else Modifier.fieldSurface(shape))
-                            .padding(vertical = 10.dp, horizontal = 6.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        AmbientEmoji(sound.emoji, on)
-                        Text(
-                            sound.title,
-                            color = if (on) AppColors.Accent else AppColors.Text,
-                            fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
-                            maxLines = 1,
-                            softWrap = false,
-                            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 12.5.sp, stepSize = 0.5.sp),
-                        )
-                    }
+    com.flerty.wikiflerty.ui.TabbedFrame(title, inset = false) {
+        androidx.compose.foundation.lazy.LazyRow(
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(AmbientSound.entries.size) { i ->
+                val sound = AmbientSound.entries[i]
+                val on = sound in mix
+                val shape = appCorner(16)
+                val tint by androidx.compose.animation.animateColorAsState(if (on) AppColors.AccentTint else AppColors.Field, com.flerty.wikiflerty.ui.Motion.tween(260), label = "amb-bg")
+                val edge by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent else AppColors.PanelBorder, com.flerty.wikiflerty.ui.Motion.tween(260), label = "amb-edge")
+                Column(
+                    Modifier
+                        .width(86.dp)
+                        .heightIn(min = 84.dp)
+                        .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.94f) { player.toggle(sound) }
+                        .background(tint, shape)
+                        .border(if (on) 1.5.dp else 1.dp, edge, shape)
+                        .padding(vertical = 12.dp, horizontal = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    AmbientEmoji(sound.emoji, on)
+                    com.flerty.wikiflerty.ui.FitText(
+                        sound.title,
+                        if (on) AppColors.Accent else AppColors.Text,
+                        12.5.sp,
+                        weight = if (on) FontWeight.SemiBold else FontWeight.Normal,
+                    )
                 }
-                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
-    }
 
-    if (mix.isNotEmpty()) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = mix.isNotEmpty(),
+        enter = androidx.compose.animation.expandVertically(com.flerty.wikiflerty.ui.Motion.tween(320)) + androidx.compose.animation.fadeIn(com.flerty.wikiflerty.ui.Motion.tween(260, 80)),
+        exit = androidx.compose.animation.shrinkVertically(com.flerty.wikiflerty.ui.Motion.tween(280)) + androidx.compose.animation.fadeOut(com.flerty.wikiflerty.ui.Motion.tween(180)),
+    ) {
         SettingsGroup("Громкость") {
             Column(Modifier.padding(vertical = 6.dp)) {
-                mix.forEach { (sound, volume) ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(sound.emoji, fontSize = 18.sp, modifier = Modifier.width(30.dp))
-                        Text(sound.title, color = AppColors.Text, fontSize = 13.sp, maxLines = 1, modifier = Modifier.width(96.dp))
-                        Slider(
-                            value = volume,
-                            onValueChange = { player.setVolume(sound, it) },
-                            modifier = Modifier.weight(1f).height(36.dp),
-                            colors = SliderDefaults.colors(thumbColor = AppColors.Accent, activeTrackColor = AppColors.Accent, inactiveTrackColor = AppColors.Line),
-                        )
+                AmbientSound.entries.forEach { sound ->
+                    val volume = mix[sound]
+                    val last = remember { androidx.compose.runtime.mutableFloatStateOf(0.6f) }
+                    if (volume != null) last.floatValue = volume
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = volume != null,
+                        enter = androidx.compose.animation.expandVertically(com.flerty.wikiflerty.ui.Motion.tween(300)) + androidx.compose.animation.fadeIn(com.flerty.wikiflerty.ui.Motion.tween(240, 60)),
+                        exit = androidx.compose.animation.shrinkVertically(com.flerty.wikiflerty.ui.Motion.tween(260)) + androidx.compose.animation.fadeOut(com.flerty.wikiflerty.ui.Motion.tween(160)),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(sound.emoji, fontSize = 18.sp, modifier = Modifier.width(30.dp))
+                            Text(sound.title, color = AppColors.Text, fontSize = 13.sp, maxLines = 1, modifier = Modifier.width(72.dp))
+                            Slider(
+                                value = volume ?: last.floatValue,
+                                onValueChange = { player.setVolume(sound, it) },
+                                modifier = Modifier.weight(1f).height(36.dp),
+                                colors = SliderDefaults.colors(thumbColor = AppColors.Accent, activeTrackColor = AppColors.Accent, inactiveTrackColor = AppColors.Line),
+                            )
+                        }
                     }
                 }
             }
@@ -111,7 +124,11 @@ fun AmbienceOptions(title: String = "Атмосфера") {
         }
     }
 
-    if (mix.isNotEmpty()) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = mix.isNotEmpty(),
+        enter = androidx.compose.animation.expandVertically(com.flerty.wikiflerty.ui.Motion.tween(320)) + androidx.compose.animation.fadeIn(com.flerty.wikiflerty.ui.Motion.tween(260, 80)),
+        exit = androidx.compose.animation.shrinkVertically(com.flerty.wikiflerty.ui.Motion.tween(280)) + androidx.compose.animation.fadeOut(com.flerty.wikiflerty.ui.Motion.tween(180)),
+    ) {
         val shape = appCorner(14)
         Box(
             Modifier.fillMaxWidth().heightIn(min = 46.dp).liveClick(shape, sound = FeedbackSound.Close) { player.stopAll() }.border(1.dp, AppColors.Line, shape),
