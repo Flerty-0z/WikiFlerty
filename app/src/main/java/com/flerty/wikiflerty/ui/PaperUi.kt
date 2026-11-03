@@ -248,7 +248,7 @@ fun PaperMain(book: Book, onEdit: () -> Unit) {
                     onCancel = { app.paper.stopStopwatch() },
                 )
             } else {
-                StopwatchIdle(note = if (watch != null) "Секундомер другой книги остановится" else null) { app.paper.startStopwatch(book.id) }
+                StopwatchIdle(note = null) { app.paper.startStopwatch(book.id) }
             }
         }
     }

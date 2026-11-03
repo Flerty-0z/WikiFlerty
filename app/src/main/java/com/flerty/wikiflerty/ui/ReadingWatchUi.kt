@@ -78,7 +78,7 @@ fun ReadingWatchCard(book: Book) {
     ) { state ->
         StopwatchShell(active = state is WatchView.Active, moon = state !is WatchView.Done) {
             when (state) {
-                WatchView.Idle -> StopwatchIdle(note = if (watch != null) "Секундомер другой книги остановится" else null) { app.readingTimer.start(book.id, book.progress) }
+                WatchView.Idle -> StopwatchIdle(note = null) { app.readingTimer.start(book.id, book.progress) }
                 is WatchView.Active -> StopwatchActive(
                     state.watch,
                     elapsed = state.watch::elapsed,

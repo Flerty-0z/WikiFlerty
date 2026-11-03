@@ -448,49 +448,55 @@ private fun CardFront(entry: DictionaryEntry, reverse: Boolean, onSpeak: () -> U
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
         )
-        Spacer(Modifier.weight(1f))
-        if (reverse) {
-            val plain = markdown(entry.definition).text
-            Text(
-                maskWord(plain, entry.word).take(320),
-                color = AppColors.Text,
-                fontSize = 17.sp,
-                lineHeight = 24.sp,
-                textAlign = TextAlign.Center,
-                maxLines = 9,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (hint) {
-                Text(
-                    "${entry.word.trim().take(1)}… · букв: ${entry.word.trim().length}",
-                    color = AppColors.Accent,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-        } else {
-            Text(
-                entry.word,
-                color = AppColors.Text,
-                fontSize = 32.sp,
-                lineHeight = 38.sp,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-            )
-            SpeakButton(onSpeak)
-            if (hint && entry.context.isNotBlank()) {
-                Text(
-                    highlightWord("«${entry.context.take(260)}»", entry.word, AppColors.Accent),
-                    color = AppColors.Muted,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
-                    textAlign = TextAlign.Center,
-                    maxLines = 6,
-                    overflow = TextOverflow.Ellipsis,
-                )
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Column(
+                Modifier.fillMaxWidth().revealScroll(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                if (reverse) {
+                    val plain = markdown(entry.definition).text
+                    Text(
+                        maskWord(plain, entry.word).take(320),
+                        color = AppColors.Text,
+                        fontSize = 17.sp,
+                        lineHeight = 24.sp,
+                        textAlign = TextAlign.Center,
+                        maxLines = 9,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (hint) {
+                        Text(
+                            "${entry.word.trim().take(1)}… · букв: ${entry.word.trim().length}",
+                            color = AppColors.Accent,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                } else {
+                    Text(
+                        entry.word,
+                        color = AppColors.Text,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                        maxLines = 4,
+                        autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 18.sp, maxFontSize = 32.sp, stepSize = 1.sp),
+                    )
+                    SpeakButton(onSpeak)
+                    if (hint && entry.context.isNotBlank()) {
+                        Text(
+                            highlightWord("«${entry.context.take(260)}»", entry.word, AppColors.Accent),
+                            color = AppColors.Muted,
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp,
+                            textAlign = TextAlign.Center,
+                            maxLines = 6,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
             }
         }
-        Spacer(Modifier.weight(1f))
         val canHint = reverse || entry.context.isNotBlank()
         if (canHint && !hint) {
             Row(
@@ -508,7 +514,10 @@ private fun CardFront(entry: DictionaryEntry, reverse: Boolean, onSpeak: () -> U
                 )
             }
         }
-        if (entry.bookId != null || entry.bookTitle != null) BookTag(entry.bookId, entry.bookTitle, coverWidth = 28.dp)
+        if (entry.bookId != null || entry.bookTitle != null) {
+            Spacer(Modifier.height(2.dp))
+            BookTag(entry.bookId, entry.bookTitle, coverWidth = 28.dp)
+        }
     }
 }
 

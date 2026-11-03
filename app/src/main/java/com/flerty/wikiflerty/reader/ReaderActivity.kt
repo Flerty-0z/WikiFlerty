@@ -806,6 +806,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private var lastColumns: String? = null
     private var lastColumnsScroll = false
+    private var lastColumnsLayout = ""
 
     private var injectJob: Job? = null
 
@@ -827,9 +828,18 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             "(function(){var d=document,s=d.getElementById('wf-cols');if(!s){s=d.createElement('style');s.id='wf-cols';(d.head||d.documentElement).appendChild(s);}" +
                 "s.textContent='html body,html body *{overflow-wrap:break-word!important;word-wrap:break-word!important;" + (if (s.hyphens) "-webkit-hyphens:auto!important;hyphens:auto!important;" else "") + "min-width:0!important}" +
                 "html body img,html body svg,html body table{max-width:100%!important}';" +
-                "var r=d.documentElement.style;if(r.getPropertyValue('--RS__colCount').trim()!=='2'){r.setProperty('--RS__colCount','2');r.setProperty('--RS__colWidth','auto');r.setProperty('--RS__colGap','1.6em');window.dispatchEvent(new Event('resize'));}})()"
+                "window.__wfCols=true;" +
+                "window.__wfColsFix=function(){if(!window.__wfCols)return;var h=d.documentElement,r=h.style,c=false;" +
+                "if(r.getPropertyValue('--RS__colCount').trim()!=='2'){r.setProperty('--RS__colCount','2');r.setProperty('--RS__colWidth','auto');c=true;}" +
+                "var e=[h,d.body].filter(function(x){return x&&getComputedStyle(x).columnCount==='2';})[0]||h;var cs=getComputedStyle(e);" +
+                "var p=(parseFloat(cs.paddingLeft)||0)+(parseFloat(cs.paddingRight)||0);" +
+                "if(p<24){r.setProperty('--RS__pageGutter','12px');cs=getComputedStyle(e);p=(parseFloat(cs.paddingLeft)||0)+(parseFloat(cs.paddingRight)||0);}" +
+                "var g=Math.round(p*100)/100+'px';if(r.getPropertyValue('--RS__colGap').trim()!==g){r.setProperty('--RS__colGap',g);c=true;}" +
+                "if(c)window.dispatchEvent(new Event('resize'));};" +
+                "if(!window.__wfColsHook){window.__wfColsHook=true;window.addEventListener('resize',function(){setTimeout(function(){window.__wfColsFix&&window.__wfColsFix();},60);});}" +
+                "window.__wfColsFix();})()"
         } else {
-            "(function(){var d=document,s=d.getElementById('wf-cols');if(s)s.remove();var r=d.documentElement.style;if(r.getPropertyValue('--RS__colCount')){r.removeProperty('--RS__colCount');r.removeProperty('--RS__colWidth');r.removeProperty('--RS__colGap');window.dispatchEvent(new Event('resize'));}})()"
+            "(function(){window.__wfCols=false;var d=document,s=d.getElementById('wf-cols');if(s)s.remove();var r=d.documentElement.style;if(r.getPropertyValue('--RS__colCount')){r.removeProperty('--RS__colCount');r.removeProperty('--RS__colWidth');r.removeProperty('--RS__colGap');r.removeProperty('--RS__pageGutter');window.dispatchEvent(new Event('resize'));}})()"
         }
         runCatching { navigator.evaluateJavascript(script) }
     }
@@ -1254,10 +1264,16 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         navigator.submitPreferences(s.toEpubPreferences(fonts))
                         applyWindowSettings(s)
                         applyListeningSettings(s)
-                        if (s.columns != lastColumns || s.scroll != lastColumnsScroll) {
+                        val layoutKey = "${s.margins}|${s.fontSize}|${s.lineHeight}|${s.font}"
+                        if (s.columns != lastColumns || s.scroll != lastColumnsScroll || layoutKey != lastColumnsLayout) {
                             lastColumns = s.columns
                             lastColumnsScroll = s.scroll
-                            launch { applyColumns(s) }
+                            lastColumnsLayout = layoutKey
+                            launch {
+                                applyColumns(s)
+                                delay(400)
+                                applyColumns(s)
+                            }
                         }
                         val speedChanged = s.autoSpeed != lastAutoSpeed || s.scroll != lastAutoScrollMode
                         lastAutoSpeed = s.autoSpeed
