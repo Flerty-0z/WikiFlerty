@@ -212,11 +212,11 @@ private fun AchievementBadge(
 val YearGoalChoices = listOf(0, 5, 8, 12, 16, 20)
 
 @Composable
-fun YearGoalCard(goal: Int, finished: Int, onGoal: (Int) -> Unit) {
+fun YearGoalCard(goal: Int, finished: Int, framed: Boolean = true, onGoal: (Int) -> Unit) {
     val today = LocalDate.now()
     var lastGoal by remember { mutableStateOf(goal) }
     if (goal > 0) lastGoal = goal
-    Column(Modifier.fillMaxWidth().fieldSurface(appCorner(18)).animateContentSize(Motion.tween(380)).padding(horizontal = 14.dp, vertical = 10.dp)) {
+    Column(Modifier.fillMaxWidth().then(if (framed) Modifier.fieldSurface(appCorner(18)) else Modifier).animateContentSize(Motion.tween(380)).padding(horizontal = 14.dp, vertical = 10.dp)) {
         GoalReveal(goal > 0) {
             val goal = lastGoal
             val fraction = (finished.toFloat() / goal).coerceIn(0f, 1f)

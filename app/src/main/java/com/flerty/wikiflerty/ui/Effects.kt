@@ -1,5 +1,9 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.composed
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
@@ -230,3 +234,35 @@ fun FitText(
 }
 
 private fun Double.sp2(): androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit(this.toFloat(), androidx.compose.ui.unit.TextUnitType.Sp)
+
+fun Modifier.scrollReveal(): Modifier = composed {
+    if (!Motion.enabled) return@composed this
+    val edge = with(LocalDensity.current) { 64.dp.toPx() }
+    val lift = with(LocalDensity.current) { 16.dp.toPx() }
+    val state = remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
+    val leaving = remember { androidx.compose.runtime.mutableStateOf(false) }
+    this
+        .onGloballyPositioned { c ->
+            val parent = c.parentLayoutCoordinates ?: return@onGloballyPositioned
+            val y = c.positionInParent().y
+            val h = c.size.height.toFloat()
+            val vh = parent.size.height.toFloat()
+            val fromBottom = if (y + h <= vh) 1f else ((vh - y) / minOf(edge, h)).coerceIn(0f, 1f)
+            val fromTop = if (y >= 0f) 1f else ((y + h) / minOf(edge, h)).coerceIn(0f, 1f)
+            leaving.value = fromTop < fromBottom
+            state.floatValue = minOf(fromBottom, fromTop)
+        }
+        .graphicsLayer {
+            val v = state.floatValue
+            val e = 1f - (1f - v) * (1f - v)
+            alpha = e
+            translationY = (1f - e) * lift * (if (leaving.value) -0.6f else 1f)
+            val s = 0.96f + 0.04f * e
+            scaleX = s
+            scaleY = s
+        }
+}
+
+fun androidx.compose.foundation.lazy.LazyListScope.revealItem(key: Any, content: @Composable () -> Unit) {
+    item(key = key) { androidx.compose.foundation.layout.Box(Modifier.scrollReveal()) { content() } }
+}

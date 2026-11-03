@@ -570,7 +570,7 @@ private fun AddBookSheet(onDismiss: () -> Unit, onFile: () -> Unit, onScan: () -
                 close()
                 onFile()
             }
-            AddChoice(AppIcons.FolderSearch, "Найти на телефоне", Modifier.weight(1f)) {
+            AddChoice(AppIcons.FolderSearch, "Скан", Modifier.weight(1f)) {
                 close()
                 onScan()
             }

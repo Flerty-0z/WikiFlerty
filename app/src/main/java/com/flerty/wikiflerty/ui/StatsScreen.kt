@@ -223,7 +223,7 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (perDay.values.none { it.ms > 0 }) {
-            item(key = "empty") {
+            revealItem(key = "empty") {
                 Text(
                     "Почитай немного — статистика появится сама.",
                     color = AppColors.Muted,
@@ -233,18 +233,19 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
                 )
             }
         }
-        item(key = "goal") {
-            GoalCard(prefs.dailyGoalMinutes, perDay) { minutes -> app.libraryPrefs.update { it.copy(dailyGoalMinutes = minutes) } }
+        revealItem(key = "goals") {
+            Column(Modifier.fillMaxWidth().fieldSurface(appCorner(18))) {
+                GoalCard(prefs.dailyGoalMinutes, perDay, framed = false) { minutes -> app.libraryPrefs.update { it.copy(dailyGoalMinutes = minutes) } }
+                Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(1.dp).background(AppColors.PanelBorder))
+                YearGoalCard(prefs.yearGoalBooks, finishedThisYear, framed = false) { n -> app.libraryPrefs.update { it.copy(yearGoalBooks = n) } }
+            }
         }
-        item(key = "year-goal") {
-            YearGoalCard(prefs.yearGoalBooks, finishedThisYear) { n -> app.libraryPrefs.update { it.copy(yearGoalBooks = n) } }
-        }
-        item(key = "streak") { StreakCard(perDay, today) }
-        item(key = "minutes") { MinutesCard(perDay, today) }
-        item(key = "heatmap") { YearHeatmapCard(days, perDay, books) }
-        item(key = "status") { StatusCard(books) }
-        if (books.any { (it.rating ?: 0f) > 0f }) item(key = "ratings") { RatingsCard(books, yearStart) }
-        item(key = "tiles") {
+        revealItem(key = "streak") { StreakCard(perDay, today) }
+        revealItem(key = "minutes") { MinutesCard(perDay, today) }
+        revealItem(key = "heatmap") { YearHeatmapCard(days, perDay, books) }
+        revealItem(key = "status") { StatusCard(books) }
+        if (books.any { (it.rating ?: 0f) > 0f }) revealItem(key = "ratings") { RatingsCard(books, yearStart) }
+        revealItem(key = "tiles") {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     StatTile("Сегодня", StatsCalc.duration(perDay[today]?.ms ?: 0), Modifier.weight(1f), icon = AppIcons.Clock)
@@ -276,11 +277,11 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
                 }
             }
         }
-        item(key = "achievements") {
+        revealItem(key = "achievements") {
             AchievementsButton(Achievements.all.count { it.id in unlocked }, Achievements.all.size, onAchievements)
         }
         if (top.isNotEmpty()) {
-            item(key = "top") {
+            revealItem(key = "top") {
                 SettingsGroup("Больше всего времени") {
                     top.forEach { (book, stats) -> TopBookRow(app, book, stats) }
                 }
@@ -435,13 +436,13 @@ fun GoalRing(todayMs: Long, goalMinutes: Int, size: androidx.compose.ui.unit.Dp,
 }
 
 @Composable
-private fun GoalCard(goalMinutes: Int, perDay: Map<LocalDate, DayEntry>, onGoal: (Int) -> Unit) {
+private fun GoalCard(goalMinutes: Int, perDay: Map<LocalDate, DayEntry>, framed: Boolean = true, onGoal: (Int) -> Unit) {
     val today = LocalDate.now()
     val todayMs = perDay[today]?.ms ?: 0L
     var lastGoal by remember { mutableStateOf(goalMinutes) }
     if (goalMinutes > 0) lastGoal = goalMinutes
     Column(
-        Modifier.fillMaxWidth().fieldSurface(appCorner(18)).animateContentSize(Motion.tween(380)).padding(horizontal = 14.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().then(if (framed) Modifier.fieldSurface(appCorner(18)) else Modifier).animateContentSize(Motion.tween(380)).padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
         GoalReveal(goalMinutes > 0) {
             val goal = lastGoal

@@ -211,10 +211,10 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-    item(key = "header") { header() }
-    item(key = "preview") { StylePreview() }
+    revealItem(key = "header") { header() }
+    revealItem(key = "preview") { StylePreview() }
 
-    item(key = "templates") {
+    revealItem(key = "templates") {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
     Text("Шаблоны оформления", color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp))
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -225,9 +225,9 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
     }
     }
 
-    item(key = "app-icon") { AppIconGroup() }
+    revealItem(key = "app-icon") { AppIconGroup() }
 
-    if (AppStyle.base.ambience != null) item(key = "ambience") {
+    if (AppStyle.base.ambience != null) revealItem(key = "ambience") {
         SettingsGroup(null) {
             SettingSwitch("Свечение фона", style.ambience, hint = null, icon = AppIcons.Sparkle) { v ->
                 store.update { it.copy(ambience = v) }
@@ -235,7 +235,7 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
         }
     }
 
-    item(key = "colors") {
+    revealItem(key = "colors") {
     SettingsGroup("Цвета") {
         Text("Акцентный цвет", color = AppColors.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
         FlowRow(
@@ -282,7 +282,7 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
     }
     }
 
-    item(key = "shape") {
+    revealItem(key = "shape") {
     SettingsGroup("Форма и кнопки") {
         SettingSlider(
             label = "Скругление углов",
@@ -313,7 +313,7 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
     }
     }
 
-    item(key = "motion") {
+    revealItem(key = "motion") {
     SettingsGroup("Анимации") {
         SettingSwitch(
             "Анимации",
@@ -345,7 +345,7 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
     }
     }
 
-    item(key = "font") {
+    revealItem(key = "font") {
     SettingsGroup("Текст интерфейса") {
         SettingSlider(
             label = "Размер текста",
@@ -358,7 +358,7 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
     }
     }
 
-    item(key = "background") {
+    revealItem(key = "background") {
     SettingsGroup("Фон приложения") {
         PickerRow(
             label = "Фон",
@@ -463,7 +463,7 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
     }
     }
 
-    item(key = "reset") {
+    revealItem(key = "reset") {
     val resetShape = appCorner(14)
     Box(
         Modifier

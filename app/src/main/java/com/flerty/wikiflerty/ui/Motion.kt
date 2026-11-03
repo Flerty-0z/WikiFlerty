@@ -105,11 +105,11 @@ fun androidx.compose.foundation.lazy.LazyItemScope.motionItem(): androidx.compos
         fadeInSpec = if (Motion.enabled) Motion.fade(260) else null,
         placementSpec = if (Motion.enabled) Motion.tween(320) else null,
         fadeOutSpec = if (Motion.enabled) Motion.fade(180) else null,
-    )
+    ).scrollReveal()
 
 fun androidx.compose.foundation.lazy.grid.LazyGridItemScope.motionItem(): androidx.compose.ui.Modifier =
     androidx.compose.ui.Modifier.animateItem(
         fadeInSpec = if (Motion.enabled) Motion.fade(260) else null,
         placementSpec = if (Motion.enabled) Motion.tween(320) else null,
         fadeOutSpec = if (Motion.enabled) Motion.fade(180) else null,
-    )
+    ).scrollReveal()
