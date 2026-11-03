@@ -629,7 +629,7 @@ private fun MainHeader(section: Section, greeting: String?, onBack: (() -> Unit)
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        if (onBack != null) HeaderButton(AppIcons.Back, "Назад", onBack)
+        if (onBack != null) HeaderButton(AppIcons.Back, "Назад", onClick = onBack)
         Column(Modifier.weight(1f)) {
             if (greeting != null) {
                 Text(

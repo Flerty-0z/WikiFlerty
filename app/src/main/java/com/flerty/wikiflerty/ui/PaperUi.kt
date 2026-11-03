@@ -336,7 +336,7 @@ fun PaperMain(book: Book, onEdit: () -> Unit) {
         }
     }
 
-    SettingsNavRow(AppIcons.Pencil, "Изменить книгу", "Название, автор, страницы, обложка", onEdit)
+    SettingsNavRow(AppIcons.Pencil, "Изменить книгу", "Название, автор, страницы, обложка", onClick = onEdit)
 
     form?.let { f ->
         SessionSheet(book, f, onSaved = { reached ->
