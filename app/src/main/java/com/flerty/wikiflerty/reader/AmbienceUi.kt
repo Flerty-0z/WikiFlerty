@@ -26,6 +26,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlin.math.roundToInt
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -48,69 +51,28 @@ fun AmbienceOptions(title: String = "Атмосфера") {
     val player = app.ambient
     val mix by player.mix.collectAsStateWithLifecycle()
 
-    com.flerty.wikiflerty.ui.TabbedFrame(title, inset = false) {
+    com.flerty.wikiflerty.ui.TabbedFrame(
+        title,
+        inset = false,
+        trailing = {
+            val active = mix.isNotEmpty()
+            val alpha by androidx.compose.animation.core.animateFloatAsState(if (active) 1f else 0.35f, com.flerty.wikiflerty.ui.Motion.tween(220), label = "amb-stop")
+            Box(
+                Modifier
+                    .size(34.dp)
+                    .graphicsLayer { this.alpha = alpha }
+                    .liveClick(androidx.compose.foundation.shape.CircleShape, sound = FeedbackSound.Close, enabled = active) { player.stopAll() }
+                    .background(AppColors.Field, androidx.compose.foundation.shape.CircleShape)
+                    .border(1.dp, AppColors.PanelBorder, androidx.compose.foundation.shape.CircleShape),
+                contentAlignment = Alignment.Center,
+            ) { androidx.compose.material3.Icon(com.flerty.wikiflerty.ui.AppIcons.Stop, "Выключить всё", tint = AppColors.Muted, modifier = Modifier.size(16.dp)) }
+        },
+    ) {
         androidx.compose.foundation.lazy.LazyRow(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(AmbientSound.entries.size) { i ->
-                val sound = AmbientSound.entries[i]
-                val on = sound in mix
-                val shape = appCorner(16)
-                val tint by androidx.compose.animation.animateColorAsState(if (on) AppColors.AccentTint else AppColors.Field, com.flerty.wikiflerty.ui.Motion.tween(260), label = "amb-bg")
-                val edge by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent else AppColors.PanelBorder, com.flerty.wikiflerty.ui.Motion.tween(260), label = "amb-edge")
-                Column(
-                    Modifier
-                        .width(86.dp)
-                        .heightIn(min = 84.dp)
-                        .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.94f) { player.toggle(sound) }
-                        .background(tint, shape)
-                        .border(if (on) 1.5.dp else 1.dp, edge, shape)
-                        .padding(vertical = 12.dp, horizontal = 6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    AmbientEmoji(sound.emoji, on)
-                    com.flerty.wikiflerty.ui.FitText(
-                        sound.title,
-                        if (on) AppColors.Accent else AppColors.Text,
-                        12.5.sp,
-                        weight = if (on) FontWeight.SemiBold else FontWeight.Normal,
-                    )
-                }
-            }
-        }
-    }
-
-    androidx.compose.animation.AnimatedVisibility(
-        visible = mix.isNotEmpty(),
-        enter = androidx.compose.animation.expandVertically(com.flerty.wikiflerty.ui.Motion.tween(320)) + androidx.compose.animation.fadeIn(com.flerty.wikiflerty.ui.Motion.tween(260, 80)),
-        exit = androidx.compose.animation.shrinkVertically(com.flerty.wikiflerty.ui.Motion.tween(280)) + androidx.compose.animation.fadeOut(com.flerty.wikiflerty.ui.Motion.tween(180)),
-    ) {
-        SettingsGroup("Громкость") {
-            Column(Modifier.padding(vertical = 6.dp)) {
-                AmbientSound.entries.forEach { sound ->
-                    val volume = mix[sound]
-                    val last = remember { androidx.compose.runtime.mutableFloatStateOf(0.6f) }
-                    if (volume != null) last.floatValue = volume
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = volume != null,
-                        enter = androidx.compose.animation.expandVertically(com.flerty.wikiflerty.ui.Motion.tween(300)) + androidx.compose.animation.fadeIn(com.flerty.wikiflerty.ui.Motion.tween(240, 60)),
-                        exit = androidx.compose.animation.shrinkVertically(com.flerty.wikiflerty.ui.Motion.tween(260)) + androidx.compose.animation.fadeOut(com.flerty.wikiflerty.ui.Motion.tween(160)),
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(sound.emoji, fontSize = 18.sp, modifier = Modifier.width(30.dp))
-                            Text(sound.title, color = AppColors.Text, fontSize = 13.sp, maxLines = 1, modifier = Modifier.width(72.dp))
-                            Slider(
-                                value = volume ?: last.floatValue,
-                                onValueChange = { player.setVolume(sound, it) },
-                                modifier = Modifier.weight(1f).height(36.dp),
-                                colors = SliderDefaults.colors(thumbColor = AppColors.Accent, activeTrackColor = AppColors.Accent, inactiveTrackColor = AppColors.Line),
-                            )
-                        }
-                    }
-                }
-            }
+            items(AmbientSound.entries.size) { i -> AmbientTile(AmbientSound.entries[i], mix[AmbientSound.entries[i]], player) }
         }
     }
 
@@ -124,16 +86,53 @@ fun AmbienceOptions(title: String = "Атмосфера") {
         }
     }
 
-    androidx.compose.animation.AnimatedVisibility(
-        visible = mix.isNotEmpty(),
-        enter = androidx.compose.animation.expandVertically(com.flerty.wikiflerty.ui.Motion.tween(320)) + androidx.compose.animation.fadeIn(com.flerty.wikiflerty.ui.Motion.tween(260, 80)),
-        exit = androidx.compose.animation.shrinkVertically(com.flerty.wikiflerty.ui.Motion.tween(280)) + androidx.compose.animation.fadeOut(com.flerty.wikiflerty.ui.Motion.tween(180)),
+}
+
+@Composable
+private fun AmbientTile(sound: AmbientSound, volume: Float?, player: com.flerty.wikiflerty.system.AmbientPlayer) {
+    val on = volume != null
+    val current by androidx.compose.runtime.rememberUpdatedState(volume)
+    val shape = appCorner(18)
+    val level by androidx.compose.animation.core.animateFloatAsState(volume ?: 0f, com.flerty.wikiflerty.ui.Motion.tween(220), label = "amb-level")
+    val tint by androidx.compose.animation.animateColorAsState(if (on) AppColors.AccentTint else AppColors.Field, com.flerty.wikiflerty.ui.Motion.tween(260), label = "amb-bg")
+    val edge by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent else AppColors.PanelBorder, com.flerty.wikiflerty.ui.Motion.tween(260), label = "amb-edge")
+    val accent = AppColors.Accent
+    Box(
+        Modifier
+            .width(88.dp)
+            .height(118.dp)
+            .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.95f) { player.toggle(sound) }
+            .pointerInput(sound) {
+                detectVerticalDragGestures(
+                    onDragStart = { if (current == null) player.toggle(sound) },
+                ) { change, dy ->
+                    change.consume()
+                    val v = current ?: 0.6f
+                    player.setVolume(sound, (v - dy / (size.height * 0.9f)).coerceIn(0.05f, 1f))
+                }
+            }
+            .background(tint, shape)
+            .drawBehind {
+                if (level > 0f) {
+                    val h = size.height * level
+                    drawRect(accent.copy(alpha = 0.22f), androidx.compose.ui.geometry.Offset(0f, size.height - h), androidx.compose.ui.geometry.Size(size.width, h))
+                    drawRect(accent.copy(alpha = 0.55f), androidx.compose.ui.geometry.Offset(0f, size.height - h), androidx.compose.ui.geometry.Size(size.width, 2.dp.toPx()))
+                }
+            }
+            .border(if (on) 1.5.dp else 1.dp, edge, shape),
+        contentAlignment = Alignment.Center,
     ) {
-        val shape = appCorner(14)
-        Box(
-            Modifier.fillMaxWidth().heightIn(min = 46.dp).liveClick(shape, sound = FeedbackSound.Close) { player.stopAll() }.border(1.dp, AppColors.Line, shape),
-            contentAlignment = Alignment.Center,
-        ) { Text("Выключить всё", color = AppColors.Muted, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.padding(horizontal = 6.dp)) {
+            AmbientEmoji(sound.emoji, on)
+            com.flerty.wikiflerty.ui.FitText(sound.title, if (on) AppColors.Accent else AppColors.Text, 12.5.sp, weight = if (on) FontWeight.SemiBold else FontWeight.Normal)
+            Text(
+                if (on) "${(level * 100).roundToInt()}%" else "выкл",
+                color = if (on) AppColors.Accent else AppColors.Faint,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+        }
     }
 }
 

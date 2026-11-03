@@ -1145,7 +1145,10 @@ private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
         Tile(ReaderSheet.AiChapter, "Пересказ, тест", AppIcons.Book, 0xFF7DD3FC, 0xFF3B82C4),
         Tile(ReaderSheet.AiSetup, "Нейросети, модели", AppIcons.Sparkle, 0xFF8AB4F8, 0xFF7653E0),
     )
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(
+        Modifier.fillMaxWidth().fieldSurface(appCorner(22)).padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         tiles.chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { tile ->
