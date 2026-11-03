@@ -252,34 +252,30 @@ fun PaperMain(book: Book, onEdit: () -> Unit) {
     }
 
     if (sessions.isNotEmpty()) {
-        SettingsGroup("Темп") {
-            Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StatTile("Скорость", pace.pagesPerHour?.let { "${it.toInt()} стр/ч" } ?: "—", Modifier.weight(1f), icon = AppIcons.Speed)
-                    StatTile("Всего", StatsCalc.duration(pace.totalMs), Modifier.weight(1f), hint = "${sessions.size} " + StatsCalc.plural(sessions.size, "сеанс", "сеанса", "сеансов"), icon = AppIcons.Clock)
-                }
-                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StatTile(
-                        "Осталось",
-                        when {
-                            pace.leftPages == 0 -> "Прочитано"
-                            pace.leftMs != null -> "≈ " + StatsCalc.duration(pace.leftMs)
-                            else -> "${pace.leftPages} стр."
-                        },
-                        Modifier.weight(1f),
-                        hint = if (pace.leftPages > 0) "${pace.leftPages} ${pagesWord(pace.leftPages)}" else null,
-                        icon = AppIcons.Pages,
-                    )
-                    StatTile(
-                        "Финиш",
-                        pace.finishDate?.let { "≈ " + FinishFormat.format(it) } ?: if (pace.leftPages == 0) "🎉" else "—",
-                        Modifier.weight(1f),
-                        hint = pace.leftDays?.takeIf { pace.leftPages > 0 }?.let { "через ${StatsCalc.days(it)}" } ?: if (pace.pagesPerHour == null && pace.leftPages > 0) "засеки время сеанса" else null,
-                        icon = AppIcons.Calendar,
-                    )
-                }
-            }
-        }
+        StatPanel(
+            "Темп",
+            listOf(
+                StatCell("Скорость", pace.pagesPerHour?.let { "${it.toInt()} стр/ч" } ?: "—", icon = AppIcons.Speed),
+                StatCell("Всего", StatsCalc.duration(pace.totalMs), hint = "${sessions.size} " + StatsCalc.plural(sessions.size, "сеанс", "сеанса", "сеансов"), icon = AppIcons.Clock),
+                StatCell(
+                    "Осталось",
+                    when {
+                        pace.leftPages == 0 -> "Прочитано"
+                        pace.leftMs != null -> "≈ " + StatsCalc.duration(pace.leftMs)
+                        else -> "${pace.leftPages} стр."
+                    },
+                    hint = if (pace.leftPages > 0) "${pace.leftPages} ${pagesWord(pace.leftPages)}" else null,
+                    icon = AppIcons.Pages,
+                ),
+                StatCell(
+                    "Финиш",
+                    pace.finishDate?.let { "≈ " + FinishFormat.format(it) } ?: if (pace.leftPages == 0) "🎉" else "—",
+                    hint = pace.leftDays?.takeIf { pace.leftPages > 0 }?.let { "через ${StatsCalc.days(it)}" } ?: if (pace.pagesPerHour == null && pace.leftPages > 0) "засеки время сеанса" else null,
+                    icon = AppIcons.Calendar,
+                ),
+            ),
+            icon = AppIcons.Speed,
+        )
     }
 
     SettingsGroup("Сеансы") {

@@ -148,11 +148,15 @@ fun YearHeatmapCard(days: Map<String, Map<String, DayEntry>>, perDay: Map<LocalD
         val strongest = remember(inYear) {
             inYear.entries.groupBy { it.key.dayOfWeek }.mapValues { e -> e.value.sumOf { it.value.ms } }.maxByOrNull { it.value }?.key
         }
-        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MiniStat("Дней чтения", "$readDays", Modifier.weight(1f))
-            MiniStat("Лучшая серия", StatsCalc.days(best), Modifier.weight(1f))
-            MiniStat("Сильнее всего", strongest?.let { DayShort[it.value - 1] } ?: "—", Modifier.weight(1f))
-        }
+        StatPanel(
+            null,
+            listOf(
+                StatCell("Дней чтения", "$readDays", icon = AppIcons.Calendar),
+                StatCell("Лучшая серия", StatsCalc.days(best), icon = AppIcons.Fire),
+                StatCell("Сильнее всего", strongest?.let { DayShort[it.value - 1] } ?: "—", icon = AppIcons.Chart),
+            ),
+            columns = 3,
+        )
     }
     }
 }

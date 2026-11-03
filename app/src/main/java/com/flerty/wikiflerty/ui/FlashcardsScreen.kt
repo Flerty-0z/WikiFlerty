@@ -582,11 +582,15 @@ private fun FinishedView(
             fontSize = 14.sp,
             textAlign = TextAlign.Center,
         )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("Ответов", answered.toString(), Modifier.weight(1f))
-            StatTile("Верно", if (answered > 0) "${correct * 100 / answered}%" else "—", Modifier.weight(1f))
-            StatTile("Выучено", mastered.toString(), Modifier.weight(1f))
-        }
+        StatPanel(
+            null,
+            listOf(
+                StatCell("Ответов", answered.toString(), icon = AppIcons.Check),
+                StatCell("Верно", if (answered > 0) "${correct * 100 / answered}%" else "—", icon = AppIcons.Target),
+                StatCell("Выучено", mastered.toString(), icon = AppIcons.StarFilled),
+            ),
+            columns = 3,
+        )
         if (moreNewAvailable) {
             val shape = appCorner(16)
             Box(

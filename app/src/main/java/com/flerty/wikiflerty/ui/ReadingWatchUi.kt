@@ -275,31 +275,24 @@ private fun WatchResult(app: App, book: Book, result: ReadingSessionResult, onDo
     Box(Modifier.sparkBurst(shine, listOf(AppColors.Good, AppColors.Accent, StarYellow), count = 16, reach = 0.8f)) {
         StatePill("Итог сеанса", AppColors.Good)
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatTile("Время", StatsCalc.duration(result.ms).ifBlank { "<1 мин" }, Modifier.weight(1f), icon = AppIcons.Clock)
-            StatTile(
-                "Прочитано",
-                if (total > 0) "+$pages стр." else "+${(delta * 100).toInt()}%",
-                Modifier.weight(1f),
-                icon = AppIcons.Pages,
-            )
-        }
-        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatTile("Скорость", speed?.let { "${it.toInt()} стр/ч" } ?: "—", Modifier.weight(1f), icon = AppIcons.Speed)
-            StatTile(
+    StatPanel(
+        null,
+        listOf(
+            StatCell("Время", StatsCalc.duration(result.ms).ifBlank { "<1 мин" }, icon = AppIcons.Clock),
+            StatCell("Прочитано", if (total > 0) "+$pages стр." else "+${(delta * 100).toInt()}%", icon = AppIcons.Pages),
+            StatCell("Скорость", speed?.let { "${it.toInt()} стр/ч" } ?: "—", icon = AppIcons.Speed),
+            StatCell(
                 "До конца",
                 when {
                     leftPages == 0 -> "Прочитано"
                     leftMs != null -> "≈ " + StatsCalc.duration(leftMs)
                     else -> "—"
                 },
-                Modifier.weight(1f),
                 hint = leftPages?.takeIf { it > 0 }?.let { "$it стр." },
                 icon = AppIcons.Calendar,
-            )
-        }
-    }
+            ),
+        ),
+    )
     val shape = appCorner(16)
     Box(
         Modifier.fillMaxWidth().heightIn(min = 46.dp).liveClick(shape, sound = FeedbackSound.Close, onClick = onDone).border(1.dp, AppColors.Line, shape),

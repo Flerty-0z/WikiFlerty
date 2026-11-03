@@ -531,30 +531,26 @@ private fun BookStatsContent(app: App, book: Book, onBack: () -> Unit) {
     } else {
         null
     }
-    Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        StatTile("Время чтения", StatsCalc.duration(stats.ms), Modifier.weight(1f))
-        StatTile("Страниц", if (book.positions > 0) "${stats.pages}/${book.positions}" else stats.pages.toString(), Modifier.weight(1f))
-    }
-    Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        StatTile("Скорость", speed?.let { "${it.toInt()} стр/ч" } ?: "—", Modifier.weight(1f))
-        StatTile(
-            "Осталось",
-            when {
-                book.status == ReadStatus.Finished -> "дочитана"
-                remaining != null -> "≈ $remaining"
-                else -> "—"
-            },
-            Modifier.weight(1f),
-        )
-    }
-    Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        StatTile("Дней чтения", stats.days.toString(), Modifier.weight(1f))
-        StatTile(
-            "Заметки и слова",
-            "${notes.count { it.bookId == book.id }} / ${words.count { it.bookId == book.id }}",
-            Modifier.weight(1f),
-        )
-    }
+    StatPanel(
+        "Показатели",
+        listOf(
+            StatCell("Время чтения", StatsCalc.duration(stats.ms), icon = AppIcons.Clock),
+            StatCell("Страниц", if (book.positions > 0) "${stats.pages}/${book.positions}" else stats.pages.toString(), icon = AppIcons.Pages),
+            StatCell("Скорость", speed?.let { "${it.toInt()} стр/ч" } ?: "—", icon = AppIcons.Speed),
+            StatCell(
+                "Осталось",
+                when {
+                    book.status == ReadStatus.Finished -> "дочитана"
+                    remaining != null -> "≈ $remaining"
+                    else -> "—"
+                },
+                icon = AppIcons.Calendar,
+            ),
+            StatCell("Дней чтения", stats.days.toString(), icon = AppIcons.Fire),
+            StatCell("Заметки и слова", "${notes.count { it.bookId == book.id }} / ${words.count { it.bookId == book.id }}", icon = AppIcons.Note),
+        ),
+        icon = AppIcons.Chart,
+    )
 
     val perDay = remember(days, book.statsKey) {
         days.mapNotNull { (d, b) -> b[book.statsKey]?.let { e -> runCatching { LocalDate.parse(d) }.getOrNull()?.let { it to e } } }.toMap()

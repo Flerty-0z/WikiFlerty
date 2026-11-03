@@ -248,36 +248,20 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
         revealItem(key = "status") { StatusCard(books) }
         if (books.any { (it.rating ?: 0f) > 0f }) revealItem(key = "ratings") { RatingsCard(books, yearStart) }
         revealItem(key = "tiles") {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatTile("Сегодня", StatsCalc.duration(perDay[today]?.ms ?: 0), Modifier.weight(1f), icon = AppIcons.Clock)
-                    StatTile("Дней чтения", "$readingDays", Modifier.weight(1f), hint = "Рекорд: ${StatsCalc.days(best)}", icon = AppIcons.Fire)
-                }
-                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatTile("За неделю", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(6)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
-                    StatTile("За месяц", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(29)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
-                }
-                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatTile("За год", StatsCalc.duration(StatsCalc.sumSince(perDay, today.withDayOfYear(1)).ms), Modifier.weight(1f), icon = AppIcons.Calendar)
-                    StatTile(
-                        "Прочитано",
-                        "$finishedThisYear " + StatsCalc.plural(finishedThisYear, "книга", "книги", "книг"),
-                        Modifier.weight(1f),
-                        hint = "В ${today.year} году",
-                        icon = AppIcons.Book,
-                    )
-                }
-                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatTile("Всего", StatsCalc.duration(total.ms), Modifier.weight(1f), hint = "${total.pages} стр.", icon = AppIcons.Pages)
-                    StatTile(
-                        "В среднем",
-                        StatsCalc.duration(if (readingDays > 0) total.ms / readingDays else 0),
-                        Modifier.weight(1f),
-                        hint = "в день чтения",
-                        icon = AppIcons.Chart,
-                    )
-                }
-            }
+            StatPanel(
+                "Итоги чтения",
+                listOf(
+                    StatCell("Сегодня", StatsCalc.duration(perDay[today]?.ms ?: 0), icon = AppIcons.Clock),
+                    StatCell("Дней чтения", "$readingDays", hint = "Рекорд: ${StatsCalc.days(best)}", icon = AppIcons.Fire),
+                    StatCell("За неделю", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(6)).ms), icon = AppIcons.Calendar),
+                    StatCell("За месяц", StatsCalc.duration(StatsCalc.sumSince(perDay, today.minusDays(29)).ms), icon = AppIcons.Calendar),
+                    StatCell("За год", StatsCalc.duration(StatsCalc.sumSince(perDay, today.withDayOfYear(1)).ms), icon = AppIcons.Calendar),
+                    StatCell("Прочитано", "$finishedThisYear " + StatsCalc.plural(finishedThisYear, "книга", "книги", "книг"), hint = "в ${today.year} году", icon = AppIcons.Book),
+                    StatCell("Всего", StatsCalc.duration(total.ms), hint = "${total.pages} стр.", icon = AppIcons.Pages),
+                    StatCell("В среднем", StatsCalc.duration(if (readingDays > 0) total.ms / readingDays else 0), hint = "в день чтения", icon = AppIcons.Chart),
+                ),
+                icon = AppIcons.Chart,
+            )
         }
         revealItem(key = "achievements") {
             AchievementsButton(Achievements.all.count { it.id in unlocked }, Achievements.all.size, onAchievements)
@@ -298,13 +282,16 @@ private fun RatingsCard(books: List<Book>, yearStart: Long) {
     if (rated.isEmpty()) return
     val avg = rated.map { it.rating!! }.average().toFloat()
     val best = rated.filter { (it.finishedAt ?: it.ratedAt) >= yearStart }.maxWithOrNull(compareBy<Book> { it.rating }.thenBy { it.ratedAt })
-    SettingsGroup("Оценки") {
-        Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatTile("Средняя", "★ ${ratingText(Math.round(avg * 10) / 10f)}", Modifier.weight(1f), icon = AppIcons.StarFilled)
-                StatTile("Оценено", "${rated.size}", Modifier.weight(1f), icon = AppIcons.Check)
-            }
-            if (best != null) {
+    TabbedFrame("Оценки", inset = false) {
+        StatGrid(
+            listOf(
+                StatCell("Средняя", ratingText(Math.round(avg * 10) / 10f), icon = AppIcons.StarFilled),
+                StatCell("Оценено", "${rated.size}", icon = AppIcons.Check),
+            ),
+        )
+        if (best != null) {
+            Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.PanelBorder))
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Лучшая книга года", color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
                 BookTag(best.id, best.title) { RatingBadge(best.rating ?: 0f, Modifier.padding(end = 4.dp)) }
             }
