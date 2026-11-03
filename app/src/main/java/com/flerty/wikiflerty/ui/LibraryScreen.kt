@@ -531,7 +531,7 @@ private fun rememberCover(file: File?): ImageBitmap? {
 }
 
 @Composable
-private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean = false, showStatus: Boolean = true, plaque: Boolean = false, inPages: Boolean = false) {
+private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean = false, showStatus: Boolean = true, plaque: Boolean = false, inPages: Boolean = false, bare: Boolean = false) {
     val cover = rememberCover(file)
     Box(modifier.background(AppColors.Field), contentAlignment = Alignment.Center) {
         if (cover != null) {
@@ -548,52 +548,63 @@ private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean
             )
         }
         val rating = book.rating?.takeIf { it > 0f }
-        if (book.paper) {
-            Box(
-                Modifier.align(if (plaque) Alignment.CenterStart else Alignment.TopStart).padding(if (showStatus) 5.dp else 3.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
-                    .background(Color(0xB0101114)),
-                contentAlignment = Alignment.Center,
-            ) { Icon(AppIcons.Pages, "Бумажная книга", tint = Color.White, modifier = Modifier.size(if (small) 12.dp else 14.dp)) }
-        }
+        val chipBg = Color(0xD9100D0B)
         if (plaque) {
-            CoverProgress(book, inPages, small, Modifier.align(Alignment.TopCenter))
-            if (rating != null || book.favorite) {
-                val text = if (small) 9.5.sp else 10.5.sp
-                Row(
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .padding(horizontal = if (small) 4.dp else 6.dp, vertical = if (small) 4.dp else 6.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xD9100D0B))
-                        .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape)
-                        .heightIn(min = if (small) 18.dp else 22.dp)
-                        .padding(horizontal = if (small) 6.dp else 8.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                        if (rating != null) {
-                            Icon(AppIcons.StarFilled, "Оценка", tint = AppColors.Accent, modifier = Modifier.size(if (small) 9.dp else 11.dp))
-                            Text(ratingText(rating), color = AppColors.Accent, fontSize = text, lineHeight = text, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
-                        }
-                    }
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = book.favorite,
-                        enter = androidx.compose.animation.scaleIn(androidx.compose.animation.core.spring(dampingRatio = 0.4f, stiffness = 500f), initialScale = 0.2f) + androidx.compose.animation.fadeIn(Motion.fade(160)),
-                        exit = androidx.compose.animation.scaleOut(Motion.tween(160), targetScale = 0.4f) + androidx.compose.animation.fadeOut(Motion.fade(140)),
+            Row(
+                Modifier.align(Alignment.TopStart).fillMaxWidth().padding(if (small) 5.dp else 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (rating != null) {
+                    Row(
+                        Modifier
+                            .clip(CircleShape)
+                            .background(chipBg)
+                            .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape)
+                            .padding(horizontal = if (small) 6.dp else 8.dp, vertical = if (small) 2.dp else 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
                     ) {
-                        Icon(AppIcons.StarFilled, "Избранное", tint = StarYellow, modifier = Modifier.size(if (small) 11.dp else 13.dp))
+                        Icon(AppIcons.StarFilled, "Оценка", tint = AppColors.Accent, modifier = Modifier.size(if (small) 10.dp else 12.dp))
+                        Text(ratingText(rating), color = AppColors.Accent, fontSize = if (small) 10.sp else 11.5.sp, lineHeight = 13.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
                     }
                 }
+                if (book.paper) {
+                    Box(
+                        Modifier.size(if (small) 20.dp else 24.dp).clip(CircleShape).background(chipBg),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(AppIcons.Pages, "Бумажная книга", tint = Color.White, modifier = Modifier.size(if (small) 11.dp else 13.dp)) }
+                }
+                Spacer(Modifier.weight(1f))
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = book.favorite,
+                    enter = androidx.compose.animation.scaleIn(androidx.compose.animation.core.spring(dampingRatio = 0.4f, stiffness = 500f), initialScale = 0.2f) + androidx.compose.animation.fadeIn(Motion.fade(160)),
+                    exit = androidx.compose.animation.scaleOut(Motion.tween(160), targetScale = 0.4f) + androidx.compose.animation.fadeOut(Motion.fade(140)),
+                ) {
+                    Box(
+                        Modifier.size(if (small) 22.dp else 26.dp).clip(CircleShape).background(chipBg).border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(AppIcons.StarFilled, "Избранное", tint = StarYellow, modifier = Modifier.size(if (small) 12.dp else 14.dp)) }
+                }
             }
+            CoverProgress(book, inPages, small, Modifier.align(Alignment.BottomCenter))
         } else {
-            rating?.let { RatingBadge(it, Modifier.align(Alignment.BottomStart).padding(5.dp), small) }
-            if (book.favorite) {
+            if (book.paper) {
                 Box(
-                    Modifier.align(Alignment.TopEnd).padding(5.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
+                    Modifier.align(Alignment.TopStart).padding(if (showStatus) 5.dp else 3.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
                         .background(Color(0xB0101114)),
                     contentAlignment = Alignment.Center,
-                ) { Icon(AppIcons.StarFilled, "Избранное", tint = StarYellow, modifier = Modifier.size(if (small) 12.dp else 15.dp)) }
+                ) { Icon(AppIcons.Pages, "Бумажная книга", tint = Color.White, modifier = Modifier.size(if (small) 12.dp else 14.dp)) }
+            }
+            if (!bare) {
+                rating?.let { RatingBadge(it, Modifier.align(Alignment.BottomStart).padding(5.dp), small) }
+                if (book.favorite) {
+                    Box(
+                        Modifier.align(Alignment.TopEnd).padding(5.dp).size(if (small) 20.dp else 24.dp).clip(CircleShape)
+                            .background(Color(0xB0101114)),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(AppIcons.StarFilled, "Избранное", tint = StarYellow, modifier = Modifier.size(if (small) 12.dp else 15.dp)) }
+                }
             }
         }
     }
@@ -632,30 +643,68 @@ private fun BookCard(book: Book, coverFile: File?, small: Boolean, inPages: Bool
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun BookRow(book: Book, coverFile: File?, inPages: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
     val shape = appCorner(18)
-    Row(
+    val (label, color) = progressBadge(book, inPages)
+    val finished = book.status == ReadStatus.Finished
+    val fraction by animateFloatAsState(if (finished) 1f else book.progress.toFloat().coerceIn(0f, 1f), Motion.tween(700), label = "row-progress")
+    Box(
         Modifier
             .fillMaxWidth()
             .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onLongClick = onLongClick, onClick = onClick)
-            .fieldSurface(shape)
-            .padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+            .fieldSurface(shape),
     ) {
-        CoverBox(book, coverFile, Modifier.size(width = 46.dp, height = 68.dp).coverShadow(appCorner(6)).clip(appCorner(6)), small = true, showStatus = false)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(book.title, color = AppColors.Text, fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (book.author.isNotBlank()) {
-                Text(book.author, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ProgressLineWithLabel(book, inPages, false, Modifier.weight(1f))
-                StatusPill(book.status, false, framed = true)
+        Row(
+            Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            CoverBox(book, coverFile, Modifier.size(width = 52.dp, height = 78.dp).coverShadow(appCorner(6)).clip(appCorner(6)), small = true, showStatus = false, bare = true)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(book.title, color = AppColors.Text, fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (book.author.isNotBlank()) {
+                    Text(book.author, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                androidx.compose.foundation.layout.FlowRow(
+                    Modifier.padding(top = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    StatusPill(book.status, true, framed = true)
+                    book.rating?.takeIf { it > 0f }?.let { r ->
+                        RowChip {
+                            Icon(AppIcons.StarFilled, "Оценка", tint = AppColors.Accent, modifier = Modifier.size(12.dp))
+                            Text(ratingText(r), color = AppColors.Accent, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                        }
+                    }
+                    if (book.favorite) {
+                        RowChip { Icon(AppIcons.StarFilled, "Избранное", tint = StarYellow, modifier = Modifier.size(13.dp)) }
+                    }
+                    RowChip { Text(label, color = color, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1) }
+                }
             }
         }
+        Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(AppColors.Line)) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).background(color))
+        }
     }
+}
+
+@Composable
+private fun RowChip(content: @Composable () -> Unit) {
+    val shape = appCorner(10)
+    Row(
+        Modifier
+            .height(30.dp)
+            .clip(shape)
+            .background(AppColors.Line.copy(alpha = 0.35f))
+            .border(1.dp, AppColors.PanelBorder, shape)
+            .padding(horizontal = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) { content() }
 }
 
 @Composable
