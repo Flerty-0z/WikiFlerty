@@ -440,7 +440,7 @@ fun PickerSheet(
         ),
     ) {
         KeepHostBars()
-        Column(Modifier.padding(horizontal = 16.dp).navigationBarsPadding()) {
+        Column(Modifier.height(sheetHeight()).padding(horizontal = 16.dp).navigationBarsPadding().padding(bottom = 12.dp)) {
             SheetHeader(title, close)
             Spacer(Modifier.height(12.dp))
             if (searchable) {
@@ -467,8 +467,8 @@ fun PickerSheet(
                 )
                 Spacer(Modifier.height(8.dp))
             }
-            Column(Modifier.fillMaxWidth().fieldSurface(appCorner(18)).padding(horizontal = 14.dp, vertical = 6.dp)) {
-                LazyColumn(Modifier.heightIn(max = 520.dp), state = listState) {
+            Column(Modifier.weight(1f, fill = false).fillMaxWidth().fieldSurface(appCorner(18)).padding(horizontal = 14.dp, vertical = 6.dp)) {
+                LazyColumn(state = listState) {
                     items(shown, key = { it.id }) { option ->
                         Reveal {
                             SheetOptionRow(option, option.id == selectedId, icon) {

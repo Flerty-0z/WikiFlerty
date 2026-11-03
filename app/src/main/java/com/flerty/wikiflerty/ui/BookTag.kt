@@ -138,7 +138,7 @@ fun BookPickerSheet(
     AppSheet(onDismiss = onDismiss, title = title) {
         val close = sheetClose(onDismiss)
         androidx.compose.foundation.lazy.LazyColumn(
-            Modifier.heightIn(max = 520.dp),
+            Modifier.heightIn(max = sheetHeight()),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             item(key = "all") {

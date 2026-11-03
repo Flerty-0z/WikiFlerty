@@ -960,7 +960,7 @@ private fun SheetFrame(content: @Composable () -> Unit) {
             .widthIn(max = PanelMaxWidth)
             .fillMaxWidth()
             .imePadding()
-            .heightIn(max = 580.dp)
+            .height(com.flerty.wikiflerty.ui.sheetHeight())
             .shadow(20.dp, appCorner(28), ambientColor = Color(0x66503010), spotColor = Color(0x66503010))
             .clip(appCorner(28))
             .background(AppColors.Background)
