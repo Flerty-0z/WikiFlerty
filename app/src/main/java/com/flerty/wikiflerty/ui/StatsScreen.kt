@@ -109,8 +109,9 @@ object StatsCalc {
         today: LocalDate = LocalDate.now(),
         minMs: Long = STREAK_MS,
         frozen: Set<LocalDate> = com.flerty.wikiflerty.data.StreakFreezeStore.frozen,
+        minPages: Int = 0,
     ): Pair<Int, Int> {
-        val read = perDay.filterValues { it.ms >= minMs }.keys.toSet()
+        val read = perDay.filterValues { it.ms >= minMs && it.pages >= minPages }.keys.toSet()
         val ice = frozen.filter { !it.isAfter(today) }.toSet()
         var best = 0
         var run = 0
@@ -237,9 +238,10 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
         }
         revealItem(key = "goals") {
             Column(Modifier.fillMaxWidth().fieldSurface(appCorner(18))) {
-                GoalCard(prefs.dailyGoalMinutes, perDay, framed = false) { minutes -> app.libraryPrefs.update { it.copy(dailyGoalMinutes = minutes) } }
+                GoalCard(prefs.dailyGoalMinutes, prefs.dailyGoalPages, perDay, framed = false) { v, pages -> app.libraryPrefs.update { it.copy(dailyGoalMinutes = v, dailyGoalPages = pages) } }
                 Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(1.dp).background(AppColors.PanelBorder))
-                YearGoalCard(prefs.yearGoalBooks, finishedThisYear, framed = false) { n -> app.libraryPrefs.update { it.copy(yearGoalBooks = n) } }
+                val pagesThisYear = perDay.filterKeys { it.year == today.year }.values.sumOf { it.pages }
+                YearGoalCard(prefs.yearGoalBooks, prefs.yearGoalPages, finishedThisYear, pagesThisYear, framed = false) { n, pages -> app.libraryPrefs.update { it.copy(yearGoalBooks = n, yearGoalPages = pages) } }
             }
         }
         revealItem(key = "streak") { StreakCard(perDay, today) }
@@ -358,12 +360,13 @@ fun SmallCover(file: File?, modifier: Modifier, maxWidth: Int = 160) {
 val GoalChoices = listOf(0, 10, 20, 30, 45, 60)
 
 @Composable
-fun GoalRing(todayMs: Long, goalMinutes: Int, size: androidx.compose.ui.unit.Dp, showText: Boolean = true) {
-    val target = if (goalMinutes > 0) (todayMs / 60_000f / goalMinutes).coerceIn(0f, 1f) else 0f
+fun GoalRing(todayMs: Long, goalMinutes: Int, size: androidx.compose.ui.unit.Dp, showText: Boolean = true, pages: Int? = null) {
+    val amount = pages ?: (todayMs / 60_000).toInt()
+    val target = if (goalMinutes > 0) (amount.toFloat() / goalMinutes).coerceIn(0f, 1f) else 0f
     val sweep = remember { androidx.compose.animation.core.Animatable(0f) }
     LaunchedEffect(target) { sweep.animateTo(target, Motion.tween(900, 120, GrowEasing)) }
     val fraction = sweep.value
-    val minutes = animatedCount((todayMs / 60_000).toInt())
+    val minutes = animatedCount(amount)
     val accent = AppColors.Accent
     val track = AppColors.Line
     Box(Modifier.size(size), contentAlignment = Alignment.Center) {
@@ -382,16 +385,18 @@ fun GoalRing(todayMs: Long, goalMinutes: Int, size: androidx.compose.ui.unit.Dp,
             val small = with(density) { (size * 0.13f).toSp() }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("$minutes", color = AppColors.Text, fontSize = big, lineHeight = big, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                if (size >= 64.dp) Text("мин", color = AppColors.Faint, fontSize = small, lineHeight = small, maxLines = 1)
+                if (size >= 64.dp) Text(if (pages != null) "стр" else "мин", color = AppColors.Faint, fontSize = small, lineHeight = small, maxLines = 1)
             }
         }
     }
 }
 
 @Composable
-private fun GoalCard(goalMinutes: Int, perDay: Map<LocalDate, DayEntry>, framed: Boolean = true, onGoal: (Int) -> Unit) {
+private fun GoalCard(goalMinutes: Int, inPages: Boolean, perDay: Map<LocalDate, DayEntry>, framed: Boolean = true, onGoal: (Int, Boolean) -> Unit) {
     val today = LocalDate.now()
     val todayMs = perDay[today]?.ms ?: 0L
+    val todayPages = perDay[today]?.pages ?: 0
+    val unit = if (inPages) "стр." else "мин"
     var lastGoal by remember { mutableStateOf(goalMinutes) }
     if (goalMinutes > 0) lastGoal = goalMinutes
     Column(
@@ -399,20 +404,21 @@ private fun GoalCard(goalMinutes: Int, perDay: Map<LocalDate, DayEntry>, framed:
     ) {
         GoalReveal(goalMinutes > 0) {
             val goal = lastGoal
-            val done = todayMs >= goal * 60_000L
-            val (streak, _) = StatsCalc.streaks(perDay, today, minMs = goal * 60_000L)
+            val done = if (inPages) todayPages >= goal else todayMs >= goal * 60_000L
+            val (streak, _) = if (inPages) StatsCalc.streaks(perDay, today, minMs = 0L, minPages = goal) else StatsCalc.streaks(perDay, today, minMs = goal * 60_000L)
+            val left = goal - if (inPages) todayPages else (todayMs / 60_000).toInt()
             Row(
                 Modifier.padding(top = 6.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Box(rememberStagger(0)) { GoalRing(todayMs, goal, 76.dp) }
+                Box(rememberStagger(0)) { GoalRing(todayMs, goal, 76.dp, pages = if (inPages) todayPages else null) }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     RollingText(
-                        if (done) "Цель на сегодня выполнена" else "Ещё ${goal - (todayMs / 60_000).toInt()} мин до цели",
+                        if (done) "Цель на сегодня выполнена" else "Ещё $left $unit до цели",
                         rememberStagger(1),
                     ) { Text(it, color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                    RollingText("Цель: $goal мин в день", rememberStagger(2)) {
+                    RollingText("Цель: $goal $unit в день", rememberStagger(2)) {
                         Text(it, color = AppColors.Muted, fontSize = 13.sp, maxLines = 1)
                     }
                     if (streak > 0) {
@@ -425,16 +431,20 @@ private fun GoalCard(goalMinutes: Int, perDay: Map<LocalDate, DayEntry>, framed:
             }
         }
         var custom by remember { mutableStateOf(false) }
-        ValueRow("Цель на день", if (goalMinutes > 0) "$goalMinutes мин" else "Без цели", AppIcons.Target) { custom = true }
+        ValueRow("Цель на день", if (goalMinutes > 0) "$goalMinutes $unit" else "Без цели", AppIcons.Target) { custom = true }
         if (custom) {
+            val units = listOf(InputUnit("мин", 1..1440, 25), InputUnit("стр", 1..2000, 20))
             NumberInputSheet(
                 "Цель на день",
                 "мин",
-                goalMinutes.takeIf { it > 0 } ?: 25,
+                goalMinutes.takeIf { it > 0 } ?: units[if (inPages) 1 else 0].default,
                 1..1440,
                 onDismiss = { custom = false },
-                onClear = if (goalMinutes > 0) ({ onGoal(0) }) else null,
-            ) { onGoal(it) }
+                onClear = if (goalMinutes > 0) ({ onGoal(0, inPages) }) else null,
+                units = units,
+                unit = if (inPages) 1 else 0,
+                onDoneUnit = { v, u -> onGoal(v, u == 1) },
+            ) { }
         }
     }
 }

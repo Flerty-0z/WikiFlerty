@@ -66,7 +66,12 @@ class ReadingWidget : AppWidgetProvider() {
             val todayMs = app.stats.days.value[LocalDate.now().toString()].orEmpty().values.sumOf { it.ms }
             val goal = app.libraryPrefs.prefs.value.dailyGoalMinutes
             val minutes = todayMs / 60_000
-            val today = if (goal > 0) "Сегодня $minutes/$goal мин" else "Сегодня $minutes мин"
+            val pagesToday = app.stats.days.value[LocalDate.now().toString()].orEmpty().values.sumOf { it.pages }
+            val today = when {
+                goal > 0 && app.libraryPrefs.prefs.value.dailyGoalPages -> "Сегодня $pagesToday/$goal стр."
+                goal > 0 -> "Сегодня $minutes/$goal мин"
+                else -> "Сегодня $minutes мин"
+            }
 
             if (book == null) {
                 views.setTextViewText(R.id.widget_label, "WikiFlerty")

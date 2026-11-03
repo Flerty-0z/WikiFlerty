@@ -551,12 +551,27 @@ fun SheetHeader(title: String, onClose: () -> Unit) {
 
 const val CUSTOM_ID = "__custom__"
 
+data class InputUnit(val label: String, val range: IntRange, val default: Int)
+
 @Composable
-fun NumberInputSheet(title: String, suffix: String, initial: Int, range: IntRange, onDismiss: () -> Unit, onClear: (() -> Unit)? = null, onDone: (Int) -> Unit) {
+fun NumberInputSheet(
+    title: String,
+    suffix: String,
+    initial: Int,
+    range: IntRange,
+    onDismiss: () -> Unit,
+    onClear: (() -> Unit)? = null,
+    units: List<InputUnit>? = null,
+    unit: Int = 0,
+    onDoneUnit: ((Int, Int) -> Unit)? = null,
+    onDone: (Int) -> Unit,
+) {
     var text by remember { mutableStateOf(initial.toString()) }
+    var unitIndex by remember { mutableStateOf(unit) }
     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
     androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     val value = text.toIntOrNull()
+    val range = units?.getOrNull(unitIndex)?.range ?: range
     val ok = value != null && value in range
     AppSheet(onDismiss, title = title) {
         val close = sheetClose(onDismiss)
@@ -573,7 +588,35 @@ fun NumberInputSheet(title: String, suffix: String, initial: Int, range: IntRang
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                 modifier = Modifier.weight(1f).focusRequester(focus),
             )
-            Text(suffix, color = AppColors.Muted, fontSize = 17.sp, maxLines = 1)
+            if (units == null) {
+                Text(suffix, color = AppColors.Muted, fontSize = 17.sp, maxLines = 1)
+            } else {
+                Row(
+                    Modifier.clip(appCorner(12)).background(AppColors.Line.copy(alpha = 0.35f)).border(1.dp, AppColors.PanelBorder, appCorner(12)).padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    units.forEachIndexed { i, u ->
+                        val selected = i == unitIndex
+                        val bg by animateColorAsState(if (selected) AppColors.Accent else Color.Transparent, label = "unit")
+                        Box(
+                            Modifier
+                                .height(36.dp)
+                                .widthIn(min = 52.dp)
+                                .liveClick(appCorner(9), sound = FeedbackSound.Toggle) {
+                                    if (i != unitIndex) {
+                                        val old = units[unitIndex]
+                                        val v = text.toIntOrNull()
+                                        if (v == null || v == old.default || v !in u.range) text = u.default.toString()
+                                        unitIndex = i
+                                    }
+                                }
+                                .background(bg, appCorner(9))
+                                .padding(horizontal = 10.dp),
+                            contentAlignment = Alignment.Center,
+                        ) { Text(u.label, color = if (selected) AppColors.OnAccent else AppColors.Muted, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
+                    }
+                }
+            }
         }
         Text(
             if (ok || text.isEmpty()) "От ${range.first} до ${range.last}" else "Нужно число от ${range.first} до ${range.last}",
@@ -587,7 +630,7 @@ fun NumberInputSheet(title: String, suffix: String, initial: Int, range: IntRang
                 .fillMaxWidth()
                 .height(52.dp)
                 .liveClick(shape, sound = FeedbackSound.Toggle, enabled = ok) {
-                    onDone(value!!)
+                    if (onDoneUnit != null) onDoneUnit(value!!, unitIndex) else onDone(value!!)
                     close()
                 }
                 .then(if (ok) Modifier.accentHighlight(shape) else Modifier.border(1.dp, AppColors.Line, shape)),

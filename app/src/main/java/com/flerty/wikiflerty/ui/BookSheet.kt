@@ -445,7 +445,7 @@ private fun DeleteRow(label: String, onDelete: () -> Unit) {
             .liveClick(shape, sound = FeedbackSound.Close) { onDelete() }
             .border(1.dp, Danger.copy(alpha = 0.45f), shape),
         contentAlignment = Alignment.Center,
-    ) { Text(label, color = Danger, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+    ) { Icon(AppIcons.Trash, label, tint = Danger, modifier = Modifier.size(22.dp)) }
 }
 
 @Composable

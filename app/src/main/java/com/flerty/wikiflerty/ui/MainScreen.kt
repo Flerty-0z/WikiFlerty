@@ -139,8 +139,10 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
     val statsDays by app.stats.days.collectAsStateWithLifecycle()
     val libraryPrefsState by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
     val todayMinutes = (statsDays[java.time.LocalDate.now().toString()]?.values?.sumOf { it.ms } ?: 0L) / 60_000
+    val todayPagesRead = statsDays[java.time.LocalDate.now().toString()]?.values?.sumOf { it.pages } ?: 0
     val greeting = if (libraryPrefsState.dailyGoalMinutes > 0) {
-        "Привет! Сегодня $todayMinutes/${libraryPrefsState.dailyGoalMinutes} мин"
+        if (libraryPrefsState.dailyGoalPages) "Привет! Сегодня $todayPagesRead/${libraryPrefsState.dailyGoalMinutes} стр."
+        else "Привет! Сегодня $todayMinutes/${libraryPrefsState.dailyGoalMinutes} мин"
     } else {
         "Привет! Сегодня $todayMinutes мин"
     }
@@ -326,6 +328,8 @@ private fun DrawerTodayCard() {
     val today = java.time.LocalDate.now()
     val todayMs = perDay[today]?.ms ?: 0L
     val goal = prefs.dailyGoalMinutes
+    val goalPages = prefs.dailyGoalPages
+    val todayPages = perDay[today]?.pages ?: 0
     val (streak, _) = StatsCalc.streaks(perDay, today)
     val shape = appCorner(18)
     Row(
@@ -340,7 +344,7 @@ private fun DrawerTodayCard() {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (goal > 0) {
-            GoalRing(todayMs, goal, 46.dp)
+            GoalRing(todayMs, goal, 46.dp, pages = if (goalPages) todayPages else null)
         } else {
             Box(Modifier.size(46.dp).clip(CircleShape).background(AppColors.Accent.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
                 Icon(AppIcons.Clock, null, tint = AppColors.Accent, modifier = Modifier.size(22.dp))
@@ -348,7 +352,11 @@ private fun DrawerTodayCard() {
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                if (goal > 0) "Сегодня ${todayMs / 60_000}/$goal мин" else "Сегодня ${StatsCalc.duration(todayMs)}",
+                when {
+                    goal > 0 && goalPages -> "Сегодня $todayPages/$goal стр."
+                    goal > 0 -> "Сегодня ${todayMs / 60_000}/$goal мин"
+                    else -> "Сегодня ${StatsCalc.duration(todayMs)}"
+                },
                 color = AppColors.Text,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,

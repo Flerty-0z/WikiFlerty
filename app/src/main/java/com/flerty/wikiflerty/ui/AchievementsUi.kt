@@ -208,8 +208,10 @@ private fun AchievementBadge(
 val YearGoalChoices = listOf(0, 5, 8, 12, 16, 20)
 
 @Composable
-fun YearGoalCard(goal: Int, finished: Int, framed: Boolean = true, onGoal: (Int) -> Unit) {
+fun YearGoalCard(goal: Int, inPages: Boolean, finishedBooks: Int, pagesRead: Int, framed: Boolean = true, onGoal: (Int, Boolean) -> Unit) {
     val today = LocalDate.now()
+    val finished = if (inPages) pagesRead else finishedBooks
+    fun word(n: Int) = if (inPages) "стр." else StatsCalc.plural(n, "книга", "книги", "книг")
     var lastGoal by remember { mutableStateOf(goal) }
     if (goal > 0) lastGoal = goal
     Column(Modifier.fillMaxWidth().then(if (framed) Modifier.fieldSurface(appCorner(18)) else Modifier).animateContentSize(Motion.tween(380)).padding(horizontal = 14.dp, vertical = 10.dp)) {
@@ -220,8 +222,8 @@ fun YearGoalCard(goal: Int, finished: Int, framed: Boolean = true, onGoal: (Int)
             val diff = floor(finished - expected).toInt()
             val pace = when {
                 finished >= goal -> "Цель на год выполнена"
-                diff >= 1 -> "Опережаешь план на $diff"
-                finished + 1 < expected -> "Отстаёшь от плана на ${(expected - finished).toInt()}"
+                diff >= 1 -> "Опережаешь план на $diff" + if (inPages) " стр." else ""
+                finished + 1 < expected -> "Отстаёшь от плана на ${(expected - finished).toInt()}" + if (inPages) " стр." else ""
                 else -> "Идёшь по плану"
             }
             Row(
@@ -231,7 +233,7 @@ fun YearGoalCard(goal: Int, finished: Int, framed: Boolean = true, onGoal: (Int)
             ) {
                 Box(rememberStagger(0)) { YearRing(fraction, finished, goal, 76.dp) }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    RollingText("Прочитано $finished/$goal", rememberStagger(1)) {
+                    RollingText("Прочитано $finished/$goal" + if (inPages) " стр." else "", rememberStagger(1)) {
                         Text(it, color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     RollingText(pace, rememberStagger(2)) {
@@ -239,7 +241,7 @@ fun YearGoalCard(goal: Int, finished: Int, framed: Boolean = true, onGoal: (Int)
                     }
                     if (finished < goal) {
                         val left = goal - finished
-                        RollingText("Ещё $left " + StatsCalc.plural(left, "книга", "книги", "книг") + " до конца года", rememberStagger(3)) {
+                        RollingText("Ещё $left " + word(left) + " до конца года", rememberStagger(3)) {
                             Text(it, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
@@ -247,16 +249,20 @@ fun YearGoalCard(goal: Int, finished: Int, framed: Boolean = true, onGoal: (Int)
             }
         }
         var custom by remember { mutableStateOf(false) }
-        ValueRow("Цель на год", if (goal > 0) "$goal " + StatsCalc.plural(goal, "книга", "книги", "книг") else "Без цели", AppIcons.Trophy) { custom = true }
+        ValueRow("Цель на год", if (goal > 0) "$goal " + word(goal) else "Без цели", AppIcons.Trophy) { custom = true }
         if (custom) {
+            val units = listOf(InputUnit("книг", 1..1000, 10), InputUnit("стр", 1..100000, 3000))
             NumberInputSheet(
                 "Цель на год",
                 "книг",
-                goal.takeIf { it > 0 } ?: 10,
+                goal.takeIf { it > 0 } ?: units[if (inPages) 1 else 0].default,
                 1..1000,
                 onDismiss = { custom = false },
-                onClear = if (goal > 0) ({ onGoal(0) }) else null,
-            ) { onGoal(it) }
+                onClear = if (goal > 0) ({ onGoal(0, inPages) }) else null,
+                units = units,
+                unit = if (inPages) 1 else 0,
+                onDoneUnit = { v, u -> onGoal(v, u == 1) },
+            ) { }
         }
     }
 }
@@ -290,7 +296,7 @@ private fun YearRing(fraction: Float, finished: Int, goal: Int, size: Dp) {
             }
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("$shownFinished", color = AppColors.Text, fontSize = 21.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            FitText("$shownFinished", AppColors.Text, 21.sp, Modifier.padding(horizontal = 9.dp), weight = FontWeight.SemiBold)
             Text("/$shownGoal", color = AppColors.Faint, fontSize = 10.sp, lineHeight = 10.sp, maxLines = 1)
         }
     }
