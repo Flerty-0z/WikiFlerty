@@ -283,56 +283,35 @@ fun PaperMain(book: Book, onEdit: () -> Unit) {
         )
     }
 
-    SettingsGroup("Сеансы") {
-        run {
-            val total = book.positions.coerceAtLeast(1)
-            val fraction by animateFloatAsState((current.toFloat() / total).coerceIn(0f, 1f), Motion.tween(800), label = "paper")
-            var grew by remember { mutableIntStateOf(0) }
-            var lastPage by remember { mutableIntStateOf(current) }
-            LaunchedEffect(current) {
-                if (current > lastPage) grew++
-                lastPage = current
+    TabbedFrame("Сеансы", icon = AppIcons.Clock, inset = false) {
+        val total = book.positions.coerceAtLeast(1)
+        val fraction by animateFloatAsState((current.toFloat() / total).coerceIn(0f, 1f), Motion.tween(800), label = "paper")
+        var grew by remember { mutableIntStateOf(0) }
+        var lastPage by remember { mutableIntStateOf(current) }
+        LaunchedEffect(current) {
+            if (current > lastPage) grew++
+            lastPage = current
+        }
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            BookProgressBlock(current, total, fraction, grew, pace)
+            AddSessionCard { form = SessionForm(null, current, current, System.currentTimeMillis(), 0L, fromStopwatch = false) }
+            val shown = if (showAll) sessions else sessions.take(6)
+            val groups = shown.groupBy { it.day }.toList()
+            groups.forEachIndexed { index, (day, list) ->
+                androidx.compose.runtime.key(day) {
+                    DayCard(day, list, total, Modifier.riseIn(day.toString(), index)) { s ->
+                        form = SessionForm(s, s.fromPage, s.toPage, s.startAt, s.durationMs, fromStopwatch = false)
+                    }
+                }
             }
-            Row(Modifier.padding(vertical = 10.dp).height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(Modifier.width(34.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        "${(fraction * 100).toInt()}%",
-                        color = AppColors.Accent,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        maxLines = 1,
-                        modifier = Modifier.sparkBurst(grew, listOf(AppColors.AccentLight, AppColors.Accent, StarYellow), count = 10, reach = 1.4f),
-                    )
-                    Box(Modifier.weight(1f).width(12.dp).clip(CircleShape).background(AppColors.Line), contentAlignment = Alignment.BottomCenter) {
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .fillMaxHeight(fraction)
-                                .clip(CircleShape)
-                                .background(Brush.verticalGradient(listOf(AppColors.AccentLight, AppColors.Accent))),
-                        )
-                    }
-                    Icon(AppIcons.Book, null, tint = AppColors.Faint, modifier = Modifier.size(16.dp))
-                }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AddSessionCard { form = SessionForm(null, current, current, System.currentTimeMillis(), 0L, fromStopwatch = false) }
-                    (if (showAll) sessions else sessions.take(6)).forEachIndexed { index, s ->
-                        androidx.compose.runtime.key(s.id) {
-                        SessionCard(s, total, Modifier.riseIn(s.id, index)) {
-                            form = SessionForm(s, s.fromPage, s.toPage, s.startAt, s.durationMs, fromStopwatch = false)
-                        }
-                        }
-                    }
-                    if (sessions.size > 6) {
-                        Text(
-                            if (showAll) "Свернуть" else "Показать все · ${sessions.size}",
-                            color = AppColors.Accent,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.liveClick(appCorner(8), sound = FeedbackSound.Toggle) { showAll = !showAll }.padding(vertical = 4.dp),
-                        )
-                    }
-                }
+            if (sessions.size > 6) {
+                Text(
+                    if (showAll) "Свернуть" else "Показать все · ${sessions.size}",
+                    color = AppColors.Accent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.liveClick(appCorner(8), sound = FeedbackSound.Toggle) { showAll = !showAll }.padding(vertical = 4.dp),
+                )
             }
         }
     }
@@ -405,44 +384,119 @@ internal fun RollingClock(text: String, modifier: Modifier = Modifier, size: and
 }
 
 @Composable
-private fun SessionCard(s: PaperSession, total: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val shape = appCorner(16)
-    Column(
-        modifier.fillMaxWidth().liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick).fieldSurface(shape).padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(3.dp),
+private fun BookProgressBlock(current: Int, total: Int, fraction: Float, grew: Int, pace: com.flerty.wikiflerty.data.PaperPace) {
+    val done = current >= total
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            FitText("Прогресс книги", AppColors.Muted, 12.5.sp, Modifier.weight(1f), weight = FontWeight.SemiBold)
+            Text(
+                "$current/$total · ${(fraction * 100).toInt()}%",
+                color = AppColors.Accent,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+                modifier = Modifier.sparkBurst(grew, listOf(AppColors.AccentLight, AppColors.Accent, StarYellow), count = 10, reach = 1.4f),
+            )
+        }
+        Box(Modifier.fillMaxWidth().height(10.dp).clip(CircleShape).background(AppColors.Line)) {
+            Box(
+                Modifier
+                    .fillMaxWidth(fraction)
+                    .fillMaxHeight()
+                    .clip(CircleShape)
+                    .background(Brush.horizontalGradient(listOf(AppColors.AccentLight, AppColors.Accent))),
+            )
+        }
+        if (done) {
+            StatusPill(com.flerty.wikiflerty.data.ReadStatus.Finished, small = true, framed = true)
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                SessionPill(AppIcons.Pages, "ещё ${total - current} ${pagesWord(total - current)}")
+                pace.leftMs?.let { SessionPill(AppIcons.Clock, "≈ " + StatsCalc.duration(it)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SessionPill(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, modifier: Modifier = Modifier) {
+    val tint = AppColors.Accent
+    val shape = appCorner(10)
+    Row(
+        modifier
+            .clip(shape)
+            .background(AppColors.Line.copy(alpha = 0.35f))
+            .border(1.dp, AppColors.PanelBorder, shape)
+            .padding(start = 4.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FitText("+${s.pages} ${pagesWord(s.pages)}", AppColors.Text, 15.sp, Modifier.weight(1f), weight = FontWeight.ExtraBold)
-            if (s.toPage >= total) {
-                StatusPill(com.flerty.wikiflerty.data.ReadStatus.Finished, small = true, framed = true)
+        Box(
+            Modifier
+                .size(20.dp)
+                .clip(appCorner(7))
+                .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.26f), tint.copy(alpha = 0.08f))))
+                .border(1.dp, tint.copy(alpha = 0.18f), appCorner(7)),
+            contentAlignment = Alignment.Center,
+        ) { Icon(icon, null, tint = tint, modifier = Modifier.size(11.dp)) }
+        FitText(text, AppColors.Text, 11.5.sp, weight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun DayCard(day: LocalDate, list: List<PaperSession>, total: Int, modifier: Modifier = Modifier, onEdit: (PaperSession) -> Unit) {
+    val pages = list.sumOf { it.pages }
+    val ms = list.sumOf { it.durationMs }
+    Column(modifier.fillMaxWidth().fieldSurface(appCorner(16))) {
+        Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 10.dp, top = 9.dp, bottom = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+            FitText(dayTitle(day), AppColors.Text, 14.sp, Modifier.weight(1f).padding(end = 8.dp), weight = FontWeight.ExtraBold)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                SessionPill(AppIcons.Pages, "+$pages стр.")
+                if (ms >= 60_000) SessionPill(AppIcons.Clock, StatsCalc.duration(ms))
             }
         }
-        FitText("${s.toPage}/$total · ${(s.toPage * 100 / total.coerceAtLeast(1))}%", AppColors.Accent, 12.5.sp, weight = FontWeight.SemiBold)
-        FitText(SessionFormat.format(Instant.ofEpochMilli(s.startAt).atZone(ZoneId.systemDefault())), AppColors.Faint, 12.sp)
-        val chips = listOfNotNull(
-            if (s.durationMs >= 60_000) AppIcons.Clock to StatsCalc.duration(s.durationMs) else null,
-            if (s.durationMs >= 60_000 && s.pages > 0) AppIcons.Speed to "${(s.pages / (s.durationMs / 3_600_000.0)).toInt()} стр/ч" else null,
-        )
-        if (chips.isNotEmpty()) {
-            Row(Modifier.padding(top = 3.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                chips.forEach { (icon, text) ->
-                    Row(
-                        Modifier
-                            .weight(1f, fill = false)
-                            .clip(appCorner(10))
-                            .background(AppColors.Line.copy(alpha = 0.35f))
-                            .border(1.dp, AppColors.PanelBorder, appCorner(10))
-                            .padding(horizontal = 7.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(12.dp))
-                        FitText(text, AppColors.Muted, 11.5.sp)
-                    }
-                }
-            }
+        list.forEach { s ->
+            Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.PanelBorder))
+            SessionRow(s, total) { onEdit(s) }
         }
-        if (s.note.isNotBlank()) Text("«${s.note}»", color = AppColors.Muted, fontSize = 13.sp, fontStyle = FontStyle.Italic, lineHeight = 18.sp)
+    }
+}
+
+@Composable
+private fun SessionRow(s: PaperSession, total: Int, onClick: () -> Unit) {
+    val time = Instant.ofEpochMilli(s.startAt).atZone(ZoneId.systemDefault())
+    val speed = if (s.durationMs >= 60_000 && s.pages > 0) "${(s.pages / (s.durationMs / 3_600_000.0)).toInt()} стр/ч" else null
+    val sub = listOfNotNull(speed, s.note.takeIf { it.isNotBlank() }?.let { "«$it»" }).joinToString(" · ")
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .liveClick(appCorner(0), sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(TimeFormat.format(time), color = AppColors.Faint, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            FitText("Стр. ${s.fromPage} → ${s.toPage}", AppColors.Text, 14.sp, weight = FontWeight.Bold)
+            if (sub.isNotEmpty()) Text(sub, color = AppColors.Faint, fontSize = 11.5.sp, lineHeight = 15.sp, maxLines = 2)
+        }
+        if (s.toPage >= total) {
+            StatusPill(com.flerty.wikiflerty.data.ReadStatus.Finished, small = true, framed = true)
+        } else {
+            Text("${s.toPage * 100 / total.coerceAtLeast(1)}%", color = AppColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+        }
+    }
+}
+
+private val TimeFormat = DateTimeFormatter.ofPattern("HH:mm", Locale("ru"))
+private val DayFullFormat = DateTimeFormatter.ofPattern("d MMMM", Locale("ru"))
+
+private fun dayTitle(d: LocalDate): String {
+    val today = LocalDate.now()
+    return when (d) {
+        today -> "Сегодня"
+        today.minusDays(1) -> "Вчера"
+        else -> DayFullFormat.format(d)
     }
 }
 
