@@ -181,6 +181,13 @@ class LibraryRepository(
         }
     }
 
+    suspend fun setCover(bookId: String, cover: Uri) {
+        val name = withContext(Dispatchers.IO) { saveCover(bookId, cover) } ?: return
+        val old = _books.value.firstOrNull { it.id == bookId }?.let { coverFile(it) }
+        editMeta(bookId) { it.copy(coverFileName = name) }
+        withContext(Dispatchers.IO) { old?.takeIf { it.name != name }?.delete() }
+    }
+
     suspend fun setPaperPage(bookId: String, page: Int) {
         val now = System.currentTimeMillis()
         editMeta(bookId) { b ->

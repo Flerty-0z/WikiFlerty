@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.graphics.drawOutline
 
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 
 import androidx.compose.ui.draw.drawBehind
 
@@ -661,7 +662,10 @@ private fun BookRow(book: Book, coverFile: File?, inPages: Boolean, onClick: () 
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            CoverBox(book, coverFile, Modifier.size(width = 52.dp, height = 78.dp).coverShadow(appCorner(6)).clip(appCorner(6)), small = true, showStatus = false, bare = true)
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                CoverBox(book, coverFile, Modifier.size(width = 52.dp, height = 78.dp).coverShadow(appCorner(6)).clip(appCorner(6)), small = true, showStatus = false, bare = true)
+                FitText(label, color, 11.5.sp, Modifier.width(56.dp).wrapContentWidth(Alignment.CenterHorizontally), weight = FontWeight.ExtraBold)
+            }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(book.title, color = AppColors.Text, fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (book.author.isNotBlank()) {
@@ -682,7 +686,6 @@ private fun BookRow(book: Book, coverFile: File?, inPages: Boolean, onClick: () 
                     if (book.favorite) {
                         RowChip { Icon(AppIcons.StarFilled, "Избранное", tint = StarYellow, modifier = Modifier.size(13.dp)) }
                     }
-                    RowChip { Text(label, color = color, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1) }
                 }
             }
         }

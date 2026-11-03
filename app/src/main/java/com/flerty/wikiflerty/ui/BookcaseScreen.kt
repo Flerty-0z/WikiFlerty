@@ -325,7 +325,6 @@ private fun AddSlot(onClick: () -> Unit) {
 private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
     val light = AppStyle.light
     val wood = if (light) listOf(Color(0xFFC9A375), Color(0xFFB08656), Color(0xFF8E6538)) else listOf(Color(0xFFA8743F), Color(0xFF8A5A30), Color(0xFF6B4322))
-    val engrave = if (light) Color(0xCC4A2E12) else Color(0xD9341F0E)
     Column(Modifier.fillMaxWidth()) {
         Box(
             Modifier
@@ -350,13 +349,9 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
         ) {
             if (name != null) Text(
                 name,
-                style = TextStyle(
-                    color = engrave,
-                    fontSize = 10.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.2.sp,
-                    shadow = Shadow(Color(0x59FFE6BE), Offset(0f, 2f), 0f),
-                ),
+                color = if (AppStyle.light) Color(0xFF3A2612) else Color(0xFFF7EBD8),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = 24.dp),

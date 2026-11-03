@@ -286,7 +286,22 @@ fun BookSheet(
     AppSheet(onDismiss) {
         val close = sheetClose(onDismiss)
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            SmallCover(coverFile, Modifier.size(width = 84.dp, height = 126.dp))
+            val pickCover = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
+                if (uri != null) app.appScope.launch { app.library.setCover(book.id, uri) }
+            }
+            Box(Modifier.size(width = 84.dp, height = 126.dp)) {
+                SmallCover(coverFile, Modifier.matchParentSize())
+                Box(
+                    Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(5.dp)
+                        .size(28.dp)
+                        .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.85f) { pickCover.launch("image/*") }
+                        .background(Color(0xD9100D0B))
+                        .border(1.dp, Color.White.copy(alpha = 0.14f), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(AppIcons.Pencil, "Сменить обложку", tint = Color.White, modifier = Modifier.size(14.dp)) }
+            }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(book.title, color = AppColors.Text, fontSize = 18.sp, lineHeight = 23.sp, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 if (book.author.isNotBlank()) Text(book.author, color = AppColors.Muted, fontSize = 13.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
