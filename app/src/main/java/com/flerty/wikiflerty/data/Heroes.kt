@@ -86,6 +86,67 @@ class HeroStore(private val context: Context) {
         chatFile(bookId, heroId).delete()
     }
 
+    fun books(): List<String> = dir.listFiles()
+        ?.filter { it.name.endsWith(".json") && !it.name.endsWith("_chat.json") }
+        ?.map { it.name.removeSuffix(".json") }
+        .orEmpty()
+
+    fun snapshot(bookId: String): JSONObject? {
+        val heroes = load(bookId)
+        if (heroes.isEmpty()) return null
+        val chats = JSONObject()
+        heroes.forEach { h ->
+            val chat = loadChat(bookId, h.id)
+            if (chat.isNotEmpty()) chats.put(h.id, messagesJson(chat))
+        }
+        val authorChat = loadChat(bookId, Hero.AUTHOR_ID)
+        if (authorChat.isNotEmpty()) chats.put(Hero.AUTHOR_ID, messagesJson(authorChat))
+        return JSONObject().put("heroes", JSONArray().apply { heroes.forEach { put(it.toJson()) } }).put("chats", chats)
+    }
+
+    fun merge(bookId: String, data: JSONObject): Int {
+        val incoming = data.optJSONArray("heroes")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it)?.let(Hero::fromJson) } }.orEmpty()
+        val chats = data.optJSONObject("chats") ?: JSONObject()
+        val local = load(bookId).toMutableList()
+        var changed = 0
+        val idMap = mutableMapOf<String, String>()
+        incoming.filter { it.name.isNotBlank() }.forEach { h ->
+            val same = local.firstOrNull { it.id == h.id || it.name.equals(h.name, true) }
+            if (same == null) {
+                local.add(h)
+                idMap[h.id] = h.id
+                changed++
+            } else {
+                idMap[h.id] = same.id
+            }
+        }
+        if (changed > 0) save(bookId, local)
+        val ids = chats.keys().asSequence().toList()
+        ids.forEach { remoteId ->
+            val localId = if (remoteId == Hero.AUTHOR_ID) Hero.AUTHOR_ID else idMap[remoteId] ?: return@forEach
+            val remote = messagesFrom(chats.optJSONArray(remoteId))
+            if (remote.size > loadChat(bookId, localId).size) {
+                saveChat(bookId, localId, remote)
+                changed++
+            }
+        }
+        return changed
+    }
+
+    fun rename(from: String, to: String) {
+        val data = snapshot(from) ?: return
+        merge(to, data)
+        load(from).forEach { h ->
+            val old = avatar(from, h.id)
+            val target = load(to).firstOrNull { it.id == h.id || it.name.equals(h.name, true) }?.id ?: h.id
+            if (old.exists() && !avatar(to, target).exists()) old.copyTo(avatar(to, target))
+            old.delete()
+            chatFile(from, h.id).delete()
+        }
+        chatFile(from, Hero.AUTHOR_ID).delete()
+        file(from).delete()
+    }
+
     companion object {
         fun parse(raw: String): List<Hero> = runCatching {
             val start = raw.indexOf('[')

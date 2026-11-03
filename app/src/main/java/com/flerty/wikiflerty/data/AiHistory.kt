@@ -27,6 +27,7 @@ data class AiRecord(
         put("createdAt", createdAt)
         put("updatedAt", updatedAt)
         put("messages", messagesJson(messages))
+        put("book", bookId)
     }
 
     companion object {
@@ -101,5 +102,30 @@ class AiHistoryStore(context: Context) {
     @Synchronized
     fun clear(bookId: String) {
         file(bookId).delete()
+    }
+
+    @Synchronized
+    fun merge(bookId: String, incoming: List<AiRecord>): Int {
+        if (incoming.isEmpty()) return 0
+        val local = load(bookId).associateBy { it.id }.toMutableMap()
+        var changed = 0
+        incoming.forEach { r ->
+            val mine = local[r.id]
+            if (mine == null || r.updatedAt > mine.updatedAt) {
+                local[r.id] = r.copy(bookId = bookId)
+                changed++
+            }
+        }
+        if (changed > 0) write(bookId, local.values.toList())
+        return changed
+    }
+
+    @Synchronized
+    fun rename(from: String, to: String) {
+        val src = file(from)
+        if (!src.exists()) return
+        val moved = load(from).map { it.copy(bookId = to) }
+        src.delete()
+        merge(to, moved)
     }
 }

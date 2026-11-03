@@ -60,6 +60,10 @@ class App : Application() {
 
     val paper: com.flerty.wikiflerty.data.PaperSessionStore by lazy { com.flerty.wikiflerty.data.PaperSessionStore(this) }
 
+    val aiHistory by lazy { com.flerty.wikiflerty.data.AiHistoryStore(this) }
+
+    val heroes by lazy { com.flerty.wikiflerty.data.HeroStore(this) }
+
 
     val ambient: com.flerty.wikiflerty.system.AmbientPlayer by lazy { com.flerty.wikiflerty.system.AmbientPlayer(this) }
 

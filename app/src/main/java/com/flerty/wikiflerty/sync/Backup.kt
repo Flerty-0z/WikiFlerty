@@ -26,9 +26,10 @@ data class MergeReport(
     val progress: Int = 0,
     val settings: Boolean = false,
     val bookmarks: Int = 0,
+    val chats: Int = 0,
 ) {
     operator fun plus(o: MergeReport) =
-        MergeReport(notes + o.notes, words + o.words, progress + o.progress, settings || o.settings, bookmarks + o.bookmarks)
+        MergeReport(notes + o.notes, words + o.words, progress + o.progress, settings || o.settings, bookmarks + o.bookmarks, chats + o.chats)
 
     fun describe(): String {
         val parts = buildList {
@@ -36,6 +37,7 @@ data class MergeReport(
             if (notes > 0) add("заметок: $notes")
             if (bookmarks > 0) add("закладок: $bookmarks")
             if (words > 0) add("слов: $words")
+            if (chats > 0) add("чатов ИИ: $chats")
             if (settings) add("настройки")
         }
         return if (parts.isEmpty()) "Всё уже совпадало" else "Обновлено — " + parts.joinToString(", ")
@@ -88,6 +90,19 @@ object Backup {
             put("achievements", app.achievements.toJson())
             put("freezes", app.streakFreeze.toJson())
             put("paperSessions", app.paper.toJson())
+            put("aiHistory", JSONArray().apply {
+                app.aiHistory.books().forEach { b ->
+                    val fp = ref(b) ?: return@forEach
+                    val records = app.aiHistory.load(b)
+                    if (records.isNotEmpty()) put(JSONObject().put("book", fp).put("records", JSONArray().apply { records.forEach { put(it.toJson()) } }))
+                }
+            })
+            put("heroes", JSONArray().apply {
+                app.heroes.books().forEach { b ->
+                    val fp = ref(b) ?: return@forEach
+                    app.heroes.snapshot(b)?.let { put(it.put("book", fp)) }
+                }
+            })
             put("deletedNotes", JSONObject(state.deletedNotes))
             put("deletedWords", JSONObject(state.deletedWords))
             put("deletedBookmarks", JSONObject(state.deletedBookmarks))
@@ -191,6 +206,16 @@ object Backup {
         app.achievements.merge(remote.optJSONObject("achievements"))
         app.streakFreeze.merge(remote.optJSONArray("freezes"))
         app.paper.merge(remote.optJSONArray("paperSessions"))
+        var chatsChanged = 0
+        remote.optJSONArray("aiHistory").objects().forEach { j ->
+            val id = localBookId(j.optString("book").ifBlank { null }) ?: return@forEach
+            val records = j.optJSONArray("records").objects().mapNotNull { runCatching { com.flerty.wikiflerty.data.AiRecord.fromJson(it) }.getOrNull() }
+            chatsChanged += app.aiHistory.merge(id, records)
+        }
+        remote.optJSONArray("heroes").objects().forEach { j ->
+            val id = localBookId(j.optString("book").ifBlank { null }) ?: return@forEach
+            chatsChanged += app.heroes.merge(id, j)
+        }
 
         var settingsApplied = false
         val remoteSettings = remote.optJSONObject("settings")
@@ -211,7 +236,7 @@ object Backup {
                 settingsChangedAt = if (settingsApplied) remoteChangedAt else it.settingsChangedAt,
             )
         }
-        return MergeReport(notesChanged, wordsChanged, progressChanged, settingsApplied, marksChanged)
+        return MergeReport(notesChanged, wordsChanged, progressChanged, settingsApplied, marksChanged, chatsChanged)
     }
 
     suspend fun onBookAdded(app: App, book: Book) {
@@ -219,6 +244,8 @@ object Backup {
         app.notes.remapBook(FOREIGN + fp, book.id)
         app.bookmarks.remapBook(FOREIGN + fp, book.id)
         app.dictionary.remapBook(FOREIGN + fp, book.id)
+        app.aiHistory.rename(FOREIGN + fp, book.id)
+        app.heroes.rename(FOREIGN + fp, book.id)
         val foreign = app.sync.store.state.value.foreignBooks.firstOrNull { it.fingerprint == fp } ?: return
         app.library.applyProgress(book.id, foreign.locatorJson, foreign.progress, foreign.lastReadAt)
         foreign.meta?.let { app.library.applyMeta(book.id, JSONObject(it)) }
@@ -232,6 +259,17 @@ object Backup {
             zip.putNextEntry(ZipEntry("backup.json"))
             zip.write(json.toByteArray(Charsets.UTF_8))
             zip.closeEntry()
+            app.heroes.books().forEach { b ->
+                val fp = app.library.books.value.firstOrNull { it.id == b }?.fingerprint ?: b.removePrefix(FOREIGN).takeIf { b.startsWith(FOREIGN) } ?: return@forEach
+                app.heroes.load(b).forEach { h ->
+                    val avatar = app.heroes.avatar(b, h.id)
+                    if (avatar.exists()) {
+                        zip.putNextEntry(ZipEntry("heroes/$fp/${h.id}.jpg"))
+                        avatar.inputStream().use { it.copyTo(zip) }
+                        zip.closeEntry()
+                    }
+                }
+            }
             if (includeBooks) {
                 app.library.books.value.forEach { book ->
                     val file = app.library.bookFile(book)
@@ -248,6 +286,7 @@ object Backup {
         val tempDir = File(context.cacheDir, "import").apply { deleteRecursively(); mkdirs() }
         var backup: JSONObject? = null
         var booksAdded = 0
+        val avatars = mutableMapOf<Pair<String, String>, ByteArray>()
         try {
             val input = context.contentResolver.openInputStream(source) ?: throw IllegalStateException("Не удалось открыть файл")
             val bytes = input.use { it.readBytes() }
@@ -259,6 +298,10 @@ object Backup {
                         val entry = zip.nextEntry ?: break
                         when {
                             entry.name == "backup.json" -> backup = JSONObject(zip.readBytes().toString(Charsets.UTF_8))
+                            entry.name.startsWith("heroes/") && entry.name.endsWith(".jpg") -> {
+                                val parts = entry.name.removePrefix("heroes/").removeSuffix(".jpg").split('/')
+                                if (parts.size == 2) avatars[parts[0] to parts[1]] = zip.readBytes()
+                            }
                             entry.name.startsWith("books/") && entry.name.endsWith(".epub") -> {
                                 val file = File(tempDir, File(entry.name).name)
                                 file.outputStream().use { zip.copyTo(it) }
@@ -271,7 +314,15 @@ object Backup {
                 if (app.library.import(Uri.fromFile(file)).isSuccess) booksAdded++
             }
             val data = backup ?: throw IllegalArgumentException("В файле нет данных WikiFlerty")
-            merge(app, data, applySettings = app.sync.store.state.value.syncSettings).also { lastImportedBooks = booksAdded }
+            merge(app, data, applySettings = app.sync.store.state.value.syncSettings).also {
+                lastImportedBooks = booksAdded
+                val idByFp = app.library.books.value.filter { it.fingerprint != null }.associate { it.fingerprint!! to it.id }
+                avatars.forEach { (key, bytes) ->
+                    val bookId = idByFp[key.first] ?: (FOREIGN + key.first)
+                    val file = app.heroes.avatar(bookId, key.second)
+                    if (!file.exists()) runCatching { file.writeBytes(bytes) }
+                }
+            }
         } finally {
             tempDir.deleteRecursively()
         }
