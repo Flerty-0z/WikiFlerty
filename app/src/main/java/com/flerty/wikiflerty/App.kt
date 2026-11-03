@@ -110,6 +110,7 @@ class App : Application() {
         appScope.launch { library.ensureFingerprints() }
         backgroundAudio.install()
         achievements.start(appScope)
+        runCatching { com.flerty.wikiflerty.system.ReadingReminder.schedule(this) }
         appScope.launch {
             var first = true
             notes.notes.collectLatest {

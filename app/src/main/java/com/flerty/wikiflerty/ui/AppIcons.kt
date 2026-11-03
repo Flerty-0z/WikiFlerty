@@ -101,6 +101,7 @@ object AppIcons {
     val Press by lazy { icon("press", "M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6z", "M12 3v2M12 19v2M3 12h2M19 12h2") }
     val Image by lazy { icon("image", "M5 5h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z", "M4 16l5-5 4 4 2-2 5 5", "M15.5 9h.01") }
     val Video by lazy { icon("video", "M4 7h11v10H4z", "M15 10.5l5-3v9l-5-3") }
+    val Bell by lazy { icon("bell", "M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z", "M10 20.5a2 2 0 0 0 4 0") }
     val Moon by lazy { icon("moon", "M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z") }
     val Drop by lazy { icon("drop", "M12 3.5l5 6.5a6.2 6.2 0 1 1-10 0z") }
     val Target by lazy {

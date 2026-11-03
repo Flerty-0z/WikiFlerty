@@ -238,6 +238,8 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
                 GoalCard(prefs.dailyGoalMinutes, perDay, framed = false) { minutes -> app.libraryPrefs.update { it.copy(dailyGoalMinutes = minutes) } }
                 Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(1.dp).background(AppColors.PanelBorder))
                 YearGoalCard(prefs.yearGoalBooks, finishedThisYear, framed = false) { n -> app.libraryPrefs.update { it.copy(yearGoalBooks = n) } }
+                Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(1.dp).background(AppColors.PanelBorder))
+                ReminderRow()
             }
         }
         revealItem(key = "streak") { StreakCard(perDay, today) }
