@@ -24,6 +24,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import kotlin.math.roundToInt
@@ -76,6 +77,12 @@ fun AmbienceOptions(title: String = "Атмосфера") {
         }
     }
 
+    SettingsGroup("Громкость") {
+        Column(Modifier.padding(vertical = 4.dp)) {
+            AmbientSound.entries.forEach { sound -> VolumeRow(sound, mix[sound], player) }
+        }
+    }
+
     SettingsGroup("Готовые миксы") {
         Row(Modifier.padding(vertical = 10.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val saved = player.saved
@@ -91,7 +98,6 @@ fun AmbienceOptions(title: String = "Атмосфера") {
 @Composable
 private fun AmbientTile(sound: AmbientSound, volume: Float?, player: com.flerty.wikiflerty.system.AmbientPlayer) {
     val on = volume != null
-    val current by androidx.compose.runtime.rememberUpdatedState(volume)
     val shape = appCorner(18)
     val level by androidx.compose.animation.core.animateFloatAsState(volume ?: 0f, com.flerty.wikiflerty.ui.Motion.tween(220), label = "amb-level")
     val tint by androidx.compose.animation.animateColorAsState(if (on) AppColors.AccentTint else AppColors.Field, com.flerty.wikiflerty.ui.Motion.tween(260), label = "amb-bg")
@@ -102,15 +108,6 @@ private fun AmbientTile(sound: AmbientSound, volume: Float?, player: com.flerty.
             .width(88.dp)
             .height(118.dp)
             .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.95f) { player.toggle(sound) }
-            .pointerInput(sound) {
-                detectVerticalDragGestures(
-                    onDragStart = { if (current == null) player.toggle(sound) },
-                ) { change, dy ->
-                    change.consume()
-                    val v = current ?: 0.6f
-                    player.setVolume(sound, (v - dy / (size.height * 0.9f)).coerceIn(0.05f, 1f))
-                }
-            }
             .background(tint, shape)
             .drawBehind {
                 if (level > 0f) {
@@ -133,6 +130,41 @@ private fun AmbientTile(sound: AmbientSound, volume: Float?, player: com.flerty.
                 maxLines = 1,
             )
         }
+    }
+}
+
+@Composable
+private fun VolumeRow(sound: AmbientSound, volume: Float?, player: com.flerty.wikiflerty.system.AmbientPlayer) {
+    val on = volume != null
+    val alpha by androidx.compose.animation.core.animateFloatAsState(if (on) 1f else 0.45f, com.flerty.wikiflerty.ui.Motion.tween(220), label = "amb-row")
+    var dragging by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Float?>(null) }
+    val stored = androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0.6f) }
+    if (volume != null && dragging == null) stored.floatValue = volume
+    Row(Modifier.height(44.dp).graphicsLayer { this.alpha = alpha }, verticalAlignment = Alignment.CenterVertically) {
+        Text(sound.emoji, fontSize = 18.sp, modifier = Modifier.width(30.dp))
+        com.flerty.wikiflerty.ui.FitText(sound.title, if (on) AppColors.Text else AppColors.Muted, 13.sp, Modifier.width(70.dp))
+        Slider(
+            value = dragging ?: stored.floatValue,
+            onValueChange = { v ->
+                dragging = v
+                player.level(sound, v.coerceAtLeast(0.02f))
+            },
+            onValueChangeFinished = {
+                dragging?.let { stored.floatValue = it }
+                dragging = null
+            },
+            modifier = Modifier.weight(1f).height(36.dp),
+            colors = SliderDefaults.colors(thumbColor = AppColors.Accent, activeTrackColor = AppColors.Accent, inactiveTrackColor = AppColors.Line),
+        )
+        Text(
+            if (on) "${((dragging ?: volume ?: 0f) * 100).roundToInt()}%" else "—",
+            color = if (on) AppColors.Accent else AppColors.Faint,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+            modifier = Modifier.width(38.dp),
+        )
     }
 }
 

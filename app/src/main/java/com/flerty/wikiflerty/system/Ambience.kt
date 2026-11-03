@@ -61,8 +61,13 @@ class AmbientPlayer(private val context: Context) {
         if (sound in _mix.value) stop(sound) else start(sound, 0.6f)
     }
 
+    fun level(sound: AmbientSound, volume: Float) {
+        if (sound in _mix.value) setVolume(sound, volume) else start(sound, volume.coerceIn(0f, 1f))
+    }
+
     fun setVolume(sound: AmbientSound, volume: Float) {
         if (sound !in _mix.value) return
+        fades[sound]?.cancel()
         val v = volume.coerceIn(0f, 1f)
         _mix.value = _mix.value + (sound to v)
         players[sound]?.setVolume(v * master, v * master)
@@ -104,7 +109,7 @@ class AmbientPlayer(private val context: Context) {
 
     private fun fade(sound: AmbientSound, player: MediaPlayer, from: Float, to: Float, ms: Long, end: () -> Unit) {
         fades[sound]?.cancel()
-        fades[sound] = scope.launch {
+        val job = scope.launch {
             val steps = 20
             for (i in 1..steps) {
                 val v = from + (to - from) * i / steps
@@ -113,6 +118,7 @@ class AmbientPlayer(private val context: Context) {
             }
             end()
         }
+        if (to > 0f) fades[sound] = job else fades.remove(sound)
     }
 
     fun stopAll() {
