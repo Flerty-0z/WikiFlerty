@@ -358,38 +358,6 @@ fun StatTile(label: String, value: String, modifier: Modifier = Modifier, hint: 
 }
 
 @Composable
-fun ChartCard(title: String, values: List<Long>) {
-    val max = values.maxOrNull()?.takeIf { it > 0 } ?: 1L
-    TabbedFrame(title, icon = AppIcons.Chart, inset = false) {
-    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("макс. ${StatsCalc.duration(values.maxOrNull() ?: 0)}", color = AppColors.Faint, fontSize = 11.sp)
-        val accent = AppColors.Accent
-        val line = AppColors.Line
-        Canvas(Modifier.fillMaxWidth().height(110.dp)) {
-            val n = values.size.coerceAtLeast(1)
-            val slot = size.width / n
-            val barWidth = (slot * 0.62f).coerceAtLeast(2f)
-            val radius = CornerRadius(barWidth / 2, barWidth / 2)
-            values.forEachIndexed { i, v ->
-                val x = i * slot + (slot - barWidth) / 2
-                if (v <= 0) {
-                    drawRoundRect(line, Offset(x, size.height - 3f), Size(barWidth, 3f), radius)
-                } else {
-                    val h = (v.toFloat() / max * size.height).coerceAtLeast(barWidth)
-                    val color = if (i == values.lastIndex) accent else accent.copy(alpha = 0.5f)
-                    drawRoundRect(color, Offset(x, size.height - h), Size(barWidth, h), radius)
-                }
-            }
-        }
-        Row {
-            Text("${values.size} дн. назад", color = AppColors.Faint, fontSize = 11.sp, modifier = Modifier.weight(1f))
-            Text("сегодня", color = AppColors.Faint, fontSize = 11.sp)
-        }
-    }
-    }
-}
-
-@Composable
 fun SmallCover(file: File?, modifier: Modifier, maxWidth: Int = 160) {
     val cover by produceState<ImageBitmap?>(null, file) {
         value = file?.let { withContext(Dispatchers.IO) { CoverCache.load(it, maxWidth) } }
@@ -535,7 +503,7 @@ fun animatedCount(target: Int): Int {
 private val DayLetters = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
 
 @Composable
-private fun MinutesCard(perDay: Map<LocalDate, DayEntry>, today: LocalDate) {
+fun MinutesCard(perDay: Map<LocalDate, DayEntry>, today: LocalDate) {
     TabbedFrame("Минуты по дням", icon = AppIcons.Chart) {
         Box(Modifier.padding(top = 8.dp, bottom = 10.dp)) { MinutesBars(StatsCalc.series(perDay, 7, today), today) }
     }

@@ -559,7 +559,7 @@ private fun BookStatsContent(app: App, book: Book, onBack: () -> Unit) {
     val perDay = remember(days, book.statsKey) {
         days.mapNotNull { (d, b) -> b[book.statsKey]?.let { e -> runCatching { LocalDate.parse(d) }.getOrNull()?.let { it to e } } }.toMap()
     }
-    ChartCard("Последние 14 дней", StatsCalc.series(perDay, 14))
+    MinutesCard(perDay, LocalDate.now())
 
     fun day(time: Long) = StatsCalc.date(Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault()).toLocalDate())
     val dates = listOfNotNull(
@@ -568,15 +568,6 @@ private fun BookStatsContent(app: App, book: Book, onBack: () -> Unit) {
         book.finishedAt?.takeIf { book.status == ReadStatus.Finished }?.let { "Прочитана: ${day(it)}" },
     )
     Text(dates.joinToString("\n"), color = AppColors.Faint, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(horizontal = 4.dp))
-    if (speed == null) {
-        Text(
-            "Скорость появится после 5 минут чтения.",
-            color = AppColors.Faint,
-            fontSize = 12.sp,
-            lineHeight = 17.sp,
-            modifier = Modifier.padding(horizontal = 4.dp),
-        )
-    }
 }
 
 @Composable

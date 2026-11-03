@@ -246,23 +246,13 @@ fun TtsOptions(
 
     Column(Modifier.clip(appCorner(16)).background(AppColors.Field).padding(horizontal = 14.dp, vertical = 4.dp)) {
         val engines by produceState(emptyList<com.flerty.wikiflerty.tts.TtsEngineInfo>()) { value = ReadAloud.engines(context) }
-        val app = context.applicationContext as com.flerty.wikiflerty.App
-        val keys by app.ai.vault.keys.collectAsStateWithLifecycle()
+        androidx.compose.runtime.LaunchedEffect(settings.ttsEngine) {
+            if (settings.ttsEngine == NeuralVoices.GEMINI || settings.ttsEngine == NeuralVoices.OPENAI) {
+                onSettingsChange { it.copy(ttsEngine = "", ttsVoice = "", ttsVoiceLanguage = "") }
+            }
+        }
         val piperOk by produceState(false) { value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.flerty.wikiflerty.tts.PiperVoices.supported() } }
-        val neuralOptions = listOf(
-            PickerOption(
-                NeuralVoices.GEMINI,
-                "Gemini · нейроголос",
-                if (keys["gemini"].isNullOrBlank()) "Нужен ключ Gemini в настройках ИИ" else "Живой голос, нужен интернет",
-                icon = AppIcons.Sparkle,
-            ),
-            PickerOption(
-                NeuralVoices.OPENAI,
-                "OpenAI · нейроголос",
-                if (keys["openai"].isNullOrBlank()) "Нужен ключ ChatGPT в настройках ИИ" else "Живой голос, нужен интернет",
-                icon = AppIcons.Sparkle,
-            ),
-        ) + if (piperOk) {
+        val neuralOptions = if (piperOk) {
             listOf(PickerOption(NeuralVoices.PIPER, "Офлайн · нейроголос", "Без интернета, голос скачивается один раз", icon = AppIcons.Voice))
         } else {
             emptyList()
@@ -388,7 +378,6 @@ fun TtsOptions(
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier.liveClick(appCorner(8), sound = FeedbackSound.Open) { ReadAloud.installVoices(context) }.padding(vertical = 4.dp),
     )
-    Hint("Новые движки ставятся из Play Маркета: RHVoice, Sherpa TTS — и сразу появляются здесь.")
 }
 
 @Composable

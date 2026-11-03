@@ -120,14 +120,14 @@ fun YearHeatmapCard(days: Map<String, Map<String, DayEntry>>, perDay: Map<LocalD
         }
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text("Нажми на день", color = AppColors.Faint, fontSize = 10.5.sp, maxLines = 1, modifier = Modifier.weight(1f))
+            Spacer(Modifier.weight(1f))
             if (frozen.any { it.year == year }) {
                 Icon(AppIcons.Snow, null, tint = IceColor, modifier = Modifier.size(11.dp))
                 Text("пауза", color = IceColor, fontSize = 10.sp, modifier = Modifier.padding(end = 6.dp))
             }
-            Text("меньше", color = AppColors.Faint, fontSize = 10.sp, modifier = Modifier.padding(end = 2.dp))
+            Icon(AppIcons.Forward, "Меньше", tint = AppColors.Faint, modifier = Modifier.padding(end = 2.dp).size(13.dp).rotate(90f))
             (0..4).forEach { Box(Modifier.size(10.dp).clip(appCorner(3)).background(cellColor(it))) }
-            Text("больше", color = AppColors.Faint, fontSize = 10.sp, modifier = Modifier.padding(start = 2.dp))
+            Icon(AppIcons.Forward, "Больше", tint = AppColors.Faint, modifier = Modifier.padding(start = 2.dp).size(13.dp).rotate(-90f))
         }
 
         DayDetail(selected, days, perDay, books, selected in frozen)
