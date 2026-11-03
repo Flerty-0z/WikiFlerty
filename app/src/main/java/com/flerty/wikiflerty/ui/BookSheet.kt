@@ -540,11 +540,16 @@ private fun BookStatsContent(app: App, book: Book, onBack: () -> Unit) {
             StatCell(
                 "Осталось",
                 when {
-                    book.status == ReadStatus.Finished -> "дочитана"
+                    book.status == ReadStatus.Finished -> "Прочитано"
                     remaining != null -> "≈ $remaining"
                     else -> "—"
                 },
                 icon = AppIcons.Calendar,
+                content = if (book.status == ReadStatus.Finished) {
+                    { StatusPill(ReadStatus.Finished, small = false, framed = true) }
+                } else {
+                    null
+                },
             ),
             StatCell("Дней чтения", stats.days.toString(), icon = AppIcons.Fire),
             StatCell("Заметки и слова", "${notes.count { it.bookId == book.id }} / ${words.count { it.bookId == book.id }}", icon = AppIcons.Note),

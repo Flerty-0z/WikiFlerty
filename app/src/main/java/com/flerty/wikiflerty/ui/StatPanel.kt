@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
-data class StatCell(val label: String, val value: String, val hint: String? = null, val icon: ImageVector? = null)
+data class StatCell(val label: String, val value: String, val hint: String? = null, val icon: ImageVector? = null, val content: (@Composable () -> Unit)? = null)
 
 @Composable
 fun StatPanel(title: String?, cells: List<StatCell>, modifier: Modifier = Modifier, icon: ImageVector? = null, columns: Int = 2) {
@@ -96,15 +96,19 @@ private fun StatCellView(cell: StatCell, compact: Boolean) {
             if (cell.icon != null) Icon(cell.icon, null, tint = AppColors.Accent, modifier = Modifier.size(15.dp))
             FitText(cell.label, AppColors.Muted, if (compact) 11.sp else 12.sp, weight = FontWeight.SemiBold)
         }
-        val value = remember(cell.value, muted) { styledValue(cell.value, muted) }
-        Text(
-            value,
-            color = AppColors.Text,
-            fontWeight = FontWeight.ExtraBold,
-            maxLines = 1,
-            softWrap = false,
-            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = if (compact) 21.sp else 25.sp, stepSize = 0.5.sp),
-        )
+        if (cell.content != null) {
+            Box(Modifier.padding(vertical = 2.dp)) { cell.content.invoke() }
+        } else {
+            val value = remember(cell.value, muted) { styledValue(cell.value, muted) }
+            Text(
+                value,
+                color = AppColors.Text,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+                softWrap = false,
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = if (compact) 21.sp else 25.sp, stepSize = 0.5.sp),
+            )
+        }
         if (cell.hint != null) {
             Text(cell.hint, color = AppColors.Faint, fontSize = 11.sp, lineHeight = 15.sp, maxLines = 2)
         }

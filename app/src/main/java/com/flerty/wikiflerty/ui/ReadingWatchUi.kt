@@ -290,6 +290,11 @@ private fun WatchResult(app: App, book: Book, result: ReadingSessionResult, onDo
                 },
                 hint = leftPages?.takeIf { it > 0 }?.let { "$it стр." },
                 icon = AppIcons.Calendar,
+                content = if (leftPages == 0) {
+                    { StatusPill(com.flerty.wikiflerty.data.ReadStatus.Finished, small = false, framed = true) }
+                } else {
+                    null
+                },
             ),
         ),
     )

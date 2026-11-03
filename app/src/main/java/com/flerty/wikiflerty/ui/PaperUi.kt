@@ -266,6 +266,11 @@ fun PaperMain(book: Book, onEdit: () -> Unit) {
                     },
                     hint = if (pace.leftPages > 0) "${pace.leftPages} ${pagesWord(pace.leftPages)}" else null,
                     icon = AppIcons.Pages,
+                    content = if (pace.leftPages == 0) {
+                        { StatusPill(com.flerty.wikiflerty.data.ReadStatus.Finished, small = false, framed = true) }
+                    } else {
+                        null
+                    },
                 ),
                 StatCell(
                     "Финиш",
