@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty.reader
 
+import com.flerty.wikiflerty.ui.revealScroll
+import com.flerty.wikiflerty.ui.Reveal
 import androidx.compose.ui.draw.shadow
 
 import androidx.activity.compose.BackHandler
@@ -1087,7 +1089,7 @@ private fun SheetContent(
                 onHistory = { onOpen(ReaderSheet.AiHistory) },
             )
             ReaderSheet.AiChat -> AiChatContent(ai, Modifier.weight(1f))
-            ReaderSheet.AiSetup -> Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+            ReaderSheet.AiSetup -> Column(Modifier.weight(1f, fill = false).revealScroll()) {
                 com.flerty.wikiflerty.ui.AiSettingsContent(ai.manager)
             }
             ReaderSheet.NoteEditor -> if (editor != null) {
@@ -1102,7 +1104,7 @@ private fun SheetContent(
                 )
             }
             else -> Column(
-                modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                modifier = Modifier.weight(1f, fill = false).revealScroll(),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
                 when (sheet) {
@@ -1334,38 +1336,40 @@ private fun FontList(
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             items(shown, key = { it.id }) { entry ->
-                val selected = settings.font == entry.id
-                val shape = appCorner(14)
-                val border by animateColorAsState(if (selected) AppColors.Accent else AppColors.PanelBorder, label = "font")
-                val family = FontCatalog.preview(context, entry)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.98f) {
-                            onSettingsChange { it.copy(font = entry.id) }
+                Reveal {
+                    val selected = settings.font == entry.id
+                    val shape = appCorner(14)
+                    val border by animateColorAsState(if (selected) AppColors.Accent else AppColors.PanelBorder, label = "font")
+                    val family = FontCatalog.preview(context, entry)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.98f) {
+                                onSettingsChange { it.copy(font = entry.id) }
+                            }
+                            .background(if (selected) AppColors.AccentTint else AppColors.Field)
+                            .border(if (selected) 2.dp else 1.dp, border, shape)
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(entry.title, color = AppColors.Text, fontSize = 18.sp, fontFamily = family, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                if (entry.css == null) "Шрифт, который выбрал издатель книги" else "Съешь же ещё этих мягких французских булок",
+                                color = AppColors.Muted,
+                                fontSize = 13.sp,
+                                fontFamily = family,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
-                        .background(if (selected) AppColors.AccentTint else AppColors.Field)
-                        .border(if (selected) 2.dp else 1.dp, border, shape)
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(entry.title, color = AppColors.Text, fontSize = 18.sp, fontFamily = family, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(
-                            if (entry.css == null) "Шрифт, который выбрал издатель книги" else "Съешь же ещё этих мягких французских булок",
-                            color = AppColors.Muted,
-                            fontSize = 13.sp,
-                            fontFamily = family,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    AnimatedVisibility(visible = selected, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
-                        Box(
-                            Modifier.padding(start = 8.dp).size(26.dp).clip(CircleShape).background(AppColors.Accent),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(AppIcons.Check, null, tint = AppColors.OnAccent, modifier = Modifier.size(16.dp))
+                        AnimatedVisibility(visible = selected, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
+                            Box(
+                                Modifier.padding(start = 8.dp).size(26.dp).clip(CircleShape).background(AppColors.Accent),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(AppIcons.Check, null, tint = AppColors.OnAccent, modifier = Modifier.size(16.dp))
+                            }
                         }
                     }
                 }
@@ -1627,19 +1631,21 @@ private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: M
     }
     LazyColumn(modifier) {
         items(toc) { item ->
-            val shape = appCorner(12)
-            Text(
-                item.title,
-                color = if (item.depth == 0) AppColors.Text else AppColors.Muted,
-                fontSize = if (item.depth == 0) 15.sp else 14.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) { onSelect(item) }
-                    .padding(start = (8 + item.depth * 16).dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
-            )
+            Reveal {
+                val shape = appCorner(12)
+                Text(
+                    item.title,
+                    color = if (item.depth == 0) AppColors.Text else AppColors.Muted,
+                    fontSize = if (item.depth == 0) 15.sp else 14.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) { onSelect(item) }
+                        .padding(start = (8 + item.depth * 16).dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
+                )
+            }
         }
     }
 }

@@ -64,7 +64,7 @@ fun AboutScreen(modifier: Modifier = Modifier) {
     Column(
         modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .revealScroll()
             .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {

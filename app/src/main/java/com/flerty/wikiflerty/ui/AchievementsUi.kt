@@ -478,7 +478,7 @@ fun AchievementsPage(modifier: Modifier = Modifier, onBack: () -> Unit) {
     androidx.activity.compose.BackHandler(onBack = onBack)
 
     Column(
-        modifier.verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp),
+        modifier.revealScroll().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {

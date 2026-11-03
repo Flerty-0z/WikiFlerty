@@ -1,5 +1,6 @@
 package com.flerty.wikiflerty.reader
 
+import com.flerty.wikiflerty.ui.revealScroll
 import android.graphics.Bitmap
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
@@ -87,7 +88,7 @@ internal fun QuoteContent(draft: QuoteDraft, actions: QuoteActions, modifier: Mo
         }
     }
 
-    Column(modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(modifier.revealScroll(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         val width by animateDpAsState(PreviewHeight * (format.width.toFloat() / format.height), Motion.tween(300), label = "quoteWidth")
         Box(Modifier.fillMaxWidth().height(PreviewHeight), contentAlignment = Alignment.Center) {
             val shape = appCorner(16)

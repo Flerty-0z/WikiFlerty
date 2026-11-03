@@ -1,5 +1,6 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -271,4 +272,41 @@ fun Modifier.scrollReveal(): Modifier = composed {
 
 fun androidx.compose.foundation.lazy.LazyListScope.revealItem(key: Any, content: @Composable () -> Unit) {
     item(key = key) { androidx.compose.foundation.layout.Box(Modifier.scrollReveal()) { content() } }
+}
+
+@Composable
+fun Reveal(content: @Composable () -> Unit) {
+    androidx.compose.foundation.layout.Box(Modifier.scrollReveal()) { content() }
+}
+
+fun Modifier.revealScroll(): Modifier = composed {
+    val state = androidx.compose.foundation.rememberScrollState()
+    this.fadeEdges({ state.canScrollBackward }, { state.canScrollForward }).verticalScroll(state)
+}
+
+fun Modifier.fadeEdges(canUp: () -> Boolean, canDown: () -> Boolean, top: androidx.compose.ui.unit.Dp = 26.dp, bottom: androidx.compose.ui.unit.Dp = 44.dp): Modifier = composed {
+    val up by androidx.compose.animation.core.animateFloatAsState(if (canUp()) 1f else 0f, tween(220), label = "fade-up")
+    val down by androidx.compose.animation.core.animateFloatAsState(if (canDown()) 1f else 0f, tween(220), label = "fade-down")
+    this
+        .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+        .drawWithContent {
+            drawContent()
+            val t = top.toPx()
+            val b = bottom.toPx()
+            if (up > 0f) {
+                drawRect(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.Black.copy(alpha = 1f - up), 1f to Color.Black, startY = 0f, endY = t),
+                    size = Size(size.width, t),
+                    blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+                )
+            }
+            if (down > 0f) {
+                drawRect(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.Black, 1f to Color.Black.copy(alpha = 1f - down), startY = size.height - b, endY = size.height),
+                    topLeft = Offset(0f, size.height - b),
+                    size = Size(size.width, b),
+                    blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+                )
+            }
+        }
 }

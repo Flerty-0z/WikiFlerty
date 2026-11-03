@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty.reader
 
+import com.flerty.wikiflerty.ui.revealScroll
+import com.flerty.wikiflerty.ui.Reveal
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
@@ -158,7 +160,7 @@ fun HeroesContent(bridge: HeroBridge, modifier: Modifier = Modifier) {
     LaunchedEffect(Unit) {
         if (state.heroes.none { !it.custom } && !state.loading && !state.searched) bridge.onFind()
     }
-    Column(modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(modifier.revealScroll(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             if (state.noSpoilers) "ИИ нашёл героев в прочитанной части" else "Герои книги",
             color = AppColors.Muted,
@@ -399,25 +401,27 @@ fun HeroChatContent(bridge: HeroBridge, modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             itemsIndexed(chat.bubbles) { index, bubble ->
-                if (bubble.fromUser) {
-                    if (bubble.shown.isNotBlank()) {
-                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-                            Text(
-                                bubble.shown,
-                                color = AppColors.Text,
-                                fontSize = 14.sp,
-                                lineHeight = 20.sp,
-                                modifier = Modifier
-                                    .widthIn(max = 290.dp)
-                                    .clip(RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp))
-                                    .background(AppColors.Line)
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                            )
+                Reveal {
+                    if (bubble.fromUser) {
+                        if (bubble.shown.isNotBlank()) {
+                            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+                                Text(
+                                    bubble.shown,
+                                    color = AppColors.Text,
+                                    fontSize = 14.sp,
+                                    lineHeight = 20.sp,
+                                    modifier = Modifier
+                                        .widthIn(max = 290.dp)
+                                        .clip(RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp))
+                                        .background(AppColors.Line)
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                )
+                            }
                         }
+                    } else {
+                        val writing = chat.streaming && index == chat.bubbles.lastIndex
+                        HeroBubble(bridge, hero, bubble.shown, writing)
                     }
-                } else {
-                    val writing = chat.streaming && index == chat.bubbles.lastIndex
-                    HeroBubble(bridge, hero, bubble.shown, writing)
                 }
             }
             chat.error?.let { error ->

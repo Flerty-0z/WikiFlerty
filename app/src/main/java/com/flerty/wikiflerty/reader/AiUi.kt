@@ -1,6 +1,7 @@
 package com.flerty.wikiflerty.reader
 
-import com.flerty.wikiflerty.ui.riseIn
+import com.flerty.wikiflerty.ui.revealScroll
+import com.flerty.wikiflerty.ui.Reveal
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.graphicsLayer
 import com.flerty.wikiflerty.ui.sparkBurst
@@ -259,66 +260,67 @@ fun AiHistoryContent(bridge: HistoryBridge, modifier: Modifier = Modifier) {
             }
         }
         itemsIndexed(records, key = { _, r -> r.id }) { index, record ->
-            val action = AiAction.entries.firstOrNull { it.id == record.action } ?: AiAction.Explain
-            val shape = appCorner(16)
-            val count = record.messages.count { !it.fromUser && it.shown.isNotBlank() }
-            Row(
-                Modifier
-                    .riseIn(state.book + "|" + record.id, index)
-                    .fillMaxWidth()
-                    .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onLongClick = { toDelete = record }) { bridge.onOpen(record) }
-                    .fieldSurface(shape)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Box(
+            Reveal {
+                val action = AiAction.entries.firstOrNull { it.id == record.action } ?: AiAction.Explain
+                val shape = appCorner(16)
+                val count = record.messages.count { !it.fromUser && it.shown.isNotBlank() }
+                Row(
                     Modifier
-                        .size(38.dp)
-                        .clip(appCorner(11))
-                        .background(Brush.linearGradient(listOf(AppColors.Accent.copy(alpha = 0.28f), AppColors.Accent.copy(alpha = 0.1f)))),
-                    contentAlignment = Alignment.Center,
-                ) { Text(action.mark, color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(action.title, color = AppColors.Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
-                        Text(
-                            historyDate.format(java.time.Instant.ofEpochMilli(record.updatedAt).atZone(java.time.ZoneId.systemDefault())),
-                            color = AppColors.Faint,
-                            fontSize = 11.sp,
-                            maxLines = 1,
-                        )
-                    }
-                    Text(
-                        highlighted(record.fragment.ifBlank { "Без отрывка" }, q),
-                        color = AppColors.Text,
-                        
-                        fontSize = 14.sp,
-                        lineHeight = 19.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (q.isNotEmpty() && !record.fragment.contains(q, ignoreCase = true)) {
-                        record.messages.firstOrNull { it.shown.contains(q, ignoreCase = true) }?.let { m ->
+                        .fillMaxWidth()
+                        .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onLongClick = { toDelete = record }) { bridge.onOpen(record) }
+                        .fieldSurface(shape)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(
+                        Modifier
+                            .size(38.dp)
+                            .clip(appCorner(11))
+                            .background(Brush.linearGradient(listOf(AppColors.Accent.copy(alpha = 0.28f), AppColors.Accent.copy(alpha = 0.1f)))),
+                        contentAlignment = Alignment.Center,
+                    ) { Text(action.mark, color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(action.title, color = AppColors.Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
                             Text(
-                                highlighted(snippet(m.shown, q), q),
-                                color = AppColors.Muted,
-                                fontSize = 12.5.sp,
-                                lineHeight = 17.sp,
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis,
+                                historyDate.format(java.time.Instant.ofEpochMilli(record.updatedAt).atZone(java.time.ZoneId.systemDefault())),
+                                color = AppColors.Faint,
+                                fontSize = 11.sp,
+                                maxLines = 1,
                             )
                         }
+                        Text(
+                            highlighted(record.fragment.ifBlank { "Без отрывка" }, q),
+                            color = AppColors.Text,
+                        
+                            fontSize = 14.sp,
+                            lineHeight = 19.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (q.isNotEmpty() && !record.fragment.contains(q, ignoreCase = true)) {
+                            record.messages.firstOrNull { it.shown.contains(q, ignoreCase = true) }?.let { m ->
+                                Text(
+                                    highlighted(snippet(m.shown, q), q),
+                                    color = AppColors.Muted,
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 17.sp,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                        com.flerty.wikiflerty.ui.BookTag(
+                            record.bookId.takeIf { it.isNotBlank() },
+                            state.choices.firstOrNull { it.id == record.bookId }?.title,
+                            modifier = Modifier.padding(top = 6.dp),
+                            coverWidth = 28.dp,
+                        )
                     }
-                    com.flerty.wikiflerty.ui.BookTag(
-                        record.bookId.takeIf { it.isNotBlank() },
-                        state.choices.firstOrNull { it.id == record.bookId }?.title,
-                        modifier = Modifier.padding(top = 6.dp),
-                        coverWidth = 28.dp,
-                    )
-                }
-                if (count > 1) {
-                    com.flerty.wikiflerty.ui.CountBadge(count, AppColors.Muted, AppColors.Line)
+                    if (count > 1) {
+                        com.flerty.wikiflerty.ui.CountBadge(count, AppColors.Muted, AppColors.Line)
+                    }
                 }
             }
         }
@@ -370,7 +372,7 @@ fun AiMenuContent(bridge: AiBridge, onSetup: () -> Unit, onStarted: () -> Unit, 
     var asking by remember { mutableStateOf(false) }
     var question by remember { mutableStateOf("") }
 
-    Column(modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(modifier.revealScroll(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         QuoteBox(bridge.chat.fragment, maxLines = 4)
 
         if (provider == null || keys.isEmpty()) {
@@ -482,14 +484,16 @@ fun AiChatContent(bridge: AiBridge, modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             itemsIndexed(chat.bubbles) { index, bubble ->
-                if (bubble.fromUser) {
-                    UserBubble(bubble, first = index == 0, fragment = chat.fragment)
-                } else {
-                    val writing = chat.streaming && index == chat.bubbles.lastIndex
-                    if (chat.action == AiAction.Teacher && !(writing && bubble.shown.isEmpty())) {
-                        TeacherBubble(bubble.shown, writing, bridge)
+                Reveal {
+                    if (bubble.fromUser) {
+                        UserBubble(bubble, first = index == 0, fragment = chat.fragment)
                     } else {
-                        AnswerBubble(bubble.shown, writing = writing, note = if (writing) chat.retryNote else null, debate = chat.action == AiAction.Debate)
+                        val writing = chat.streaming && index == chat.bubbles.lastIndex
+                        if (chat.action == AiAction.Teacher && !(writing && bubble.shown.isEmpty())) {
+                            TeacherBubble(bubble.shown, writing, bridge)
+                        } else {
+                            AnswerBubble(bubble.shown, writing = writing, note = if (writing) chat.retryNote else null, debate = chat.action == AiAction.Debate)
+                        }
                     }
                 }
             }

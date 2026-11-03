@@ -515,7 +515,7 @@ private fun CardFront(entry: DictionaryEntry, reverse: Boolean, onSpeak: () -> U
 @Composable
 private fun CardBack(entry: DictionaryEntry, onSpeak: () -> Unit) {
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp),
+        Modifier.fillMaxSize().revealScroll().padding(22.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -561,7 +561,7 @@ private fun FinishedView(
     val mastered = entries.count { it.srs.isMastered }
     val next = StudyQueue.nextDue(entries)
     Column(
-        modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 16.dp),
+        modifier.fillMaxWidth().revealScroll().padding(bottom = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {

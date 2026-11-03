@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty.reader
 
+import com.flerty.wikiflerty.ui.revealScroll
+import com.flerty.wikiflerty.ui.Reveal
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -162,27 +164,29 @@ internal fun SearchContent(search: SearchActions, modifier: Modifier) {
 
         LazyColumn(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             itemsIndexed(state.results) { index, hit ->
-                val shape = appCorner(12)
-                val active = index == state.current
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) { search.onOpen(index) }
-                        .then(if (active) Modifier.background(AppColors.AccentSoft, shape) else Modifier)
-                        .padding(horizontal = 10.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(3.dp),
-                ) {
-                    if (!hit.chapter.isNullOrBlank()) {
-                        Text(hit.chapter, color = AppColors.Faint, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Reveal {
+                    val shape = appCorner(12)
+                    val active = index == state.current
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) { search.onOpen(index) }
+                            .then(if (active) Modifier.background(AppColors.AccentSoft, shape) else Modifier)
+                            .padding(horizontal = 10.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                    ) {
+                        if (!hit.chapter.isNullOrBlank()) {
+                            Text(hit.chapter, color = AppColors.Faint, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Text(
+                            snippet(hit),
+                            color = AppColors.Text,
+                            fontSize = 14.sp,
+                            lineHeight = 19.sp,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
-                    Text(
-                        snippet(hit),
-                        color = AppColors.Text,
-                        fontSize = 14.sp,
-                        lineHeight = 19.sp,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
-                    )
                 }
             }
         }
@@ -264,7 +268,7 @@ internal fun FootnotePopup(note: FootnoteInfo, onGo: () -> Unit, onClose: () -> 
             modifier = Modifier
                 .padding(end = 10.dp)
                 .heightIn(max = 260.dp)
-                .verticalScroll(rememberScrollState()),
+                .revealScroll(),
         )
         Text(
             "Открыть в книге ›",

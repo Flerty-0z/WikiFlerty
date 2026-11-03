@@ -1,5 +1,6 @@
 package com.flerty.wikiflerty.reader
 
+import com.flerty.wikiflerty.ui.Reveal
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
@@ -151,12 +152,14 @@ internal fun BookmarkList(bookmarks: List<Bookmark>, actions: BookmarkActions, m
     }
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(bookmarks, key = { it.id }) { mark ->
-            BookmarkRow(
-                bookmark = mark,
-                onOpen = { actions.onOpen(mark) },
-                onDelete = { actions.onDelete(mark) },
-                modifier = motionItem(),
-            )
+            Reveal {
+                BookmarkRow(
+                    bookmark = mark,
+                    onOpen = { actions.onOpen(mark) },
+                    onDelete = { actions.onDelete(mark) },
+                    modifier = motionItem(),
+                )
+            }
         }
     }
 }

@@ -434,8 +434,10 @@ fun PickerSheet(
             Column(Modifier.fillMaxWidth().fieldSurface(appCorner(18)).padding(horizontal = 14.dp, vertical = 6.dp)) {
                 LazyColumn(Modifier.heightIn(max = 520.dp), state = listState) {
                     items(shown, key = { it.id }) { option ->
-                        SheetOptionRow(option, option.id == selectedId, icon) {
-                            scope.launch { sheetState.hide() }.invokeOnCompletion { onSelect(option.id) }
+                        Reveal {
+                            SheetOptionRow(option, option.id == selectedId, icon) {
+                                scope.launch { sheetState.hide() }.invokeOnCompletion { onSelect(option.id) }
+                            }
                         }
                     }
                 }

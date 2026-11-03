@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty.reader
 
+import com.flerty.wikiflerty.ui.revealScroll
+import com.flerty.wikiflerty.ui.Reveal
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -175,7 +177,9 @@ fun BookNotesList(
     }
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(notes, key = { it.id }) { note ->
-            NoteCard(note, onOpen = { onOpen(note) }, onEdit = { onEdit(note) })
+            Reveal {
+                NoteCard(note, onOpen = { onOpen(note) }, onEdit = { onEdit(note) })
+            }
         }
     }
 }
@@ -296,7 +300,7 @@ fun NoteEditor(
         editing = index
     }
 
-    Column(modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(modifier.revealScroll(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         val quoteBorder by animateColorAsState(Color(if (editing != null) edited else color), label = "quote")
         Row(
             Modifier

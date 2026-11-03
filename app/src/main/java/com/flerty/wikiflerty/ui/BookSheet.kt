@@ -141,7 +141,7 @@ fun AppSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable 
                         alpha = 0.35f + 0.65f * enter.value
                         translationY = (1f - enter.value) * 22f * density
                     }
-                    .padding(horizontal = 16.dp).navigationBarsPadding().verticalScroll(rememberScrollState()).padding(top = if (title == null) 16.dp else 0.dp, bottom = 16.dp),
+                    .padding(horizontal = 16.dp).navigationBarsPadding().revealScroll().padding(top = if (title == null) 16.dp else 0.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (title != null) SheetHeader(title, close)

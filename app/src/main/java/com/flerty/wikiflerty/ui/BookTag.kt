@@ -148,10 +148,12 @@ fun BookPickerSheet(
                 }
             }
             items(choices.size, key = { choices[it].id }) { i ->
-                val c = choices[i]
-                BookChoiceRow(selectedId == c.id, c.count, { BookCover(c.id, 34.dp) }, bookTitle(c.id, c.title)) {
-                    onSelect(c.id)
-                    close()
+                Reveal {
+                    val c = choices[i]
+                    BookChoiceRow(selectedId == c.id, c.count, { BookCover(c.id, 34.dp) }, bookTitle(c.id, c.title)) {
+                        onSelect(c.id)
+                        close()
+                    }
                 }
             }
         }

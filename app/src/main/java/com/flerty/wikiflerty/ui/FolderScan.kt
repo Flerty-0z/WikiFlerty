@@ -175,8 +175,10 @@ fun FolderScanSheet(onDismiss: () -> Unit, onImport: (List<Uri>) -> Unit) {
                     }
                     LazyColumn(Modifier.heightIn(max = 380.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(found, key = { it.uri.toString() }) { book ->
-                            FoundRow(book, book.uri in checked) {
-                                if (book.uri in checked) checked.remove(book.uri) else checked.add(book.uri)
+                            Reveal {
+                                FoundRow(book, book.uri in checked) {
+                                    if (book.uri in checked) checked.remove(book.uri) else checked.add(book.uri)
+                                }
                             }
                         }
                     }
