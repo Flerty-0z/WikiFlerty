@@ -587,7 +587,7 @@ private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean
                     ) { Icon(AppIcons.StarFilled, "Избранное", tint = StarYellow, modifier = Modifier.size(if (small) 12.dp else 14.dp)) }
                 }
             }
-            CoverProgress(book, inPages, small, Modifier.align(Alignment.BottomCenter))
+            CoverEdgeProgress(book, inPages, small, Modifier.align(Alignment.BottomCenter))
         } else {
             if (book.paper) {
                 Box(
@@ -841,6 +841,34 @@ fun relativeDay(time: Long): String {
         diff == 1L -> "вчера"
         diff < 7L -> "${diff} " + StatsCalc.plural(diff.toInt(), "день", "дня", "дней") + " назад"
         else -> StatsCalc.date(day)
+    }
+}
+
+@Composable
+private fun CoverEdgeProgress(book: Book, inPages: Boolean, small: Boolean, modifier: Modifier = Modifier) {
+    val (label, color) = progressBadge(book, inPages)
+    val finished = book.status == ReadStatus.Finished
+    val fraction by animateFloatAsState(if (finished) 1f else book.progress.toFloat().coerceIn(0f, 1f), Motion.tween(700), label = "cover-edge")
+    val text = if (small) 10.sp else 11.5.sp
+    Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            label,
+            color = color,
+            fontSize = text,
+            lineHeight = text,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier
+                .padding(bottom = if (small) 6.dp else 8.dp)
+                .clip(CircleShape)
+                .background(Color(0xD9100D0B))
+                .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape)
+                .padding(horizontal = if (small) 7.dp else 9.dp, vertical = if (small) 2.dp else 3.dp),
+        )
+        Box(Modifier.fillMaxWidth().height(if (small) 4.dp else 5.dp).background(Color(0x66000000))) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).background(color))
+        }
     }
 }
 
