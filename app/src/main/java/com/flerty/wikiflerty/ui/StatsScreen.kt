@@ -538,12 +538,8 @@ private val DayLetters = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", 
 
 @Composable
 private fun MinutesCard(perDay: Map<LocalDate, DayEntry>, today: LocalDate) {
-    Column(
-        Modifier.fillMaxWidth().fieldSurface(appCorner(20)).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text("Минуты по дням", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
-        MinutesBars(StatsCalc.series(perDay, 7, today), false, today)
+    TabbedFrame("Минуты по дням", icon = AppIcons.Chart) {
+        Box(Modifier.padding(top = 6.dp, bottom = 8.dp)) { MinutesBars(StatsCalc.series(perDay, 7, today), false, today) }
     }
 }
 

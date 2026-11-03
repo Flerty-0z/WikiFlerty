@@ -61,8 +61,11 @@ import kotlin.math.roundToInt
 
 @Composable
 fun SettingsGroup(title: String?, content: @Composable () -> Unit) {
+    if (title != null) {
+        TabbedFrame(title, content = content)
+        return
+    }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (title != null) SectionHeader(title)
         Column(
             Modifier
                 .fillMaxWidth()

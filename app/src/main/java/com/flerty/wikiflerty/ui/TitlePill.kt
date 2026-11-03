@@ -1,5 +1,8 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -110,3 +113,84 @@ fun TitlePill(
         trailing?.invoke()
     }
 }
+
+@Composable
+fun TabbedFrame(title: String, icon: ImageVector? = null, content: @Composable () -> Unit) {
+    val tabW = androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val tabH = androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val fill = AppColors.Field
+    val border = AppColors.PanelBorder
+    val tint = AppColors.Accent
+    val corners = AppStyle.current.corners
+    androidx.compose.foundation.layout.Column(
+        Modifier
+            .fillMaxWidth()
+            .drawBehind {
+                val tw = tabW.floatValue
+                val t = tabH.floatValue
+                if (tw <= 0f) return@drawBehind
+                val w = size.width
+                val h = size.height
+                val r = (18.dp.toPx() * corners).coerceAtMost((h - t) / 2f)
+                val rt = (13.dp.toPx() * corners).coerceAtMost(t / 2f)
+                val f = (10.dp.toPx() * corners).coerceAtMost(t / 2f)
+                val l = (w - tw) / 2f
+                val rr = l + tw
+                val path = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(0f, t + r)
+                    quadraticTo(0f, t, r, t)
+                    lineTo(l - f, t)
+                    quadraticTo(l, t, l, t - f)
+                    lineTo(l, rt)
+                    quadraticTo(l, 0f, l + rt, 0f)
+                    lineTo(rr - rt, 0f)
+                    quadraticTo(rr, 0f, rr, rt)
+                    lineTo(rr, t - f)
+                    quadraticTo(rr, t, rr + f, t)
+                    lineTo(w - r, t)
+                    quadraticTo(w, t, w, t + r)
+                    lineTo(w, h - r)
+                    quadraticTo(w, h, w - r, h)
+                    lineTo(r, h)
+                    quadraticTo(0f, h, 0f, h - r)
+                    close()
+                }
+                drawPath(path, fill)
+                drawPath(path, border, style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
+            },
+    ) {
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Row(
+                Modifier
+                    .onSizeChanged {
+                        tabW.floatValue = it.width.toFloat()
+                        tabH.floatValue = it.height.toFloat()
+                    }
+                    .widthIn(max = 300.dp)
+                    .padding(start = 8.dp, end = 16.dp, top = 7.dp, bottom = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
+            ) {
+                Box(
+                    Modifier
+                        .size(26.dp)
+                        .clip(appCorner(9))
+                        .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.28f), tint.copy(alpha = 0.08f))))
+                        .border(1.dp, tint.copy(alpha = 0.2f), appCorner(9)),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(icon ?: titleIcon(title), null, tint = tint, modifier = Modifier.size(15.dp)) }
+                Text(
+                    title,
+                    color = AppColors.Text,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.weight(1f, fill = false),
+                    autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 15.sp, stepSize = 0.5.sp),
+                )
+            }
+        }
+        androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp)) { content() }
+    }
+}
+
