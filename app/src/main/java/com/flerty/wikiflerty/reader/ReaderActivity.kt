@@ -2074,7 +2074,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private var curlHide: Runnable? = null
     private var heldProgress: Pair<Double, Int?>? = null
 
-    private fun flushProgress() {
+    private fun releaseHeldProgress() {
         val held = heldProgress ?: return
         heldProgress = null
         ui.progression = held.first
@@ -2197,7 +2197,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                             (towards > fling || (enough && towards > -fling))
                         swipeReleased = true
                         swipeState = SwipeState.Idle
-                        if (swipeComplete || !swipeReady) flushProgress()
+                        if (swipeComplete || !swipeReady) releaseHeldProgress()
                         if (swipeReady) endSwipe()
                     }
                 }
@@ -2278,7 +2278,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     if (curlHide === hide) {
                         curlHide = null
                         block()
-                        flushProgress()
+                        releaseHeldProgress()
                     }
                 }
             }
