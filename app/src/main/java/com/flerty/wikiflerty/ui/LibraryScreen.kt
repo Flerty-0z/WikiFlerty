@@ -1018,3 +1018,47 @@ fun ThickProgress(book: Book, inPages: Boolean, small: Boolean, modifier: Modifi
 }
 
 private data class LibraryLayout(val view: LibraryView, val columns: Int, val small: Boolean)
+
+@Composable
+fun TagPill(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    tint: Color,
+    modifier: Modifier = Modifier,
+    count: Int? = null,
+    small: Boolean = false,
+    wide: Boolean = false,
+) {
+    val shape = appCorner(if (small) 10 else 12)
+    val box = if (small) 20.dp else 24.dp
+    Row(
+        modifier
+            .clip(shape)
+            .background(AppColors.Line.copy(alpha = 0.35f))
+            .border(1.dp, AppColors.PanelBorder, shape)
+            .padding(start = 4.dp, end = if (small) 7.dp else 9.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(if (small) 5.dp else 7.dp, if (wide) Alignment.CenterHorizontally else Alignment.Start),
+    ) {
+        Box(
+            Modifier
+                .size(box)
+                .clip(appCorner(7))
+                .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.26f), tint.copy(alpha = 0.08f))))
+                .border(1.dp, tint.copy(alpha = 0.18f), appCorner(7)),
+            contentAlignment = Alignment.Center,
+        ) { Icon(icon, null, tint = tint, modifier = Modifier.size(box * 0.55f)) }
+        Text(
+            label,
+            color = AppColors.Text,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            softWrap = false,
+            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = if (small) 11.sp else 12.5.sp, stepSize = 0.5.sp),
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        if (count != null) {
+            Text(count.toString(), color = tint, fontSize = if (small) 11.sp else 12.5.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
+        }
+    }
+}

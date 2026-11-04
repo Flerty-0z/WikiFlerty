@@ -183,14 +183,7 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
                         modifier = Modifier.weight(1f).padding(end = 8.dp),
                     )
                     val (badge, badgeColor) = srsBadge(entry.srs)
-                    Row(
-                        Modifier.clip(CircleShape).background(badgeColor.copy(alpha = 0.14f)).padding(start = 7.dp, end = 9.dp, top = 3.dp, bottom = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Icon(srsIcon(entry.srs), null, tint = badgeColor, modifier = Modifier.size(12.dp))
-                        Text(badge, color = badgeColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                    }
+                    TagPill(badge, srsIcon(entry.srs), badgeColor, small = true)
                 }
                 if (open) {
                     SelectionContainer {

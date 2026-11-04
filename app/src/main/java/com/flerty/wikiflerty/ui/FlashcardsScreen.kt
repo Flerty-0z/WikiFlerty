@@ -359,25 +359,7 @@ private fun RoundButton(icon: ImageVector, description: String, onClick: () -> U
 
 @Composable
 private fun CountChip(label: String, count: Int, color: Color, icon: ImageVector, modifier: Modifier = Modifier) {
-    Row(
-        modifier.clip(CircleShape).background(color.copy(alpha = 0.13f)).padding(start = 6.dp, end = 10.dp, top = 5.dp, bottom = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally),
-    ) {
-        Box(Modifier.size(20.dp).clip(CircleShape).background(color.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = color, modifier = Modifier.size(12.dp))
-        }
-        Text(
-            label,
-            color = color,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            softWrap = false,
-            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 12.sp, stepSize = 0.5.sp),
-            modifier = Modifier.weight(1f, fill = false),
-        )
-        Text(count.toString(), color = AppColors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
-    }
+    TagPill(label, icon, color, modifier, count = count, wide = true)
 }
 
 @Composable
