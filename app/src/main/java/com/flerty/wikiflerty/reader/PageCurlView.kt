@@ -9,7 +9,6 @@ import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.PointF
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Region
@@ -131,6 +130,62 @@ class PageCurlView(context: Context) : View(context) {
 
     fun cancel() = animator?.cancel()
 
+    private val edgeShader = LinearGradient(0f, 0f, 1f, 0f, 0x33000000, 0x00000000, Shader.TileMode.CLAMP)
+    private val dropShader = LinearGradient(0f, 0f, 1f, 0f, 0x55000000, 0x00000000, Shader.TileMode.CLAMP)
+    private val foldShader = LinearGradient(
+        0f, 0f, 1f, 0f,
+        intArrayOf(0x44000000, 0x10FFFFFF, 0x22000000),
+        floatArrayOf(0f, 0.35f, 1f),
+        Shader.TileMode.CLAMP,
+    )
+    private val shaderMatrix = Matrix()
+    private val corners = FloatArray(8)
+    private val keepPts = FloatArray(12)
+    private val liftPts = FloatArray(12)
+    private var keepCount = 0
+    private var liftCount = 0
+    private val values = FloatArray(9)
+
+    private fun aim(shader: LinearGradient, x: Float, y: Float, dx: Float, dy: Float, length: Float) {
+        shaderMatrix.reset()
+        shaderMatrix.setScale(length, length)
+        shaderMatrix.postRotate(Math.toDegrees(kotlin.math.atan2(dy, dx).toDouble()).toFloat())
+        shaderMatrix.postTranslate(x, y)
+        shader.setLocalMatrix(shaderMatrix)
+        shade.shader = shader
+    }
+
+    private fun split(nx: Float, ny: Float, d: Float) {
+        keepCount = 0
+        liftCount = 0
+        for (i in 0 until 4) {
+            val ax = corners[2 * i]
+            val ay = corners[2 * i + 1]
+            val j = (i + 1) % 4
+            val bx = corners[2 * j]
+            val by = corners[2 * j + 1]
+            val fa = nx * ax + ny * ay - d
+            val fb = nx * bx + ny * by - d
+            if (fa <= 0f) { keepPts[2 * keepCount] = ax; keepPts[2 * keepCount + 1] = ay; keepCount++ }
+            if (fa >= 0f) { liftPts[2 * liftCount] = ax; liftPts[2 * liftCount + 1] = ay; liftCount++ }
+            if ((fa < 0f && fb > 0f) || (fa > 0f && fb < 0f)) {
+                val k = fa / (fa - fb)
+                val ix = ax + (bx - ax) * k
+                val iy = ay + (by - ay) * k
+                keepPts[2 * keepCount] = ix; keepPts[2 * keepCount + 1] = iy; keepCount++
+                liftPts[2 * liftCount] = ix; liftPts[2 * liftCount + 1] = iy; liftCount++
+            }
+        }
+    }
+
+    private fun polygon(points: FloatArray, count: Int, path: Path) {
+        path.rewind()
+        if (count == 0) return
+        path.moveTo(points[0], points[1])
+        for (i in 1 until count) path.lineTo(points[2 * i], points[2 * i + 1])
+        path.close()
+    }
+
     override fun onDraw(canvas: Canvas) {
         val bmp = bitmap ?: return
         val w = width.toFloat()
@@ -139,9 +194,9 @@ class PageCurlView(context: Context) : View(context) {
         src.set(0, 0, bmp.width, bmp.height)
         dst.set(0f, 0f, w, h)
 
-        val corner = PointF(if (forward) w else 0f, h)
-        val dx = corner.x - px
-        val dy = corner.y - py
+        val cx = if (forward) w else 0f
+        val dx = cx - px
+        val dy = h - py
         val len = hypot(dx, dy)
         if (len < 1f) {
             canvas.drawBitmap(bmp, src, dst, bitmapPaint)
@@ -149,38 +204,31 @@ class PageCurlView(context: Context) : View(context) {
         }
         val nx = dx / len
         val ny = dy / len
-        val mx = (corner.x + px) / 2
-        val my = (corner.y + py) / 2
+        val mx = (cx + px) / 2
+        val my = (h + py) / 2
         val d = nx * mx + ny * my
 
-        val rect = listOf(PointF(0f, 0f), PointF(w, 0f), PointF(w, h), PointF(0f, h))
-        val keep = clip(rect) { p -> nx * p.x + ny * p.y - d <= 0f }
-        val lift = clip(rect) { p -> nx * p.x + ny * p.y - d >= 0f }
-        toPath(keep, kept)
+        corners[0] = 0f; corners[1] = 0f
+        corners[2] = w; corners[3] = 0f
+        corners[4] = w; corners[5] = h
+        corners[6] = 0f; corners[7] = h
+        split(nx, ny, d)
+        polygon(keepPts, keepCount, kept)
 
         canvas.save()
         canvas.clipPath(kept)
         canvas.drawBitmap(bmp, src, dst, bitmapPaint)
-        val edge = 0.08f * w
-        shade.shader = LinearGradient(mx, my, mx - nx * edge, my - ny * edge, 0x33000000, 0x00000000, Shader.TileMode.CLAMP)
+        aim(edgeShader, mx, my, -nx, -ny, 0.08f * w)
         canvas.drawRect(0f, 0f, w, h, shade)
         canvas.restore()
 
-        if (lift.size < 3) return
-        reflect.setValues(
-            floatArrayOf(
-                1 - 2 * nx * nx, -2 * nx * ny, 2 * d * nx,
-                -2 * nx * ny, 1 - 2 * ny * ny, 2 * d * ny,
-                0f, 0f, 1f,
-            ),
-        )
-        val pts = FloatArray(lift.size * 2)
-        lift.forEachIndexed { i, p -> pts[2 * i] = p.x; pts[2 * i + 1] = p.y }
-        reflect.mapPoints(pts)
-        flap.reset()
-        flap.moveTo(pts[0], pts[1])
-        for (i in 1 until lift.size) flap.lineTo(pts[2 * i], pts[2 * i + 1])
-        flap.close()
+        if (liftCount < 3) return
+        values[0] = 1 - 2 * nx * nx; values[1] = -2 * nx * ny; values[2] = 2 * d * nx
+        values[3] = -2 * nx * ny; values[4] = 1 - 2 * ny * ny; values[5] = 2 * d * ny
+        values[6] = 0f; values[7] = 0f; values[8] = 1f
+        reflect.setValues(values)
+        reflect.mapPoints(liftPts, 0, liftPts, 0, liftCount)
+        polygon(liftPts, liftCount, flap)
 
         canvas.save()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -192,8 +240,7 @@ class PageCurlView(context: Context) : View(context) {
             @Suppress("DEPRECATION")
             canvas.clipPath(flap, Region.Op.DIFFERENCE)
         }
-        val reach = minOf(len * 0.5f, 0.14f * w)
-        shade.shader = LinearGradient(mx, my, mx + nx * reach, my + ny * reach, 0x55000000, 0x00000000, Shader.TileMode.CLAMP)
+        aim(dropShader, mx, my, nx, ny, minOf(len * 0.5f, 0.14f * w))
         canvas.drawRect(0f, 0f, w, h, shade)
         canvas.restore()
 
@@ -205,51 +252,8 @@ class PageCurlView(context: Context) : View(context) {
         canvas.concat(reflect)
         canvas.drawBitmap(bmp, src, dst, backPaint)
         canvas.restore()
-        val depth = minOf(len * 0.5f, 0.35f * w)
-        shade.shader = LinearGradient(
-            mx, my, mx - nx * depth, my - ny * depth,
-            intArrayOf(0x44000000, 0x10FFFFFF, 0x22000000),
-            floatArrayOf(0f, 0.35f, 1f),
-            Shader.TileMode.CLAMP,
-        )
+        aim(foldShader, mx, my, -nx, -ny, minOf(len * 0.5f, 0.35f * w))
         canvas.drawPath(flap, shade)
         canvas.restore()
-    }
-
-    private fun clip(poly: List<PointF>, inside: (PointF) -> Boolean): List<PointF> {
-        val out = mutableListOf<PointF>()
-        for (i in poly.indices) {
-            val a = poly[i]
-            val b = poly[(i + 1) % poly.size]
-            val ia = inside(a)
-            val ib = inside(b)
-            if (ia) out += a
-            if (ia != ib) out += intersect(a, b)
-        }
-        return out
-    }
-
-    private fun intersect(a: PointF, b: PointF): PointF {
-        val w = width.toFloat()
-        val h = height.toFloat()
-        val cx = if (forward) w else 0f
-        val dx = cx - px
-        val dy = h - py
-        val len = hypot(dx, dy)
-        val nx = dx / len
-        val ny = dy / len
-        val d = nx * (cx + px) / 2 + ny * (h + py) / 2
-        val fa = nx * a.x + ny * a.y - d
-        val fb = nx * b.x + ny * b.y - d
-        val k = fa / (fa - fb)
-        return PointF(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k)
-    }
-
-    private fun toPath(points: List<PointF>, path: Path) {
-        path.reset()
-        if (points.isEmpty()) return
-        path.moveTo(points[0].x, points[0].y)
-        for (i in 1 until points.size) path.lineTo(points[i].x, points[i].y)
-        path.close()
     }
 }

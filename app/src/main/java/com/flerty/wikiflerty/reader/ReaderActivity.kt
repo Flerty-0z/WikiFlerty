@@ -1084,9 +1084,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     override fun onPageLoaded() {
                         injectScripts()
                         preRasterPages()
-                        if (!warmedUp) {
-                            warmedUp = true
-                            bookArea.postDelayed({ warmUpTurns() }, 700)
+                        if (!revealed) {
+                            revealed = true
+                            revealPages()
                         }
                     }
                 },
@@ -1133,6 +1133,17 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
         navigator = supportFragmentManager.findFragmentByTag(NAVIGATOR_TAG) as EpubNavigatorFragment
         navigator.addInputListener(tapListener)
+        if (savedInstanceState == null) {
+            navContainer.alpha = 0f
+            navContainer.postDelayed({
+                if (!revealed) {
+                    revealed = true
+                    revealPages()
+                }
+            }, 1500)
+        } else {
+            revealed = true
+        }
 
         navigator.addDecorationListener(
             NOTES_GROUP,
@@ -1933,32 +1944,13 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         applyTurn(0f)
     }
 
-    private var warmedUp = false
+    private var revealed = false
 
-    private fun warmUpTurns() {
-        if (turning || capturing || swipeState == SwipeState.Dragging || bookArea.width == 0) return
-        capturing = true
-        copyPage { bitmap ->
-            capturing = false
-            if (bitmap == null || turning || swipeState == SwipeState.Dragging) return@copyPage
-            val w = bookArea.width.toFloat()
-            val h = bookArea.height.toFloat()
-            curl.paper = settings.pageTheme.background.toInt()
-            curl.begin(bitmap, true)
-            curl.alpha = 0.01f
-            curl.drag(w * 0.55f, h * 0.8f)
-            snapshot.setImageBitmap(bitmap)
-            snapshot.alpha = 0.01f
-            snapshot.rotationY = -8f
-            snapshot.visibility = View.VISIBLE
-            curl.postOnAnimation {
-                curl.postOnAnimation {
-                    if (!turning && swipeState != SwipeState.Dragging) {
-                        curl.hide()
-                        hideSnapshot()
-                    }
-                    curl.alpha = 1f
-                }
+    private fun revealPages() {
+        val view = navContainer
+        view.postOnAnimation {
+            view.postOnAnimation {
+                view.animate().alpha(1f).setDuration(if (com.flerty.wikiflerty.ui.Motion.enabled) 240 else 0).setInterpolator(DecelerateInterpolator(1.4f)).start()
             }
         }
     }
