@@ -238,13 +238,13 @@ fun FitText(
 
 private fun Double.sp2(): androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit(this.toFloat(), androidx.compose.ui.unit.TextUnitType.Sp)
 
-fun Modifier.scrollReveal(): Modifier = composed {
+fun Modifier.scrollReveal(delayMs: Int = 0): Modifier = composed {
     if (!Motion.enabled) return@composed this
-    revealCore(96f, 28f)
+    revealCore(96f, 28f, delayMs)
 }
 
 @Composable
-private fun Modifier.revealCore(edgeDp: Float, liftDp: Float): Modifier {
+private fun Modifier.revealCore(edgeDp: Float, liftDp: Float, delayMs: Int = 0): Modifier {
     val density = LocalDensity.current
     val edge = with(density) { edgeDp.dp.toPx() }
     val lift = with(density) { liftDp.dp.toPx() }
@@ -253,7 +253,7 @@ private fun Modifier.revealCore(edgeDp: Float, liftDp: Float): Modifier {
     val fromAbove = remember { androidx.compose.runtime.mutableStateOf(false) }
     val exit = remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
     LaunchedEffect(shown.value) {
-        if (shown.value) enter.animateTo(1f, tween(Motion.ms(540), easing = androidx.compose.animation.core.FastOutSlowInEasing)) else enter.snapTo(0f)
+        if (shown.value) enter.animateTo(1f, tween(Motion.ms(540), delayMillis = Motion.ms(delayMs), easing = androidx.compose.animation.core.FastOutSlowInEasing)) else enter.snapTo(0f)
     }
     return this
         .onGloballyPositioned { c ->

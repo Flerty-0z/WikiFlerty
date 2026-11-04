@@ -266,7 +266,7 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
             )
         }
         revealItem(key = "achievements") {
-            AchievementsButton(Achievements.all.count { it.id in unlocked }, Achievements.all.size, onAchievements)
+            AchievementsButton(Achievements.all.count { it.id in unlocked }, Achievements.all.size, unlocked, onAchievements)
         }
         if (top.isNotEmpty()) {
             revealItem(key = "top") {

@@ -463,7 +463,7 @@ private fun ToastCard(achievement: Achievement, count: Int, onClick: () -> Unit)
 }
 
 @Composable
-fun AchievementsButton(earned: Int, total: Int, onClick: () -> Unit) {
+fun AchievementsButton(earned: Int, total: Int, unlocked: Map<String, Long>, onClick: () -> Unit) {
     val shape = appCorner(20)
     val dark = Color(0xFF241D18)
     Row(
@@ -478,17 +478,11 @@ fun AchievementsButton(earned: Int, total: Int, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy((-10).dp)) {
-            listOf(AchievementKind.Streak, AchievementKind.Books, AchievementKind.Time).forEach { kind ->
-                val style = medalStyle(kind)
-                Box(
-                    Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(Brush.linearGradient(listOf(Color(style.from), Color(style.to))))
-                        .border(2.dp, dark, CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) { Icon(style.icon, null, tint = Color.White, modifier = Modifier.size(15.dp)) }
+        val recent = Achievements.all.filter { it.id in unlocked }.sortedByDescending { unlocked[it.id] ?: 0L }.take(3)
+        val shown = recent.ifEmpty { listOf(AchievementKind.Streak, AchievementKind.Books, AchievementKind.Pages).mapNotNull { k -> Achievements.all.firstOrNull { it.kind == k } } }
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            shown.forEachIndexed { i, a ->
+                AchievementMedal(a, earned = a.id in unlocked, fraction = 0f, size = 34.dp, modifier = Modifier.scrollReveal(i * 70))
             }
         }
         Text(
@@ -535,7 +529,7 @@ fun AchievementsPage(modifier: Modifier = Modifier, onBack: () -> Unit) {
         PageBar("Достижения", onBack, icon = AppIcons.Trophy, trailing = { CountBadge(earned) })
 
         Row(
-            Modifier.fillMaxWidth().fieldSurface(appCorner(22)).padding(16.dp),
+            Modifier.fillMaxWidth().scrollReveal().fieldSurface(appCorner(22)).padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -575,15 +569,15 @@ fun AchievementsPage(modifier: Modifier = Modifier, onBack: () -> Unit) {
             val group = all.filter { it.kind == kind }
             if (group.isEmpty()) return@forEach
             val style = medalStyle(kind)
-            TabbedFrame(kindTitle(kind), icon = style.icon, inset = false, trailing = { InfoChip("${group.count { it.id in unlocked }}/${group.size}", Color(style.from)) }) {
+            TabbedFrame(kindTitle(kind), icon = style.icon, inset = false, modifier = Modifier.scrollReveal(), trailing = { InfoChip("${group.count { it.id in unlocked }}/${group.size}", Color(style.from)) }) {
                 Column(
                     Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     group.chunked(3).forEach { row ->
                         Row(Modifier.fillMaxWidth()) {
-                            row.forEach { achievement ->
-                                AchievementBadge(achievement, unlocked[achievement.id], progress, Modifier.weight(1f))
+                            row.forEachIndexed { i, achievement ->
+                                AchievementBadge(achievement, unlocked[achievement.id], progress, Modifier.weight(1f).scrollReveal(80 + i * 90))
                             }
                             repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                         }
