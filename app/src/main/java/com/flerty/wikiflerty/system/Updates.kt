@@ -129,7 +129,7 @@ class Updates(private val context: Context) {
             UpdateInfo(
                 version = tag.removePrefix("v"),
                 code = code,
-                notes = json.optString("body").trim(),
+                notes = (if (json.isNull("body")) "" else json.optString("body")).trim().takeUnless { it.equals("null", ignoreCase = true) }.orEmpty(),
                 apkUrl = url,
                 size = size,
                 pageUrl = json.optString("html_url"),

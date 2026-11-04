@@ -665,7 +665,7 @@ fun actionIcon(label: String): ImageVector? = when (label) {
     "Сохранить", "Готово", "Добавить", "Применить" -> AppIcons.Check
     "Отмена", "Не сейчас", "Закрыть" -> AppIcons.Close
     "Отправить", "Экспорт" -> AppIcons.Send
-    "Импорт", "Установить", "Скачать" -> AppIcons.Download
+    "Импорт", "Установить", "Скачать", "Скачать и установить" -> AppIcons.Download
     "Повторить" -> AppIcons.Rotate
     "Позже" -> AppIcons.Clock
     "Копировать" -> AppIcons.Copy
