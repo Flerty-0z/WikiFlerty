@@ -132,6 +132,17 @@ fun AboutScreen(modifier: Modifier = Modifier) {
             }
         }
 
+        SettingsGroup(null) {
+            SettingsNavRow(AppIcons.Lock, "Политика конфиденциальности", "Какие данные хранятся и куда передаются", framed = false) {
+                runCatching {
+                    context.startActivity(
+                        android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(PRIVACY_URL))
+                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }
+            }
+        }
+
         Text(
             "Движок отображения книг: Readium (BSD-3)",
             color = AppColors.Faint,
@@ -319,3 +330,5 @@ fun shareText(context: Context, text: String, subject: String) {
 
 private fun sizeText(bytes: Long): String =
     if (bytes <= 0) "Нажми, чтобы скачать" else "Размер %.1f МБ".format(bytes / 1_048_576.0)
+
+const val PRIVACY_URL = "https://github.com/Flerty-0z/WikiFlerty/blob/main/PRIVACY.md"
