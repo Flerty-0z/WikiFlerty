@@ -12,17 +12,17 @@ import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class Freeze(val start: LocalDate, val days: Int, val createdAt: Long) {
+data class Freeze(val start: LocalDate, val days: Int, val createdAt: Long, val cancelled: Boolean = false) {
     val end: LocalDate get() = start.plusDays(days - 1L)
     val createdDay: LocalDate get() = Instant.ofEpochMilli(createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
 
     fun covers(day: LocalDate) = !day.isBefore(start) && !day.isAfter(end)
 
-    fun toJson(): JSONObject = JSONObject().put("start", start.toString()).put("days", days).put("createdAt", createdAt)
+    fun toJson(): JSONObject = JSONObject().put("start", start.toString()).put("days", days).put("createdAt", createdAt).put("cancelled", cancelled)
 
     companion object {
         fun fromJson(j: JSONObject): Freeze? = runCatching {
-            Freeze(LocalDate.parse(j.getString("start")), j.getInt("days").coerceIn(1, StreakFreezeStore.MAX_DAYS), j.getLong("createdAt"))
+            Freeze(LocalDate.parse(j.getString("start")), j.getInt("days").coerceIn(1, StreakFreezeStore.MAX_DAYS), j.getLong("createdAt"), j.optBoolean("cancelled", false))
         }.getOrNull()
     }
 }
@@ -30,18 +30,21 @@ data class Freeze(val start: LocalDate, val days: Int, val createdAt: Long) {
 class StreakFreezeStore(context: Context) {
     private val file = File(context.filesDir, "freezes.json")
     private val prefs = context.getSharedPreferences("freezes", Context.MODE_PRIVATE)
-    private val _freezes = MutableStateFlow(load())
+    private val _all = MutableStateFlow(load())
+    private val _freezes = MutableStateFlow(_all.value.filter { !it.cancelled })
     val freezes: StateFlow<List<Freeze>> = _freezes.asStateFlow()
 
     init {
         frozen = days(_freezes.value)
     }
 
-    fun last(): Freeze? = _freezes.value.maxByOrNull { it.createdAt }
+    fun last(): Freeze? = _all.value.maxByOrNull { it.createdAt }
 
     fun cooldownLeft(today: LocalDate = LocalDate.now()): Int {
-        val last = last() ?: return 0
-        return (COOLDOWN_DAYS - ChronoUnit.DAYS.between(last.createdDay, today)).toInt().coerceAtLeast(0)
+        val used = maxOf(last()?.createdAt ?: 0L, prefs.getLong("used_at", 0L))
+        if (used <= 0L) return 0
+        val day = Instant.ofEpochMilli(used).atZone(ZoneId.systemDefault()).toLocalDate()
+        return (COOLDOWN_DAYS - ChronoUnit.DAYS.between(day, today)).toInt().coerceAtLeast(0)
     }
 
     fun available(today: LocalDate = LocalDate.now()) = cooldownLeft(today) == 0
@@ -49,46 +52,51 @@ class StreakFreezeStore(context: Context) {
     @Synchronized
     fun add(start: LocalDate, days: Int): Boolean {
         if (!available()) return false
-        set(_freezes.value + Freeze(start, days.coerceIn(1, MAX_DAYS), System.currentTimeMillis()))
+        val now = System.currentTimeMillis()
+        prefs.edit().putLong("used_at", now).apply()
+        set(_all.value + Freeze(start, days.coerceIn(1, MAX_DAYS), now))
         return true
     }
 
     @Synchronized
     fun cancel(freeze: Freeze) {
-        if (!freeze.start.isAfter(LocalDate.now())) return
-        set(_freezes.value - freeze)
+        set(_all.value.map { if (it == freeze) it.copy(cancelled = true) else it })
     }
 
     @Synchronized
     fun unfreeze(today: LocalDate = LocalDate.now()) {
-        val current = _freezes.value.filter { !it.end.isBefore(today) }
+        val current = _all.value.filter { !it.cancelled && !it.end.isBefore(today) }
         if (current.isEmpty()) return
-        val kept = current.mapNotNull { f ->
-            if (!f.start.isBefore(today)) null else f.copy(days = ChronoUnit.DAYS.between(f.start, today).toInt())
-        }
-        set(_freezes.value - current.toSet() + kept)
+        set(_all.value.map { if (it in current) it.copy(cancelled = true) else it })
     }
 
     var rescueDismissed: String?
         get() = prefs.getString("rescue_dismissed", null)
         set(value) = prefs.edit().putString("rescue_dismissed", value).apply()
 
-    fun toJson(): JSONArray = JSONArray().apply { _freezes.value.forEach { put(it.toJson()) } }
+    fun toJson(): JSONArray = JSONArray().apply { _all.value.forEach { put(it.toJson()) } }
 
     @Synchronized
     fun merge(arr: JSONArray?): Boolean {
         if (arr == null) return false
         val incoming = (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.let(Freeze::fromJson) }
-        val merged = (_freezes.value + incoming).distinctBy { it.createdAt to it.start }
-        if (merged.size == _freezes.value.size) return false
+        val byKey = LinkedHashMap<Pair<Long, LocalDate>, Freeze>()
+        (_all.value + incoming).forEach { f ->
+            val key = f.createdAt to f.start
+            val prev = byKey[key]
+            byKey[key] = if (prev == null) f else prev.copy(cancelled = prev.cancelled || f.cancelled)
+        }
+        val merged = byKey.values.toList()
+        if (merged.toSet() == _all.value.toSet()) return false
         set(merged)
         return true
     }
 
     private fun set(list: List<Freeze>) {
         val sorted = list.sortedBy { it.start }
-        _freezes.value = sorted
-        frozen = days(sorted)
+        _all.value = sorted
+        _freezes.value = sorted.filter { !it.cancelled }
+        frozen = days(_freezes.value)
         runCatching { file.writeText(JSONArray().apply { sorted.forEach { put(it.toJson()) } }.toString()) }
     }
 
@@ -107,6 +115,6 @@ class StreakFreezeStore(context: Context) {
             private set
 
         fun days(list: List<Freeze>): Set<LocalDate> =
-            list.flatMap { f -> (0 until f.days).map { f.start.plusDays(it.toLong()) } }.toSet()
+            list.filter { !it.cancelled }.flatMap { f -> (0 until f.days).map { f.start.plusDays(it.toLong()) } }.toSet()
     }
 }

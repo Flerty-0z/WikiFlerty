@@ -413,9 +413,21 @@ private fun GoalCard(goalMinutes: Int, inPages: Boolean, perDay: Map<LocalDate, 
                 Box(rememberStagger(0)) { GoalRing(todayMs, goal, 76.dp, pages = if (inPages) todayPages else null) }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     RollingText(
-                        if (done) "Цель на сегодня выполнена" else "Ещё $left $unit до цели",
+                        if (done) "Цель выполнена" else "Ещё $left $unit до цели",
                         rememberStagger(1),
-                    ) { Text(it, color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    ) { label ->
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (done) Icon(AppIcons.Check, null, tint = AppColors.Accent, modifier = Modifier.size(17.dp))
+                            Text(
+                                label,
+                                color = AppColors.Text,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false,
+                                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 16.sp, stepSize = 0.25.sp),
+                            )
+                        }
+                    }
                     RollingText("Цель: $goal $unit в день", rememberStagger(2)) {
                         Text(it, color = AppColors.Muted, fontSize = 13.sp, maxLines = 1)
                     }
