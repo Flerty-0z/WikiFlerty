@@ -83,5 +83,5 @@ jobs:
         run: |
           gh release create "v0.1.${{ github.run_number }}" "out/WikiFlerty-0.1.${{ github.run_number }}.apk" "out/WikiFlerty-RuStore-0.1.${{ github.run_number }}.apk" \
             --title "WikiFlerty 0.1.${{ github.run_number }}" \
-            --notes "$(git log -1 --pretty=%B)" \
+            --notes "" \
             --target "${{ github.sha }}"

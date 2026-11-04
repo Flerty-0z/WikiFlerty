@@ -1,0 +1,20 @@
+name: Clear release notes
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  clear:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clear every release description
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh api --paginate "repos/$REPO/releases?per_page=100" -q '.[] | select((.body // "") != "") | .id' | while read -r id; do
+            gh api -X PATCH "repos/$REPO/releases/$id" -f body="" > /dev/null && echo "cleared $id"
+          done
