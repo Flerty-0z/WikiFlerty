@@ -23,8 +23,9 @@ import kotlin.math.sin
 
 class PageCurlView(context: Context) : View(context) {
     private var bitmap: Bitmap? = null
-    private var progress = 0f
     private var forward = true
+    private var px = 0f
+    private var py = 0f
     private var animator: ValueAnimator? = null
     var paper: Int = Color.WHITE
 
@@ -45,32 +46,84 @@ class PageCurlView(context: Context) : View(context) {
 
     val running: Boolean get() = animator?.isRunning == true
 
+    private fun autoPoint(t: Float) {
+        val w = width.toFloat()
+        val h = height.toFloat()
+        px = if (forward) w - t * (2 * w + 40f) else t * (2 * w + 40f)
+        py = h - sin(PI * t).toFloat() * h * 0.16f - t * h * 0.04f
+    }
+
     fun play(page: Bitmap, forward: Boolean, duration: Long = 520, onEnd: () -> Unit) {
         animator?.cancel()
         bitmap = page
         this.forward = forward
-        progress = 0f
+        autoPoint(0f)
         visibility = VISIBLE
         animator = ValueAnimator.ofFloat(0f, 1f).apply {
             this.duration = duration
             interpolator = AccelerateDecelerateInterpolator()
             addUpdateListener {
-                progress = it.animatedValue as Float
+                autoPoint(it.animatedValue as Float)
                 invalidate()
             }
-            addListener(object : android.animation.AnimatorListenerAdapter() {
-                private var done = false
-                override fun onAnimationEnd(animation: android.animation.Animator) = finish()
-                override fun onAnimationCancel(animation: android.animation.Animator) = finish()
-                private fun finish() {
-                    if (done) return
-                    done = true
-                    visibility = GONE
-                    bitmap = null
-                    onEnd()
-                }
-            })
+            addListener(endListener { hide(); onEnd() })
             start()
+        }
+    }
+
+    fun begin(page: Bitmap, forward: Boolean) {
+        animator?.cancel()
+        bitmap = page
+        this.forward = forward
+        px = if (forward) width.toFloat() else 0f
+        py = height.toFloat()
+        visibility = VISIBLE
+        invalidate()
+    }
+
+    fun drag(x: Float, y: Float) {
+        if (bitmap == null) return
+        px = x
+        py = y
+        invalidate()
+    }
+
+    fun release(complete: Boolean, onEnd: (Boolean) -> Unit) {
+        animator?.cancel()
+        val w = width.toFloat()
+        val h = height.toFloat()
+        val fromX = px
+        val fromY = py
+        val toX = if (complete) (if (forward) -w - 40f else 2 * w + 40f) else (if (forward) w else 0f)
+        val toY = if (complete) h * 0.96f else h
+        val share = (kotlin.math.abs(toX - fromX) / (2 * w + 40f)).coerceIn(0f, 1f)
+        animator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = (150 + 300 * share).toLong()
+            interpolator = android.view.animation.DecelerateInterpolator(1.3f)
+            addUpdateListener {
+                val k = it.animatedValue as Float
+                px = fromX + (toX - fromX) * k
+                py = fromY + (toY - fromY) * k
+                invalidate()
+            }
+            addListener(endListener { onEnd(complete) })
+            start()
+        }
+    }
+
+    fun hide() {
+        visibility = GONE
+        bitmap = null
+    }
+
+    private fun endListener(block: () -> Unit) = object : android.animation.AnimatorListenerAdapter() {
+        private var done = false
+        override fun onAnimationEnd(animation: android.animation.Animator) = finish()
+        override fun onAnimationCancel(animation: android.animation.Animator) = finish()
+        private fun finish() {
+            if (done) return
+            done = true
+            block()
         }
     }
 
@@ -84,10 +137,7 @@ class PageCurlView(context: Context) : View(context) {
         src.set(0, 0, bmp.width, bmp.height)
         dst.set(0f, 0f, w, h)
 
-        val t = progress
         val corner = PointF(if (forward) w else 0f, h)
-        val px = if (forward) w - t * (2 * w + 40f) else t * (2 * w + 40f)
-        val py = h - sin(PI * t).toFloat() * h * 0.16f - t * h * 0.04f
         val dx = corner.x - px
         val dy = corner.y - py
         val len = hypot(dx, dy)
@@ -180,10 +230,7 @@ class PageCurlView(context: Context) : View(context) {
     private fun intersect(a: PointF, b: PointF): PointF {
         val w = width.toFloat()
         val h = height.toFloat()
-        val t = progress
         val cx = if (forward) w else 0f
-        val px = if (forward) w - t * (2 * w + 40f) else t * (2 * w + 40f)
-        val py = h - sin(PI * t).toFloat() * h * 0.16f - t * h * 0.04f
         val dx = cx - px
         val dy = h - py
         val len = hypot(dx, dy)

@@ -245,7 +245,6 @@ private fun BookStack(books: List<Book>, modifier: Modifier = Modifier, onBook: 
             val pages = i > 0 && (h shr 9) % 3 == 0
             LyingBook(b, width, top = i == 0, pagesOut = pages, modifier = Modifier.offset(x = shift)) { onBook(b) }
         }
-        Box(Modifier.width(150.dp).height(6.dp).background(Brush.verticalGradient(listOf(Color(0x66000000), Color(0x00000000)))))
     }
 }
 

@@ -1804,6 +1804,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         curlStart = null
         snapshot.animate().setListener(null).cancel()
         curl.cancel()
+        curlHide?.let { curl.removeCallbacks(it) }
+        curlHide = null
+        curl.hide()
+        swipeReady = false
         hideSnapshot()
     }
 
@@ -1914,6 +1918,178 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             curlStart = start
             curl.postDelayed(start, 60)
             schedulePending()
+        }
+    }
+
+    private enum class SwipeState { Idle, Watching, Ignored, Dragging }
+
+    private var swipeState = SwipeState.Idle
+    private var swipeX0 = 0f
+    private var swipeY0 = 0f
+    private var swipeX = 0f
+    private var swipeY = 0f
+    private var swipeDown = 0L
+    private var swipeForward = true
+    private var swipeReady = false
+    private var swipeReleased = false
+    private var swipeComplete = false
+    private var swipeVelocity: android.view.VelocityTracker? = null
+    private var curlHide: Runnable? = null
+
+    private fun swipeAllowed(): Boolean {
+        val s = settings
+        if (s.scroll) return false
+        if (s.animation == PageAnimation.Slide || s.animation == PageAnimation.None) return false
+        return !ui.panelsVisible && ui.sheet == null && ui.selection == null && ui.footnote == null && !ui.autoActive
+    }
+
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        if (!::curl.isInitialized) return super.dispatchTouchEvent(ev)
+        when (ev.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> {
+                swipeVelocity?.recycle()
+                swipeVelocity = null
+                val area = IntArray(2).also { bookArea.getLocationOnScreen(it) }
+                val inside = ev.rawX >= area[0] && ev.rawX <= area[0] + bookArea.width && ev.rawY >= area[1] && ev.rawY <= area[1] + bookArea.height
+                swipeState = if (inside && swipeAllowed()) SwipeState.Watching else SwipeState.Ignored
+                if (swipeState == SwipeState.Watching) {
+                    swipeX0 = ev.rawX - area[0]
+                    swipeY0 = ev.rawY - area[1]
+                    swipeX = swipeX0
+                    swipeY = swipeY0
+                    swipeDown = ev.eventTime
+                    swipeVelocity = android.view.VelocityTracker.obtain().also { it.addMovement(ev) }
+                }
+            }
+            android.view.MotionEvent.ACTION_POINTER_DOWN -> if (swipeState == SwipeState.Watching) swipeState = SwipeState.Ignored
+        }
+        when (swipeState) {
+            SwipeState.Watching -> {
+                swipeVelocity?.addMovement(ev)
+                if (ev.actionMasked == android.view.MotionEvent.ACTION_MOVE) {
+                    val area = IntArray(2).also { bookArea.getLocationOnScreen(it) }
+                    val x = ev.rawX - area[0]
+                    val y = ev.rawY - area[1]
+                    val dx = x - swipeX0
+                    val dy = y - swipeY0
+                    val slop = android.view.ViewConfiguration.get(this).scaledTouchSlop
+                    if (ev.eventTime - swipeDown > android.view.ViewConfiguration.getLongPressTimeout()) {
+                        swipeState = SwipeState.Ignored
+                    } else if (kotlin.math.abs(dx) > slop && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.4f) {
+                        swipeState = SwipeState.Dragging
+                        swipeX = x
+                        swipeY = y
+                        val cancel = android.view.MotionEvent.obtain(ev).apply { action = android.view.MotionEvent.ACTION_CANCEL }
+                        super.dispatchTouchEvent(cancel)
+                        cancel.recycle()
+                        startSwipe(forward = dx < 0)
+                        return true
+                    } else if (kotlin.math.abs(dy) > slop * 2) {
+                        swipeState = SwipeState.Ignored
+                    }
+                }
+            }
+            SwipeState.Dragging -> {
+                swipeVelocity?.addMovement(ev)
+                val area = IntArray(2).also { bookArea.getLocationOnScreen(it) }
+                swipeX = ev.rawX - area[0]
+                swipeY = ev.rawY - area[1]
+                when (ev.actionMasked) {
+                    android.view.MotionEvent.ACTION_MOVE -> if (swipeReady) curl.drag(swipeCornerX(), swipeCornerY())
+                    android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                        val tracker = swipeVelocity
+                        tracker?.computeCurrentVelocity(1000)
+                        val vx = tracker?.xVelocity ?: 0f
+                        tracker?.recycle()
+                        swipeVelocity = null
+                        val dist = if (swipeForward) swipeX0 - swipeX else swipeX - swipeX0
+                        val fling = 700 * resources.displayMetrics.density
+                        val towards = if (swipeForward) -vx else vx
+                        swipeComplete = ev.actionMasked == android.view.MotionEvent.ACTION_UP &&
+                            (towards > fling || (dist > bookArea.width * 0.22f && towards > -fling))
+                        swipeReleased = true
+                        swipeState = SwipeState.Idle
+                        if (swipeReady) endSwipe()
+                    }
+                }
+                return true
+            }
+            else -> Unit
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    private fun swipeCornerX(): Float {
+        val w = bookArea.width.toFloat()
+        return if (swipeForward) {
+            val k = w * 1.15f / maxOf(swipeX0, w * 0.35f)
+            (w - (swipeX0 - swipeX).coerceAtLeast(0f) * k).coerceAtLeast(-w)
+        } else {
+            val k = w * 1.15f / maxOf(w - swipeX0, w * 0.35f)
+            ((swipeX - swipeX0).coerceAtLeast(0f) * k).coerceAtMost(2 * w)
+        }
+    }
+
+    private fun swipeCornerY(): Float {
+        val w = bookArea.width.toFloat()
+        val h = bookArea.height.toFloat()
+        val cx = swipeCornerX()
+        val t = (if (swipeForward) (w - cx) else cx) / (2 * w)
+        val lift = kotlin.math.sin(Math.PI * t.coerceIn(0f, 1f)).toFloat() * h * 0.12f
+        return (h - lift - (swipeY0 - swipeY) * 0.6f).coerceIn(h * 0.35f, h)
+    }
+
+    private fun startSwipe(forward: Boolean) {
+        swipeForward = forward
+        swipeReady = false
+        swipeReleased = false
+        swipeComplete = false
+        bookArea.removeCallbacks(drainTurn)
+        pendingTurn = null
+        pendingCount = 0
+        if (turning) finishTurnNow()
+        val animation = settings.animation
+        if (animation != PageAnimation.Curl) return
+        turning = true
+        capturing = true
+        capturePage { bitmap ->
+            capturing = false
+            if (bitmap == null || !go(forward, animated = false)) {
+                turning = false
+                swipeReady = false
+                return@capturePage
+            }
+            curl.paper = settings.pageTheme.background.toInt()
+            curl.begin(bitmap, forward)
+            swipeReady = true
+            if (swipeReleased) endSwipe() else curl.drag(swipeCornerX(), swipeCornerY())
+        }
+    }
+
+    private fun endSwipe() {
+        val animation = settings.animation
+        if (animation != PageAnimation.Curl) {
+            if (swipeComplete) requestTurn(swipeForward, animation)
+            resyncListening()
+            return
+        }
+        swipeReady = false
+        val forward = swipeForward
+        curl.release(swipeComplete) { done ->
+            if (done) {
+                curl.hide()
+                turning = false
+                resyncListening()
+            } else {
+                go(!forward, animated = false)
+                val hide = Runnable {
+                    curlHide = null
+                    curl.hide()
+                    turning = false
+                }
+                curlHide = hide
+                curl.postDelayed(hide, 90)
+            }
         }
     }
 
