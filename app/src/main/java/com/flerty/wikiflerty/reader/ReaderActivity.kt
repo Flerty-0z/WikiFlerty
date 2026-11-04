@@ -1814,13 +1814,14 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         curlStart?.let { curl.removeCallbacks(it) }
         curlStart = null
         snapshot.animate().setListener(null).cancel()
-        val shown = curl.visibility == View.VISIBLE || snapshot.visibility == View.VISIBLE
+        val shown = curl.visibility == View.VISIBLE || snapshot.visibility == View.VISIBLE || navContainer.elevation != 0f
+        turnAnimator?.cancel()
         curl.cancel()
         curlHide?.let { curl.removeCallbacks(it) }
         curlHide = null
         curl.hide()
         swipeReady = false
-        hideSnapshot()
+        resetTurnViews()
         if (shown) overlayHiddenAt = android.os.SystemClock.uptimeMillis()
     }
 
@@ -1857,38 +1858,129 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 schedulePending()
                 return@capturePage
             }
-            snapshot.animate().cancel()
-            snapshot.setImageBitmap(bitmap)
-            snapshot.alpha = 1f
-            snapshot.translationX = 0f
-            snapshot.visibility = View.VISIBLE
+            prepareTurn(bitmap, forward, animation)
             if (!go(forward, animated = false)) {
-                hideSnapshot()
+                resetTurnViews()
                 pendingTurn = null
                 pendingCount = 0
                 return@capturePage
             }
-            val width = bookArea.width.toFloat()
-            val animator = snapshot.animate()
-                .setStartDelay(60)
-                .setInterpolator(DecelerateInterpolator(1.4f))
-                .withEndAction { hideSnapshot() }
-            when (animation) {
-                PageAnimation.Fade -> animator.alpha(0f).setDuration(280)
-                PageAnimation.Flip -> {
-                    snapshot.pivotX = if (forward) 0f else width
-                    snapshot.pivotY = bookArea.height / 2f
-                    snapshot.cameraDistance = 9000 * resources.displayMetrics.density
-                    animator.rotationY(if (forward) -95f else 95f).alpha(0.6f)
-                        .setInterpolator(android.view.animation.AccelerateInterpolator(1.3f)).setDuration(430)
-                }
-                PageAnimation.Depth -> animator.scaleX(0.84f).scaleY(0.84f).alpha(0f)
-                    .translationX(if (forward) -width * 0.12f else width * 0.12f).setDuration(360)
-                else -> animator.translationX(if (forward) -width else width).setDuration(320)
-            }
-            animator.start()
+            val (duration, easing) = turnSpec(animation)
+            runTurn(1f, duration, easing, delay = 60) { resetTurnViews() }
             schedulePending()
         }
+    }
+
+    private var turnAnimator: android.animation.ValueAnimator? = null
+    private var turnForward = true
+    private var turnKind = PageAnimation.Fade
+    private var turnProgress = 0f
+    private val navContainer: View by lazy { findViewById(R.id.navigator_container) }
+
+    private fun turnSpec(animation: PageAnimation): Pair<Long, android.animation.TimeInterpolator> = when (animation) {
+        PageAnimation.Fade -> 280L to DecelerateInterpolator(1.4f)
+        PageAnimation.Flip -> 430L to android.view.animation.AccelerateInterpolator(1.3f)
+        PageAnimation.Depth -> 360L to DecelerateInterpolator(1.4f)
+        else -> 320L to DecelerateInterpolator(1.4f)
+    }
+
+    private fun prepareTurn(bitmap: Bitmap, forward: Boolean, animation: PageAnimation) {
+        turnAnimator?.cancel()
+        turnForward = forward
+        turnKind = animation
+        turnProgress = 0f
+        snapshot.animate().setListener(null).cancel()
+        snapshot.setImageBitmap(bitmap)
+        snapshot.alpha = 1f
+        snapshot.translationX = 0f
+        snapshot.rotationY = 0f
+        snapshot.scaleX = 1f
+        snapshot.scaleY = 1f
+        val w = bookArea.width.toFloat()
+        val camera = 9000 * resources.displayMetrics.density
+        if (animation == PageAnimation.Flip) {
+            snapshot.pivotX = 0f
+            snapshot.pivotY = bookArea.height / 2f
+            snapshot.cameraDistance = camera
+            navContainer.pivotX = 0f
+            navContainer.pivotY = bookArea.height / 2f
+            navContainer.cameraDistance = camera
+        }
+        if (incoming(animation, forward)) {
+            navContainer.outlineProvider = ViewOutlineProvider.BOUNDS
+            navContainer.elevation = 18 * resources.displayMetrics.density
+        }
+        snapshot.visibility = View.VISIBLE
+        applyTurn(0f)
+    }
+
+    private fun incoming(animation: PageAnimation, forward: Boolean) = when (animation) {
+        PageAnimation.Cover -> forward
+        PageAnimation.Flip, PageAnimation.Depth -> !forward
+        else -> false
+    }
+
+    private fun applyTurn(p: Float) {
+        turnProgress = p
+        val w = bookArea.width.toFloat()
+        val forward = turnForward
+        when (turnKind) {
+            PageAnimation.Fade -> snapshot.alpha = 1f - p
+            PageAnimation.Flip -> if (forward) {
+                snapshot.rotationY = -95f * p
+                snapshot.alpha = 1f - 0.4f * p
+            } else {
+                navContainer.rotationY = -95f * (1f - p)
+                navContainer.alpha = 0.6f + 0.4f * p
+            }
+            PageAnimation.Depth -> if (forward) {
+                val k = 1f - 0.16f * p
+                snapshot.scaleX = k
+                snapshot.scaleY = k
+                snapshot.alpha = 1f - p
+                snapshot.translationX = -w * 0.12f * p
+            } else {
+                val k = 0.84f + 0.16f * p
+                navContainer.scaleX = k
+                navContainer.scaleY = k
+                navContainer.alpha = p
+                navContainer.translationX = -w * 0.12f * (1f - p)
+            }
+            PageAnimation.Cover -> if (forward) navContainer.translationX = w * (1f - p) else snapshot.translationX = w * p
+            else -> snapshot.translationX = (if (forward) -w else w) * p
+        }
+    }
+
+    private fun runTurn(to: Float, duration: Long, easing: android.animation.TimeInterpolator, delay: Long = 0, onEnd: () -> Unit) {
+        turnAnimator?.cancel()
+        turnAnimator = android.animation.ValueAnimator.ofFloat(turnProgress, to).apply {
+            this.duration = duration
+            startDelay = delay
+            interpolator = easing
+            addUpdateListener { applyTurn(it.animatedValue as Float) }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                private var done = false
+                override fun onAnimationEnd(animation: android.animation.Animator) = finish()
+                override fun onAnimationCancel(animation: android.animation.Animator) = finish()
+                private fun finish() {
+                    if (done) return
+                    done = true
+                    turnAnimator = null
+                    onEnd()
+                }
+            })
+            start()
+        }
+    }
+
+    private fun resetTurnViews() {
+        navContainer.translationX = 0f
+        navContainer.rotationY = 0f
+        navContainer.scaleX = 1f
+        navContainer.scaleY = 1f
+        navContainer.alpha = 1f
+        navContainer.elevation = 0f
+        hideSnapshot()
     }
 
     private fun hideSnapshot() {
@@ -2028,7 +2120,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 swipeX = ev.rawX - area[0]
                 swipeY = ev.rawY - area[1]
                 when (ev.actionMasked) {
-                    android.view.MotionEvent.ACTION_MOVE -> if (swipeReady) curl.drag(swipeCornerX(), swipeCornerY())
+                    android.view.MotionEvent.ACTION_MOVE -> if (swipeReady) {
+                        if (settings.animation == PageAnimation.Curl) curl.drag(swipeCornerX(), swipeCornerY()) else applyTurn(swipeProgress())
+                    }
                     android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
                         val tracker = swipeVelocity
                         tracker?.computeCurrentVelocity(1000)
@@ -2038,8 +2132,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         val dist = if (swipeForward) swipeX0 - swipeX else swipeX - swipeX0
                         val fling = 700 * resources.displayMetrics.density
                         val towards = if (swipeForward) -vx else vx
-                        val interactive = settings.animation == PageAnimation.Curl
-                        val enough = if (interactive) dist > bookArea.width * 0.22f else dist > 24 * resources.displayMetrics.density
+                        val enough = dist > bookArea.width * 0.22f
                         swipeComplete = ev.actionMasked == android.view.MotionEvent.ACTION_UP &&
                             (towards > fling || (enough && towards > -fling))
                         swipeReleased = true
@@ -2084,32 +2177,70 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         pendingCount = 0
         if (turning) finishTurnNow()
         val animation = settings.animation
-        if (animation != PageAnimation.Curl) return
         turning = true
         capturing = true
         capturePage { bitmap ->
             capturing = false
-            if (bitmap == null || !go(forward, animated = false)) {
+            if (bitmap == null) {
                 turning = false
                 swipeReady = false
                 return@capturePage
             }
-            curl.paper = settings.pageTheme.background.toInt()
-            curl.begin(bitmap, forward)
-            swipeReady = true
-            if (swipeReleased) endSwipe() else curl.drag(swipeCornerX(), swipeCornerY())
+            if (animation == PageAnimation.Curl) {
+                if (!go(forward, animated = false)) {
+                    turning = false
+                    swipeReady = false
+                    return@capturePage
+                }
+                curl.paper = settings.pageTheme.background.toInt()
+                curl.begin(bitmap, forward)
+                swipeReady = true
+                if (swipeReleased) endSwipe() else curl.drag(swipeCornerX(), swipeCornerY())
+            } else {
+                prepareTurn(bitmap, forward, animation)
+                if (!go(forward, animated = false)) {
+                    resetTurnViews()
+                    swipeReady = false
+                    return@capturePage
+                }
+                swipeReady = true
+                if (swipeReleased) endSwipe() else applyTurn(swipeProgress())
+            }
         }
+    }
+
+    private fun swipeProgress(): Float {
+        val w = bookArea.width.toFloat().coerceAtLeast(1f)
+        val dist = if (swipeForward) swipeX0 - swipeX else swipeX - swipeX0
+        return (dist / (w * 0.85f)).coerceIn(0f, 1f)
     }
 
     private fun endSwipe() {
         val animation = settings.animation
+        val forward = swipeForward
         if (animation != PageAnimation.Curl) {
-            if (swipeComplete) requestTurn(swipeForward, animation)
-            resyncListening()
+            swipeReady = false
+            val (full, _) = turnSpec(animation)
+            val complete = swipeComplete
+            val target = if (complete) 1f else 0f
+            val share = kotlin.math.abs(target - turnProgress)
+            runTurn(target, (90 + full * share).toLong(), DecelerateInterpolator(1.3f)) {
+                if (complete) {
+                    resetTurnViews()
+                    resyncListening()
+                } else {
+                    go(!forward, animated = false)
+                    val hide = Runnable {
+                        curlHide = null
+                        resetTurnViews()
+                    }
+                    curlHide = hide
+                    curl.postDelayed(hide, 90)
+                }
+            }
             return
         }
         swipeReady = false
-        val forward = swipeForward
         curl.release(swipeComplete) { done ->
             if (done) {
                 curl.hide()
