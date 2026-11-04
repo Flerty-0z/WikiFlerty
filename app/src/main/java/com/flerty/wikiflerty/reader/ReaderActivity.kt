@@ -1843,7 +1843,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         curlStart?.let { curl.removeCallbacks(it) }
         curlStart = null
         snapshot.animate().setListener(null).cancel()
-        val shown = curl.visibility == View.VISIBLE || snapshot.visibility == View.VISIBLE || navContainer.elevation != 0f
+        val shown = curl.showing || snapshot.visibility == View.VISIBLE || navContainer.elevation != 0f
         turnAnimator?.cancel()
         curl.cancel()
         curlHide?.let { curl.removeCallbacks(it) }
@@ -2071,9 +2071,13 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             }
             val start = Runnable {
                 curlStart = null
-                curl.play(bitmap, forward) { turning = false }
-                snapshot.visibility = View.GONE
-                snapshot.setImageDrawable(null)
+                curl.play(bitmap, forward, onShown = {
+                    snapshot.visibility = View.GONE
+                    snapshot.setImageDrawable(null)
+                }) {
+                    curl.hide()
+                    turning = false
+                }
             }
             curlStart = start
             curl.postDelayed(start, 60)
@@ -2256,13 +2260,23 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 return@capturePage
             }
             if (animation == PageAnimation.Curl) {
+                snapshot.setImageBitmap(bitmap)
+                snapshot.alpha = 1f
+                snapshot.rotationY = 0f
+                snapshot.translationX = 0f
+                snapshot.visibility = View.VISIBLE
                 if (!go(forward, animated = false)) {
-                    turning = false
+                    hideSnapshot()
                     swipeReady = false
                     return@capturePage
                 }
                 curl.paper = settings.pageTheme.background.toInt()
-                curl.begin(bitmap, forward)
+                curl.begin(bitmap, forward, onShown = {
+                    if (swipeState == SwipeState.Dragging || swipeReleased) {
+                        snapshot.visibility = View.GONE
+                        snapshot.setImageDrawable(null)
+                    }
+                })
                 swipeReady = true
                 if (swipeReleased) endSwipe() else curl.drag(swipeCornerX(), swipeCornerY())
             } else {

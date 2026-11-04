@@ -1,6 +1,5 @@
 package com.flerty.wikiflerty.reader
 
-import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -9,24 +8,55 @@ import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PixelFormat
+import android.graphics.PorterDuff
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Region
 import android.graphics.Shader
 import android.os.Build
-import android.view.View
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.Looper
+import android.view.Choreographer
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.animation.DecelerateInterpolator
 import kotlin.math.PI
 import kotlin.math.hypot
 import kotlin.math.sin
 
-class PageCurlView(context: Context) : View(context) {
+class PageCurlView(context: Context) : SurfaceView(context), SurfaceHolder.Callback {
+    private val main = Handler(Looper.getMainLooper())
+    private val thread = HandlerThread("page-curl", android.os.Process.THREAD_PRIORITY_DISPLAY).also { it.start() }
+    private val render = Handler(thread.looper)
+    private var choreographer: Choreographer? = null
+
+    @Volatile var paper: Int = Color.WHITE
+    @Volatile var showing = false
+        private set
+
+    private var surfaceReady = false
+    private var w = 0f
+    private var h = 0f
     private var bitmap: Bitmap? = null
     private var forward = true
     private var px = 0f
     private var py = 0f
-    private var animator: ValueAnimator? = null
-    var paper: Int = Color.WHITE
+    private var mode = 0
+    private var startNanos = -1L
+    private var duration = 0L
+    private var fromX = 0f
+    private var fromY = 0f
+    private var toX = 0f
+    private var toY = 0f
+    private var frameQueued = false
+    private var firstFrame: (() -> Unit)? = null
+    private var finish: (() -> Unit)? = null
+    private val autoEase = AccelerateDecelerateInterpolator()
+    private val releaseEase = DecelerateInterpolator(1.3f)
+    private var generation = 0
 
     private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val backPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply { alpha = 38 }
@@ -39,96 +69,201 @@ class PageCurlView(context: Context) : View(context) {
     private val reflect = Matrix()
 
     init {
-        visibility = GONE
         isClickable = false
+        setZOrderMediaOverlay(true)
+        holder.setFormat(PixelFormat.TRANSLUCENT)
+        holder.addCallback(this)
+        render.post { choreographer = Choreographer.getInstance() }
     }
 
-    val running: Boolean get() = animator?.isRunning == true
+    val running: Boolean get() = showing
+
+    override fun surfaceCreated(holder: SurfaceHolder) {
+        render.post {
+            surfaceReady = true
+            present(clear = bitmap == null)
+        }
+    }
+
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+        render.post {
+            w = width.toFloat()
+            h = height.toFloat()
+            present(clear = bitmap == null)
+        }
+    }
+
+    override fun surfaceDestroyed(holder: SurfaceHolder) {
+        val done = java.util.concurrent.CountDownLatch(1)
+        render.post {
+            surfaceReady = false
+            if (mode != 0) completeNow()
+            done.countDown()
+        }
+        runCatching { done.await(300, java.util.concurrent.TimeUnit.MILLISECONDS) }
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        render.post { thread.quitSafely() }
+    }
 
     private fun autoPoint(t: Float) {
-        val w = width.toFloat()
-        val h = height.toFloat()
         px = if (forward) w - t * (2 * w + 40f) else t * (2 * w + 40f)
         py = h - sin(PI * t).toFloat() * h * 0.16f - t * h * 0.04f
     }
 
-    fun play(page: Bitmap, forward: Boolean, duration: Long = 520, onEnd: () -> Unit) {
-        animator?.cancel()
-        bitmap = page
-        this.forward = forward
-        autoPoint(0f)
-        alpha = 1f
-        visibility = VISIBLE
-        animator = ValueAnimator.ofFloat(0f, 1f).apply {
+    fun play(page: Bitmap, forward: Boolean, duration: Long = 520, onShown: (() -> Unit)? = null, onEnd: () -> Unit) {
+        showing = true
+        render.post {
+            generation++
+            completePending(false)
+            bitmap = page
+            this.forward = forward
             this.duration = duration
-            interpolator = AccelerateDecelerateInterpolator()
-            addUpdateListener {
-                autoPoint(it.animatedValue as Float)
-                invalidate()
-            }
-            addListener(endListener { hide(); onEnd() })
-            start()
+            mode = 1
+            startNanos = -1L
+            autoPoint(0f)
+            firstFrame = onShown
+            finish = { main.post(onEnd) }
+            schedule()
         }
     }
 
-    fun begin(page: Bitmap, forward: Boolean) {
-        animator?.cancel()
-        bitmap = page
-        this.forward = forward
-        px = if (forward) width.toFloat() else 0f
-        py = height.toFloat()
-        alpha = 1f
-        visibility = VISIBLE
-        invalidate()
+    fun begin(page: Bitmap, forward: Boolean, onShown: (() -> Unit)? = null) {
+        showing = true
+        render.post {
+            generation++
+            completePending(false)
+            bitmap = page
+            this.forward = forward
+            mode = 0
+            px = if (forward) w else 0f
+            py = h
+            firstFrame = onShown
+            schedule()
+        }
     }
 
     fun drag(x: Float, y: Float) {
-        if (bitmap == null) return
-        px = x
-        py = y
-        invalidate()
+        render.post {
+            if (bitmap == null || mode != 0) return@post
+            px = x
+            py = y
+            schedule()
+        }
     }
 
     fun release(complete: Boolean, onEnd: (Boolean) -> Unit) {
-        animator?.cancel()
-        val w = width.toFloat()
-        val h = height.toFloat()
-        val fromX = px
-        val fromY = py
-        val toX = if (complete) (if (forward) -w - 40f else 2 * w + 40f) else (if (forward) w else 0f)
-        val toY = if (complete) h * 0.96f else h
-        val share = (kotlin.math.abs(toX - fromX) / (2 * w + 40f)).coerceIn(0f, 1f)
-        animator = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = (150 + 300 * share).toLong()
-            interpolator = android.view.animation.DecelerateInterpolator(1.3f)
-            addUpdateListener {
-                val k = it.animatedValue as Float
-                px = fromX + (toX - fromX) * k
-                py = fromY + (toY - fromY) * k
-                invalidate()
+        render.post {
+            if (bitmap == null) {
+                main.post { onEnd(complete) }
+                return@post
             }
-            addListener(endListener { onEnd(complete) })
-            start()
+            fromX = px
+            fromY = py
+            toX = if (complete) (if (forward) -w - 40f else 2 * w + 40f) else (if (forward) w else 0f)
+            toY = if (complete) h * 0.96f else h
+            val share = (kotlin.math.abs(toX - fromX) / (2 * w + 40f)).coerceIn(0f, 1f)
+            duration = (150 + 300 * share).toLong()
+            mode = 2
+            startNanos = -1L
+            finish = { main.post { onEnd(complete) } }
+            schedule()
         }
     }
 
     fun hide() {
-        visibility = GONE
-        bitmap = null
-    }
-
-    private fun endListener(block: () -> Unit) = object : android.animation.AnimatorListenerAdapter() {
-        private var done = false
-        override fun onAnimationEnd(animation: android.animation.Animator) = finish()
-        override fun onAnimationCancel(animation: android.animation.Animator) = finish()
-        private fun finish() {
-            if (done) return
-            done = true
-            block()
+        showing = false
+        render.post {
+            generation++
+            firstFrame?.let { cb -> firstFrame = null; main.post(cb) }
+            finish = null
+            mode = 0
+            bitmap = null
+            present(clear = true)
         }
     }
 
-    fun cancel() = animator?.cancel()
+    fun cancel() {
+        render.post { if (mode != 0) completeNow() }
+    }
+
+    private fun completePending(run: Boolean) {
+        val f = finish
+        finish = null
+        if (run) f?.invoke()
+    }
+
+    private fun completeNow() {
+        if (mode == 1) autoPoint(1f)
+        if (mode == 2) {
+            px = toX
+            py = toY
+        }
+        mode = 0
+        completePending(true)
+    }
+
+    private val frame = Choreographer.FrameCallback { nanos -> onFrame(nanos) }
+
+    private fun schedule() {
+        if (frameQueued) return
+        val c = choreographer
+        if (c == null || !surfaceReady) {
+            present(clear = false)
+            if (!surfaceReady && mode != 0) completeNow()
+            return
+        }
+        frameQueued = true
+        c.postFrameCallback(frame)
+    }
+
+    private fun onFrame(nanos: Long) {
+        frameQueued = false
+        if (mode != 0) {
+            if (startNanos < 0) startNanos = nanos
+            val t = ((nanos - startNanos) / 1_000_000f / duration.coerceAtLeast(1)).coerceIn(0f, 1f)
+            if (mode == 1) {
+                autoPoint(autoEase.getInterpolation(t))
+            } else {
+                val k = releaseEase.getInterpolation(t)
+                px = fromX + (toX - fromX) * k
+                py = fromY + (toY - fromY) * k
+            }
+            present(clear = false)
+            if (t >= 1f) {
+                mode = 0
+                completePending(true)
+            } else {
+                schedule()
+            }
+        } else {
+            present(clear = false)
+        }
+    }
+
+    private fun present(clear: Boolean) {
+        if (!surfaceReady) return
+        val surface = holder.surface
+        if (!surface.isValid) return
+        val canvas = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) surface.lockHardwareCanvas() else surface.lockCanvas(null)
+        }.getOrNull() ?: return
+        try {
+            canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+            if (!clear && bitmap != null) drawCurl(canvas)
+        } finally {
+            runCatching { surface.unlockCanvasAndPost(canvas) }
+        }
+        if (!clear && bitmap != null) {
+            firstFrame?.let { cb ->
+                firstFrame = null
+                val gen = generation
+                render.post { if (gen == generation) main.post(cb) }
+            }
+        }
+    }
 
     private val edgeShader = LinearGradient(0f, 0f, 1f, 0f, 0x33000000, 0x00000000, Shader.TileMode.CLAMP)
     private val dropShader = LinearGradient(0f, 0f, 1f, 0f, 0x55000000, 0x00000000, Shader.TileMode.CLAMP)
@@ -186,10 +321,8 @@ class PageCurlView(context: Context) : View(context) {
         path.close()
     }
 
-    override fun onDraw(canvas: Canvas) {
+    private fun drawCurl(canvas: Canvas) {
         val bmp = bitmap ?: return
-        val w = width.toFloat()
-        val h = height.toFloat()
         if (w <= 0f || h <= 0f) return
         src.set(0, 0, bmp.width, bmp.height)
         dst.set(0f, 0f, w, h)
