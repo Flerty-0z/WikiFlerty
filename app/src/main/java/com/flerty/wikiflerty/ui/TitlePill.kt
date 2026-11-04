@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -131,17 +132,34 @@ fun TabbedFrame(
     trailing: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
-    androidx.compose.foundation.layout.Column(modifier.fillMaxWidth().sheetReveal().fieldSurface(appCorner(18))) {
+    val decor = AppStyle.kit.decor
+    androidx.compose.foundation.layout.Column(modifier.fillMaxWidth().sheetReveal().fieldSurface(appCorner(18)).kitFrame()) {
+        Box(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             val density = androidx.compose.ui.platform.LocalDensity.current
             var side by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
             if (trailing != null) androidx.compose.foundation.layout.Spacer(Modifier.width(with(density) { side.toDp() }))
-            Box(Modifier.weight(1f).padding(horizontal = if (trailing != null) 6.dp else 0.dp), contentAlignment = Alignment.Center) {
-                HeaderLabel(title, icon = icon, size = 15.sp)
+            Box(Modifier.weight(1f).padding(horizontal = if (trailing != null) 6.dp else if (decor == Decor.Zen) 30.dp else 0.dp), contentAlignment = Alignment.Center) {
+                val label = if (decor == Decor.News) title.uppercase() else title
+                if (decor == Decor.Comic) {
+                    val bubble = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+                    Box(
+                        Modifier
+                            .graphicsLayer { rotationZ = -1.5f }
+                            .clip(bubble)
+                            .background(androidx.compose.ui.graphics.Color(0xFFFFCC00))
+                            .border(2.dp, androidx.compose.ui.graphics.Color(0xFF111111), bubble)
+                            .padding(start = 4.dp, end = 10.dp, top = 3.dp, bottom = 3.dp),
+                    ) { HeaderLabel(label, icon = icon, size = 15.sp, textColor = androidx.compose.ui.graphics.Color(0xFF111111)) }
+                } else {
+                    HeaderLabel(label, icon = icon, size = 15.sp)
+                }
             }
             if (trailing != null) Box(Modifier.onSizeChanged { side = it.width }) { trailing() }
         }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.PanelBorder))
+        if (trailing == null) KitSeal(Modifier.align(Alignment.CenterEnd).padding(end = 12.dp))
+        }
+        KitDivider()
         androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().then(if (inset) Modifier.padding(horizontal = 14.dp, vertical = 6.dp) else Modifier)) { content() }
     }
 }
@@ -162,7 +180,7 @@ fun PageBar(title: String, onBack: () -> Unit, icon: ImageVector? = null, traili
 }
 
 @Composable
-fun HeaderLabel(title: String, modifier: Modifier = Modifier, icon: ImageVector? = null, size: TextUnit = 16.sp) {
+fun HeaderLabel(title: String, modifier: Modifier = Modifier, icon: ImageVector? = null, size: TextUnit = 16.sp, textColor: androidx.compose.ui.graphics.Color? = null) {
     val tint = AppColors.Accent
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
         Box(
@@ -175,7 +193,7 @@ fun HeaderLabel(title: String, modifier: Modifier = Modifier, icon: ImageVector?
         ) { Icon(icon ?: titleIcon(title), null, tint = tint, modifier = Modifier.size(16.dp)) }
         Text(
             title,
-            color = AppColors.Text,
+            color = textColor ?: AppColors.Text,
             fontWeight = FontWeight.ExtraBold,
             maxLines = 1,
             softWrap = false,

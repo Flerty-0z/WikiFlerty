@@ -61,13 +61,14 @@ private sealed class ShelfUnit(val key: String) {
     class Standing(val book: Book, val lean: Boolean) : ShelfUnit("b:" + book.id)
     class Stack(val books: List<Book>) : ShelfUnit("s:" + books.joinToString(",") { it.id })
     class Add(val onAdd: () -> Unit) : ShelfUnit("add")
+    class Prop(val index: Int, key: String) : ShelfUnit(key)
 }
 
 class PlankSpec(val key: String, val name: String?, val books: List<Book>, val onAdd: (() -> Unit)?, val onEdit: (() -> Unit)?, val wrap: Boolean)
 
 private class PlankRow(val key: String, val name: String?, val units: List<ShelfUnit>, val onEdit: (() -> Unit)?, val scroll: Boolean)
 
-private fun arrange(books: List<Book>, onAdd: (() -> Unit)?, live: Boolean): List<ShelfUnit> {
+private fun arrange(books: List<Book>, onAdd: (() -> Unit)?, live: Boolean, decor: Decor = Decor.None, seed: String = ""): List<ShelfUnit> {
     if (!live) {
         val units = books.map<Book, ShelfUnit> { ShelfUnit.Standing(it, lean = false) }.toMutableList()
         if (onAdd != null) units += ShelfUnit.Add(onAdd)
@@ -77,8 +78,22 @@ private fun arrange(books: List<Book>, onAdd: (() -> Unit)?, live: Boolean): Lis
         .sortedWith(compareBy<Book> { if (it.status == ReadStatus.Reading) 0 else 1 }.thenByDescending { it.lastReadAt ?: it.addedAt })
     val lying = books.filter { it.status == ReadStatus.Finished }.sortedByDescending { it.finishedAt ?: it.addedAt }
     val units = mutableListOf<ShelfUnit>()
-    standing.forEachIndexed { i, b -> units += ShelfUnit.Standing(b, lean = standing.size >= 3 && i == standing.lastIndex) }
-    lying.chunked(4).forEach { units += ShelfUnit.Stack(it) }
+    val props = propCount(decor) > 0
+    val base = seed.hashCode() and 0x7FFFFFFF
+    var placed = 0
+    fun prop() {
+        units += ShelfUnit.Prop(base + placed * 7, "p:$seed:$placed")
+        placed++
+    }
+    standing.forEachIndexed { i, b ->
+        units += ShelfUnit.Standing(b, lean = standing.size >= 3 && i == standing.lastIndex)
+        if (props && (i % 2 == 1 || standing.size == 1)) prop()
+    }
+    lying.chunked(4).forEachIndexed { i, chunk ->
+        units += ShelfUnit.Stack(chunk)
+        if (props && i == 0 && standing.size % 2 == 0) prop()
+    }
+    if (props && placed == 0 && (standing.isNotEmpty() || lying.isNotEmpty())) prop()
     if (onAdd != null) units += ShelfUnit.Add(onAdd)
     return units
 }
@@ -87,10 +102,11 @@ private fun unitWidth(u: ShelfUnit): Float = when (u) {
     is ShelfUnit.Standing -> 97f + if (u.lean) 14f else 0f
     is ShelfUnit.Stack -> 160f
     is ShelfUnit.Add -> 84f
+    is ShelfUnit.Prop -> 65f
 }
 
-private fun rows(planks: List<PlankSpec>, width: Float, live: Boolean): List<PlankRow> = planks.flatMap { p ->
-    val units = arrange(p.books, p.onAdd, live)
+private fun rows(planks: List<PlankSpec>, width: Float, live: Boolean, decor: Decor): List<PlankRow> = planks.flatMap { p ->
+    val units = arrange(p.books, p.onAdd, live, decor, p.key)
     if (!p.wrap) return@flatMap listOf(PlankRow(p.key, p.name, units, p.onEdit, scroll = true))
     val out = mutableListOf<MutableList<ShelfUnit>>(mutableListOf())
     var used = 0f
@@ -117,7 +133,8 @@ fun BookcaseView(
 ) {
     androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxSize().bookcaseWall()) {
         val width = maxWidth.value - 44f
-        val list = remember(planks, width, live) { rows(planks, width, live) }
+        val decor = AppStyle.kit.decor
+        val list = remember(planks, width, live, decor) { rows(planks, width, live, decor) }
         androidx.compose.runtime.key(animationKey, live) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -175,6 +192,7 @@ private fun Shelf(row: PlankRow, index: Int, onBook: (Book) -> Unit) {
                 is ShelfUnit.Standing -> StandingBook(unit.book, unit.lean, Modifier.dropIn(index, i)) { onBook(unit.book) }
                 is ShelfUnit.Stack -> BookStack(unit.books, Modifier.dropIn(index, i), onBook)
                 is ShelfUnit.Add -> Box(Modifier.dropIn(index, i)) { AddSlot(unit.onAdd) }
+                is ShelfUnit.Prop -> ShelfProp(AppStyle.kit.decor, unit.index, Modifier.dropIn(index, i))
             }
         }
         if (row.scroll) {
