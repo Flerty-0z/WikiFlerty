@@ -37,6 +37,11 @@ fun AppBackground() {
     val app = LocalContext.current.applicationContext as App
     val kind = BackgroundKind.of(style.background)
     if (kind == BackgroundKind.None) {
+        val decor = AppStyle.decor
+        if (decor != Decor.None) {
+            KitBackdrop(decor, AppStyle.base, AppColors.Accent, Modifier.fillMaxSize())
+            return
+        }
         AppStyle.base.ambience?.takeIf { style.ambience }?.let { AmbienceBackground(AppStyle.base, it, Modifier.fillMaxSize()) }
         return
     }
@@ -131,7 +136,7 @@ private fun cropToFill(view: TextureView, videoWidth: Int, videoHeight: Int) {
 val hasAppBackground: Boolean
     get() {
         val style = AppStyle.current
-        return BackgroundKind.of(style.background) != BackgroundKind.None || (style.ambience && AppStyle.base.ambience != null)
+        return BackgroundKind.of(style.background) != BackgroundKind.None || (style.ambience && AppStyle.base.ambience != null) || AppStyle.decor != Decor.None
     }
 
 @Composable

@@ -218,15 +218,29 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
 
     revealItem(key = "templates") {
     TabbedFrame("Шаблоны оформления", icon = AppIcons.Palette, inset = false) {
-        val start = StyleTemplates.indexOfFirst { it.matches(style) }.coerceAtLeast(0)
+        val current = Kit.of(style.kit)
+        val start = Kit.entries.indexOf(current).coerceAtLeast(0)
         androidx.compose.foundation.lazy.LazyRow(
             state = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = (start - 1).coerceAtLeast(0)),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            items(StyleTemplates.size) { i ->
-                val template = StyleTemplates[i]
-                TemplateCard(template, selected = template.matches(style)) { store.update { template.applyTo(it) } }
+            items(Kit.entries.size) { i ->
+                val kit = Kit.entries[i]
+                KitCard(kit, selected = kit == current) {
+                    store.update { st ->
+                        val mode = if (st.kit != kit.id && ThemeMode.of(st.mode) != ThemeMode.System) (if (kit.lightFirst) ThemeMode.Light else ThemeMode.Dark).id else st.mode
+                        val light = when (ThemeMode.of(mode)) { ThemeMode.Light -> true; ThemeMode.Dark -> false; ThemeMode.System -> !AppStyle.systemDark }
+                        kit.applyTo(st, light).copy(mode = mode)
+                    }
+                }
+            }
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.PanelBorder))
+        Box(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+            val modes = ThemeMode.entries
+            SettingSegmented(null, listOf("☀ Светлая", "☾ Тёмная", "◐ Система"), modes.indexOf(ThemeMode.of(style.mode))) { idx ->
+                store.update { it.copy(mode = modes[idx].id) }
             }
         }
     }
@@ -234,9 +248,9 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
 
     revealItem(key = "app-icon") { AppIconGroup() }
 
-    if (AppStyle.base.ambience != null) revealItem(key = "ambience") {
+    if (AppStyle.base.ambience != null || AppStyle.kit.decor != Decor.None) revealItem(key = "ambience") {
         SettingsGroup(null) {
-            SettingSwitch("Свечение фона", style.ambience, hint = null, icon = AppIcons.Sparkle) { v ->
+            SettingSwitch(if (AppStyle.kit.decor != Decor.None) "Живой фон" else "Свечение фона", style.ambience, hint = null, icon = AppIcons.Sparkle) { v ->
                 store.update { it.copy(ambience = v) }
             }
         }
@@ -586,49 +600,65 @@ private fun MotionPreview() {
 }
 
 @Composable
-private fun TemplateCard(template: StyleTemplate, selected: Boolean, onClick: () -> Unit) {
+private fun KitCard(kit: Kit, selected: Boolean, onClick: () -> Unit) {
+    val light = AppStyle.light
+    val base = if (light) kit.light else kit.dark
+    val accent = Color(if (light) kit.accentLight else kit.accent)
     val shape = appCorner(18)
-    val accent = Color(template.accent)
-    val base = template.base
     Box(
         Modifier
             .width(124.dp)
-            .height(168.dp)
+            .height(176.dp)
             .liveClick(shape, sound = FeedbackSound.Toggle, onClick = onClick)
             .border(if (selected) 2.dp else 1.dp, if (selected) accent else AppColors.PanelBorder, shape),
     ) {
-        base.ambience?.let { AmbienceBackground(base, it, Modifier.matchParentSize()) }
-            ?: Box(Modifier.matchParentSize().background(Color(base.background)))
-        Column(Modifier.matchParentSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(accent.copy(alpha = 0.18f).compositeOver(Color(base.field)))
-                    .border(1.dp, accent.copy(alpha = 0.3f), RoundedCornerShape(10.dp)).padding(6.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(Modifier.size(width = 18.dp, height = 26.dp).clip(RoundedCornerShape(3.dp)).background(accent.copy(alpha = 0.7f)))
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Box(Modifier.width(46.dp).height(5.dp).clip(CircleShape).background(Color(base.text).copy(alpha = 0.8f)))
-                    Box(Modifier.width(34.dp).height(4.dp).clip(CircleShape).background(accent))
+        KitBackdrop(kit.decor, base, accent, Modifier.matchParentSize(), animated = selected)
+        Column(Modifier.matchParentSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            val coverShape = RoundedCornerShape((4 * kit.corners).dp + 2.dp)
+            val covers = listOf(0xFFE59AAE, 0xFF4F7EA0, 0xFFD9B25A, 0xFF5F7A4E)
+            repeat(2) { row ->
+                Row(Modifier.padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.Bottom) {
+                    repeat(3) { k ->
+                        val c = Color(covers[(row * 3 + k) % covers.size])
+                        Box(
+                            Modifier
+                                .size(width = 22.dp, height = 32.dp)
+                                .then(
+                                    when (kit.decor) {
+                                        Decor.Comic -> Modifier.hardShadow(coverShape, 2.dp).border(1.5.dp, Color(0xFF111111), coverShape)
+                                        Decor.Cabin -> Modifier.border(2.dp, Color(0xFFFFF3E2), coverShape)
+                                        Decor.Terminal -> Modifier.border(1.dp, accent, coverShape)
+                                        else -> Modifier
+                                    },
+                                )
+                                .clip(coverShape)
+                                .background(if (kit.decor == Decor.Terminal) accent.copy(alpha = 0.12f) else c),
+                        )
+                    }
                 }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                repeat(2) {
-                    Box(
-                        Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(8.dp)).background(Color(base.field))
-                            .border(1.dp, Color(base.border), RoundedCornerShape(8.dp)),
-                    )
+                val plank = when (kit.decor) {
+                    Decor.Comic -> Color(0xFFFFCC00)
+                    Decor.Zen -> Color(0xFFA7B37A)
+                    Decor.Cosmos, Decor.Terminal -> accent
+                    Decor.Library -> Color(0xFF6B4322)
+                    else -> Color(0xFFA8743F)
                 }
+                Box(
+                    Modifier.fillMaxWidth().height(if (kit.decor == Decor.Terminal || kit.decor == Decor.Cosmos) 3.dp else 6.dp)
+                        .clip(RoundedCornerShape(if (kit.decor == Decor.Cabin) 4.dp else 1.dp))
+                        .background(plank)
+                        .then(if (kit.decor == Decor.Comic) Modifier.border(1.dp, Color(0xFF111111)) else Modifier),
+                )
             }
             Spacer(Modifier.weight(1f))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    template.title,
+                    kit.title,
                     color = Color(base.text),
                     fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    softWrap = false,
-                    autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 13.sp, stepSize = 0.5.sp),
+                    maxLines = 2,
+                    lineHeight = 13.sp,
+                    fontSize = 11.5.sp,
                     modifier = Modifier.weight(1f),
                 )
                 if (selected) {
@@ -637,7 +667,6 @@ private fun TemplateCard(template: StyleTemplate, selected: Boolean, onClick: ()
                     }
                 }
             }
-            Box(Modifier.width(40.dp).height(6.dp).clip(CircleShape).background(accent))
         }
     }
 }

@@ -146,9 +146,11 @@ fun NewShelfButton(onClick: () -> Unit) {
 }
 
 private fun Modifier.bookcaseWall(): Modifier = this.drawBehind {
+    val decor = AppStyle.kit.decor
+    if (decor != Decor.None && decor != Decor.Library) return@drawBehind
     val light = AppStyle.light
-    val top = if (light) Color(0xFFE6D7C3) else Color(0xFF1D1611)
-    val bottom = if (light) Color(0xFFD8C5AC) else Color(0xFF110D0A)
+    val top = if (light) Color(0xFFE6D7C3) else if (decor == Decor.Library) Color(0xFF241509) else Color(0xFF1D1611)
+    val bottom = if (light) Color(0xFFD8C5AC) else if (decor == Decor.Library) Color(0xFF150B05) else Color(0xFF110D0A)
     drawRect(Brush.verticalGradient(listOf(top, bottom)))
     val step = 86.dp.toPx()
     var x = step / 2
@@ -324,46 +326,107 @@ private fun AddSlot(onClick: () -> Unit) {
 @Composable
 private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
     val light = AppStyle.light
-    val wood = if (light) listOf(Color(0xFFC9A375), Color(0xFFB08656), Color(0xFF8E6538)) else listOf(Color(0xFFA8743F), Color(0xFF8A5A30), Color(0xFF6B4322))
+    val decor = AppStyle.kit.decor
+    val accent = AppColors.Accent
+    val wood = when {
+        decor == Decor.Library -> if (light) listOf(Color(0xFF9A6A3C), Color(0xFF7A4E28), Color(0xFF5A3518)) else listOf(Color(0xFF7A4A24), Color(0xFF5E381A), Color(0xFF40240F))
+        decor == Decor.Cabin -> if (light) listOf(Color(0xFFE0A872), Color(0xFFC98A52), Color(0xFFA86C3A)) else listOf(Color(0xFFC98A52), Color(0xFFA86C3A), Color(0xFF7A4A24))
+        light -> listOf(Color(0xFFC9A375), Color(0xFFB08656), Color(0xFF8E6538))
+        else -> listOf(Color(0xFFA8743F), Color(0xFF8A5A30), Color(0xFF6B4322))
+    }
+    val shape = when (decor) {
+        Decor.Cabin -> androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
+        Decor.Terminal -> androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+        else -> androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+    }
     Column(Modifier.fillMaxWidth()) {
         Box(
             Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 10.dp)
-                .height(20.dp)
-                .then(if (onEdit != null) Modifier.liveClick(appCorner(4), sound = FeedbackSound.Open, pressedScale = 0.99f, onLongClick = onEdit, onClick = onEdit) else Modifier)
+                .height(if (decor == Decor.Cosmos || decor == Decor.Terminal) 16.dp else 20.dp)
+                .then(if (decor == Decor.Comic) Modifier.hardShadow(shape, 4.dp) else Modifier)
+                .then(if (onEdit != null) Modifier.liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.99f, onLongClick = onEdit, onClick = onEdit) else Modifier)
                 .drawBehind {
-                    drawRect(Brush.verticalGradient(wood))
-                    drawRect(Color(0x73FFDCAA), size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx()))
-                    if (highlighted) drawRect(Color(0x26FFD9A0))
-                    var x = 0f
-                    val grain = Color(0x14000000)
-                    var k = 0
-                    while (x < size.width) {
-                        val y = size.height * (0.35f + 0.3f * ((k * 37) % 10) / 10f)
-                        drawLine(grain, Offset(x, y), Offset(x + 60.dp.toPx(), y + 1.dp.toPx()), 1.dp.toPx())
-                        x += 46.dp.toPx(); k++
+                    when (decor) {
+                        Decor.Cosmos -> {
+                            val core = size.height * 0.35f
+                            drawRoundRect(accent.copy(alpha = 0.18f), Offset(0f, 0f), size, androidx.compose.ui.geometry.CornerRadius(size.height / 2))
+                            drawRoundRect(Brush.horizontalGradient(listOf(accent.copy(alpha = 0.15f), accent, accent.copy(alpha = 0.15f))), Offset(0f, (size.height - core) / 2), androidx.compose.ui.geometry.Size(size.width, core), androidx.compose.ui.geometry.CornerRadius(core))
+                        }
+                        Decor.Zen -> {
+                            val seg = 46.dp.toPx()
+                            drawRoundRect(if (light) Color(0xFFA7B37A) else Color(0xFF6E7A48), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2))
+                            var x = seg
+                            while (x < size.width) {
+                                drawLine(if (light) Color(0xFF7D8A52) else Color(0xFF4E5A30), Offset(x, 0f), Offset(x, size.height), 2.dp.toPx())
+                                x += seg
+                            }
+                            drawRect(Color.White.copy(alpha = 0.18f), Offset(0f, size.height * 0.18f), androidx.compose.ui.geometry.Size(size.width, size.height * 0.16f))
+                        }
+                        Decor.Terminal -> {
+                            val w = 1.5.dp.toPx()
+                            drawRect(accent, Offset(0f, size.height * 0.25f), androidx.compose.ui.geometry.Size(size.width, w))
+                            drawRect(accent, Offset(0f, size.height * 0.65f), androidx.compose.ui.geometry.Size(size.width, w))
+                        }
+                        Decor.Comic -> {
+                            drawRect(Color(0xFFFFCC00))
+                            drawRect(Color(0xFF111111), style = Stroke(2.5.dp.toPx()))
+                        }
+                        else -> {
+                            drawRoundRect(Brush.verticalGradient(wood), cornerRadius = androidx.compose.ui.geometry.CornerRadius(if (decor == Decor.Cabin) 10.dp.toPx() else 4.dp.toPx()))
+                            drawRect(Color(0x73FFDCAA), size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx()))
+                            if (highlighted) drawRect(Color(0x26FFD9A0))
+                            var x = 0f
+                            val grain = Color(0x14000000)
+                            var k = 0
+                            while (x < size.width) {
+                                val y = size.height * (0.35f + 0.3f * ((k * 37) % 10) / 10f)
+                                drawLine(grain, Offset(x, y), Offset(x + 60.dp.toPx(), y + 1.dp.toPx()), 1.dp.toPx())
+                                x += 46.dp.toPx(); k++
+                            }
+                        }
                     }
                 },
             contentAlignment = Alignment.Center,
         ) {
-            if (name != null) Text(
-                name,
-                color = if (AppStyle.light) Color(0xFF3A2612) else Color(0xFFF7EBD8),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 24.dp),
+            if (name != null) {
+                val plaque = decor == Decor.Library
+                Text(
+                    name,
+                    color = when {
+                        plaque -> Color(0xFF3A2A12)
+                        decor == Decor.Comic -> Color(0xFF111111)
+                        decor == Decor.Terminal || decor == Decor.Cosmos -> AppColors.Text
+                        decor == Decor.Zen -> if (light) Color(0xFF2B3A18) else Color(0xFFEDEFE0)
+                        light -> Color(0xFF3A2612)
+                        else -> Color(0xFFF7EBD8)
+                    },
+                    fontSize = 11.sp,
+                    fontWeight = if (decor == Decor.Comic) FontWeight.ExtraBold else FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .padding(horizontal = 24.dp)
+                        .then(
+                            when {
+                                plaque -> Modifier.background(Brush.verticalGradient(listOf(Color(0xFFF0D48A), Color(0xFFB8873F))), androidx.compose.foundation.shape.RoundedCornerShape(3.dp)).padding(horizontal = 10.dp)
+                                decor == Decor.Terminal || decor == Decor.Cosmos -> Modifier.background(AppColors.Background, androidx.compose.foundation.shape.RoundedCornerShape(if (decor == Decor.Terminal) 0.dp else 8.dp)).padding(horizontal = 8.dp)
+                                else -> Modifier
+                            },
+                        ),
+                )
+            }
+        }
+        if (decor != Decor.Terminal && decor != Decor.Cosmos) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp)
+                    .height(12.dp)
+                    .background(Brush.verticalGradient(listOf(Color(0x80000000), Color(0x00000000)))),
             )
         }
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp)
-                .height(12.dp)
-                .background(Brush.verticalGradient(listOf(Color(0x80000000), Color(0x00000000)))),
-        )
     }
 }
 

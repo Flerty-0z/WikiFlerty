@@ -52,6 +52,7 @@ fun BookCover(bookId: String?, width: Dp, modifier: Modifier = Modifier) {
         modifier
             .size(width = width, height = width * 1.5f)
             .shadow(4.dp, coverShape, ambientColor = Color(0x66503010), spotColor = Color(0x66503010))
+            .kitCover(coverShape)
             .clip(coverShape)
             .background(AppColors.Field)
             .background(AppColors.Accent.copy(alpha = 0.16f))

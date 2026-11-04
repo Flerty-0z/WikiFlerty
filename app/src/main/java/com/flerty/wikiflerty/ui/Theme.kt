@@ -142,6 +142,58 @@ enum class UiBase(
         light = true,
         text = 0xFF26223A, muted = 0xFF6E6889, faint = 0xFF958FAE,
     ),
+    CreamLight(
+        "cream_light", "Крем", 0xFFF6EFE6, 0xFFFFFBF5, 0xFFFFFDF9, 0xFFF8F1E7, 0xFFE6D9C8, 0xFFFFFFFF, 0xFFFFFBF5, 0xFFE9DDCC,
+        light = true, text = 0xFF2E241B, muted = 0xFF7A6A58, faint = 0xFFA29280,
+    ),
+    LibraryDark(
+        "library_dark", "Библиотека", 0xFF1A0F08, 0xFF26180D, 0xFF2E1D10, 0xFF1F130A, 0xFF4A3018, 0xFF6B4A28, 0xFF231509, 0xFF46301A,
+        text = 0xFFF3E4C8, muted = 0xFFC9AE84, faint = 0xFF957A58,
+    ),
+    LibraryLight(
+        "library_light", "Библиотека", 0xFFF1E5CE, 0xFFFBF3E2, 0xFFFDF7EA, 0xFFF3E7D0, 0xFFD9C09A, 0xFFFFFBF0, 0xFFFAF1DE, 0xFFE2CFAE,
+        light = true, text = 0xFF3A2612, muted = 0xFF7A5C38, faint = 0xFFA4885F,
+    ),
+    CosmosDark(
+        "cosmos_dark", "Космос", 0xFF070A18, 0xFF121836, 0xFF182043, 0xFF0E1330, 0xFF2A3466, 0xFF46529A, 0xFF101634, 0xFF26305E,
+        text = 0xFFE8ECF7, muted = 0xFFA6AED0, faint = 0xFF7A83AA,
+    ),
+    CosmosLight(
+        "cosmos_light", "Космос", 0xFFEEF0FF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFF3F4FF, 0xFFD4D8F6, 0xFFFFFFFF, 0xFFF8F8FF, 0xFFDCE0F8,
+        light = true, text = 0xFF1B2250, muted = 0xFF5A6190, faint = 0xFF8A90B8,
+    ),
+    ZenLight(
+        "zen_light", "Японский сад", 0xFFF3EEE3, 0xFFFBF8F1, 0xFFFDFBF6, 0xFFF6F1E6, 0xFFDCD3C1, 0xFFFFFFFF, 0xFFFBF8F1, 0xFFE4DCCB,
+        light = true, text = 0xFF2B2B2B, muted = 0xFF6F6A5F, faint = 0xFF9A9384,
+    ),
+    ZenDark(
+        "zen_dark", "Японский сад", 0xFF1C1B18, 0xFF252420, 0xFF2B2A25, 0xFF201F1B, 0xFF3A382F, 0xFF4E4B40, 0xFF23221E, 0xFF38362E,
+        text = 0xFFECE5D6, muted = 0xFFB3AB9A, faint = 0xFF857E70,
+    ),
+    TerminalDark(
+        "terminal_dark", "Терминал", 0xFF03140A, 0xFF061E10, 0xFF082412, 0xFF04180C, 0xFF145A30, 0xFF1F7A44, 0xFF04180C, 0xFF0F4022,
+        text = 0xFF8CFFB8, muted = 0xFF45D683, faint = 0xFF2A9A58,
+    ),
+    TerminalLight(
+        "terminal_light", "Терминал", 0xFFF2F0E6, 0xFFFAF8EF, 0xFFFCFBF4, 0xFFF4F2E8, 0xFFC9C6B4, 0xFFFFFFFF, 0xFFFAF8EF, 0xFFD8D5C4,
+        light = true, text = 0xFF243327, muted = 0xFF4F6652, faint = 0xFF7F8C7F,
+    ),
+    CabinDark(
+        "cabin_dark", "Уютная хижина", 0xFF24150D, 0xFF33211A, 0xFF3A261C, 0xFF2C1B12, 0xFF5A3A24, 0xFF7A5234, 0xFF2E1C12, 0xFF4E3322,
+        text = 0xFFFFE8CC, muted = 0xFFD9B48C, faint = 0xFFA8845E,
+    ),
+    CabinLight(
+        "cabin_light", "Уютная хижина", 0xFFFBEEDD, 0xFFFFF7EC, 0xFFFFFAF2, 0xFFFCF0DF, 0xFFE8CFAE, 0xFFFFFFFF, 0xFFFFF7EC, 0xFFEFD9BC,
+        light = true, text = 0xFF5A3418, muted = 0xFF8A6448, faint = 0xFFB08F72,
+    ),
+    ComicLight(
+        "comic_light", "Комикс", 0xFFFFF6D6, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFF111111, 0xFF111111, 0xFFFFFFFF, 0xFFEAE0B8,
+        light = true, text = 0xFF111111, muted = 0xFF444444, faint = 0xFF6E6E6E,
+    ),
+    ComicDark(
+        "comic_dark", "Комикс", 0xFF1B1B24, 0xFF262633, 0xFF2C2C3A, 0xFF22222E, 0xFFF2F2F2, 0xFFF2F2F2, 0xFF262633, 0xFF3A3A4C,
+        text = 0xFFFFFFFF, muted = 0xFFC9C9D6, faint = 0xFF9A9AAE,
+    ),
     ;
 
     companion object {
@@ -193,6 +245,8 @@ data class UiStyle(
     val motionStyle: String = MotionStyle.Soft.id,
     val press: String = PressStrength.Normal.id,
     val navigation: String = "drawer",
+    val kit: String = Kit.Classic.id,
+    val mode: String = ThemeMode.Dark.id,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("version", 3)
@@ -215,6 +269,8 @@ data class UiStyle(
         put("motionStyle", motionStyle)
         put("press", press)
         put("navigation", navigation)
+        put("kit", kit)
+        put("mode", mode)
     }
 
     companion object {
@@ -253,6 +309,8 @@ data class UiStyle(
                 motionSpeed = json.optString("motionSpeed", d.motionSpeed),
                 motionStyle = json.optString("motionStyle", d.motionStyle),
                 navigation = json.optString("navigation", d.navigation),
+                kit = json.optString("kit", d.kit),
+                mode = json.optString("mode", d.mode),
                 press = json.optString(
                     "press",
                     if (json.has("pressEffect") && !json.optBoolean("pressEffect", true)) PressStrength.Off.id else d.press,
@@ -264,50 +322,74 @@ data class UiStyle(
 
 const val DefaultAccent = 0xFFD9772AL
 
-data class StyleTemplate(
-    val title: String,
-    val base: UiBase,
-    val accent: Long,
-    val font: String,
-    val buttons: ButtonLook,
-    val corners: Float,
-) {
-    fun applyTo(style: UiStyle) = style.copy(
-        base = base.id,
-        accent = accent,
-        font = font,
-        buttons = buttons.id,
-        corners = corners,
-        ambience = true,
-    )
-
-    fun matches(style: UiStyle) = UiBase.of(style.base) == base
-}
-
-val StyleTemplates = listOf(
-    StyleTemplate("Крем", UiBase.Cream, DefaultAccent, "nunito", ButtonLook.Filled, 1.1f),
-    StyleTemplate("Сияние", UiBase.Aurora, 0xFF8AB4F8, "onest", ButtonLook.Soft, 1f),
-    StyleTemplate("Ночная библиотека", UiBase.Lamp, 0xFFF2C46B, "lora", ButtonLook.Soft, 0.8f),
-    StyleTemplate("Глубина океана", UiBase.Deep, 0xFF5EEAD4, "manrope", ButtonLook.Filled, 1.1f),
-    StyleTemplate("Сумерки", UiBase.Dusk, 0xFFF28BB8, "nunito", ButtonLook.Soft, 1.2f),
-    StyleTemplate("Графит и неон", UiBase.Neon, 0xFFC6F432, "onest", ButtonLook.Outline, 0.6f),
-    StyleTemplate("Лес", UiBase.Forest, 0xFF8BD3A5, "rubik", ButtonLook.Soft, 1f),
-    StyleTemplate("Бумага", UiBase.Paper, 0xFF3E63DD, "lora", ButtonLook.Filled, 0.8f),
-    StyleTemplate("Мята", UiBase.Mint, 0xFF2E9E6E, "manrope", ButtonLook.Soft, 1.2f),
-    StyleTemplate("Лаванда", UiBase.Lavender, 0xFF7C5CD6, "nunito", ButtonLook.Filled, 1.3f),
-)
-
 val AccentChoices = listOf(
     0xFFD9772A, 0xFFE0A04A, 0xFFC4553A, 0xFFD45D79, 0xFFB0603A,
     0xFF6E8B3D, 0xFF2E8B6F, 0xFF3E7CB1, 0xFF6C5BC7, 0xFF8A6A4F,
 )
 
+enum class ThemeMode(val id: String, val title: String) {
+    Light("light", "Светлая"),
+    Dark("dark", "Тёмная"),
+    System("system", "Как в системе"),
+    ;
+
+    companion object {
+        fun of(id: String?) = entries.firstOrNull { it.id == id } ?: Dark
+    }
+}
+
+enum class Decor { None, Library, Cosmos, Zen, Terminal, Cabin, Comic }
+
+enum class Kit(
+    val id: String,
+    val title: String,
+    val dark: UiBase,
+    val light: UiBase,
+    val accent: Long,
+    val accentLight: Long,
+    val corners: Float,
+    val buttons: ButtonLook,
+    val motion: MotionStyle,
+    val decor: Decor,
+    val lightFirst: Boolean = false,
+) {
+    Classic("classic", "Крем", UiBase.Cream, UiBase.CreamLight, DefaultAccent, 0xFFC0621C, 1.1f, ButtonLook.Filled, MotionStyle.Soft, Decor.None),
+    Library("library", "Старинная библиотека", UiBase.LibraryDark, UiBase.LibraryLight, 0xFFE0B04A, 0xFF9C6A1C, 0.7f, ButtonLook.Filled, MotionStyle.Soft, Decor.Library),
+    Cosmos("cosmos", "Космос", UiBase.CosmosDark, UiBase.CosmosLight, 0xFFB9A2FF, 0xFF6B4FE0, 1.25f, ButtonLook.Soft, MotionStyle.Soft, Decor.Cosmos),
+    Zen("zen", "Японский сад", UiBase.ZenDark, UiBase.ZenLight, 0xFFE0675A, 0xFFC0392B, 0.45f, ButtonLook.Outline, MotionStyle.Soft, Decor.Zen, lightFirst = true),
+    Terminal("terminal", "Ретро-терминал", UiBase.TerminalDark, UiBase.TerminalLight, 0xFF33FF88, 0xFF1E7A44, 0f, ButtonLook.Outline, MotionStyle.Strict, Decor.Terminal),
+    Cabin("cabin", "Уютная хижина", UiBase.CabinDark, UiBase.CabinLight, 0xFFFFA25E, 0xFFD2692A, 1.6f, ButtonLook.Filled, MotionStyle.Bouncy, Decor.Cabin),
+    Comic("comic", "Комикс", UiBase.ComicDark, UiBase.ComicLight, 0xFFFFCC00, 0xFFFF3B3B, 0.8f, ButtonLook.Filled, MotionStyle.Bouncy, Decor.Comic, lightFirst = true),
+    ;
+
+    fun applyTo(style: UiStyle, light: Boolean) = style.copy(
+        kit = id,
+        accent = if (light) accentLight else accent,
+        corners = corners,
+        buttons = buttons.id,
+        motionStyle = motion.id,
+        ambience = true,
+    )
+
+    companion object {
+        fun of(id: String?) = entries.firstOrNull { it.id == id } ?: Classic
+    }
+}
+
 object AppStyle {
     var current by mutableStateOf(UiStyle())
         internal set
 
-    val base: UiBase get() = UiBase.of(current.base)
-    val light: Boolean get() = base.light
+    var systemDark by mutableStateOf(true)
+
+    val kit: Kit get() = Kit.of(current.kit)
+    val decor: Decor get() = if (current.ambience) kit.decor else Decor.None
+    val light: Boolean get() = when (ThemeMode.of(current.mode)) {
+        ThemeMode.Light -> true
+        ThemeMode.Dark -> false
+        ThemeMode.System -> !systemDark
+    }
+    val base: UiBase get() = if (light) kit.light else kit.dark
     val bottomNav: Boolean get() = true
     val buttons: ButtonLook get() = ButtonLook.of(current.buttons)
 }
@@ -367,7 +449,17 @@ object AppColors {
     val Info: Color get() = if (light) Color(0xFF3D6EF5) else Color(0xFF8AB4F8)
     val Shade: Color get() = Color(base.text)
 
-    val Accent: Color get() = Color(AppStyle.current.accent)
+    val Accent: Color get() {
+        val kit = AppStyle.kit
+        val a = AppStyle.current.accent
+        return Color(
+            when {
+                AppStyle.light && a == kit.accent -> kit.accentLight
+                !AppStyle.light && a == kit.accentLight -> kit.accent
+                else -> a
+            },
+        )
+    }
     val OnAccent: Color get() = if (Accent.luminance() > 0.4f) Color(0xFF0D1424) else Color.White
     val AccentSoft: Color get() = Accent.copy(alpha = 0.18f)
     val AccentLight: Color get() = Color.White.copy(alpha = 0.22f).compositeOver(Accent)
@@ -385,6 +477,8 @@ fun WikiFlertyTheme(content: @Composable () -> Unit) {
     val style = AppStyle.current
     val context = LocalContext.current
     val view = androidx.compose.ui.platform.LocalView.current
+    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    if (AppStyle.systemDark != systemDark) androidx.compose.runtime.SideEffect { AppStyle.systemDark = systemDark }
     val light = AppStyle.light
     androidx.compose.runtime.SideEffect {
         val activity = view.context as? android.app.Activity ?: return@SideEffect

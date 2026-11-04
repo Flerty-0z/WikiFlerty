@@ -625,7 +625,7 @@ private fun BookCard(book: Book, coverFile: File?, small: Boolean, inPages: Bool
         CoverBox(
             book,
             coverFile,
-            Modifier.fillMaxWidth().aspectRatio(2f / 3f).coverShadow(appCorner(10)).clip(appCorner(10)),
+            Modifier.fillMaxWidth().aspectRatio(2f / 3f).coverShadow(appCorner(10)).kitCover(appCorner(10)).clip(appCorner(10)),
             small,
             plaque = true,
             inPages = inPages,
