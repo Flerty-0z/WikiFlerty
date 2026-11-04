@@ -178,22 +178,6 @@ enum class UiBase(
         "news_dark", "Газета", 0xFF121212, 0xFF1A1A1A, 0xFF1A1A1A, 0xFF1A1A1A, 0xFFECE6D8, 0xFFECE6D8, 0xFF202020, 0xFF3A3A3A,
         text = 0xFFECE6D8, muted = 0xFFB8B2A4, faint = 0xFF8A857A,
     ),
-    WashLight(
-        "wash_light", "Акварель", 0xFFFBF7F0, 0xFFFFFEFB, 0xFFFFFFFF, 0xFFFBF6EE, 0xFFE3DACB, 0xFFFFFFFF, 0xFFFFFCF7, 0xFFE9E0D0,
-        light = true, text = 0xFF2F3B52, muted = 0xFF66708A, faint = 0xFF9AA2B6,
-    ),
-    WashDark(
-        "wash_dark", "Акварель", 0xFF171B2E, 0xFF1F2440, 0xFF242A4A, 0xFF1C2139, 0xFF343B60, 0xFF444C78, 0xFF1D2238, 0xFF2F3656,
-        text = 0xFFE9ECF8, muted = 0xFFAAB2D2, faint = 0xFF7C84A6,
-    ),
-    PixelDark(
-        "pixel_dark", "Пиксель", 0xFF1B1730, 0xFF2A2448, 0xFF2A2448, 0xFF2A2448, 0xFFF4F0FF, 0xFFF4F0FF, 0xFF231E3D, 0xFF3D3466,
-        text = 0xFFF4F0FF, muted = 0xFFC2B9E6, faint = 0xFF8F86B6,
-    ),
-    PixelLight(
-        "pixel_light", "Пиксель", 0xFFE3EEC8, 0xFFF4F8E6, 0xFFF4F8E6, 0xFFF4F8E6, 0xFF1E3A12, 0xFF1E3A12, 0xFFEEF5DA, 0xFFBFD19A,
-        light = true, text = 0xFF1E3A12, muted = 0xFF47633A, faint = 0xFF6F8A5F,
-    ),
     SeaDark(
         "sea_dark", "Подводный мир", 0xFF032A38, 0xFF0C3B4A, 0xFF104656, 0xFF08323F, 0xFF1E5F6E, 0xFF3A8796, 0xFF0A3442, 0xFF1A5463,
         text = 0xFFE6FFFB, muted = 0xFF9FD6D0, faint = 0xFF6FA5A0,
@@ -209,14 +193,6 @@ enum class UiBase(
     ClayDark(
         "clay_dark", "Пластилин", 0xFF2A2442, 0xFF352E54, 0xFF3D355F, 0xFF2F2849, 0xFF463D6E, 0xFF554A82, 0xFF312A4E, 0xFF433A69,
         text = 0xFFF3EEFF, muted = 0xFFBDB3DE, faint = 0xFF8A80AE,
-    ),
-    NoteLight(
-        "note_light", "Тетрадь", 0xFFFDFDF7, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFF8E9AD0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFD6E4F5,
-        light = true, text = 0xFF24337F, muted = 0xFF56629F, faint = 0xFF8C95C4,
-    ),
-    NoteDark(
-        "note_dark", "Тетрадь", 0xFF1F362A, 0xFF26402F, 0xFF2A4534, 0xFF233B2B, 0xFF8FA898, 0xFFB5C9BC, 0xFF223A2C, 0xFF3A5646,
-        text = 0xFFF2F2EA, muted = 0xFFC9D2C6, faint = 0xFF98A699,
     ),
     ;
 
@@ -251,8 +227,8 @@ enum class BackgroundKind(val id: String, val title: String) {
 
 data class UiStyle(
     val base: String = UiBase.Cream.id,
-    val accent: Long = DefaultAccent,
-    val corners: Float = 1.1f,
+    val accent: Long = 0xFFE0B04AL,
+    val corners: Float = 0.7f,
     val outline: Boolean = true,
     val buttons: String = ButtonLook.Filled.id,
     val font: String = UI_FONT,
@@ -269,7 +245,7 @@ data class UiStyle(
     val motionStyle: String = MotionStyle.Soft.id,
     val press: String = PressStrength.Normal.id,
     val navigation: String = "drawer",
-    val kit: String = Kit.Classic.id,
+    val kit: String = Kit.Library.id,
     val mode: String = ThemeMode.Dark.id,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
@@ -362,7 +338,7 @@ enum class ThemeMode(val id: String, val title: String) {
     }
 }
 
-enum class Decor { None, Library, Zen, Comic, News, Wash, Pixel, Sea, Clay, Note }
+enum class Decor { None, Library, Zen, Comic, News, Sea, Clay }
 
 enum class Kit(
     val id: String,
@@ -377,16 +353,12 @@ enum class Kit(
     val decor: Decor,
     val lightFirst: Boolean = false,
 ) {
-    Classic("classic", "Крем", UiBase.Cream, UiBase.CreamLight, DefaultAccent, 0xFFC0621C, 1.1f, ButtonLook.Filled, MotionStyle.Soft, Decor.None),
     Library("library", "Старинная библиотека", UiBase.LibraryDark, UiBase.LibraryLight, 0xFFE0B04A, 0xFF9C6A1C, 0.7f, ButtonLook.Filled, MotionStyle.Soft, Decor.Library),
     Zen("zen", "Японский сад", UiBase.ZenDark, UiBase.ZenLight, 0xFFE0675A, 0xFFC0392B, 0.45f, ButtonLook.Outline, MotionStyle.Soft, Decor.Zen, lightFirst = true),
     Comic("comic", "Комикс", UiBase.ComicDark, UiBase.ComicLight, 0xFFFFCC00, 0xFFFF3B3B, 0.8f, ButtonLook.Filled, MotionStyle.Bouncy, Decor.Comic, lightFirst = true),
     News("news", "Утренняя газета", UiBase.NewsDark, UiBase.NewsLight, 0xFFFF4A4A, 0xFFC8102E, 0f, ButtonLook.Filled, MotionStyle.Strict, Decor.News, lightFirst = true),
-    Wash("wash", "Акварель", UiBase.WashDark, UiBase.WashLight, 0xFF8FB8FF, 0xFF3D6FB6, 1.3f, ButtonLook.Soft, MotionStyle.Soft, Decor.Wash, lightFirst = true),
-    Pixel("pixel", "Пиксель", UiBase.PixelDark, UiBase.PixelLight, 0xFFFFCD3C, 0xFFD23C3C, 0f, ButtonLook.Filled, MotionStyle.Strict, Decor.Pixel),
     Sea("sea", "Подводный мир", UiBase.SeaDark, UiBase.SeaLight, 0xFF45E6CF, 0xFF0A8F87, 1.2f, ButtonLook.Soft, MotionStyle.Soft, Decor.Sea),
     Clay("clay", "Пластилин", UiBase.ClayDark, UiBase.ClayLight, 0xFFFF8FB6, 0xFFF0508A, 1.7f, ButtonLook.Filled, MotionStyle.Bouncy, Decor.Clay, lightFirst = true),
-    Note("note", "Школьная тетрадь", UiBase.NoteDark, UiBase.NoteLight, 0xFFFFD36B, 0xFFD93A3A, 0.35f, ButtonLook.Outline, MotionStyle.Soft, Decor.Note, lightFirst = true),
     ;
 
     fun applyTo(style: UiStyle, light: Boolean) = style.copy(
@@ -399,7 +371,7 @@ enum class Kit(
     )
 
     companion object {
-        fun of(id: String?) = entries.firstOrNull { it.id == id } ?: Classic
+        fun of(id: String?) = entries.firstOrNull { it.id == id } ?: Library
     }
 }
 
@@ -432,7 +404,7 @@ class StyleStore(context: Context) {
     init {
         val loaded = _style.value
         if (Kit.entries.none { it.id == loaded.kit }) {
-            val fixed = Kit.Classic.applyTo(loaded, ThemeMode.of(loaded.mode) == ThemeMode.Light)
+            val fixed = Kit.Library.applyTo(loaded, ThemeMode.of(loaded.mode) == ThemeMode.Light)
             _style.value = fixed
             runCatching { file.writeText(fixed.toJson().toString()) }
         }

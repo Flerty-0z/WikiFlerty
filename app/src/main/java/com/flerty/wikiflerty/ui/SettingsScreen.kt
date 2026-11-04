@@ -619,10 +619,9 @@ private fun KitCard(kit: Kit, selected: Boolean, onClick: () -> Unit) {
                                 .then(
                                     when (kit.decor) {
                                         Decor.Comic -> Modifier.hardShadow(coverShape, 2.dp).border(1.5.dp, Color(0xFF111111), coverShape)
-                                        Decor.News, Decor.Pixel -> Modifier.border(1.dp, Color(base.text), coverShape)
+                                        Decor.News -> Modifier.border(1.dp, Color(base.text), coverShape)
                                         Decor.Sea -> Modifier.border(0.8.dp, Color.White.copy(alpha = 0.4f), coverShape)
                                         Decor.Clay -> Modifier.shadow(4.dp, coverShape, ambientColor = Color(0xFFC9B8EE), spotColor = Color(0xFFC9B8EE))
-                                        Decor.Note -> Modifier.border(1.dp, Color(base.text).copy(alpha = 0.6f), coverShape)
                                         else -> Modifier
                                     },
                                 )
@@ -636,16 +635,13 @@ private fun KitCard(kit: Kit, selected: Boolean, onClick: () -> Unit) {
                     Decor.Zen -> Color(0xFFA7B37A)
                     Decor.Library -> Color(0xFF6B4322)
                     Decor.News -> Color(base.text)
-                    Decor.Wash -> accent.copy(alpha = 0.6f)
-                    Decor.Pixel -> if (light) Color(0xFF8B5A2B) else Color(0xFF7A4FA0)
                     Decor.Sea -> accent.copy(alpha = 0.5f)
                     Decor.Clay -> accent
-                    Decor.Note -> Color(base.text)
                     else -> Color(0xFFA8743F)
                 }
                 Box(
-                    Modifier.fillMaxWidth().height(if (kit.decor == Decor.News || kit.decor == Decor.Note) 2.dp else 6.dp)
-                        .clip(RoundedCornerShape(if (kit.decor == Decor.Wash || kit.decor == Decor.Clay) 3.dp else 1.dp))
+                    Modifier.fillMaxWidth().height(if (kit.decor == Decor.News) 2.dp else 6.dp)
+                        .clip(RoundedCornerShape(if (kit.decor == Decor.Clay) 3.dp else 1.dp))
                         .background(plank)
                         .then(if (kit.decor == Decor.Comic) Modifier.border(1.dp, Color(0xFF111111)) else Modifier),
                 )

@@ -466,15 +466,12 @@ private fun ToastCard(achievement: Achievement, count: Int, onClick: () -> Unit)
 @Composable
 fun AchievementsButton(earned: Int, total: Int, unlocked: Map<String, Long>, onClick: () -> Unit) {
     val shape = appCorner(20)
-    val dark = Color(0xFF241D18)
     Row(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 64.dp)
-            .shadow(6.dp, shape, ambientColor = Color(0x55503010), spotColor = Color(0x55503010))
             .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onClick = onClick)
-            .background(dark)
-            .border(1.dp, Color(0xFF3A3029), shape)
+            .panelSurface(shape, 8.dp)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -488,7 +485,7 @@ fun AchievementsButton(earned: Int, total: Int, unlocked: Map<String, Long>, onC
         }
         Text(
             "Достижения",
-            color = Color(0xFFF2EBE1),
+            color = AppColors.Text,
             fontWeight = FontWeight.ExtraBold,
             maxLines = 1,
             softWrap = false,
@@ -496,7 +493,7 @@ fun AchievementsButton(earned: Int, total: Int, unlocked: Map<String, Long>, onC
             modifier = Modifier.weight(1f),
         )
         Text("$earned / $total", color = AppColors.Accent, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
-        Icon(AppIcons.Chevron, null, tint = Color(0xFFB4A797), modifier = Modifier.size(18.dp))
+        Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(18.dp))
     }
 }
 
