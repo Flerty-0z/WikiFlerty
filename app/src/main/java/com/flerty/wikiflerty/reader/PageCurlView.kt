@@ -70,7 +70,7 @@ class PageCurlView(context: Context) : SurfaceView(context), SurfaceHolder.Callb
 
     init {
         isClickable = false
-        setZOrderMediaOverlay(true)
+        setZOrderOnTop(true)
         holder.setFormat(PixelFormat.TRANSLUCENT)
         holder.addCallback(this)
         render.post { choreographer = Choreographer.getInstance() }
