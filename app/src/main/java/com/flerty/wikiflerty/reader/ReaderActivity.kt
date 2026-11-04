@@ -1087,6 +1087,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 paginationListener = object : EpubNavigatorFragment.PaginationListener {
                     override fun onPageLoaded() {
                         injectScripts()
+                        preRasterPages()
                     }
                 },
                 configuration = navigatorConfiguration(),
@@ -1907,11 +1908,24 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             navContainer.cameraDistance = camera
         }
         if (incoming(animation, forward)) {
+            preRasterPages()
             navContainer.outlineProvider = ViewOutlineProvider.BOUNDS
             navContainer.elevation = 18 * resources.displayMetrics.density
         }
         snapshot.visibility = View.VISIBLE
         applyTurn(0f)
+    }
+
+    private fun preRasterPages() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || !::bookArea.isInitialized) return
+        fun walk(v: View) {
+            if (v is android.webkit.WebView) {
+                if (!v.settings.offscreenPreRaster) v.settings.offscreenPreRaster = true
+                return
+            }
+            if (v is android.view.ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+        }
+        walk(bookArea)
     }
 
     private fun incoming(animation: PageAnimation, forward: Boolean) = when (animation) {
