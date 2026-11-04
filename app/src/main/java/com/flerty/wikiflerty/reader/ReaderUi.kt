@@ -83,6 +83,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.alpha
@@ -185,6 +186,8 @@ class ReaderUiState {
     var chatFromHistory by mutableStateOf(false)
     var bookmarked by mutableStateOf(false)
     var quote by mutableStateOf<QuoteDraft?>(null)
+    var topPanelBottom = 0f
+    var bottomPanelTop = Float.MAX_VALUE
 
     fun hideAll() {
         sheet = null
@@ -404,7 +407,7 @@ fun ReaderOverlay(
             visible = state.panelsVisible,
             enter = fadeIn(Motion.fade(220)) + slideInVertically(Motion.tween(260)) { -it / 2 },
             exit = fadeOut(Motion.fade(180)) + slideOutVertically(Motion.tween(220)) { -it / 2 },
-            modifier = Modifier.align(Alignment.TopCenter),
+            modifier = Modifier.align(Alignment.TopCenter).onGloballyPositioned { state.topPanelBottom = it.boundsInWindow().bottom },
         ) {
             TopPanel(
                 title = title,
@@ -426,7 +429,7 @@ fun ReaderOverlay(
             visible = state.panelsVisible && state.sheet == null,
             enter = fadeIn(Motion.fade(220)) + slideInVertically(Motion.tween(260)) { it / 2 },
             exit = fadeOut(Motion.fade(180)) + slideOutVertically(Motion.tween(220)) { it / 2 },
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier.align(Alignment.BottomCenter).onGloballyPositioned { state.bottomPanelTop = it.boundsInWindow().top },
         ) {
             BottomPanel(
                 buttons = settings.quickButtons.mapNotNull { QuickButton.of(it) },

@@ -1956,7 +1956,14 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val s = settings
         if (s.scroll) return false
         if (s.animation == PageAnimation.Slide || s.animation == PageAnimation.None) return false
-        return !ui.panelsVisible && ui.sheet == null && ui.selection == null && ui.footnote == null && !ui.autoActive
+        return ui.sheet == null && ui.selection == null && ui.footnote == null && !ui.autoActive
+    }
+
+    private fun overPanels(ev: android.view.MotionEvent): Boolean {
+        if (!ui.panelsVisible) return false
+        val loc = IntArray(2).also { window.decorView.getLocationOnScreen(it) }
+        val y = ev.rawY - loc[1]
+        return y <= ui.topPanelBottom || y >= ui.bottomPanelTop
     }
 
     override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
@@ -1967,7 +1974,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 swipeVelocity = null
                 val area = IntArray(2).also { bookArea.getLocationOnScreen(it) }
                 val inside = ev.rawX >= area[0] && ev.rawX <= area[0] + bookArea.width && ev.rawY >= area[1] && ev.rawY <= area[1] + bookArea.height
-                swipeState = if (inside && swipeAllowed()) SwipeState.Watching else SwipeState.Ignored
+                swipeState = if (inside && swipeAllowed() && !overPanels(ev)) SwipeState.Watching else SwipeState.Ignored
                 if (swipeState == SwipeState.Watching) {
                     swipeRawX0 = ev.rawX
                     swipeX0 = ev.rawX - area[0]
@@ -1999,6 +2006,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         val cancel = android.view.MotionEvent.obtain(ev).apply { action = android.view.MotionEvent.ACTION_CANCEL }
                         super.dispatchTouchEvent(cancel)
                         cancel.recycle()
+                        ui.panelsVisible = false
                         startSwipe(forward = dx < 0)
                         return true
                     } else if (kotlin.math.abs(dy) > slop * 2) {
