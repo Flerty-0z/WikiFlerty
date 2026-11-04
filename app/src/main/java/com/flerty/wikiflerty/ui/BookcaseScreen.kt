@@ -364,6 +364,32 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
                             drawRect(ink, Offset(0f, size.height - 1.dp.toPx()), androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx()))
                             if (highlighted) drawRect(accent.copy(alpha = 0.12f))
                         }
+                        Decor.Pixel -> {
+                            val u = 2.dp.toPx()
+                            val brick = 16.dp.toPx()
+                            val a = if (light) Color(0xFF8B5A2B) else Color(0xFF7A4FA0)
+                            val b = if (light) Color(0xFF6B4220) else Color(0xFF4A2D66)
+                            drawRect(ink)
+                            drawRect(a, Offset(0f, u * 2), androidx.compose.ui.geometry.Size(size.width, size.height - u * 4))
+                            var x = 0f
+                            var k = 0
+                            while (x < size.width) {
+                                drawRect(b, Offset(x + brick - u, u * 2), androidx.compose.ui.geometry.Size(u, size.height - u * 4))
+                                drawRect(b, Offset(x, size.height / 2 - u / 2), androidx.compose.ui.geometry.Size(brick, u))
+                                x += brick; k++
+                            }
+                            if (highlighted) drawRect(accent.copy(alpha = 0.25f))
+                        }
+                        Decor.Sea -> {
+                            val core = size.height * 0.55f
+                            drawRoundRect(accent.copy(alpha = if (highlighted) 0.3f else 0.18f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2))
+                            drawRoundRect(
+                                Brush.verticalGradient(listOf(Color.White.copy(alpha = if (light) 0.85f else 0.35f), Color.White.copy(alpha = if (light) 0.35f else 0.08f))),
+                                Offset(0f, (size.height - core) / 2),
+                                androidx.compose.ui.geometry.Size(size.width, core),
+                                androidx.compose.ui.geometry.CornerRadius(core / 2),
+                            )
+                        }
                         Decor.Wash -> {
                             val p = androidx.compose.ui.graphics.Path()
                             val w = size.width
@@ -396,17 +422,18 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
             if (name != null) {
                 val plaque = decor == Decor.Library
                 Text(
-                    if (decor == Decor.News) name.uppercase() else name,
+                    if (decor == Decor.News || decor == Decor.Pixel) name.uppercase() else name,
                     color = when {
                         plaque -> Color(0xFF3A2A12)
                         decor == Decor.Comic -> Color(0xFF111111)
-                        decor == Decor.News || decor == Decor.Wash -> AppColors.Text
+                        decor == Decor.News || decor == Decor.Wash || decor == Decor.Sea -> AppColors.Text
+                        decor == Decor.Pixel -> Color.White
                         decor == Decor.Zen -> if (light) Color(0xFF2B3A18) else Color(0xFFEDEFE0)
                         light -> Color(0xFF3A2612)
                         else -> Color(0xFFF7EBD8)
                     },
                     fontSize = 11.sp,
-                    fontWeight = if (decor == Decor.Comic || decor == Decor.News) FontWeight.ExtraBold else FontWeight.SemiBold,
+                    fontWeight = if (decor == Decor.Comic || decor == Decor.News || decor == Decor.Pixel) FontWeight.ExtraBold else FontWeight.SemiBold,
                     fontStyle = if (decor == Decor.Wash) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
                     letterSpacing = if (decor == Decor.News) 1.5.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
                     maxLines = 1,

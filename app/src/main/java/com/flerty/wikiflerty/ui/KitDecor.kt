@@ -52,6 +52,8 @@ fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = 
     val fibers = remember { specks(41, 70) }
     val columns = remember { specks(53, 120) }
     val washes = remember { specks(61, 6) }
+    val pixels = remember { specks(71, 46) }
+    val bubbles = remember { specks(83, 26) }
     val light = base.light
     Box(modifier) {
         Canvas(Modifier.fillMaxSize()) {
@@ -66,6 +68,7 @@ fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = 
                 }
                 Decor.Comic -> comicStatic(light, Color(base.text), accent)
                 Decor.Wash -> washPaper(light)
+                Decor.Sea -> drawRect(Brush.verticalGradient(if (light) listOf(Color(0xFFBFF0EA), Color(base.background), Color(0xFFF6EFE0)) else listOf(Color(0xFF05495A), Color(base.background), Color(0xFF01131C))))
                 else -> Unit
             }
         }
@@ -91,6 +94,8 @@ fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = 
                     }
                     Decor.News -> newsLive(t, light, Color(base.text), accent, columns)
                     Decor.Wash -> washLive(t, light, washes)
+                    Decor.Pixel -> pixelLive(t, light, pixels)
+                    Decor.Sea -> seaLive(t, light, bubbles)
                     else -> Unit
                 }
             }
@@ -206,5 +211,93 @@ private fun DrawScope.washLive(t: Float, light: Boolean, washes: List<Speck>) {
         val col = Color(WashColors[n % WashColors.size])
         drawCircle(col.copy(alpha = (1f - life) * (if (light) 0.55f else 0.4f)), ring, Offset(x, y), style = androidx.compose.ui.graphics.drawscope.Stroke(1.6f * density))
         if (life < 0.15f) drawCircle(col.copy(alpha = (0.15f - life) * 4f), 4f * density, Offset(x, y))
+    }
+}
+
+private fun DrawScope.pixelLive(t: Float, light: Boolean, stars: List<Speck>) {
+    val px = 2.dp.toPx()
+    if (light) {
+        for (k in 0 until 4) {
+            val s = stars[k]
+            val speed = (6f + 6f * s.speed) * density
+            val span = size.width + 80f * density
+            val raw = (s.x * span + t * speed) % span - 40f * density
+            val x = (raw / (px * 2)).toInt() * px * 2
+            val y = (s.y * 0.45f * size.height / (px * 2)).toInt() * px * 2
+            val u = px * 2 * (2 + (s.size * 2).toInt())
+            val c = Color.White.copy(alpha = 0.9f)
+            drawRect(c, Offset(x, y), Size(u * 3, u))
+            drawRect(c, Offset(x + u, y - u), Size(u, u))
+            drawRect(c, Offset(x + u * 2, y - u * 0.5f), Size(u * 0.5f, u * 0.5f))
+        }
+        for (k in 4 until 16) {
+            val s = stars[k]
+            val on = ((t * 1.2f * s.speed + s.phase).toInt() % 3) != 0
+            if (!on) continue
+            val x = (s.x * size.width / (px * 2)).toInt() * px * 2
+            val y = (s.y * size.height / (px * 2)).toInt() * px * 2
+            drawRect(Color(0xFF9AB06A).copy(alpha = 0.35f), Offset(x, y), Size(px * 2, px * 2))
+        }
+    } else {
+        stars.forEach { s ->
+            val phase = ((t * 1.6f * s.speed + s.phase * 3f).toInt() % 4)
+            val a = when (phase) { 0 -> 0.2f; 1 -> 0.55f; 2 -> 0.9f; else -> 0.55f }
+            val x = (s.x * size.width / px).toInt() * px
+            val y = (s.y * size.height / px).toInt() * px
+            val big = s.size > 0.82f
+            val c = Color.White.copy(alpha = a)
+            if (big) {
+                drawRect(c, Offset(x, y - px), Size(px, px * 3))
+                drawRect(c, Offset(x - px, y), Size(px * 3, px))
+            } else {
+                drawRect(c, Offset(x, y), Size(px, px))
+            }
+        }
+    }
+}
+
+private fun DrawScope.seaLive(t: Float, light: Boolean, bubbles: List<Speck>) {
+    val rayAlpha = if (light) 0.32f else 0.12f
+    listOf(0.12f to 26f, 0.4f to 14f, 0.62f to 34f, 0.86f to 12f).forEachIndexed { i, (fx, w) ->
+        val sway = sin(t * 0.12f + i * 1.7f) * 18f * density
+        val a = rayAlpha * (0.65f + 0.35f * sin(t * 0.3f + i * 2.1f))
+        val top = fx * size.width + sway
+        val wp = w * density
+        val len = size.height * 0.75f
+        val p = Path().apply {
+            moveTo(top, 0f)
+            lineTo(top + wp, 0f)
+            lineTo(top + wp - len * 0.25f + wp * 0.8f, len)
+            lineTo(top - len * 0.25f - wp * 0.8f, len)
+            close()
+        }
+        drawPath(p, Brush.verticalGradient(listOf(Color.White.copy(alpha = a), Color.White.copy(alpha = 0f)), startY = 0f, endY = len))
+    }
+    val weed = if (light) Color(0xFF2E9C6A) else Color(0xFF1F7A5A)
+    listOf(-0.01f to 0.3f, 0.04f to 0.2f, 0.95f to 0.24f, 1.0f to 0.17f).forEachIndexed { i, (fx, fh) ->
+        val x0 = fx * size.width
+        val h = fh * size.height
+        val sw = sin(t * 0.7f + i * 1.3f) * 10f * density
+        val p = Path().apply {
+            moveTo(x0, size.height)
+            cubicTo(x0 - 14f * density + sw * 0.3f, size.height - h * 0.3f, x0 + 14f * density + sw * 0.7f, size.height - h * 0.6f, x0 + sw, size.height - h)
+        }
+        drawPath(p, weed.copy(alpha = 0.55f), style = androidx.compose.ui.graphics.drawscope.Stroke(5f * density, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+    }
+    val ring = if (light) Color(0xFF0D3B44).copy(alpha = 0.25f) else Color.White.copy(alpha = 0.3f)
+    bubbles.forEach { b ->
+        val span = size.height + 40f * density
+        val life = ((b.y + t * 0.03f * b.speed) % 1f)
+        val y = size.height + 20f * density - life * span
+        val x = b.x * size.width + sin(t * 1.4f * b.speed + b.phase) * 6f * density
+        val r = (2f + b.size * 5f) * density
+        drawCircle(ring, r, Offset(x, y), style = androidx.compose.ui.graphics.drawscope.Stroke(1.1f * density))
+        drawCircle(Color.White.copy(alpha = 0.35f), r * 0.3f, Offset(x - r * 0.35f, y - r * 0.35f))
+    }
+    for (k in 0 until 5) {
+        val cx = (k / 4f) * size.width + sin(t * 0.25f + k) * 30f * density
+        val cy = size.height * (0.88f + 0.04f * sin(t * 0.33f + k * 1.9f))
+        val r = size.width * 0.22f
+        drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha = if (light) 0.22f else 0.06f), Color.Transparent), center = Offset(cx, cy), radius = r), r, Offset(cx, cy))
     }
 }

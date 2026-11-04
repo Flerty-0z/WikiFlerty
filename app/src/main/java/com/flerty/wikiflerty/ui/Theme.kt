@@ -186,6 +186,22 @@ enum class UiBase(
         "wash_dark", "Акварель", 0xFF171B2E, 0xFF1F2440, 0xFF242A4A, 0xFF1C2139, 0xFF343B60, 0xFF444C78, 0xFF1D2238, 0xFF2F3656,
         text = 0xFFE9ECF8, muted = 0xFFAAB2D2, faint = 0xFF7C84A6,
     ),
+    PixelDark(
+        "pixel_dark", "Пиксель", 0xFF1B1730, 0xFF2A2448, 0xFF2A2448, 0xFF2A2448, 0xFFF4F0FF, 0xFFF4F0FF, 0xFF231E3D, 0xFF3D3466,
+        text = 0xFFF4F0FF, muted = 0xFFC2B9E6, faint = 0xFF8F86B6,
+    ),
+    PixelLight(
+        "pixel_light", "Пиксель", 0xFFE3EEC8, 0xFFF4F8E6, 0xFFF4F8E6, 0xFFF4F8E6, 0xFF1E3A12, 0xFF1E3A12, 0xFFEEF5DA, 0xFFBFD19A,
+        light = true, text = 0xFF1E3A12, muted = 0xFF47633A, faint = 0xFF6F8A5F,
+    ),
+    SeaDark(
+        "sea_dark", "Подводный мир", 0xFF032A38, 0xFF0C3B4A, 0xFF104656, 0xFF08323F, 0xFF1E5F6E, 0xFF3A8796, 0xFF0A3442, 0xFF1A5463,
+        text = 0xFFE6FFFB, muted = 0xFF9FD6D0, faint = 0xFF6FA5A0,
+    ),
+    SeaLight(
+        "sea_light", "Подводный мир", 0xFFDDF6F2, 0xFFF4FFFD, 0xFFFFFFFF, 0xFFEAFAF7, 0xFFB5E3DC, 0xFFFFFFFF, 0xFFF0FCFA, 0xFFC8ECE6,
+        light = true, text = 0xFF0D3B44, muted = 0xFF3F6E73, faint = 0xFF6F9A9C,
+    ),
     ;
 
     companion object {
@@ -351,6 +367,8 @@ enum class Kit(
     Comic("comic", "Комикс", UiBase.ComicDark, UiBase.ComicLight, 0xFFFFCC00, 0xFFFF3B3B, 0.8f, ButtonLook.Filled, MotionStyle.Bouncy, Decor.Comic, lightFirst = true),
     News("news", "Утренняя газета", UiBase.NewsDark, UiBase.NewsLight, 0xFFFF4A4A, 0xFFC8102E, 0f, ButtonLook.Filled, MotionStyle.Strict, Decor.News, lightFirst = true),
     Wash("wash", "Акварель", UiBase.WashDark, UiBase.WashLight, 0xFF8FB8FF, 0xFF3D6FB6, 1.3f, ButtonLook.Soft, MotionStyle.Soft, Decor.Wash, lightFirst = true),
+    Pixel("pixel", "Пиксель", UiBase.PixelDark, UiBase.PixelLight, 0xFFFFCD3C, 0xFFD23C3C, 0f, ButtonLook.Filled, MotionStyle.Strict, Decor.Pixel),
+    Sea("sea", "Подводный мир", UiBase.SeaDark, UiBase.SeaLight, 0xFF45E6CF, 0xFF0A8F87, 1.2f, ButtonLook.Soft, MotionStyle.Soft, Decor.Sea),
     ;
 
     fun applyTo(style: UiStyle, light: Boolean) = style.copy(

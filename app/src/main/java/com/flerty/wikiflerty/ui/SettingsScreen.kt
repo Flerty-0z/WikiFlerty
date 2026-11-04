@@ -618,7 +618,8 @@ private fun KitCard(kit: Kit, selected: Boolean, onClick: () -> Unit) {
                                 .then(
                                     when (kit.decor) {
                                         Decor.Comic -> Modifier.hardShadow(coverShape, 2.dp).border(1.5.dp, Color(0xFF111111), coverShape)
-                                        Decor.News -> Modifier.border(1.dp, Color(base.text), coverShape)
+                                        Decor.News, Decor.Pixel -> Modifier.border(1.dp, Color(base.text), coverShape)
+                                        Decor.Sea -> Modifier.border(0.8.dp, Color.White.copy(alpha = 0.4f), coverShape)
                                         else -> Modifier
                                     },
                                 )
@@ -633,6 +634,8 @@ private fun KitCard(kit: Kit, selected: Boolean, onClick: () -> Unit) {
                     Decor.Library -> Color(0xFF6B4322)
                     Decor.News -> Color(base.text)
                     Decor.Wash -> accent.copy(alpha = 0.6f)
+                    Decor.Pixel -> if (light) Color(0xFF8B5A2B) else Color(0xFF7A4FA0)
+                    Decor.Sea -> accent.copy(alpha = 0.5f)
                     else -> Color(0xFFA8743F)
                 }
                 Box(
