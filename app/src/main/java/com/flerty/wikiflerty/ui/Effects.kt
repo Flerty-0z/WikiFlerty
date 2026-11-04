@@ -4,6 +4,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.composed
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -191,7 +193,7 @@ fun Modifier.thawDrops(trigger: Int, color: Color, count: Int = 18, durationMs: 
 @Composable
 fun Modifier.riseIn(key: Any?, index: Int = 0): Modifier {
     val tag = key.toString()
-    var played by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    var played by remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
     val p = remember { Animatable(if (Motion.enabled && played != tag) 0f else 1f) }
     LaunchedEffect(tag) {
         if (!Motion.enabled || played == tag) {
@@ -238,33 +240,42 @@ private fun Double.sp2(): androidx.compose.ui.unit.TextUnit = androidx.compose.u
 
 fun Modifier.scrollReveal(): Modifier = composed {
     if (!Motion.enabled) return@composed this
+    revealCore(96f, 28f)
+}
+
+@Composable
+private fun Modifier.revealCore(edgeDp: Float, liftDp: Float): Modifier {
     val density = LocalDensity.current
-    val edge = with(density) { 96.dp.toPx() }
-    val lift = with(density) { 28.dp.toPx() }
+    val edge = with(density) { edgeDp.dp.toPx() }
+    val lift = with(density) { liftDp.dp.toPx() }
     val enter = remember { Animatable(0f) }
-    val seen = remember { androidx.compose.runtime.mutableStateOf(false) }
+    val shown = remember { androidx.compose.runtime.mutableStateOf(false) }
     val fromAbove = remember { androidx.compose.runtime.mutableStateOf(false) }
     val exit = remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
-    LaunchedEffect(seen.value) {
-        if (seen.value) enter.animateTo(1f, tween(Motion.ms(560), easing = androidx.compose.animation.core.FastOutSlowInEasing))
+    LaunchedEffect(shown.value) {
+        if (shown.value) enter.animateTo(1f, tween(Motion.ms(540), easing = androidx.compose.animation.core.FastOutSlowInEasing)) else enter.snapTo(0f)
     }
-    this
+    return this
         .onGloballyPositioned { c ->
-            val parent = c.parentLayoutCoordinates ?: return@onGloballyPositioned
-            val y = c.positionInParent().y
+            if (!c.isAttached) return@onGloballyPositioned
+            val bounds = c.boundsInWindow()
+            val top = c.positionInWindow().y
             val h = c.size.height.toFloat()
-            val vh = parent.size.height.toFloat()
-            if (!seen.value && y < vh && y + h > 0f) {
-                fromAbove.value = y < 0f
-                seen.value = true
+            val visible = bounds.height > 0.5f && bounds.width > 0.5f
+            val hiddenTop = (bounds.top - top).coerceAtLeast(0f)
+            if (!shown.value && visible) {
+                fromAbove.value = hiddenTop > 1f
+                shown.value = true
+            } else if (shown.value && !visible) {
+                shown.value = false
             }
-            exit.floatValue = if (y >= 0f) 1f else ((y + h) / minOf(edge, h)).coerceIn(0f, 1f)
+            exit.floatValue = if (hiddenTop <= 0f) 1f else ((h - hiddenTop) / minOf(edge, h)).coerceIn(0f, 1f)
         }
         .graphicsLayer {
             val v = enter.value
             alpha = v * exit.floatValue
             translationY = (1f - v) * lift * (if (fromAbove.value) -1f else 1f)
-            val sc = 0.94f + 0.06f * v
+            val sc = 0.95f + 0.05f * v
             scaleX = sc
             scaleY = sc
         }
@@ -320,33 +331,6 @@ val LocalRevealViewport = androidx.compose.runtime.staticCompositionLocalOf<Reve
 fun Modifier.revealViewport(viewport: RevealViewport): Modifier = this.onGloballyPositioned { viewport.coords = it }
 
 fun Modifier.sheetReveal(): Modifier = composed {
-    val viewport = LocalRevealViewport.current
-    if (viewport == null || !Motion.enabled) return@composed this
-    val density = LocalDensity.current
-    val edge = with(density) { 40.dp.toPx() }
-    val lift = with(density) { 24.dp.toPx() }
-    val enter = remember { Animatable(0f) }
-    val seen = remember { androidx.compose.runtime.mutableStateOf(false) }
-    val exit = remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
-    LaunchedEffect(seen.value) {
-        if (seen.value) enter.animateTo(1f, tween(Motion.ms(520), easing = androidx.compose.animation.core.FastOutSlowInEasing))
-    }
-    this
-        .onGloballyPositioned { c ->
-            val v = viewport.coords?.takeIf { it.isAttached } ?: return@onGloballyPositioned
-            if (!c.isAttached) return@onGloballyPositioned
-            val y = v.localPositionOf(c, Offset.Zero).y
-            val h = c.size.height.toFloat()
-            val vh = v.size.height.toFloat()
-            if (!seen.value && y < vh - edge * 0.25f && y + h > 0f) seen.value = true
-            exit.floatValue = if (y >= 0f) 1f else ((y + h) / minOf(edge * 2f, h)).coerceIn(0f, 1f)
-        }
-        .graphicsLayer {
-            val e = enter.value
-            alpha = e * exit.floatValue
-            translationY = (1f - e) * lift
-            val sc = 0.96f + 0.04f * e
-            scaleX = sc
-            scaleY = sc
-        }
+    if (LocalRevealViewport.current == null || !Motion.enabled) return@composed this
+    revealCore(80f, 24f)
 }

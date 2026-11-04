@@ -55,6 +55,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -90,41 +92,96 @@ private fun medalStyle(kind: AchievementKind): MedalStyle = when (kind) {
     AchievementKind.Words -> MedalStyle(0xFFF7A1C4, 0xFFC44A86, AppIcons.Translate)
 }
 
+private fun medalTier(achievement: Achievement): Int {
+    val group = Achievements.all.filter { it.kind == achievement.kind }
+    val i = group.indexOf(achievement).coerceAtLeast(0)
+    return (i * 3 / group.size.coerceAtLeast(1)).coerceIn(0, 2)
+}
+
+private val MedalMetals = listOf(
+    Triple(Color(0xFFEDB386), Color(0xFF9A5A2E), Color(0xFF6E3C1C)),
+    Triple(Color(0xFFF3F6F9), Color(0xFF9AA6B2), Color(0xFF6C7782)),
+    Triple(Color(0xFFFFE597), Color(0xFFD9A21C), Color(0xFF9C700C)),
+)
+
+private fun medalPath(kind: AchievementKind, w: Float, h: Float): androidx.compose.ui.graphics.Path {
+    val cx = w / 2f
+    val cy = h / 2f
+    val r = minOf(w, h) / 2f
+    fun poly(n: Int, start: Double, radius: (Int) -> Float) = androidx.compose.ui.graphics.Path().apply {
+        for (k in 0 until n) {
+            val ang = Math.toRadians(start + 360.0 * k / n)
+            val x = cx + radius(k) * kotlin.math.cos(ang).toFloat()
+            val y = cy + radius(k) * kotlin.math.sin(ang).toFloat()
+            if (k == 0) moveTo(x, y) else lineTo(x, y)
+        }
+        close()
+    }
+    return when (kind) {
+        AchievementKind.Streak -> poly(6, -90.0) { r * 0.96f }
+        AchievementKind.Pages -> poly(10, -90.0) { if (it % 2 == 0) r * 1.0f else r * 0.52f }
+        AchievementKind.Words -> poly(8, -67.5) { r * 0.95f }
+        AchievementKind.Notes -> poly(4, -90.0) { r * 1.0f }
+        AchievementKind.Time -> androidx.compose.ui.graphics.Path().apply { addOval(androidx.compose.ui.geometry.Rect(cx - r * 0.9f, cy - r * 0.9f, cx + r * 0.9f, cy + r * 0.9f)) }
+        AchievementKind.Books -> androidx.compose.ui.graphics.Path().apply {
+            moveTo(cx, h * 0.04f)
+            lineTo(w * 0.92f, h * 0.17f)
+            cubicTo(w * 0.92f, h * 0.55f, w * 0.78f, h * 0.80f, cx, h * 0.97f)
+            cubicTo(w * 0.22f, h * 0.80f, w * 0.08f, h * 0.55f, w * 0.08f, h * 0.17f)
+            close()
+        }
+    }
+}
+
 @Composable
 fun AchievementMedal(achievement: Achievement, earned: Boolean, fraction: Float, size: Dp, modifier: Modifier = Modifier) {
     val style = medalStyle(achievement.kind)
+    val (light, mid, dark) = MedalMetals[medalTier(achievement)]
+    val ribbons = size >= 40.dp
+    val field = AppColors.Field
+    val border = AppColors.PanelBorder
     val accent = Color(style.to)
-    val track = AppColors.Line
-    Box(modifier.size(size), contentAlignment = Alignment.Center) {
-        if (!earned) {
-            Canvas(Modifier.matchParentSize()) {
-                val stroke = this.size.minDimension * 0.07f
-                val inset = stroke / 2
-                val arc = Size(this.size.width - stroke, this.size.height - stroke)
-                drawArc(track, 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(stroke))
+    Box(modifier.size(width = size, height = if (ribbons) size * 1.14f else size), contentAlignment = Alignment.TopCenter) {
+        Canvas(Modifier.matchParentSize()) {
+            val s = this.size.width
+            if (ribbons && earned) {
+                val top = s * 0.70f
+                val bottom = this.size.height
+                val left = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(s * 0.30f, top); lineTo(s * 0.47f, top); lineTo(s * 0.40f, bottom); lineTo(s * 0.32f, bottom - s * 0.07f); lineTo(s * 0.22f, bottom - s * 0.02f); close()
+                }
+                val right = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(s * 0.70f, top); lineTo(s * 0.53f, top); lineTo(s * 0.60f, bottom); lineTo(s * 0.68f, bottom - s * 0.07f); lineTo(s * 0.78f, bottom - s * 0.02f); close()
+                }
+                drawPath(left, Color(0xFFC0405A))
+                drawPath(right, Color(0xFF8E2C42))
+            }
+            val path = medalPath(achievement.kind, s, s)
+            if (earned) {
+                drawPath(path, Brush.linearGradient(listOf(light, mid), Offset.Zero, Offset(s, s)))
+                drawPath(path, dark, style = Stroke(width = s * 0.05f, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                clipPath(path) {
+                    rotate(-28f, Offset(s * 0.34f, s * 0.26f)) {
+                        drawOval(Color.White.copy(alpha = 0.38f), Offset(s * 0.16f, s * 0.19f), Size(s * 0.36f, s * 0.13f))
+                    }
+                }
+            } else {
+                drawPath(path, field)
+                drawPath(path, border, style = Stroke(width = s * 0.035f, join = androidx.compose.ui.graphics.StrokeJoin.Round))
                 if (fraction > 0f) {
-                    drawArc(accent, -90f, 360f * fraction, false, Offset(inset, inset), arc, style = Stroke(stroke, cap = StrokeCap.Round))
+                    clipPath(path) {
+                        drawRect(accent.copy(alpha = 0.16f), Offset(0f, s * (1f - fraction)), Size(s, s * fraction))
+                    }
                 }
             }
         }
-        val inner = if (earned) size else size * 0.74f
-        val shape = CircleShape
-        Box(
-            Modifier
-                .size(inner)
-                .clip(shape)
-                .then(
-                    if (earned) {
-                        Modifier
-                            .background(Brush.linearGradient(listOf(Color(style.from), Color(style.to))))
-                            .border(1.5.dp, Color.White.copy(alpha = 0.32f), shape)
-                    } else {
-                        Modifier.background(AppColors.Field).border(1.dp, AppColors.PanelBorder, shape)
-                    },
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(style.icon, null, tint = if (earned) Color.White else AppColors.Faint, modifier = Modifier.size(inner * 0.46f))
+        Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+            Icon(
+                if (earned) style.icon else AppIcons.Lock,
+                null,
+                tint = if (earned) Color(0xFF3A2410).copy(alpha = 0.85f) else AppColors.Faint.copy(alpha = 0.7f),
+                modifier = Modifier.size(size * if (achievement.kind == AchievementKind.Pages) 0.30f else 0.36f),
+            )
         }
     }
 }
