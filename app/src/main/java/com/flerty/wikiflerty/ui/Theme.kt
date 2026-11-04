@@ -356,7 +356,7 @@ object AppStyle {
     var systemDark by mutableStateOf(true)
 
     val kit: Kit get() = Kit.of(current.kit)
-    val decor: Decor get() = if (current.ambience) kit.decor else Decor.None
+    val decor: Decor get() = kit.decor
     val light: Boolean get() = when (ThemeMode.of(current.mode)) {
         ThemeMode.Light -> true
         ThemeMode.Dark -> false

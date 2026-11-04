@@ -248,14 +248,6 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
 
     revealItem(key = "app-icon") { AppIconGroup() }
 
-    if (AppStyle.base.ambience != null || AppStyle.kit.decor != Decor.None) revealItem(key = "ambience") {
-        SettingsGroup(null) {
-            SettingSwitch(if (AppStyle.kit.decor != Decor.None) "Живой фон" else "Свечение фона", style.ambience, hint = null, icon = AppIcons.Sparkle) { v ->
-                store.update { it.copy(ambience = v) }
-            }
-        }
-    }
-
     revealItem(key = "colors") {
     SettingsGroup("Цвета") {
         Text("Акцентный цвет", color = AppColors.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
