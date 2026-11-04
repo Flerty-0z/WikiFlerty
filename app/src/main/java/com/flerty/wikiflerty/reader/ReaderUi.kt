@@ -114,6 +114,8 @@ import com.flerty.wikiflerty.ui.AppIcons
 import com.flerty.wikiflerty.ui.FeedbackSound
 import com.flerty.wikiflerty.ui.LocalFeedback
 import com.flerty.wikiflerty.ui.fieldSurface
+import com.flerty.wikiflerty.ui.sheetReveal
+import com.flerty.wikiflerty.ui.revealViewport
 import com.flerty.wikiflerty.ui.liveClick
 import com.flerty.wikiflerty.ui.panelSurface
 import java.util.Locale
@@ -1109,8 +1111,11 @@ private fun SheetContent(
                     modifier = Modifier.weight(1f, fill = false),
                 )
             }
-            else -> Column(
-                modifier = Modifier.weight(1f, fill = false).revealScroll(),
+            else -> {
+                val viewport = remember(sheet) { com.flerty.wikiflerty.ui.RevealViewport() }
+                androidx.compose.runtime.CompositionLocalProvider(com.flerty.wikiflerty.ui.LocalRevealViewport provides viewport) {
+            Column(
+                modifier = Modifier.weight(1f, fill = false).revealViewport(viewport).revealScroll(),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
                 when (sheet) {
@@ -1127,6 +1132,8 @@ private fun SheetContent(
                     }
                     ReaderSheet.Listen -> OptionFrame { TtsOptions(settings, bookLanguage, ttsActive, ttsPlaying, ttsSleep, tts, onSettingsChange) }
                     else -> Unit
+                }
+            }
                 }
             }
         }
@@ -1149,7 +1156,7 @@ private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
         Tile(ReaderSheet.AiSetup, "Нейросети, модели", AppIcons.Sparkle, 0xFF8AB4F8, 0xFF7653E0),
     )
     Column(
-        Modifier.fillMaxWidth().fieldSurface(appCorner(22)).padding(10.dp),
+        Modifier.fillMaxWidth().sheetReveal().fieldSurface(appCorner(22)).padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         tiles.chunked(2).forEach { row ->
@@ -1662,6 +1669,7 @@ internal fun OptionFrame(content: @Composable () -> Unit) {
             content = content,
             modifier = Modifier
                 .fillMaxWidth()
+                .sheetReveal()
                 .fieldSurface(appCorner(18))
                 .drawWithContent {
                     drawContent()

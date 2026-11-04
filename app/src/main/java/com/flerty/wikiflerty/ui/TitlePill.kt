@@ -131,7 +131,7 @@ fun TabbedFrame(
     trailing: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
-    androidx.compose.foundation.layout.Column(modifier.fillMaxWidth().fieldSurface(appCorner(18))) {
+    androidx.compose.foundation.layout.Column(modifier.fillMaxWidth().sheetReveal().fieldSurface(appCorner(18))) {
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             val density = androidx.compose.ui.platform.LocalDensity.current
             var side by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }

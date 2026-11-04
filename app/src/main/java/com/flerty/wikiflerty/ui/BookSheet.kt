@@ -137,7 +137,8 @@ fun AppSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable 
         KeepHostBars()
         val enter = remember { androidx.compose.animation.core.Animatable(if (Motion.enabled) 0f else 1f) }
         LaunchedEffect(Unit) { enter.animateTo(1f, Motion.tween(340, 60)) }
-        androidx.compose.runtime.CompositionLocalProvider(LocalSheetClose provides close) {
+        val viewport = remember { RevealViewport() }
+        androidx.compose.runtime.CompositionLocalProvider(LocalSheetClose provides close, LocalRevealViewport provides viewport) {
             Column(
                 Modifier.height(sheetHeight()).graphicsLayer {
                     alpha = 0.35f + 0.65f * enter.value
@@ -146,7 +147,7 @@ fun AppSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable 
             ) {
                 if (title != null) Box(Modifier.padding(horizontal = 16.dp)) { SheetHeader(title, close) }
                 Column(
-                    Modifier.weight(1f).padding(horizontal = 16.dp).navigationBarsPadding().revealScroll().padding(top = if (title == null) 16.dp else 14.dp, bottom = 16.dp),
+                    Modifier.weight(1f).revealViewport(viewport).padding(horizontal = 16.dp).navigationBarsPadding().revealScroll().padding(top = if (title == null) 16.dp else 14.dp, bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     content()
@@ -318,7 +319,7 @@ fun BookSheet(
             }
         }
 
-        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.height(IntrinsicSize.Min).sheetReveal(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             InfoTile(AppIcons.Pages, if (book.progress > 0 || inPages) progressLabel(book, inPages) else "Не начата", Modifier.weight(1f))
             InfoTile(statusIcon(book.status), book.status.title, Modifier.weight(1f))
         }
@@ -410,6 +411,7 @@ private fun ColumnScope.BookMainContent(
     Row(
         Modifier
             .fillMaxWidth()
+            .sheetReveal()
             .heightIn(min = 56.dp)
             .liveClick(readShape, sound = FeedbackSound.Open, pressedScale = 0.97f) { onRead() }
             .accentHighlight(readShape),
@@ -459,7 +461,7 @@ private fun BookStatusRow(app: App, book: Book) {
 private fun DeleteRow(label: String, onDelete: () -> Unit) {
     val shape = appCorner(16)
     Box(
-        Modifier.fillMaxWidth().heightIn(min = 50.dp)
+        Modifier.fillMaxWidth().heightIn(min = 50.dp).sheetReveal()
             .liveClick(shape, sound = FeedbackSound.Close) { onDelete() }
             .border(1.dp, Danger.copy(alpha = 0.45f), shape),
         contentAlignment = Alignment.Center,
@@ -512,6 +514,7 @@ private fun RateRow(book: Book, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
+            .sheetReveal()
             .heightIn(min = 56.dp)
             .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
             .fieldSurface(shape)

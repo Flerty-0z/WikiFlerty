@@ -203,11 +203,11 @@ fun LibraryScreen(
     val coversFor = filters.associate { f -> f.id to recent.filter(f.matches).map { it.id } }
     val tablet = LocalConfiguration.current.screenWidthDp >= 600
     val grid = prefs.view == LibraryView.Grid
-    val minSize = when (prefs.coverSize) {
-        0 -> 88.dp
-        2 -> 150.dp
-        else -> 110.dp
-    } * (if (tablet) 1.35f else 1f)
+    val columns = when (prefs.coverSize) {
+        0 -> 4
+        2 -> 2
+        else -> 3
+    } + if (tablet) 2 else 0
 
     Column(modifier) {
         androidx.compose.animation.AnimatedVisibility(visible = controls.searchOpen || query.isNotEmpty()) {
@@ -255,7 +255,7 @@ fun LibraryScreen(
                 },
             )
         } else LazyVerticalGrid(
-            columns = if (grid) GridCells.Adaptive(minSize = minSize) else GridCells.Fixed(1),
+            columns = if (grid) GridCells.Fixed(columns) else GridCells.Fixed(1),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 110.dp),
             horizontalArrangement = Arrangement.spacedBy(if (grid) 12.dp else 0.dp),
             verticalArrangement = Arrangement.spacedBy(if (grid) 16.dp else 10.dp),
@@ -275,7 +275,7 @@ fun LibraryScreen(
             itemsIndexed(shown, key = { _, b -> b.id }) { index, book ->
                 Box(motionItem().riseIn(active.id + "|" + q.isEmpty(), index)) {
                     if (grid) {
-                        BookCard(book, viewModel.coverFile(book), small = prefs.coverSize == 0, inPages = prefs.progressInPages, onClick = { longPress(book) }, onLongClick = { longPress(book) })
+                        BookCard(book, viewModel.coverFile(book), small = prefs.coverSize < 2, inPages = prefs.progressInPages, onClick = { longPress(book) }, onLongClick = { longPress(book) })
                     } else {
                         BookRow(book, viewModel.coverFile(book), inPages = prefs.progressInPages, onClick = { longPress(book) }, onLongClick = { longPress(book) })
                     }
@@ -463,6 +463,7 @@ private fun FilterRow(filter: LibraryFilter, ids: List<String>, count: Int, sele
     Row(
         Modifier
             .fillMaxWidth()
+            .sheetReveal()
             .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.98f, onClick = onClick)
             .background(if (selected) AppColors.Accent.copy(alpha = 0.14f) else AppColors.Line.copy(alpha = 0.45f), shape)
             .border(1.dp, if (selected) AppColors.Accent.copy(alpha = 0.45f) else AppColors.PanelBorder, shape)

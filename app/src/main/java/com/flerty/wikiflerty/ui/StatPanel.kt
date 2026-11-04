@@ -34,7 +34,7 @@ fun StatPanel(title: String?, cells: List<StatCell>, modifier: Modifier = Modifi
     if (title != null) {
         TabbedFrame(title, icon = icon, inset = false, modifier = modifier) { StatGrid(cells, columns) }
     } else {
-        Box(modifier.fillMaxWidth().fieldSurface(appCorner(18))) { StatGrid(cells, columns) }
+        Box(modifier.fillMaxWidth().sheetReveal().fieldSurface(appCorner(18))) { StatGrid(cells, columns) }
     }
 }
 

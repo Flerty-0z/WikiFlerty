@@ -310,3 +310,43 @@ fun Modifier.fadeEdges(canUp: () -> Boolean, canDown: () -> Boolean, top: androi
             }
         }
 }
+
+class RevealViewport {
+    var coords: androidx.compose.ui.layout.LayoutCoordinates? = null
+}
+
+val LocalRevealViewport = androidx.compose.runtime.staticCompositionLocalOf<RevealViewport?> { null }
+
+fun Modifier.revealViewport(viewport: RevealViewport): Modifier = this.onGloballyPositioned { viewport.coords = it }
+
+fun Modifier.sheetReveal(): Modifier = composed {
+    val viewport = LocalRevealViewport.current
+    if (viewport == null || !Motion.enabled) return@composed this
+    val density = LocalDensity.current
+    val edge = with(density) { 40.dp.toPx() }
+    val lift = with(density) { 24.dp.toPx() }
+    val enter = remember { Animatable(0f) }
+    val seen = remember { androidx.compose.runtime.mutableStateOf(false) }
+    val exit = remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
+    LaunchedEffect(seen.value) {
+        if (seen.value) enter.animateTo(1f, tween(Motion.ms(520), easing = androidx.compose.animation.core.FastOutSlowInEasing))
+    }
+    this
+        .onGloballyPositioned { c ->
+            val v = viewport.coords?.takeIf { it.isAttached } ?: return@onGloballyPositioned
+            if (!c.isAttached) return@onGloballyPositioned
+            val y = v.localPositionOf(c, Offset.Zero).y
+            val h = c.size.height.toFloat()
+            val vh = v.size.height.toFloat()
+            if (!seen.value && y < vh - edge * 0.25f && y + h > 0f) seen.value = true
+            exit.floatValue = if (y >= 0f) 1f else ((y + h) / minOf(edge * 2f, h)).coerceIn(0f, 1f)
+        }
+        .graphicsLayer {
+            val e = enter.value
+            alpha = e * exit.floatValue
+            translationY = (1f - e) * lift
+            val sc = 0.96f + 0.04f * e
+            scaleX = sc
+            scaleY = sc
+        }
+}

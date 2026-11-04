@@ -99,6 +99,7 @@ fun StopwatchShell(active: Boolean, moon: Boolean = true, content: @Composable (
     Box(
         Modifier
             .fillMaxWidth()
+            .sheetReveal()
             .then(if (active) Modifier.background(AppColors.AccentTint, shape).border(1.dp, AppColors.Accent.copy(alpha = 0.45f), shape) else Modifier.fieldSurface(shape)),
     ) {
         Column(

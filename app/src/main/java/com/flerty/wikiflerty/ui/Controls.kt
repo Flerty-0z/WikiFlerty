@@ -69,6 +69,7 @@ fun SettingsGroup(title: String?, content: @Composable () -> Unit) {
         Column(
             Modifier
                 .fillMaxWidth()
+                .sheetReveal()
                 .fieldSurface(appCorner(18))
                 .padding(horizontal = 14.dp, vertical = 6.dp),
         ) { content() }
@@ -81,6 +82,7 @@ fun SettingsNavRow(icon: ImageVector, title: String, subtitle: String, framed: B
     Row(
         Modifier
             .fillMaxWidth()
+            .then(if (framed) Modifier.sheetReveal() else Modifier)
             .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
             .then(if (framed) Modifier.fieldSurface(shape) else Modifier)
             .padding(horizontal = 14.dp, vertical = 14.dp),
