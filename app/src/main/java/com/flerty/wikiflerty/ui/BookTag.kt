@@ -44,8 +44,8 @@ fun BookCover(bookId: String?, width: Dp, modifier: Modifier = Modifier) {
     val books by app.library.books.collectAsStateWithLifecycle()
     val book = books.firstOrNull { it.id == bookId }
     val file = book?.let { app.library.coverFile(it) }
-    val cover by produceState<ImageBitmap?>(null, file) {
-        value = file?.takeIf { it.exists() }?.let { withContext(Dispatchers.IO) { CoverCache.load(it, 160) } }
+    val cover by produceState(CoverCache.peek(file, 160), file) {
+        value = file?.let { withContext(Dispatchers.IO) { CoverCache.load(it, 160) } }
     }
     val coverShape = appCorner(6)
     Box(

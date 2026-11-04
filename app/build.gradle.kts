@@ -88,5 +88,6 @@ dependencies {
     implementation(libs.compose.runtime)
     implementation(libs.compose.material3)
     implementation(libs.compose.icons.core)
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     implementation("org.apache.commons:commons-compress:1.27.1")
 }

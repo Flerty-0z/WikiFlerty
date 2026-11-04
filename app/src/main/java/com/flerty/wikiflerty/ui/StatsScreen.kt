@@ -205,9 +205,7 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
     val freezes by app.streakFreeze.freezes.collectAsStateWithLifecycle()
     val unlocked by app.achievements.unlocked.collectAsStateWithLifecycle()
     val today = LocalDate.now()
-    val perDay by produceState(StatsCalc.perDay(days), days) {
-        value = withContext(Dispatchers.Default) { StatsCalc.perDay(days) }
-    }
+    val perDay = remember(days) { StatsCalc.perDay(days) }
     val top by produceState(emptyList<Pair<Book, BookStats>>(), days, books) {
         value = withContext(Dispatchers.Default) {
             books.map { it to StatsCalc.book(days, it.statsKey) }.filter { it.second.ms >= 60_000 }.sortedByDescending { it.second.ms }.take(5)
@@ -348,7 +346,7 @@ fun StatTile(label: String, value: String, modifier: Modifier = Modifier, hint: 
 
 @Composable
 fun SmallCover(file: File?, modifier: Modifier, maxWidth: Int = 160) {
-    val cover by produceState<ImageBitmap?>(null, file) {
+    val cover by produceState(CoverCache.peek(file, maxWidth), file) {
         value = file?.let { withContext(Dispatchers.IO) { CoverCache.load(it, maxWidth) } }
     }
     val shape = appCorner(6)

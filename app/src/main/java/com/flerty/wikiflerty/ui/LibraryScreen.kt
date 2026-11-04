@@ -526,8 +526,8 @@ private fun StatusBadge(book: Book, inPages: Boolean, compact: Boolean = false) 
 
 @Composable
 private fun rememberCover(file: File?): ImageBitmap? {
-    val cover by produceState<ImageBitmap?>(null, file) {
-        value = file?.takeIf { it.exists() }?.let { withContext(Dispatchers.IO) { CoverCache.load(it) } }
+    val cover by produceState(CoverCache.peek(file), file) {
+        value = file?.let { withContext(Dispatchers.IO) { CoverCache.load(it) } }
     }
     return cover
 }

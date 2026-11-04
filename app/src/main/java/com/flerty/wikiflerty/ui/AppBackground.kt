@@ -17,6 +17,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -42,11 +43,11 @@ fun AppBackground() {
             KitBackdrop(decor, AppStyle.base, AppColors.Accent, Modifier.fillMaxSize())
             return
         }
-        AppStyle.base.ambience?.let { AmbienceBackground(AppStyle.base, it, Modifier.fillMaxSize()) }
+        AppStyle.base.ambience?.let { AmbienceBackground(AppStyle.base, it, Modifier.fillMaxSize().graphicsLayer()) }
         return
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().graphicsLayer()) {
         when (kind) {
             BackgroundKind.Image -> {
                 val file = app.style.backgroundImage

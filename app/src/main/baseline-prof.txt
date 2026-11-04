@@ -1,0 +1,2 @@
+HSPLcom/flerty/wikiflerty/**->**(**)**
+Lcom/flerty/wikiflerty/**;
