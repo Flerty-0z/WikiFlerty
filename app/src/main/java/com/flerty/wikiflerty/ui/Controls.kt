@@ -331,35 +331,65 @@ private fun OptionLead(option: PickerOption, tint: Color) {
 }
 
 @Composable
-fun ValueRow(label: String, value: String, icon: ImageVector? = null, onClick: () -> Unit) {
-    Row(
+private fun ChoiceBlock(
+    label: String,
+    value: String,
+    icon: ImageVector?,
+    lead: (@Composable () -> Unit)? = null,
+    typeface: androidx.compose.ui.text.font.FontFamily? = null,
+    onClick: () -> Unit,
+) {
+    Column(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 54.dp)
             .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
             .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (icon != null) {
-            SettingIcon(icon)
-            Spacer(Modifier.width(12.dp))
+        Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) {
+                SettingIcon(icon)
+                Spacer(Modifier.width(12.dp))
+            }
+            Text(label, color = AppColors.Text, fontSize = 15.sp, lineHeight = 19.sp, maxLines = 2, modifier = Modifier.weight(1f))
         }
-        Text(label, color = AppColors.Text, fontSize = 15.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(end = 12.dp))
-        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+        ListDivider(Modifier.padding(top = 10.dp))
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (icon != null) Spacer(Modifier.width(44.dp))
+            if (lead != null) {
+                lead()
+                Spacer(Modifier.width(8.dp))
+            }
             Text(
                 value,
                 color = AppColors.Accent,
-                fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
+                fontFamily = typeface,
                 maxLines = 1,
                 softWrap = false,
-                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 15.sp, stepSize = 0.5.sp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                modifier = Modifier.weight(1f, fill = false),
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 16.sp, stepSize = 0.5.sp),
+                modifier = Modifier.weight(1f),
             )
+            Box(
+                Modifier
+                    .padding(start = 10.dp)
+                    .size(34.dp)
+                    .clip(appCorner(11))
+                    .background(AppColors.AccentSoft)
+                    .border(1.dp, AppColors.Accent.copy(alpha = 0.25f), appCorner(11)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(AppIcons.Chevron, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp).rotate(90f))
+            }
         }
-        Icon(AppIcons.Chevron, null, tint = AppColors.Accent, modifier = Modifier.padding(start = 2.dp).size(18.dp).rotate(90f))
     }
+}
+
+@Composable
+fun ValueRow(label: String, value: String, icon: ImageVector? = null, onClick: () -> Unit) {
+    ChoiceBlock(label, value, icon, onClick = onClick)
 }
 
 @Composable
@@ -373,39 +403,13 @@ fun PickerRow(
 ) {
     var open by remember { mutableStateOf(false) }
     val selected = options.firstOrNull { it.id == selectedId }
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = 54.dp)
-            .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.98f) { open = true }
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (icon != null) {
-            SettingIcon(icon)
-            Spacer(Modifier.width(12.dp))
-        }
-        Text(label, color = AppColors.Text, fontSize = 15.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(end = 12.dp))
-        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-            if (selected?.swatch != null) {
-                OptionLead(selected, AppColors.Accent)
-                Spacer(Modifier.width(6.dp))
-            }
-            Text(
-                selected?.title ?: selectedId,
-                color = AppColors.Accent,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = selected?.typeface,
-                maxLines = 1,
-                softWrap = false,
-                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 15.sp, stepSize = 0.5.sp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-        }
-        Icon(AppIcons.Chevron, null, tint = AppColors.Accent, modifier = Modifier.padding(start = 2.dp).size(18.dp).rotate(90f))
-    }
+    ChoiceBlock(
+        label,
+        selected?.title ?: selectedId,
+        icon,
+        lead = if (selected?.swatch != null) ({ OptionLead(selected, AppColors.Accent) }) else null,
+        typeface = selected?.typeface,
+    ) { open = true }
     if (open) {
         PickerSheet(label, options, selectedId, searchable, icon = icon, onDismiss = { open = false }) {
             onSelect(it)
