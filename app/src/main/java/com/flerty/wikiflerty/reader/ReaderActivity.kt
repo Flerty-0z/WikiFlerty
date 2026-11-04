@@ -1084,6 +1084,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     override fun onPageLoaded() {
                         injectScripts()
                         preRasterPages()
+                        if (!warmedUp) {
+                            warmedUp = true
+                            bookArea.postDelayed({ warmUpTurns() }, 700)
+                        }
                     }
                 },
                 configuration = navigatorConfiguration(),
@@ -1929,6 +1933,36 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         applyTurn(0f)
     }
 
+    private var warmedUp = false
+
+    private fun warmUpTurns() {
+        if (turning || capturing || swipeState == SwipeState.Dragging || bookArea.width == 0) return
+        capturing = true
+        copyPage { bitmap ->
+            capturing = false
+            if (bitmap == null || turning || swipeState == SwipeState.Dragging) return@copyPage
+            val w = bookArea.width.toFloat()
+            val h = bookArea.height.toFloat()
+            curl.paper = settings.pageTheme.background.toInt()
+            curl.begin(bitmap, true)
+            curl.alpha = 0.01f
+            curl.drag(w * 0.55f, h * 0.8f)
+            snapshot.setImageBitmap(bitmap)
+            snapshot.alpha = 0.01f
+            snapshot.rotationY = -8f
+            snapshot.visibility = View.VISIBLE
+            curl.postOnAnimation {
+                curl.postOnAnimation {
+                    if (!turning && swipeState != SwipeState.Dragging) {
+                        curl.hide()
+                        hideSnapshot()
+                    }
+                    curl.alpha = 1f
+                }
+            }
+        }
+    }
+
     private fun preRasterPages() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || !::bookArea.isInitialized) return
         fun walk(v: View) {
@@ -2034,6 +2068,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             }
             curl.paper = settings.pageTheme.background.toInt()
             snapshot.setImageBitmap(bitmap)
+            snapshot.alpha = 1f
+            snapshot.rotationY = 0f
             snapshot.visibility = View.VISIBLE
             if (!go(forward, animated = false)) {
                 hideSnapshot()

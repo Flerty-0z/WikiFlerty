@@ -58,6 +58,7 @@ class PageCurlView(context: Context) : View(context) {
         bitmap = page
         this.forward = forward
         autoPoint(0f)
+        alpha = 1f
         visibility = VISIBLE
         animator = ValueAnimator.ofFloat(0f, 1f).apply {
             this.duration = duration
@@ -77,6 +78,7 @@ class PageCurlView(context: Context) : View(context) {
         this.forward = forward
         px = if (forward) width.toFloat() else 0f
         py = height.toFloat()
+        alpha = 1f
         visibility = VISIBLE
         invalidate()
     }

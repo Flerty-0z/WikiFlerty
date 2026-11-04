@@ -61,7 +61,7 @@ enum class ScreenOrientation(val id: String, val title: String) {
     }
 }
 
-enum class QuickButton(val id: String, val title: String) {
+enum class QuickButton(val id: String, val title: String, val ai: Boolean = false) {
     Toc("toc", "Главы"),
     Font("font", "Шрифт"),
     Theme("theme", "Тема"),
@@ -72,6 +72,11 @@ enum class QuickButton(val id: String, val title: String) {
     Listen("listen", "Слушать"),
     Search("search", "Поиск"),
     Auto("auto", "Авто"),
+    AiRecap("ai_recap", "Пересказ главы", ai = true),
+    AiQuiz("ai_quiz", "Тест по главе", ai = true),
+    AiTeacher("ai_teacher", "ИИ-Учитель", ai = true),
+    AiHeroes("ai_heroes", "Герои книги", ai = true),
+    AiHistory("ai_history", "История ИИ", ai = true),
     ;
 
     companion object {

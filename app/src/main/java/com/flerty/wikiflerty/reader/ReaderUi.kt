@@ -445,6 +445,20 @@ fun ReaderOverlay(
                         QuickButton.Listen -> state.sheet = ReaderSheet.Listen
                         QuickButton.Search -> state.sheet = ReaderSheet.Search
                         QuickButton.Auto -> auto.onStart()
+                        QuickButton.AiRecap, QuickButton.AiQuiz, QuickButton.AiTeacher -> if (ai.manager.current() == null) {
+                            state.sheet = ReaderSheet.AiChapter
+                        } else {
+                            ai.onChapter(
+                                when (button) {
+                                    QuickButton.AiRecap -> AiAction.Recap
+                                    QuickButton.AiQuiz -> AiAction.Quiz
+                                    else -> AiAction.Teacher
+                                },
+                            )
+                            state.sheet = ReaderSheet.AiChat
+                        }
+                        QuickButton.AiHeroes -> state.sheet = if (ai.manager.current() == null) ReaderSheet.AiChapter else ReaderSheet.Heroes
+                        QuickButton.AiHistory -> state.sheet = ReaderSheet.AiHistory
                     }
                 },
                 onOptions = { state.sheet = ReaderSheet.Options },
@@ -890,6 +904,11 @@ private fun quickIconVector(button: QuickButton): ImageVector = when (button) {
     QuickButton.Listen -> AppIcons.Headphones
     QuickButton.Search -> AppIcons.Search
     QuickButton.Auto -> AppIcons.Play
+    QuickButton.AiRecap -> AppIcons.Book
+    QuickButton.AiQuiz -> AppIcons.Check
+    QuickButton.AiTeacher -> AppIcons.Pencil
+    QuickButton.AiHeroes -> AppIcons.Voice
+    QuickButton.AiHistory -> AppIcons.Clock
 }
 
 @Composable
@@ -1086,6 +1105,7 @@ private fun SheetContent(
             ReaderSheet.Search -> SearchContent(search, Modifier.weight(1f, fill = false))
             ReaderSheet.Jump -> JumpContent(jump, onClose)
             ReaderSheet.AiChapter -> AiChapterContent(
+                modifier = Modifier.weight(1f, fill = false),
                 hasAi = ai.manager.current() != null,
                 onRecap = { ai.onChapter(AiAction.Recap); onOpen(ReaderSheet.AiChat) },
                 onQuiz = { ai.onChapter(AiAction.Quiz); onOpen(ReaderSheet.AiChat) },
@@ -1504,8 +1524,19 @@ private fun PanelOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
     }
     SwitchRow("Флажок внизу", settings.showFlag, icon = AppIcons.Flag) { v -> onSettingsChange { it.copy(showFlag = v) } }
     Group("Кнопки панели") {
+        QuickButtonList(QuickButton.entries.filter { !it.ai }, settings, onSettingsChange)
+        Hint("До пяти кнопок вместе с ИИ, в порядке выбора.")
+    }
+    Group("ИИ в панели", icon = AppIcons.Sparkle) {
+        QuickButtonList(QuickButton.entries.filter { it.ai }, settings, onSettingsChange)
+        Hint("Быстрый доступ к функциям «ИИ по главе».")
+    }
+}
+
+@Composable
+private fun QuickButtonList(buttons: List<QuickButton>, settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit) {
         Column(Modifier.clip(appCorner(16)).background(AppColors.Field)) {
-            QuickButton.entries.forEachIndexed { index, button ->
+            buttons.forEachIndexed { index, button ->
                 if (index > 0) com.flerty.wikiflerty.ui.ListDivider()
                 val checked = button.id in settings.quickButtons
                 val toggle = {
@@ -1538,8 +1569,6 @@ private fun PanelOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
                 }
             }
         }
-        Hint("До пяти кнопок, в порядке выбора.")
-    }
 }
 
 @Composable
@@ -2091,8 +2120,8 @@ private fun JumpContent(jump: JumpInfo, onClose: () -> Unit) {
 }
 
 @Composable
-private fun AiChapterContent(hasAi: Boolean, onRecap: () -> Unit, onQuiz: () -> Unit, onTeacher: () -> Unit, onHeroes: () -> Unit, onHistory: () -> Unit, onSetup: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+private fun AiChapterContent(modifier: Modifier, hasAi: Boolean, onRecap: () -> Unit, onQuiz: () -> Unit, onTeacher: () -> Unit, onHeroes: () -> Unit, onHistory: () -> Unit, onSetup: () -> Unit) {
+    Column(modifier.revealScroll(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (hasAi) {
             AiChapterButton(AppIcons.Book, "Пересказ главы", "Что было до этого места", onRecap)
             AiChapterButton(AppIcons.Check, "Тест по главе", "5 вопросов, ответы проверит ИИ", onQuiz)
