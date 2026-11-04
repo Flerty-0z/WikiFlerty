@@ -50,6 +50,8 @@ fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = 
     val time = clock(animated && decor != Decor.None)
     val petals = remember { specks(23, 14) }
     val fibers = remember { specks(41, 70) }
+    val columns = remember { specks(53, 120) }
+    val washes = remember { specks(61, 6) }
     val light = base.light
     Box(modifier) {
         Canvas(Modifier.fillMaxSize()) {
@@ -63,7 +65,8 @@ fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = 
                     drawLine(Color(base.text).copy(alpha = 0.035f), Offset(x, y), Offset(x + len, y + len * 0.15f), 0.8f * density)
                 }
                 Decor.Comic -> comicStatic(light, Color(base.text), accent)
-                Decor.None -> Unit
+                Decor.Wash -> washPaper(light)
+                else -> Unit
             }
         }
         if (decor != Decor.None) {
@@ -86,7 +89,9 @@ fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = 
                         val c = Offset(size.width * 0.9f, size.height * 0.1f)
                         rotate(t * 4f, c) { burst(c, size.width * 0.2f, accent.copy(alpha = if (light) 0.16f else 0.12f)) }
                     }
-                    Decor.None -> Unit
+                    Decor.News -> newsLive(t, light, Color(base.text), accent, columns)
+                    Decor.Wash -> washLive(t, light, washes)
+                    else -> Unit
                 }
             }
         }
@@ -135,4 +140,71 @@ private fun DrawScope.burst(center: Offset, radius: Float, color: Color) {
     }
     path.close()
     drawPath(path, color)
+}
+
+private val WashColors = listOf(0xFF9FC9FF, 0xFFFFB3C7, 0xFFFFE08A, 0xFFB9F0C4, 0xFFD4B8FF, 0xFFFFC89A)
+
+private fun DrawScope.newsLive(t: Float, light: Boolean, ink: Color, accent: Color, lines: List<Speck>) {
+    val col = size.width / 3f
+    val gap = 14.dp.toPx()
+    val row = 11.dp.toPx()
+    val rows = (size.height / row).toInt()
+    val h = 3.dp.toPx()
+    for (c in 0 until 3) {
+        if (c > 0) drawLine(ink.copy(alpha = if (light) 0.07f else 0.06f), Offset(col * c, 0f), Offset(col * c, size.height), 1f * density)
+        for (r in 0 until rows) {
+            val s = lines[(c * 37 + r) % lines.size]
+            val pulse = 0.5f + 0.5f * sin(t * 0.35f * s.speed + s.phase + r * 0.21f)
+            val a = (if (light) 0.025f else 0.03f) + pulse * (if (light) 0.04f else 0.035f)
+            val w = (col - gap) * (0.55f + 0.45f * s.size)
+            drawRect(ink.copy(alpha = a), Offset(col * c + gap / 2, r * row + row / 2), Size(w, h))
+        }
+    }
+    for (k in 0 until 3) {
+        val cycle = t * 0.04f + k / 3f
+        val life = cycle % 1f
+        val n = cycle.toInt() * 3 + k
+        val x = ((n * 0.6180339f) % 1f) * size.width
+        val y = ((n * 0.4142135f) % 1f) * size.height
+        val r = (18f + 46f * life) * density
+        val color = if (k == 0) accent else ink
+        drawCircle(color.copy(alpha = (1f - life) * life * (if (light) 0.16f else 0.12f)), r, Offset(x, y))
+    }
+}
+
+private fun DrawScope.washPaper(light: Boolean) {
+    val step = 5.dp.toPx()
+    var y = 0f
+    var k = 0
+    val c = if (light) Color(0x08503A20) else Color(0x08FFFFFF)
+    while (y < size.height) {
+        var x = if (k % 2 == 0) 0f else step / 2
+        while (x < size.width) {
+            drawCircle(c, 0.9f * density, Offset(x, y))
+            x += step * 2
+        }
+        y += step
+        k++
+    }
+}
+
+private fun DrawScope.washLive(t: Float, light: Boolean, washes: List<Speck>) {
+    washes.forEachIndexed { i, w ->
+        val cx = (w.x + 0.12f * sin(t * 0.05f * w.speed + w.phase)) * size.width
+        val cy = (w.y + 0.08f * cos(t * 0.04f * w.speed + w.phase)) * size.height
+        val r = size.width * (0.45f + 0.18f * w.size) * (1f + 0.08f * sin(t * 0.2f + w.phase))
+        val color = Color(WashColors[i % WashColors.size])
+        drawCircle(Brush.radialGradient(listOf(color.copy(alpha = if (light) 0.42f else 0.2f), color.copy(alpha = 0f)), center = Offset(cx, cy), radius = r), r, Offset(cx, cy))
+    }
+    for (k in 0 until 2) {
+        val cycle = t * 0.09f + k * 0.5f
+        val life = cycle % 1f
+        val n = cycle.toInt() * 2 + k
+        val x = (0.15f + ((n * 0.6180339f) % 1f) * 0.7f) * size.width
+        val y = (0.15f + ((n * 0.7548776f) % 1f) * 0.7f) * size.height
+        val ring = (6f + 70f * life) * density
+        val col = Color(WashColors[n % WashColors.size])
+        drawCircle(col.copy(alpha = (1f - life) * (if (light) 0.55f else 0.4f)), ring, Offset(x, y), style = androidx.compose.ui.graphics.drawscope.Stroke(1.6f * density))
+        if (life < 0.15f) drawCircle(col.copy(alpha = (0.15f - life) * 4f), 4f * density, Offset(x, y))
+    }
 }

@@ -170,6 +170,22 @@ enum class UiBase(
         "comic_dark", "Комикс", 0xFF1B1B24, 0xFF262633, 0xFF2C2C3A, 0xFF22222E, 0xFFF2F2F2, 0xFFF2F2F2, 0xFF262633, 0xFF3A3A4C,
         text = 0xFFFFFFFF, muted = 0xFFC9C9D6, faint = 0xFF9A9AAE,
     ),
+    NewsLight(
+        "news_light", "Газета", 0xFFF2EDE1, 0xFFF7F3EA, 0xFFF7F3EA, 0xFFF7F3EA, 0xFF141414, 0xFF141414, 0xFFFBF8F1, 0xFFCFC7B4,
+        light = true, text = 0xFF141414, muted = 0xFF4A4740, faint = 0xFF77736A,
+    ),
+    NewsDark(
+        "news_dark", "Газета", 0xFF121212, 0xFF1A1A1A, 0xFF1A1A1A, 0xFF1A1A1A, 0xFFECE6D8, 0xFFECE6D8, 0xFF202020, 0xFF3A3A3A,
+        text = 0xFFECE6D8, muted = 0xFFB8B2A4, faint = 0xFF8A857A,
+    ),
+    WashLight(
+        "wash_light", "Акварель", 0xFFFBF7F0, 0xFFFFFEFB, 0xFFFFFFFF, 0xFFFBF6EE, 0xFFE3DACB, 0xFFFFFFFF, 0xFFFFFCF7, 0xFFE9E0D0,
+        light = true, text = 0xFF2F3B52, muted = 0xFF66708A, faint = 0xFF9AA2B6,
+    ),
+    WashDark(
+        "wash_dark", "Акварель", 0xFF171B2E, 0xFF1F2440, 0xFF242A4A, 0xFF1C2139, 0xFF343B60, 0xFF444C78, 0xFF1D2238, 0xFF2F3656,
+        text = 0xFFE9ECF8, muted = 0xFFAAB2D2, faint = 0xFF7C84A6,
+    ),
     ;
 
     companion object {
@@ -314,7 +330,7 @@ enum class ThemeMode(val id: String, val title: String) {
     }
 }
 
-enum class Decor { None, Library, Zen, Comic }
+enum class Decor { None, Library, Zen, Comic, News, Wash, Pixel, Sea, Clay, Note }
 
 enum class Kit(
     val id: String,
@@ -333,6 +349,8 @@ enum class Kit(
     Library("library", "Старинная библиотека", UiBase.LibraryDark, UiBase.LibraryLight, 0xFFE0B04A, 0xFF9C6A1C, 0.7f, ButtonLook.Filled, MotionStyle.Soft, Decor.Library),
     Zen("zen", "Японский сад", UiBase.ZenDark, UiBase.ZenLight, 0xFFE0675A, 0xFFC0392B, 0.45f, ButtonLook.Outline, MotionStyle.Soft, Decor.Zen, lightFirst = true),
     Comic("comic", "Комикс", UiBase.ComicDark, UiBase.ComicLight, 0xFFFFCC00, 0xFFFF3B3B, 0.8f, ButtonLook.Filled, MotionStyle.Bouncy, Decor.Comic, lightFirst = true),
+    News("news", "Утренняя газета", UiBase.NewsDark, UiBase.NewsLight, 0xFFFF4A4A, 0xFFC8102E, 0f, ButtonLook.Filled, MotionStyle.Strict, Decor.News, lightFirst = true),
+    Wash("wash", "Акварель", UiBase.WashDark, UiBase.WashLight, 0xFF8FB8FF, 0xFF3D6FB6, 1.3f, ButtonLook.Soft, MotionStyle.Soft, Decor.Wash, lightFirst = true),
     ;
 
     fun applyTo(style: UiStyle, light: Boolean) = style.copy(

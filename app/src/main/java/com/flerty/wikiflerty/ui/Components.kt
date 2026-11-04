@@ -31,6 +31,10 @@ import androidx.compose.ui.unit.dp
 
 fun Modifier.panelSurface(shape: Shape, elevation: Dp = 14.dp): Modifier = when (AppStyle.kit.decor) {
     Decor.Comic -> this.hardShadow(shape, 5.dp).clip(shape).background(AppColors.Panel).border(2.5.dp, AppColors.PanelBorder, shape)
+    Decor.News -> this.clip(shape).background(AppColors.Panel).border(2.dp, AppColors.PanelBorder, shape)
+    Decor.Wash -> this.shadow(elevation * 0.6f, WashShape, ambientColor = AppColors.Accent.copy(alpha = 0.3f), spotColor = AppColors.Accent.copy(alpha = 0.3f)).clip(WashShape)
+        .background(Brush.linearGradient(listOf(AppColors.PanelTop, AppColors.PanelBottom)))
+        .border(1.dp, AppColors.Accent.copy(alpha = 0.16f), WashShape)
     else -> this.basePanelSurface(shape, elevation)
 }
 
@@ -65,6 +69,8 @@ fun Modifier.hardShadow(shape: Shape, offset: Dp = 4.dp, color: Color = Color(0x
 fun Modifier.kitCover(shape: Shape): Modifier = when (AppStyle.kit.decor) {
     Decor.Comic -> this.hardShadow(shape, 4.dp).border(2.dp, Color(0xFF111111), shape)
     Decor.Library -> this.border(1.dp, Color(0xFFE0B04A).copy(alpha = 0.65f), shape)
+    Decor.News -> this.border(1.5.dp, AppColors.Text, shape)
+    Decor.Wash -> this.shadow(8.dp, shape, ambientColor = AppColors.Accent.copy(alpha = 0.4f), spotColor = AppColors.Accent.copy(alpha = 0.4f))
     else -> this
 }
 
@@ -73,6 +79,8 @@ fun Modifier.fieldSurface(shape: Shape, selected: Boolean = false, accent: Color
     Decor.Library -> this.clip(shape).background(Brush.verticalGradient(listOf(AppColors.PanelTop, AppColors.Field)))
         .border(if (selected) 2.dp else 1.dp, if (selected) accent else Color(0xFFE0B04A).copy(alpha = if (AppStyle.light) 0.45f else 0.22f), shape)
     Decor.Zen -> this.clip(shape).background(AppColors.Field).border(if (selected) 1.5.dp else 0.8.dp, if (selected) accent else AppColors.PanelBorder.copy(alpha = 0.8f), shape)
+    Decor.News -> this.clip(shape).background(AppColors.Field).border(if (selected) 2.dp else 1.dp, if (selected) accent else AppColors.PanelBorder.copy(alpha = 0.75f), shape)
+    Decor.Wash -> this.clip(WashShape).background(AppColors.Field).border(if (selected) 2.dp else 1.dp, if (selected) accent else accent.copy(alpha = 0.18f), WashShape)
     else -> this.baseFieldSurface(shape, selected, accent)
 }
 

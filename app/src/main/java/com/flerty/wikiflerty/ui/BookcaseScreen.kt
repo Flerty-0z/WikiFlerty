@@ -328,6 +328,7 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
     val light = AppStyle.light
     val decor = AppStyle.kit.decor
     val accent = AppColors.Accent
+    val ink = AppColors.Text
     val wood = when {
         decor == Decor.Library -> if (light) listOf(Color(0xFF9A6A3C), Color(0xFF7A4E28), Color(0xFF5A3518)) else listOf(Color(0xFF7A4A24), Color(0xFF5E381A), Color(0xFF40240F))
         light -> listOf(Color(0xFFC9A375), Color(0xFFB08656), Color(0xFF8E6538))
@@ -358,6 +359,23 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
                             drawRect(Color(0xFFFFCC00))
                             drawRect(Color(0xFF111111), style = Stroke(2.5.dp.toPx()))
                         }
+                        Decor.News -> {
+                            drawRect(ink, size = androidx.compose.ui.geometry.Size(size.width, 4.dp.toPx()))
+                            drawRect(ink, Offset(0f, size.height - 1.dp.toPx()), androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx()))
+                            if (highlighted) drawRect(accent.copy(alpha = 0.12f))
+                        }
+                        Decor.Wash -> {
+                            val p = androidx.compose.ui.graphics.Path()
+                            val w = size.width
+                            val h = size.height
+                            p.moveTo(0f, h * 0.55f)
+                            p.cubicTo(w * 0.2f, h * 0.18f, w * 0.45f, h * 0.32f, w * 0.7f, h * 0.2f)
+                            p.cubicTo(w * 0.85f, h * 0.14f, w * 0.95f, h * 0.3f, w, h * 0.42f)
+                            p.cubicTo(w * 0.96f, h * 0.7f, w * 0.75f, h * 0.86f, w * 0.5f, h * 0.8f)
+                            p.cubicTo(w * 0.3f, h * 0.76f, w * 0.1f, h * 0.92f, 0f, h * 0.55f)
+                            p.close()
+                            drawPath(p, Brush.horizontalGradient(listOf(accent.copy(alpha = 0f), accent.copy(alpha = if (highlighted) 0.75f else 0.55f), accent.copy(alpha = if (highlighted) 0.8f else 0.6f), accent.copy(alpha = 0.45f), accent.copy(alpha = 0f))))
+                        }
                         else -> {
                             drawRoundRect(Brush.verticalGradient(wood), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
                             drawRect(Color(0x73FFDCAA), size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx()))
@@ -378,16 +396,19 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
             if (name != null) {
                 val plaque = decor == Decor.Library
                 Text(
-                    name,
+                    if (decor == Decor.News) name.uppercase() else name,
                     color = when {
                         plaque -> Color(0xFF3A2A12)
                         decor == Decor.Comic -> Color(0xFF111111)
+                        decor == Decor.News || decor == Decor.Wash -> AppColors.Text
                         decor == Decor.Zen -> if (light) Color(0xFF2B3A18) else Color(0xFFEDEFE0)
                         light -> Color(0xFF3A2612)
                         else -> Color(0xFFF7EBD8)
                     },
                     fontSize = 11.sp,
-                    fontWeight = if (decor == Decor.Comic) FontWeight.ExtraBold else FontWeight.SemiBold,
+                    fontWeight = if (decor == Decor.Comic || decor == Decor.News) FontWeight.ExtraBold else FontWeight.SemiBold,
+                    fontStyle = if (decor == Decor.Wash) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
+                    letterSpacing = if (decor == Decor.News) 1.5.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
@@ -401,7 +422,7 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
                 )
             }
         }
-        run {
+        if (decor == Decor.None || decor == Decor.Library || decor == Decor.Zen || decor == Decor.Comic) {
             Box(
                 Modifier
                     .fillMaxWidth()
