@@ -40,6 +40,7 @@ data class LibraryPrefs(
     val dailyGoalPages: Boolean = false,
     val yearGoalPages: Boolean = false,
     val progressInPages: Boolean = false,
+    val liveShelf: Boolean = true,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("filter", filter)
@@ -54,6 +55,7 @@ data class LibraryPrefs(
         put("dailyGoalPages", dailyGoalPages)
         put("yearGoalPages", yearGoalPages)
         put("progressInPages", progressInPages)
+        put("liveShelf", liveShelf)
     }
 
     companion object {
@@ -68,6 +70,7 @@ data class LibraryPrefs(
             dailyGoalPages = j.optBoolean("dailyGoalPages", false),
             yearGoalPages = j.optBoolean("yearGoalPages", false),
             progressInPages = j.optBoolean("progressInPages", false),
+            liveShelf = j.optBoolean("liveShelf", true),
             shelves = j.optJSONArray("shelves")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
         )
     }

@@ -252,6 +252,7 @@ fun LibraryScreen(
                     onBook = { longPress(it) },
                     modifier = Modifier.fillMaxSize(),
                     animationKey = active.id + "|" + q,
+                    live = prefs.liveShelf,
                     footer = {
                         if (shown.isEmpty() && q.isNotEmpty()) {
                             Text("Ничего не нашлось", color = AppColors.Muted, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())

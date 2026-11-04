@@ -67,7 +67,12 @@ class PlankSpec(val key: String, val name: String?, val books: List<Book>, val o
 
 private class PlankRow(val key: String, val name: String?, val units: List<ShelfUnit>, val onEdit: (() -> Unit)?, val scroll: Boolean)
 
-private fun arrange(books: List<Book>, onAdd: (() -> Unit)?): List<ShelfUnit> {
+private fun arrange(books: List<Book>, onAdd: (() -> Unit)?, live: Boolean): List<ShelfUnit> {
+    if (!live) {
+        val units = books.map<Book, ShelfUnit> { ShelfUnit.Standing(it, lean = false) }.toMutableList()
+        if (onAdd != null) units += ShelfUnit.Add(onAdd)
+        return units
+    }
     val standing = books.filter { it.status != ReadStatus.Finished }
         .sortedWith(compareBy<Book> { if (it.status == ReadStatus.Reading) 0 else 1 }.thenByDescending { it.lastReadAt ?: it.addedAt })
     val lying = books.filter { it.status == ReadStatus.Finished }.sortedByDescending { it.finishedAt ?: it.addedAt }
@@ -84,8 +89,8 @@ private fun unitWidth(u: ShelfUnit): Float = when (u) {
     is ShelfUnit.Add -> 84f
 }
 
-private fun rows(planks: List<PlankSpec>, width: Float): List<PlankRow> = planks.flatMap { p ->
-    val units = arrange(p.books, p.onAdd)
+private fun rows(planks: List<PlankSpec>, width: Float, live: Boolean): List<PlankRow> = planks.flatMap { p ->
+    val units = arrange(p.books, p.onAdd, live)
     if (!p.wrap) return@flatMap listOf(PlankRow(p.key, p.name, units, p.onEdit, scroll = true))
     val out = mutableListOf<MutableList<ShelfUnit>>(mutableListOf())
     var used = 0f
@@ -107,12 +112,13 @@ fun BookcaseView(
     onBook: (Book) -> Unit,
     modifier: Modifier = Modifier,
     animationKey: Any? = null,
+    live: Boolean = true,
     footer: (@Composable () -> Unit)? = null,
 ) {
     androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxSize().bookcaseWall()) {
         val width = maxWidth.value - 44f
-        val list = remember(planks, width) { rows(planks, width) }
-        androidx.compose.runtime.key(animationKey) {
+        val list = remember(planks, width, live) { rows(planks, width, live) }
+        androidx.compose.runtime.key(animationKey, live) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp),

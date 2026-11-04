@@ -643,6 +643,11 @@ fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
             SettingSegmented(null, listOf("Полки", "Сетка", "Список"), LibraryView.entries.indexOf(prefs.view)) { i ->
                 app.libraryPrefs.update { it.copy(view = LibraryView.entries[i]) }
             }
+            Appear(prefs.view == LibraryView.Shelves) {
+                SettingSegmented("Полка", listOf("Обычная", "Живая"), if (prefs.liveShelf) 1 else 0) { i ->
+                    app.libraryPrefs.update { it.copy(liveShelf = i == 1) }
+                }
+            }
             Appear(prefs.view == LibraryView.Grid) {
                 SettingSegmented("Размер обложек", listOf("Мелкие", "Средние", "Крупные"), prefs.coverSize) { i ->
                     app.libraryPrefs.update { it.copy(coverSize = i) }
