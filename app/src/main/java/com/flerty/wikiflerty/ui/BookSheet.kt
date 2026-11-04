@@ -635,8 +635,8 @@ fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
                 label = "Прогресс",
                 icon = AppIcons.Percent,
                 options = listOf(
-                    PickerOption("percent", "Проценты", "30%"),
-                    PickerOption("pages", "Страницы", "110/366"),
+                    PickerOption("percent", "Проценты", "30%", icon = AppIcons.Percent),
+                    PickerOption("pages", "Страницы", "110/366", icon = AppIcons.Pages),
                 ),
                 selectedId = if (prefs.progressInPages) "pages" else "percent",
             ) { id -> app.libraryPrefs.update { it.copy(progressInPages = id == "pages") } }

@@ -107,7 +107,6 @@ data class ReaderSettings(
     val progressInPages: Boolean = false,
     val quickButtons: List<String> = QuickButton.defaults.map { it.id },
     val sounds: Boolean = true,
-    val turnSounds: Boolean = true,
     val soundVolume: Double = 0.35,
     val haptics: Boolean = true,
     val markerColor: Long = 0xFFE9C84A,
@@ -187,7 +186,6 @@ data class ReaderSettings(
         put("progressInPages", progressInPages)
         put("quickButtons", JSONArray(quickButtons))
         put("sounds", sounds)
-        put("turnSounds", turnSounds)
         put("soundVolume", soundVolume)
         put("haptics", haptics)
         put("markerColor", String.format("#%08X", markerColor))
@@ -243,7 +241,6 @@ data class ReaderSettings(
                 progressInPages = json.optBoolean("progressInPages", d.progressInPages),
                 quickButtons = quick,
                 sounds = json.optBoolean("sounds", d.sounds),
-                turnSounds = json.optBoolean("turnSounds", d.turnSounds),
                 soundVolume = json.optDouble("soundVolume", d.soundVolume).coerceIn(0.05, 1.0),
                 haptics = json.optBoolean("haptics", d.haptics),
                 markerColor = runCatching { json.getString("markerColor").removePrefix("#").toLong(16) }

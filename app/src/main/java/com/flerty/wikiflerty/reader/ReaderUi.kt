@@ -1415,7 +1415,6 @@ private fun ScrollOptions(
         },
         selectedId = settings.animation.id,
     ) { id -> onSettingsChange { it.copy(pageAnimation = id) } }
-    SwitchRow("Звук листания", settings.turnSounds, icon = AppIcons.Sound) { v -> onSettingsChange { it.copy(turnSounds = v) } }
     SwitchRow("Кнопки громкости", settings.volumeKeys, icon = AppIcons.VolumeKeys) { v -> onSettingsChange { it.copy(volumeKeys = v) } }
     StepSlider(
         label = "Автопрокрутка",

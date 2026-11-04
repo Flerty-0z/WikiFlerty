@@ -400,7 +400,7 @@ fun PickerRow(
         label,
         selected?.title ?: selectedId,
         icon,
-        lead = if (selected != null && (selected.swatch != null || selected.icon != null || selected.font != null || selected.fontLoader != null)) ({ OptionTile(selected, null, 26.dp) }) else null,
+        lead = if (selected != null) ({ OptionTile(selected, icon, 26.dp) }) else null,
         typeface = selected?.typeface,
     ) { open = true }
     if (open) {

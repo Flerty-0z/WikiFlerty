@@ -1800,7 +1800,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             return
         }
         when (settings.animation) {
-            PageAnimation.Slide -> if (go(forward, animated = true)) app.feedback.playTurn(PageAnimation.Slide)
+            PageAnimation.Slide -> go(forward, animated = true)
             PageAnimation.None -> go(forward, animated = false)
             PageAnimation.Curl, PageAnimation.Fade, PageAnimation.Cover, PageAnimation.Flip, PageAnimation.Depth -> requestTurn(forward, settings.animation)
         }
@@ -1880,7 +1880,6 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 return@capturePage
             }
             val (duration, easing) = turnSpec(animation)
-            app.feedback.playTurn(animation)
             runTurn(1f, duration, easing, delay = 60) { resetTurnViews() }
             schedulePending()
         }
@@ -2044,7 +2043,6 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             }
             val start = Runnable {
                 curlStart = null
-                app.feedback.playTurn(PageAnimation.Curl)
                 curl.play(bitmap, forward) { turning = false }
                 snapshot.visibility = View.GONE
                 snapshot.setImageDrawable(null)
@@ -2095,26 +2093,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         return y <= ui.topPanelBottom || y >= ui.bottomPanelTop
     }
 
-    private var nativeX0 = 0f
-    private var nativeY0 = 0f
-
     override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
         if (!::curl.isInitialized) return super.dispatchTouchEvent(ev)
-        if (settings.animation == PageAnimation.Slide && !settings.scroll) {
-            when (ev.actionMasked) {
-                android.view.MotionEvent.ACTION_DOWN -> {
-                    nativeX0 = ev.rawX
-                    nativeY0 = ev.rawY
-                }
-                android.view.MotionEvent.ACTION_UP -> {
-                    val dx = ev.rawX - nativeX0
-                    val dy = ev.rawY - nativeY0
-                    if (kotlin.math.abs(dx) > bookArea.width * 0.18f && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.5f && ui.sheet == null && ui.selection == null) {
-                        app.feedback.playTurn(PageAnimation.Slide)
-                    }
-                }
-            }
-        }
         when (ev.actionMasked) {
             android.view.MotionEvent.ACTION_DOWN -> {
                 swipeVelocity?.recycle()
@@ -2300,7 +2280,6 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             swipeReady = false
             val (full, _) = turnSpec(animation)
             val complete = swipeComplete
-            if (complete) app.feedback.playTurn(animation)
             val target = if (complete) 1f else 0f
             val share = kotlin.math.abs(target - turnProgress)
             runTurn(target, (90 + full * share).toLong(), DecelerateInterpolator(1.3f)) {
@@ -2317,7 +2296,6 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             return
         }
         swipeReady = false
-        if (swipeComplete) app.feedback.playTurn(PageAnimation.Curl)
         curl.release(swipeComplete) { done ->
             if (done) {
                 curl.hide()
