@@ -1289,7 +1289,7 @@ private fun TextOptions(
             AlignIcon(justify = false)
         }
     }
-    if (!entry.supportsItalic) {
+    com.flerty.wikiflerty.ui.Appear(!entry.supportsItalic) {
         Text("У этого шрифта нет курсива", color = AppColors.Faint, fontSize = 12.sp)
     }
     }
@@ -1307,7 +1307,7 @@ private fun TextOptions(
             icon = AppIcons.Pages,
         ) { i -> if (!settings.scroll) onSettingsChange { it.copy(columns = listOf("auto", "1", "2")[i]) } }
     }
-    if (settings.scroll) {
+    com.flerty.wikiflerty.ui.Appear(settings.scroll) {
         Text(
             "Колонки работают в режиме «Страницы». Сейчас включена лента — переключить можно в «Листании»",
             color = AppColors.Faint,
@@ -1410,6 +1410,7 @@ private fun ScrollOptions(
         },
         selectedId = settings.animation.id,
     ) { id -> onSettingsChange { it.copy(pageAnimation = id) } }
+    SwitchRow("Звук листания", settings.turnSounds, icon = AppIcons.Sound) { v -> onSettingsChange { it.copy(turnSounds = v) } }
     SwitchRow("Кнопки громкости", settings.volumeKeys, icon = AppIcons.VolumeKeys) { v -> onSettingsChange { it.copy(volumeKeys = v) } }
     StepSlider(
         label = "Автопрокрутка",
@@ -1462,7 +1463,7 @@ private fun ThemeOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
         }
     }
     SwitchRow("Ночная тема по расписанию", settings.autoNight, icon = AppIcons.Moon) { v -> onSettingsChange { it.copy(autoNight = v) } }
-    if (settings.autoNight) {
+    com.flerty.wikiflerty.ui.Appear(settings.autoNight, spacing = 12.dp) {
         val times = (0 until 48).map { it * 30 }.map { m -> PickerOption(m.toString(), "%02d:%02d".format(m / 60, m % 60)) }
         PickerRow(
             label = "Ночная тема",
@@ -1470,6 +1471,7 @@ private fun ThemeOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
             options = PageTheme.entries.map { PickerOption(it.id, it.title, swatch = Color(it.background)) },
             selectedId = settings.nightTheme,
         ) { id -> onSettingsChange { it.copy(nightTheme = id) } }
+        com.flerty.wikiflerty.ui.ListDivider()
         PickerRow(
             label = "Включать в",
             icon = AppIcons.Moon,
@@ -1477,6 +1479,7 @@ private fun ThemeOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
             selectedId = (settings.nightFrom / 30 * 30).toString(),
             searchable = false,
         ) { id -> onSettingsChange { it.copy(nightFrom = id.toInt()) } }
+        com.flerty.wikiflerty.ui.ListDivider()
         PickerRow(
             label = "Выключать в",
             icon = AppIcons.Sun,

@@ -34,6 +34,28 @@ class Feedback(context: Context, private val settings: StateFlow<ReaderSettings>
         FeedbackSound.Thaw to pool.load(context, R.raw.ui_thaw, 1),
     )
 
+    private val turns = mapOf(
+        com.flerty.wikiflerty.reader.PageAnimation.Curl to pool.load(context, R.raw.turn_curl, 1),
+        com.flerty.wikiflerty.reader.PageAnimation.Flip to pool.load(context, R.raw.turn_flip, 1),
+        com.flerty.wikiflerty.reader.PageAnimation.Cover to pool.load(context, R.raw.turn_cover, 1),
+        com.flerty.wikiflerty.reader.PageAnimation.Depth to pool.load(context, R.raw.turn_depth, 1),
+        com.flerty.wikiflerty.reader.PageAnimation.Fade to pool.load(context, R.raw.turn_fade, 1),
+        com.flerty.wikiflerty.reader.PageAnimation.Slide to pool.load(context, R.raw.turn_slide, 1),
+    )
+    private var lastTurn = 0L
+    private val jitter = java.util.Random()
+
+    fun playTurn(animation: com.flerty.wikiflerty.reader.PageAnimation) {
+        val s = settings.value
+        if (!s.turnSounds) return
+        val id = turns[animation] ?: return
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastTurn < 90) return
+        lastTurn = now
+        val v = (0.25f + s.soundVolume.toFloat() * 1.2f).coerceIn(0.2f, 0.9f) * (0.9f + jitter.nextFloat() * 0.1f)
+        pool.play(id, v, v, 1, 0, 0.95f + jitter.nextFloat() * 0.1f)
+    }
+
     private var lastSound: FeedbackSound? = null
     private var lastTime = 0L
 

@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -333,4 +334,26 @@ fun Modifier.revealViewport(viewport: RevealViewport): Modifier = this.onGloball
 fun Modifier.sheetReveal(): Modifier = composed {
     if (LocalRevealViewport.current == null || !Motion.enabled) return@composed this
     revealCore(80f, 24f)
+}
+
+@Composable
+fun Appear(
+    visible: Boolean,
+    modifier: Modifier = Modifier,
+    spacing: androidx.compose.ui.unit.Dp = 0.dp,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible,
+        modifier = modifier,
+        enter = androidx.compose.animation.expandVertically(Motion.tween(320), expandFrom = androidx.compose.ui.Alignment.Top) +
+            androidx.compose.animation.fadeIn(Motion.tween(260, 80)),
+        exit = androidx.compose.animation.fadeOut(Motion.tween(160)) +
+            androidx.compose.animation.shrinkVertically(Motion.tween(280), shrinkTowards = androidx.compose.ui.Alignment.Top),
+    ) {
+        androidx.compose.foundation.layout.Column(
+            Modifier.fillMaxWidth(),
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(spacing),
+        ) { content() }
+    }
 }

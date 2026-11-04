@@ -638,7 +638,7 @@ fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
             SettingSegmented(null, listOf("Полки", "Сетка", "Список"), LibraryView.entries.indexOf(prefs.view)) { i ->
                 app.libraryPrefs.update { it.copy(view = LibraryView.entries[i]) }
             }
-            if (prefs.view == LibraryView.Grid) {
+            Appear(prefs.view == LibraryView.Grid) {
                 SettingSegmented("Размер обложек", listOf("Мелкие", "Средние", "Крупные"), prefs.coverSize) { i ->
                     app.libraryPrefs.update { it.copy(coverSize = i) }
                 }

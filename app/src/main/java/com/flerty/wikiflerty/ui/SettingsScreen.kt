@@ -335,7 +335,7 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
             hint = if (style.animations) "Плавные переходы окон и кнопок" else "Всё появляется мгновенно",
             icon = AppIcons.Animation,
         ) { v -> store.update { it.copy(animations = v) } }
-        if (style.animations) {
+        Appear(style.animations) {
             PickerRow(
                 label = "Скорость",
                 icon = AppIcons.Speed,
@@ -419,7 +419,7 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
                 Text("Загружаю…", color = AppColors.Muted, fontSize = 14.sp)
             }
         }
-        if (kind != BackgroundKind.None) {
+        Appear(kind != BackgroundKind.None) {
             val shape = appCorner(12)
             Box(
                 Modifier
@@ -442,7 +442,7 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
             SettingSlider("Приглушение", style.backgroundDim, 0f..0.9f, ::percent, icon = AppIcons.Moon) { v ->
                 store.update { it.copy(backgroundDim = v) }
             }
-            if (kind == BackgroundKind.Video) {
+            Appear(kind == BackgroundKind.Video) {
                 SettingSlider(
                     "Звук видео",
                     style.videoVolume,
@@ -468,7 +468,7 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
                     selectedId = ReadingSound.of(style.readingSound).id,
                 ) { id -> store.update { it.copy(readingSound = id) } }
             }
-            if (kind == BackgroundKind.Image && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Appear(kind == BackgroundKind.Image && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 SettingSlider("Размытие", style.backgroundBlur, 0f..30f, { if (it < 0.5f) "Нет" else "${it.roundToInt()}" }, icon = AppIcons.Drop) { v ->
                     store.update { it.copy(backgroundBlur = v) }
                 }

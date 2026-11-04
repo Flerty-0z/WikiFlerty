@@ -230,60 +230,67 @@ fun LibraryScreen(
             ) { Icon(AppIcons.Sort, "Вид и сортировка", tint = AppColors.Text, modifier = Modifier.size(20.dp)) }
         }
 
-        if (prefs.view == LibraryView.Shelves) {
-            val planks = if (active.id == "all" && q.isEmpty()) {
-                val named = shelves.map { name ->
-                    PlankSpec("shelf:$name", name, books.filter { name in it.shelves }, { controls.shelfDialog = ShelfDialog.Edit(name) }, { controls.shelfDialog = ShelfDialog.Edit(name) }, wrap = false)
+        androidx.compose.animation.Crossfade(
+            targetState = LibraryLayout(prefs.view, columns, prefs.coverSize < 2),
+            animationSpec = Motion.tween(320),
+            label = "library-view",
+        ) { layout ->
+            val lgrid = layout.view == LibraryView.Grid
+                if (layout.view == LibraryView.Shelves) {
+                val planks = if (active.id == "all" && q.isEmpty()) {
+                    val named = shelves.map { name ->
+                        PlankSpec("shelf:$name", name, books.filter { name in it.shelves }, { controls.shelfDialog = ShelfDialog.Edit(name) }, { controls.shelfDialog = ShelfDialog.Edit(name) }, wrap = false)
+                    }
+                    val rest = books.filter { b -> b.shelves.none { it in shelves } }
+                    named + if (rest.isNotEmpty() || named.isEmpty()) listOf(PlankSpec("rest", if (named.isEmpty()) null else "Без полки", rest, onAddBook, null, wrap = named.isEmpty())) else emptyList()
+                } else {
+                    val edit = if (active.isShelf) ({ controls.shelfDialog = ShelfDialog.Edit(active.title) }) else null
+                    listOf(PlankSpec(active.id, if (active.isShelf) active.title else null, shown, edit ?: if (q.isEmpty()) onAddBook else null, edit, wrap = true))
                 }
-                val rest = books.filter { b -> b.shelves.none { it in shelves } }
-                named + if (rest.isNotEmpty() || named.isEmpty()) listOf(PlankSpec("rest", if (named.isEmpty()) null else "Без полки", rest, onAddBook, null, wrap = named.isEmpty())) else emptyList()
-            } else {
-                val edit = if (active.isShelf) ({ controls.shelfDialog = ShelfDialog.Edit(active.title) }) else null
-                listOf(PlankSpec(active.id, if (active.isShelf) active.title else null, shown, edit ?: if (q.isEmpty()) onAddBook else null, edit, wrap = true))
-            }
-            BookcaseView(
-                planks = planks,
-                onBook = { longPress(it) },
+                BookcaseView(
+                    planks = planks,
+                    onBook = { longPress(it) },
+                    modifier = Modifier.fillMaxSize(),
+                    animationKey = active.id + "|" + q,
+                    footer = {
+                        if (shown.isEmpty() && q.isNotEmpty()) {
+                            Text("Ничего не нашлось", color = AppColors.Muted, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                        } else if (active.id == "all" && q.isEmpty()) {
+                            NewShelfButton { controls.shelfDialog = ShelfDialog.Create(null) }
+                        }
+                    },
+                )
+            } else LazyVerticalGrid(
+                columns = if (lgrid) GridCells.Fixed(layout.columns) else GridCells.Fixed(1),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 110.dp),
+                horizontalArrangement = Arrangement.spacedBy(if (lgrid) 12.dp else 0.dp),
+                verticalArrangement = Arrangement.spacedBy(if (lgrid) 16.dp else 10.dp),
                 modifier = Modifier.fillMaxSize(),
-                animationKey = active.id + "|" + q,
-                footer = {
-                    if (shown.isEmpty() && q.isNotEmpty()) {
-                        Text("Ничего не нашлось", color = AppColors.Muted, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                    } else if (active.id == "all" && q.isEmpty()) {
-                        NewShelfButton { controls.shelfDialog = ShelfDialog.Create(null) }
-                    }
-                },
-            )
-        } else LazyVerticalGrid(
-            columns = if (grid) GridCells.Fixed(columns) else GridCells.Fixed(1),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 110.dp),
-            horizontalArrangement = Arrangement.spacedBy(if (grid) 12.dp else 0.dp),
-            verticalArrangement = Arrangement.spacedBy(if (grid) 16.dp else 10.dp),
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            if (shown.isEmpty()) {
-                item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
-                    Text(
-                        if (q.isNotEmpty()) "Ничего не нашлось" else "Здесь пока пусто",
-                        color = AppColors.Muted,
-                        fontSize = 14.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 40.dp),
-                    )
-                }
-            }
-            itemsIndexed(shown, key = { _, b -> b.id }) { index, book ->
-                Box(motionItem().riseIn(active.id + "|" + q.isEmpty(), index)) {
-                    if (grid) {
-                        BookCard(book, viewModel.coverFile(book), small = prefs.coverSize < 2, inPages = prefs.progressInPages, onClick = { longPress(book) }, onLongClick = { longPress(book) })
-                    } else {
-                        BookRow(book, viewModel.coverFile(book), inPages = prefs.progressInPages, onClick = { longPress(book) }, onLongClick = { longPress(book) })
+            ) {
+                if (shown.isEmpty()) {
+                    item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
+                        Text(
+                            if (q.isNotEmpty()) "Ничего не нашлось" else "Здесь пока пусто",
+                            color = AppColors.Muted,
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 40.dp),
+                        )
                     }
                 }
-            }
-            if (grid && q.isEmpty()) {
-                item(key = "add-tile") {
-                    AddCoverTile(Modifier.fillMaxWidth().aspectRatio(2f / 3f), onAddBook)
+                itemsIndexed(shown, key = { _, b -> b.id }) { index, book ->
+                    Box(motionItem().riseIn(active.id + "|" + q.isEmpty(), index)) {
+                        if (lgrid) {
+                            BookCard(book, viewModel.coverFile(book), small = layout.small, inPages = prefs.progressInPages, onClick = { longPress(book) }, onLongClick = { longPress(book) })
+                        } else {
+                            BookRow(book, viewModel.coverFile(book), inPages = prefs.progressInPages, onClick = { longPress(book) }, onLongClick = { longPress(book) })
+                        }
+                    }
+                }
+                if (grid && q.isEmpty()) {
+                    item(key = "add-tile") {
+                        AddCoverTile(Modifier.fillMaxWidth().aspectRatio(2f / 3f), onAddBook)
+                    }
                 }
             }
         }
@@ -1009,3 +1016,5 @@ fun ThickProgress(book: Book, inPages: Boolean, small: Boolean, modifier: Modifi
         }
     }
 }
+
+private data class LibraryLayout(val view: LibraryView, val columns: Int, val small: Boolean)
