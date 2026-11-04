@@ -79,7 +79,10 @@ fun AmbienceOptions(title: String = "Атмосфера") {
 
     SettingsGroup("Громкость") {
         Column(Modifier.padding(vertical = 4.dp)) {
-            AmbientSound.entries.forEach { sound -> VolumeRow(sound, mix[sound], player) }
+            AmbientSound.entries.forEachIndexed { index, sound ->
+                if (index > 0) com.flerty.wikiflerty.ui.ListDivider()
+                VolumeRow(sound, mix[sound], player)
+            }
         }
     }
 

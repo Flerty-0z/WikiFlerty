@@ -597,7 +597,8 @@ fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
     AppSheet(onDismiss, title = "Вид и сортировка") {
         SettingsGroup(null) {
-            LibrarySort.entries.forEach { sort ->
+            LibrarySort.entries.forEachIndexed { index, sort ->
+                if (index > 0) ListDivider()
                 val icon = when (sort) {
                     LibrarySort.Recent -> AppIcons.Clock
                     LibrarySort.Added -> AppIcons.Plus
@@ -709,7 +710,8 @@ fun ShelfDialogView(dialog: ShelfDialog, shelves: List<String>, onDismiss: () ->
         if (taken) Text("Такая полка уже есть", color = Danger, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
         SettingsGroup("Книги на полке · ${chosen.size}/${books.size}") {
             Column(Modifier.padding(vertical = 6.dp)) {
-                books.sortedBy { it.title.lowercase() }.forEach { b ->
+                books.sortedBy { it.title.lowercase() }.forEachIndexed { index, b ->
+                    if (index > 0) ListDivider()
                     val on = b.id in chosen
                     Row(
                         Modifier

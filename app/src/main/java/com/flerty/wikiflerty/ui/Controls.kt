@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
@@ -260,6 +261,11 @@ fun SettingIcon(icon: ImageVector, size: androidx.compose.ui.unit.Dp = 32.dp) {
 }
 
 @Composable
+fun ListDivider(modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxWidth().height(1.dp).background(AppColors.PanelBorder))
+}
+
+@Composable
 fun SheetOptionRow(option: PickerOption, selected: Boolean, fallbackIcon: ImageVector? = null, trailing: String? = null, onClick: () -> Unit) {
     Row(
         Modifier
@@ -471,10 +477,13 @@ fun PickerSheet(
             }
             Column(Modifier.weight(1f, fill = false).fillMaxWidth().fieldSurface(appCorner(18)).padding(horizontal = 14.dp, vertical = 6.dp)) {
                 LazyColumn(state = listState) {
-                    items(shown, key = { it.id }) { option ->
-                        Reveal {
-                            SheetOptionRow(option, option.id == selectedId, icon) {
-                                scope.launch { sheetState.hide() }.invokeOnCompletion { onSelect(option.id) }
+                    itemsIndexed(shown, key = { _, it -> it.id }) { index, option ->
+                        Column {
+                            if (index > 0) ListDivider()
+                            Reveal {
+                                SheetOptionRow(option, option.id == selectedId, icon) {
+                                    scope.launch { sheetState.hide() }.invokeOnCompletion { onSelect(option.id) }
+                                }
                             }
                         }
                     }

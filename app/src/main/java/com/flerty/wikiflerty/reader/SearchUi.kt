@@ -164,6 +164,8 @@ internal fun SearchContent(search: SearchActions, modifier: Modifier) {
 
         LazyColumn(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             itemsIndexed(state.results) { index, hit ->
+                Column {
+                if (index > 0) com.flerty.wikiflerty.ui.ListDivider(Modifier.padding(bottom = 2.dp))
                 Reveal {
                     val shape = appCorner(12)
                     val active = index == state.current
@@ -188,6 +190,7 @@ internal fun SearchContent(search: SearchActions, modifier: Modifier) {
                         )
                     }
                 }
+            }
             }
         }
     }

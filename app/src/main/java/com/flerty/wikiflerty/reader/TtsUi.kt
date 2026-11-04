@@ -152,7 +152,8 @@ private fun PiperVoiceList(selected: String, onSelect: (String) -> Unit) {
     val current = NeuralVoices.voiceOrDefault(NeuralVoices.PIPER, selected)
     Column(Modifier.padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text("Голос", color = AppColors.Muted, fontSize = 12.5.sp, modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
-        com.flerty.wikiflerty.tts.PiperVoices.all.forEach { v ->
+        com.flerty.wikiflerty.tts.PiperVoices.all.forEachIndexed { index, v ->
+            if (index > 0) com.flerty.wikiflerty.ui.ListDivider()
             val has = v.id in installed
             val p = progress[v.id]
             val isSel = v.id == current

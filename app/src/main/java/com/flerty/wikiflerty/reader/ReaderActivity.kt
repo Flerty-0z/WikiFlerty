@@ -1104,6 +1104,15 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             v.outlineProvider = null
             (bookArea as android.view.ViewGroup).addView(v, android.view.ViewGroup.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT))
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            bookArea.addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ ->
+                val d = resources.displayMetrics.density
+                val edge = (32 * d).toInt()
+                val tall = minOf((200 * d).toInt(), v.height)
+                val top = v.height - tall
+                v.systemGestureExclusionRects = listOf(Rect(0, top, edge, v.height), Rect(v.width - edge, top, v.width, v.height))
+            }
+        }
         snapshot.outlineProvider = ViewOutlineProvider.BOUNDS
         snapshot.elevation = 16 * resources.displayMetrics.density
 
@@ -1766,8 +1775,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
     }
 
-    private fun go(forward: Boolean, animated: Boolean): Boolean =
-        if (forward) navigator.goForward(animated = animated) else navigator.goBackward(animated = animated)
+    private fun go(forward: Boolean, animated: Boolean): Boolean {
+        lastGoAt = android.os.SystemClock.uptimeMillis()
+        return if (forward) navigator.goForward(animated = animated) else navigator.goBackward(animated = animated)
+    }
 
     private fun turn(forward: Boolean) {
         if (settings.scroll) {
@@ -1803,12 +1814,14 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         curlStart?.let { curl.removeCallbacks(it) }
         curlStart = null
         snapshot.animate().setListener(null).cancel()
+        val shown = curl.visibility == View.VISIBLE || snapshot.visibility == View.VISIBLE
         curl.cancel()
         curlHide?.let { curl.removeCallbacks(it) }
         curlHide = null
         curl.hide()
         swipeReady = false
         hideSnapshot()
+        if (shown) overlayHiddenAt = android.os.SystemClock.uptimeMillis()
     }
 
     private fun schedulePending() {
@@ -1925,6 +1938,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private var swipeState = SwipeState.Idle
     private var swipeX0 = 0f
+    private var swipeRawX0 = 0f
+    private var lastGoAt = 0L
+    private var overlayHiddenAt = 0L
     private var swipeY0 = 0f
     private var swipeX = 0f
     private var swipeY = 0f
@@ -1953,6 +1969,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 val inside = ev.rawX >= area[0] && ev.rawX <= area[0] + bookArea.width && ev.rawY >= area[1] && ev.rawY <= area[1] + bookArea.height
                 swipeState = if (inside && swipeAllowed()) SwipeState.Watching else SwipeState.Ignored
                 if (swipeState == SwipeState.Watching) {
+                    swipeRawX0 = ev.rawX
                     swipeX0 = ev.rawX - area[0]
                     swipeY0 = ev.rawY - area[1]
                     swipeX = swipeX0
@@ -1975,7 +1992,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     val slop = android.view.ViewConfiguration.get(this).scaledTouchSlop
                     if (ev.eventTime - swipeDown > android.view.ViewConfiguration.getLongPressTimeout()) {
                         swipeState = SwipeState.Ignored
-                    } else if (kotlin.math.abs(dx) > slop && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.4f) {
+                    } else if (kotlin.math.abs(dx) > slop && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.1f) {
                         swipeState = SwipeState.Dragging
                         swipeX = x
                         swipeY = y
@@ -1987,6 +2004,14 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     } else if (kotlin.math.abs(dy) > slop * 2) {
                         swipeState = SwipeState.Ignored
                     }
+                }
+                if (swipeState == SwipeState.Watching && (ev.actionMasked == android.view.MotionEvent.ACTION_MOVE || ev.actionMasked == android.view.MotionEvent.ACTION_UP)) {
+                    val still = android.view.MotionEvent.obtain(ev)
+                    still.offsetLocation(swipeRawX0 - ev.rawX, 0f)
+                    val handled = super.dispatchTouchEvent(still)
+                    still.recycle()
+                    if (ev.actionMasked == android.view.MotionEvent.ACTION_UP) swipeState = SwipeState.Idle
+                    return handled
                 }
             }
             SwipeState.Dragging -> {
@@ -2005,8 +2030,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         val dist = if (swipeForward) swipeX0 - swipeX else swipeX - swipeX0
                         val fling = 700 * resources.displayMetrics.density
                         val towards = if (swipeForward) -vx else vx
+                        val interactive = settings.animation == PageAnimation.Curl
+                        val enough = if (interactive) dist > bookArea.width * 0.22f else dist > 24 * resources.displayMetrics.density
                         swipeComplete = ev.actionMasked == android.view.MotionEvent.ACTION_UP &&
-                            (towards > fling || (dist > bookArea.width * 0.22f && towards > -fling))
+                            (towards > fling || (enough && towards > -fling))
                         swipeReleased = true
                         swipeState = SwipeState.Idle
                         if (swipeReady) endSwipe()
@@ -2094,6 +2121,19 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private fun capturePage(onReady: (Bitmap?) -> Unit) {
+        val now = android.os.SystemClock.uptimeMillis()
+        val settle = maxOf(0L, 90L - (now - lastGoAt))
+        val overlay = now - overlayHiddenAt < 50L
+        if (settle > 0L || overlay) {
+            val view = bookArea
+            val run = Runnable { view.postOnAnimation { view.postOnAnimation { copyPage(onReady) } } }
+            if (settle > 0L) view.postDelayed(run, settle) else run.run()
+            return
+        }
+        copyPage(onReady)
+    }
+
+    private fun copyPage(onReady: (Bitmap?) -> Unit) {
         val view = bookArea
         if (view.width == 0 || view.height == 0) {
             onReady(null)

@@ -55,6 +55,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -1491,7 +1492,8 @@ private fun PanelOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
     SwitchRow("Флажок внизу", settings.showFlag, icon = AppIcons.Flag) { v -> onSettingsChange { it.copy(showFlag = v) } }
     Group("Кнопки панели") {
         Column(Modifier.clip(appCorner(16)).background(AppColors.Field)) {
-            QuickButton.entries.forEach { button ->
+            QuickButton.entries.forEachIndexed { index, button ->
+                if (index > 0) com.flerty.wikiflerty.ui.ListDivider()
                 val checked = button.id in settings.quickButtons
                 val toggle = {
                     onSettingsChange { s ->
@@ -1620,7 +1622,9 @@ private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: M
         return
     }
     LazyColumn(modifier) {
-        items(toc) { item ->
+        itemsIndexed(toc) { index, item ->
+            Column {
+            if (index > 0) com.flerty.wikiflerty.ui.ListDivider()
             Reveal {
                 val shape = appCorner(12)
                 Text(
@@ -1635,6 +1639,7 @@ private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: M
                         .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) { onSelect(item) }
                         .padding(start = (8 + item.depth * 16).dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
                 )
+            }
             }
         }
     }
