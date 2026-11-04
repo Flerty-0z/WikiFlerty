@@ -88,14 +88,16 @@ fun AboutScreen(modifier: Modifier = Modifier) {
             }
         }
 
-        SettingsGroup("Обновления") {
-            UpdatePanel(app, Modifier.padding(vertical = 8.dp))
-            SettingSwitch(
-                label = "Проверять автоматически",
-                checked = auto,
-                hint = "При запуске, не чаще раза в 6 часов",
-                icon = AppIcons.Clock,
-            ) { app.updates.setAuto(it) }
+        if (!com.flerty.wikiflerty.BuildConfig.STORE) {
+            SettingsGroup("Обновления") {
+                UpdatePanel(app, Modifier.padding(vertical = 8.dp))
+                SettingSwitch(
+                    label = "Проверять автоматически",
+                    checked = auto,
+                    hint = "При запуске, не чаще раза в 6 часов",
+                    icon = AppIcons.Clock,
+                ) { app.updates.setAuto(it) }
+            }
         }
 
         SettingsGroup("Журнал сбоев") {

@@ -58,6 +58,7 @@ class Updates(private val context: Context) {
     }
 
     suspend fun autoCheck() {
+        if (com.flerty.wikiflerty.BuildConfig.STORE) return
         if (!_auto.value) return
         val last = prefs.getLong("lastCheck", 0)
         if (System.currentTimeMillis() - last < 6 * 60 * 60 * 1000L) return
@@ -118,7 +119,7 @@ class Updates(private val context: Context) {
             var size = 0L
             for (i in 0 until (assets?.length() ?: 0)) {
                 val asset = assets!!.getJSONObject(i)
-                if (asset.optString("name").endsWith(".apk")) {
+                if (asset.optString("name").endsWith(".apk") && !asset.optString("name").contains("rustore", ignoreCase = true)) {
                     url = asset.optString("browser_download_url")
                     size = asset.optLong("size")
                     break
