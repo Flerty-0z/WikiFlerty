@@ -330,30 +330,20 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
     val accent = AppColors.Accent
     val wood = when {
         decor == Decor.Library -> if (light) listOf(Color(0xFF9A6A3C), Color(0xFF7A4E28), Color(0xFF5A3518)) else listOf(Color(0xFF7A4A24), Color(0xFF5E381A), Color(0xFF40240F))
-        decor == Decor.Cabin -> if (light) listOf(Color(0xFFE0A872), Color(0xFFC98A52), Color(0xFFA86C3A)) else listOf(Color(0xFFC98A52), Color(0xFFA86C3A), Color(0xFF7A4A24))
         light -> listOf(Color(0xFFC9A375), Color(0xFFB08656), Color(0xFF8E6538))
         else -> listOf(Color(0xFFA8743F), Color(0xFF8A5A30), Color(0xFF6B4322))
     }
-    val shape = when (decor) {
-        Decor.Cabin -> androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
-        Decor.Terminal -> androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
-        else -> androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
-    }
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
     Column(Modifier.fillMaxWidth()) {
         Box(
             Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 10.dp)
-                .height(if (decor == Decor.Cosmos || decor == Decor.Terminal) 16.dp else 20.dp)
+                .height(20.dp)
                 .then(if (decor == Decor.Comic) Modifier.hardShadow(shape, 4.dp) else Modifier)
                 .then(if (onEdit != null) Modifier.liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.99f, onLongClick = onEdit, onClick = onEdit) else Modifier)
                 .drawBehind {
                     when (decor) {
-                        Decor.Cosmos -> {
-                            val core = size.height * 0.35f
-                            drawRoundRect(accent.copy(alpha = 0.18f), Offset(0f, 0f), size, androidx.compose.ui.geometry.CornerRadius(size.height / 2))
-                            drawRoundRect(Brush.horizontalGradient(listOf(accent.copy(alpha = 0.15f), accent, accent.copy(alpha = 0.15f))), Offset(0f, (size.height - core) / 2), androidx.compose.ui.geometry.Size(size.width, core), androidx.compose.ui.geometry.CornerRadius(core))
-                        }
                         Decor.Zen -> {
                             val seg = 46.dp.toPx()
                             drawRoundRect(if (light) Color(0xFFA7B37A) else Color(0xFF6E7A48), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2))
@@ -364,17 +354,12 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
                             }
                             drawRect(Color.White.copy(alpha = 0.18f), Offset(0f, size.height * 0.18f), androidx.compose.ui.geometry.Size(size.width, size.height * 0.16f))
                         }
-                        Decor.Terminal -> {
-                            val w = 1.5.dp.toPx()
-                            drawRect(accent, Offset(0f, size.height * 0.25f), androidx.compose.ui.geometry.Size(size.width, w))
-                            drawRect(accent, Offset(0f, size.height * 0.65f), androidx.compose.ui.geometry.Size(size.width, w))
-                        }
                         Decor.Comic -> {
                             drawRect(Color(0xFFFFCC00))
                             drawRect(Color(0xFF111111), style = Stroke(2.5.dp.toPx()))
                         }
                         else -> {
-                            drawRoundRect(Brush.verticalGradient(wood), cornerRadius = androidx.compose.ui.geometry.CornerRadius(if (decor == Decor.Cabin) 10.dp.toPx() else 4.dp.toPx()))
+                            drawRoundRect(Brush.verticalGradient(wood), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
                             drawRect(Color(0x73FFDCAA), size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx()))
                             if (highlighted) drawRect(Color(0x26FFD9A0))
                             var x = 0f
@@ -397,7 +382,6 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
                     color = when {
                         plaque -> Color(0xFF3A2A12)
                         decor == Decor.Comic -> Color(0xFF111111)
-                        decor == Decor.Terminal || decor == Decor.Cosmos -> AppColors.Text
                         decor == Decor.Zen -> if (light) Color(0xFF2B3A18) else Color(0xFFEDEFE0)
                         light -> Color(0xFF3A2612)
                         else -> Color(0xFFF7EBD8)
@@ -411,14 +395,13 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
                         .then(
                             when {
                                 plaque -> Modifier.background(Brush.verticalGradient(listOf(Color(0xFFF0D48A), Color(0xFFB8873F))), androidx.compose.foundation.shape.RoundedCornerShape(3.dp)).padding(horizontal = 10.dp)
-                                decor == Decor.Terminal || decor == Decor.Cosmos -> Modifier.background(AppColors.Background, androidx.compose.foundation.shape.RoundedCornerShape(if (decor == Decor.Terminal) 0.dp else 8.dp)).padding(horizontal = 8.dp)
                                 else -> Modifier
                             },
                         ),
                 )
             }
         }
-        if (decor != Decor.Terminal && decor != Decor.Cosmos) {
+        run {
             Box(
                 Modifier
                     .fillMaxWidth()

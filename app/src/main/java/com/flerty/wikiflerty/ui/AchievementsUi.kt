@@ -48,6 +48,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -480,9 +481,9 @@ fun AchievementsButton(earned: Int, total: Int, unlocked: Map<String, Long>, onC
     ) {
         val recent = Achievements.all.filter { it.id in unlocked }.sortedByDescending { unlocked[it.id] ?: 0L }.take(3)
         val shown = recent.ifEmpty { listOf(AchievementKind.Streak, AchievementKind.Books, AchievementKind.Pages).mapNotNull { k -> Achievements.all.firstOrNull { it.kind == k } } }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(horizontalArrangement = Arrangement.spacedBy((-14).dp), verticalAlignment = Alignment.CenterVertically) {
             shown.forEachIndexed { i, a ->
-                AchievementMedal(a, earned = a.id in unlocked, fraction = 0f, size = 34.dp, modifier = Modifier.scrollReveal(i * 70))
+                AchievementMedal(a, earned = a.id in unlocked, fraction = 0f, size = 32.dp, modifier = Modifier.zIndex((shown.size - i).toFloat()).scrollReveal(i * 70))
             }
         }
         Text(

@@ -154,14 +154,6 @@ enum class UiBase(
         "library_light", "Библиотека", 0xFFF1E5CE, 0xFFFBF3E2, 0xFFFDF7EA, 0xFFF3E7D0, 0xFFD9C09A, 0xFFFFFBF0, 0xFFFAF1DE, 0xFFE2CFAE,
         light = true, text = 0xFF3A2612, muted = 0xFF7A5C38, faint = 0xFFA4885F,
     ),
-    CosmosDark(
-        "cosmos_dark", "Космос", 0xFF070A18, 0xFF121836, 0xFF182043, 0xFF0E1330, 0xFF2A3466, 0xFF46529A, 0xFF101634, 0xFF26305E,
-        text = 0xFFE8ECF7, muted = 0xFFA6AED0, faint = 0xFF7A83AA,
-    ),
-    CosmosLight(
-        "cosmos_light", "Космос", 0xFFEEF0FF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFF3F4FF, 0xFFD4D8F6, 0xFFFFFFFF, 0xFFF8F8FF, 0xFFDCE0F8,
-        light = true, text = 0xFF1B2250, muted = 0xFF5A6190, faint = 0xFF8A90B8,
-    ),
     ZenLight(
         "zen_light", "Японский сад", 0xFFF3EEE3, 0xFFFBF8F1, 0xFFFDFBF6, 0xFFF6F1E6, 0xFFDCD3C1, 0xFFFFFFFF, 0xFFFBF8F1, 0xFFE4DCCB,
         light = true, text = 0xFF2B2B2B, muted = 0xFF6F6A5F, faint = 0xFF9A9384,
@@ -169,22 +161,6 @@ enum class UiBase(
     ZenDark(
         "zen_dark", "Японский сад", 0xFF1C1B18, 0xFF252420, 0xFF2B2A25, 0xFF201F1B, 0xFF3A382F, 0xFF4E4B40, 0xFF23221E, 0xFF38362E,
         text = 0xFFECE5D6, muted = 0xFFB3AB9A, faint = 0xFF857E70,
-    ),
-    TerminalDark(
-        "terminal_dark", "Терминал", 0xFF03140A, 0xFF061E10, 0xFF082412, 0xFF04180C, 0xFF145A30, 0xFF1F7A44, 0xFF04180C, 0xFF0F4022,
-        text = 0xFF8CFFB8, muted = 0xFF45D683, faint = 0xFF2A9A58,
-    ),
-    TerminalLight(
-        "terminal_light", "Терминал", 0xFFF2F0E6, 0xFFFAF8EF, 0xFFFCFBF4, 0xFFF4F2E8, 0xFFC9C6B4, 0xFFFFFFFF, 0xFFFAF8EF, 0xFFD8D5C4,
-        light = true, text = 0xFF243327, muted = 0xFF4F6652, faint = 0xFF7F8C7F,
-    ),
-    CabinDark(
-        "cabin_dark", "Уютная хижина", 0xFF24150D, 0xFF33211A, 0xFF3A261C, 0xFF2C1B12, 0xFF5A3A24, 0xFF7A5234, 0xFF2E1C12, 0xFF4E3322,
-        text = 0xFFFFE8CC, muted = 0xFFD9B48C, faint = 0xFFA8845E,
-    ),
-    CabinLight(
-        "cabin_light", "Уютная хижина", 0xFFFBEEDD, 0xFFFFF7EC, 0xFFFFFAF2, 0xFFFCF0DF, 0xFFE8CFAE, 0xFFFFFFFF, 0xFFFFF7EC, 0xFFEFD9BC,
-        light = true, text = 0xFF5A3418, muted = 0xFF8A6448, faint = 0xFFB08F72,
     ),
     ComicLight(
         "comic_light", "Комикс", 0xFFFFF6D6, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFF111111, 0xFF111111, 0xFFFFFFFF, 0xFFEAE0B8,
@@ -338,7 +314,7 @@ enum class ThemeMode(val id: String, val title: String) {
     }
 }
 
-enum class Decor { None, Library, Cosmos, Zen, Terminal, Cabin, Comic }
+enum class Decor { None, Library, Zen, Comic }
 
 enum class Kit(
     val id: String,
@@ -355,10 +331,7 @@ enum class Kit(
 ) {
     Classic("classic", "Крем", UiBase.Cream, UiBase.CreamLight, DefaultAccent, 0xFFC0621C, 1.1f, ButtonLook.Filled, MotionStyle.Soft, Decor.None),
     Library("library", "Старинная библиотека", UiBase.LibraryDark, UiBase.LibraryLight, 0xFFE0B04A, 0xFF9C6A1C, 0.7f, ButtonLook.Filled, MotionStyle.Soft, Decor.Library),
-    Cosmos("cosmos", "Космос", UiBase.CosmosDark, UiBase.CosmosLight, 0xFFB9A2FF, 0xFF6B4FE0, 1.25f, ButtonLook.Soft, MotionStyle.Soft, Decor.Cosmos),
     Zen("zen", "Японский сад", UiBase.ZenDark, UiBase.ZenLight, 0xFFE0675A, 0xFFC0392B, 0.45f, ButtonLook.Outline, MotionStyle.Soft, Decor.Zen, lightFirst = true),
-    Terminal("terminal", "Ретро-терминал", UiBase.TerminalDark, UiBase.TerminalLight, 0xFF33FF88, 0xFF1E7A44, 0f, ButtonLook.Outline, MotionStyle.Strict, Decor.Terminal),
-    Cabin("cabin", "Уютная хижина", UiBase.CabinDark, UiBase.CabinLight, 0xFFFFA25E, 0xFFD2692A, 1.6f, ButtonLook.Filled, MotionStyle.Bouncy, Decor.Cabin),
     Comic("comic", "Комикс", UiBase.ComicDark, UiBase.ComicLight, 0xFFFFCC00, 0xFFFF3B3B, 0.8f, ButtonLook.Filled, MotionStyle.Bouncy, Decor.Comic, lightFirst = true),
     ;
 
@@ -403,6 +376,12 @@ class StyleStore(context: Context) {
     val backgroundVideo = File(context.filesDir, "ui_background.mp4")
 
     init {
+        val loaded = _style.value
+        if (Kit.entries.none { it.id == loaded.kit }) {
+            val fixed = Kit.Classic.applyTo(loaded, ThemeMode.of(loaded.mode) == ThemeMode.Light)
+            _style.value = fixed
+            runCatching { file.writeText(fixed.toJson().toString()) }
+        }
         AppStyle.current = _style.value
     }
 

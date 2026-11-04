@@ -626,26 +626,23 @@ private fun KitCard(kit: Kit, selected: Boolean, onClick: () -> Unit) {
                                 .then(
                                     when (kit.decor) {
                                         Decor.Comic -> Modifier.hardShadow(coverShape, 2.dp).border(1.5.dp, Color(0xFF111111), coverShape)
-                                        Decor.Cabin -> Modifier.border(2.dp, Color(0xFFFFF3E2), coverShape)
-                                        Decor.Terminal -> Modifier.border(1.dp, accent, coverShape)
                                         else -> Modifier
                                     },
                                 )
                                 .clip(coverShape)
-                                .background(if (kit.decor == Decor.Terminal) accent.copy(alpha = 0.12f) else c),
+                                .background(c),
                         )
                     }
                 }
                 val plank = when (kit.decor) {
                     Decor.Comic -> Color(0xFFFFCC00)
                     Decor.Zen -> Color(0xFFA7B37A)
-                    Decor.Cosmos, Decor.Terminal -> accent
                     Decor.Library -> Color(0xFF6B4322)
                     else -> Color(0xFFA8743F)
                 }
                 Box(
-                    Modifier.fillMaxWidth().height(if (kit.decor == Decor.Terminal || kit.decor == Decor.Cosmos) 3.dp else 6.dp)
-                        .clip(RoundedCornerShape(if (kit.decor == Decor.Cabin) 4.dp else 1.dp))
+                    Modifier.fillMaxWidth().height(6.dp)
+                        .clip(RoundedCornerShape(1.dp))
                         .background(plank)
                         .then(if (kit.decor == Decor.Comic) Modifier.border(1.dp, Color(0xFF111111)) else Modifier),
                 )
