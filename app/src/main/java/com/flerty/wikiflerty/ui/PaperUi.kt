@@ -614,9 +614,9 @@ private fun SessionSheet(book: Book, form: SessionForm, onSaved: (Boolean) -> Un
                         start = LocalDateTime.of(day, time).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli().coerceAtMost(System.currentTimeMillis())
                     }
                     pickDate = false
-                }) { Text("Готово", color = AppColors.Accent) }
+                }) { ActionLabel("Готово", AppColors.Accent) }
             },
-            dismissButton = { TextButton(onClick = { pickDate = false }) { Text("Отмена", color = AppColors.Muted) } },
+            dismissButton = { TextButton(onClick = { pickDate = false }) { ActionLabel("Отмена", AppColors.Muted) } },
         ) { DatePicker(state) }
     }
     if (pickTime) {
@@ -629,9 +629,9 @@ private fun SessionSheet(book: Book, form: SessionForm, onSaved: (Boolean) -> Un
                 TextButton(onClick = {
                     start = at.withHour(state.hour).withMinute(state.minute).toInstant().toEpochMilli()
                     pickTime = false
-                }) { Text("Готово", color = AppColors.Accent) }
+                }) { ActionLabel("Готово", AppColors.Accent) }
             },
-            dismissButton = { TextButton(onClick = { pickTime = false }) { Text("Отмена", color = AppColors.Muted) } },
+            dismissButton = { TextButton(onClick = { pickTime = false }) { ActionLabel("Отмена", AppColors.Muted) } },
             text = { TimePicker(state) },
         )
     }

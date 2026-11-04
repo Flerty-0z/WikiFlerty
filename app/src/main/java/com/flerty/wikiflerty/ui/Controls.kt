@@ -298,35 +298,25 @@ fun SheetOptionRow(option: PickerOption, selected: Boolean, fallbackIcon: ImageV
 }
 
 @Composable
-private fun OptionTile(option: PickerOption, fallbackIcon: ImageVector?) {
+private fun OptionTile(option: PickerOption, fallbackIcon: ImageVector?, size: androidx.compose.ui.unit.Dp = 32.dp) {
     val shape = appCorner(10)
     val tile = Modifier
-        .size(32.dp)
+        .size(size)
         .clip(shape)
         .background(Brush.linearGradient(listOf(AppColors.Accent.copy(alpha = 0.24f), AppColors.Accent.copy(alpha = 0.08f))))
         .border(1.dp, AppColors.Accent.copy(alpha = 0.16f), shape)
     when {
         option.swatch != null -> Box(tile, contentAlignment = Alignment.Center) {
-            Box(Modifier.size(18.dp).clip(CircleShape).background(option.swatch).border(1.dp, AppColors.Line, CircleShape))
+            Box(Modifier.size(size * 0.56f).clip(CircleShape).background(option.swatch).border(1.dp, AppColors.Line, CircleShape))
         }
-        option.icon != null -> SettingIcon(option.icon)
+        option.icon != null -> SettingIcon(option.icon, size)
         option.font != null || option.fontLoader != null -> Box(tile, contentAlignment = Alignment.Center) {
-            Text("Аа", color = AppColors.Accent, fontSize = 13.sp, fontFamily = option.typeface, maxLines = 1, softWrap = false)
+            Text("Аа", color = AppColors.Accent, fontSize = (size.value * 0.4f).sp, fontFamily = option.typeface, maxLines = 1, softWrap = false)
         }
-        fallbackIcon != null -> SettingIcon(fallbackIcon)
+        fallbackIcon != null -> SettingIcon(fallbackIcon, size)
         else -> Box(tile, contentAlignment = Alignment.Center) {
             Text(option.title.take(1).uppercase(), color = AppColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
         }
-    }
-}
-
-@Composable
-private fun OptionLead(option: PickerOption, tint: Color) {
-    when {
-        option.swatch != null -> Box(
-            Modifier.size(22.dp).clip(CircleShape).background(option.swatch).border(1.dp, AppColors.Line, CircleShape),
-        )
-        option.icon != null -> Icon(option.icon, null, tint = tint, modifier = Modifier.size(20.dp))
     }
 }
 
@@ -357,10 +347,13 @@ private fun ChoiceBlock(
             Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(top = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (icon != null) Spacer(Modifier.width(44.dp))
-            if (lead != null) {
+            if (icon != null) {
+                Box(Modifier.width(44.dp), contentAlignment = Alignment.CenterStart) {
+                    if (lead != null) Box(Modifier.width(32.dp), contentAlignment = Alignment.Center) { lead() }
+                }
+            } else if (lead != null) {
                 lead()
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(10.dp))
             }
             Text(
                 value,
@@ -407,7 +400,7 @@ fun PickerRow(
         label,
         selected?.title ?: selectedId,
         icon,
-        lead = if (selected?.swatch != null) ({ OptionLead(selected, AppColors.Accent) }) else null,
+        lead = if (selected != null && (selected.swatch != null || selected.icon != null || selected.font != null || selected.fontLoader != null)) ({ OptionTile(selected, null, 26.dp) }) else null,
         typeface = selected?.typeface,
     ) { open = true }
     if (open) {
@@ -650,7 +643,7 @@ fun NumberInputSheet(
                 }
                 .then(if (ok) Modifier.accentHighlight(shape) else Modifier.border(1.dp, AppColors.Line, shape)),
             contentAlignment = Alignment.Center,
-        ) { Text("Сохранить", color = if (ok) accentContent else AppColors.Faint, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold) }
+        ) { ActionLabel("Сохранить", if (ok) accentContent else AppColors.Faint) }
         if (onClear != null) {
             Box(
                 Modifier
@@ -665,4 +658,24 @@ fun NumberInputSheet(
             ) { Text("Без цели", color = AppColors.Muted, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
         }
     }
+}
+
+fun actionIcon(label: String): ImageVector? = when (label) {
+    "Удалить", "Очистить" -> AppIcons.Trash
+    "Сохранить", "Готово", "Добавить", "Применить" -> AppIcons.Check
+    "Отмена", "Не сейчас", "Закрыть" -> AppIcons.Close
+    "Отправить", "Экспорт" -> AppIcons.Send
+    "Импорт", "Установить", "Скачать" -> AppIcons.Download
+    "Повторить" -> AppIcons.Rotate
+    "Позже" -> AppIcons.Clock
+    "Копировать" -> AppIcons.Copy
+    "Поделиться" -> AppIcons.Share
+    else -> null
+}
+
+@Composable
+fun ActionLabel(text: String, color: Color, fontSize: androidx.compose.ui.unit.TextUnit = 15.sp, weight: FontWeight = FontWeight.SemiBold, iconSize: androidx.compose.ui.unit.Dp = 22.dp) {
+    val icon = actionIcon(text)
+    if (icon != null) Icon(icon, text, tint = color, modifier = Modifier.size(iconSize))
+    else Text(text, color = color, fontSize = fontSize, fontWeight = weight, maxLines = 1)
 }

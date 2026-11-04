@@ -1232,8 +1232,14 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                             autoHref = href
                             if (ui.autoActive && !ui.autoPaused && settings.scroll) startAutoScrollJs()
                         }
-                        ui.progression = locator.locations.totalProgression ?: ui.progression
-                        ui.position = locator.locations.position
+                        val total = locator.locations.totalProgression
+                        if (swipeState == SwipeState.Dragging || curlHide != null) {
+                            heldProgress = (total ?: ui.progression) to locator.locations.position
+                        } else {
+                            heldProgress = null
+                            ui.progression = total ?: ui.progression
+                            ui.position = locator.locations.position
+                        }
                         ui.chapter = locator.title
                         val position = locator.locations.position
                         val previous = lastPosition
@@ -2066,6 +2072,14 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private var swipeComplete = false
     private var swipeVelocity: android.view.VelocityTracker? = null
     private var curlHide: Runnable? = null
+    private var heldProgress: Pair<Double, Int?>? = null
+
+    private fun flushProgress() {
+        val held = heldProgress ?: return
+        heldProgress = null
+        ui.progression = held.first
+        ui.position = held.second
+    }
 
     private fun swipeAllowed(): Boolean {
         val s = settings
@@ -2183,6 +2197,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                             (towards > fling || (enough && towards > -fling))
                         swipeReleased = true
                         swipeState = SwipeState.Idle
+                        if (swipeComplete || !swipeReady) flushProgress()
                         if (swipeReady) endSwipe()
                     }
                 }
@@ -2263,6 +2278,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     if (curlHide === hide) {
                         curlHide = null
                         block()
+                        flushProgress()
                     }
                 }
             }

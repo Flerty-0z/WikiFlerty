@@ -223,7 +223,7 @@ fun TtsOptions(
         ) {
             Icon(AppIcons.Play, null, tint = accentContent, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Слушать с этой страницы", color = accentContent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text("Чтение вслух", color = accentContent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     } else {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

@@ -444,12 +444,7 @@ fun NoteEditor(
                     .border(1.dp, AppColors.Line, shape),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    if (id != null) "Удалить" else "Отмена",
-                    color = if (id != null) AppColors.Bad else AppColors.Text,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                com.flerty.wikiflerty.ui.ActionLabel(if (id != null) "Удалить" else "Отмена", if (id != null) AppColors.Bad else AppColors.Text)
             }
             Box(
                 Modifier
@@ -462,7 +457,7 @@ fun NoteEditor(
                     .background(Brush.verticalGradient(listOf(AppColors.AccentLight, AppColors.Accent))),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("Сохранить", color = AppColors.OnAccent, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                com.flerty.wikiflerty.ui.ActionLabel("Сохранить", AppColors.OnAccent)
             }
         }
     }
@@ -557,7 +552,7 @@ private fun ColorSettings(
                     .border(1.dp, AppColors.Accent.copy(alpha = 0.33f), shape),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(if (isNew) "Добавить" else "Готово", color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                com.flerty.wikiflerty.ui.ActionLabel(if (isNew) "Добавить" else "Готово", AppColors.Accent)
             }
         }
     }

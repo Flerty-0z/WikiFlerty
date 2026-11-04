@@ -245,7 +245,12 @@ fun AppButton(text: String, primary: Boolean, modifier: Modifier = Modifier, onC
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        FitText(text, if (primary) AppColors.OnAccent else AppColors.Accent, 14.sp, weight = FontWeight.SemiBold)
+        val icon = actionIcon(text)
+        if (icon != null) {
+            Icon(icon, text, tint = if (primary) AppColors.OnAccent else AppColors.Accent, modifier = Modifier.size(21.dp))
+        } else {
+            FitText(text, if (primary) AppColors.OnAccent else AppColors.Accent, 14.sp, weight = FontWeight.SemiBold)
+        }
     }
 }
 

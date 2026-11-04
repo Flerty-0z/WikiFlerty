@@ -241,13 +241,7 @@ private fun BackupButton(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(
-            title,
-            color = if (filled) accentContent else AppColors.Accent,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-        )
+        ActionLabel(title, if (filled) accentContent else AppColors.Accent, weight = FontWeight.Bold)
         Text(
             hint,
             color = if (filled) accentContent.copy(alpha = 0.75f) else AppColors.Muted,

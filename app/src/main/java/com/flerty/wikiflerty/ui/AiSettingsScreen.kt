@@ -311,7 +311,7 @@ private fun ProviderCard(
                                 .padding(horizontal = 14.dp),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text("Удалить", color = Bad, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            ActionLabel("Удалить", Bad, iconSize = 20.dp)
                         }
                     }
                 }

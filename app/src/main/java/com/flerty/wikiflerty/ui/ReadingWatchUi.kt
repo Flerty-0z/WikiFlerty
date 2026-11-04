@@ -303,5 +303,5 @@ private fun WatchResult(app: App, book: Book, result: ReadingSessionResult, onDo
     Box(
         Modifier.fillMaxWidth().heightIn(min = 46.dp).liveClick(shape, sound = FeedbackSound.Close, onClick = onDone).border(1.dp, AppColors.Line, shape),
         contentAlignment = Alignment.Center,
-    ) { Text("Готово", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+    ) { ActionLabel("Готово", AppColors.Text) }
 }

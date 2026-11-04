@@ -189,7 +189,12 @@ fun ConfirmSheet(
                     .border(1.dp, if (danger) Danger.copy(alpha = 0.5f) else AppColors.Accent, shape),
                 contentAlignment = Alignment.Center,
             ) {
-                FitText(confirm, if (danger) Danger else AppColors.OnAccent, 15.sp, Modifier.padding(horizontal = 10.dp), weight = FontWeight.SemiBold)
+                val icon = actionIcon(confirm)
+                if (icon != null) {
+                    Icon(icon, confirm, tint = if (danger) Danger else AppColors.OnAccent, modifier = Modifier.size(22.dp))
+                } else {
+                    FitText(confirm, if (danger) Danger else AppColors.OnAccent, 15.sp, Modifier.padding(horizontal = 10.dp), weight = FontWeight.SemiBold)
+                }
             }
             AppButton("Отмена", primary = false, modifier = Modifier.weight(1f), onClick = close)
         }

@@ -756,7 +756,12 @@ private fun SeekBar(
     var drag by remember { mutableStateOf<Float?>(null) }
     val preview by rememberUpdatedState(onPreview)
     val seek by rememberUpdatedState(onSeek)
-    val fraction = drag ?: progression.toFloat().coerceIn(0f, 1f)
+    val smooth by androidx.compose.animation.core.animateFloatAsState(
+        progression.toFloat().coerceIn(0f, 1f),
+        com.flerty.wikiflerty.ui.Motion.tween(420, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+        label = "seek",
+    )
+    val fraction = drag ?: smooth
     val active = drag != null
     val thumb by androidx.compose.animation.core.animateDpAsState(if (active) 16.dp else 11.dp, label = "thumb")
     BoxWithConstraints(
@@ -1430,7 +1435,10 @@ private fun ScrollOptions(
                 .accentHighlight(shape),
             contentAlignment = Alignment.Center,
         ) {
-            Text("Запустить автопрокрутку", color = accentContent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(AppIcons.Play, null, tint = accentContent, modifier = Modifier.size(20.dp))
+                Text("Автопрокрутка", color = accentContent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            }
         }
     }
 }
