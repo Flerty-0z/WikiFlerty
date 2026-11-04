@@ -1025,10 +1025,6 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private val tapListener = object : InputListener {
         override fun onTap(event: TapEvent): Boolean {
-            if (ui.autoActive && ui.sheet == null && !ui.panelsVisible) {
-                toggleAuto()
-                return true
-            }
             if (ui.footnote != null) {
                 ui.footnote = null
                 return true
@@ -1047,11 +1043,11 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 if (width > 0f) {
                     val x = event.point.x
                     if (x < width * s.edgeZone) {
-                        turn(forward = s.leftTapForward)
+                        manualTurn(forward = s.leftTapForward)
                         return true
                     }
                     if (x > width * (1 - s.edgeZone)) {
-                        turn(forward = true)
+                        manualTurn(forward = true)
                         return true
                     }
                 }
@@ -1330,7 +1326,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                             listOf(Decoration("tts", locator, Decoration.Style.Highlight(tint = settings.ttsColor.toInt()))),
                             TTS_GROUP,
                         )
-                        if (settings.ttsFollow) navigator.go(locator, animated = false)
+                        if (settings.ttsFollow && !turning && android.os.SystemClock.uptimeMillis() - manualTurnAt > 1500) navigator.go(locator, animated = false)
                     }
                 }
             }
@@ -1760,17 +1756,13 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private fun onStripTap(left: Boolean) {
-        if (ui.autoActive) {
-            toggleAuto()
-            return
-        }
         if (ui.selection != null) {
             endSelection()
             return
         }
         val s = settings
         if (s.edgeTaps) {
-            turn(forward = !left || s.leftTapForward)
+            manualTurn(forward = !left || s.leftTapForward)
         } else {
             ui.panelsVisible = true
         }
@@ -1779,6 +1771,21 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private fun go(forward: Boolean, animated: Boolean): Boolean {
         lastGoAt = android.os.SystemClock.uptimeMillis()
         return if (forward) navigator.goForward(animated = animated) else navigator.goBackward(animated = animated)
+    }
+
+    private var manualTurnAt = 0L
+
+    private fun restartAutoTimer() {
+        manualTurnAt = android.os.SystemClock.uptimeMillis()
+        if (ui.autoActive && !ui.autoPaused && !settings.scroll) {
+            ui.autoProgress = 0f
+            runAuto()
+        }
+    }
+
+    private fun manualTurn(forward: Boolean) {
+        restartAutoTimer()
+        turn(forward)
     }
 
     private fun turn(forward: Boolean) {
@@ -2062,7 +2069,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val s = settings
         if (s.scroll) return false
         if (s.animation == PageAnimation.Slide || s.animation == PageAnimation.None) return false
-        return ui.sheet == null && ui.selection == null && ui.footnote == null && !ui.autoActive
+        return ui.sheet == null && ui.selection == null && ui.footnote == null
     }
 
     private fun overPanels(ev: android.view.MotionEvent): Boolean {
@@ -2111,6 +2118,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         super.dispatchTouchEvent(cancel)
                         cancel.recycle()
                         ui.panelsVisible = false
+                        restartAutoTimer()
                         startSwipe(forward = dx < 0)
                         return true
                     } else if (ev.eventTime - swipeDown > android.view.ViewConfiguration.getLongPressTimeout() && kotlin.math.abs(dx) < slop * 2 && kotlin.math.abs(dy) < slop * 2) {
@@ -2398,7 +2406,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || event.keyCode == KeyEvent.KEYCODE_VOLUME_UP)
         ) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                turn(forward = event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN)
+                manualTurn(forward = event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN)
             }
             return true
         }
