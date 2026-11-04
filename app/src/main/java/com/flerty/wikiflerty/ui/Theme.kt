@@ -202,6 +202,22 @@ enum class UiBase(
         "sea_light", "Подводный мир", 0xFFDDF6F2, 0xFFF4FFFD, 0xFFFFFFFF, 0xFFEAFAF7, 0xFFB5E3DC, 0xFFFFFFFF, 0xFFF0FCFA, 0xFFC8ECE6,
         light = true, text = 0xFF0D3B44, muted = 0xFF3F6E73, faint = 0xFF6F9A9C,
     ),
+    ClayLight(
+        "clay_light", "Пластилин", 0xFFEFE6FF, 0xFFFBF8FF, 0xFFFFFFFF, 0xFFF4EEFF, 0xFFE2D6F8, 0xFFFFFFFF, 0xFFF6F1FF, 0xFFE4DAF6,
+        light = true, text = 0xFF3B2F5C, muted = 0xFF6F6390, faint = 0xFF9C92B8,
+    ),
+    ClayDark(
+        "clay_dark", "Пластилин", 0xFF2A2442, 0xFF352E54, 0xFF3D355F, 0xFF2F2849, 0xFF463D6E, 0xFF554A82, 0xFF312A4E, 0xFF433A69,
+        text = 0xFFF3EEFF, muted = 0xFFBDB3DE, faint = 0xFF8A80AE,
+    ),
+    NoteLight(
+        "note_light", "Тетрадь", 0xFFFDFDF7, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFF8E9AD0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFD6E4F5,
+        light = true, text = 0xFF24337F, muted = 0xFF56629F, faint = 0xFF8C95C4,
+    ),
+    NoteDark(
+        "note_dark", "Тетрадь", 0xFF1F362A, 0xFF26402F, 0xFF2A4534, 0xFF233B2B, 0xFF8FA898, 0xFFB5C9BC, 0xFF223A2C, 0xFF3A5646,
+        text = 0xFFF2F2EA, muted = 0xFFC9D2C6, faint = 0xFF98A699,
+    ),
     ;
 
     companion object {
@@ -369,6 +385,8 @@ enum class Kit(
     Wash("wash", "Акварель", UiBase.WashDark, UiBase.WashLight, 0xFF8FB8FF, 0xFF3D6FB6, 1.3f, ButtonLook.Soft, MotionStyle.Soft, Decor.Wash, lightFirst = true),
     Pixel("pixel", "Пиксель", UiBase.PixelDark, UiBase.PixelLight, 0xFFFFCD3C, 0xFFD23C3C, 0f, ButtonLook.Filled, MotionStyle.Strict, Decor.Pixel),
     Sea("sea", "Подводный мир", UiBase.SeaDark, UiBase.SeaLight, 0xFF45E6CF, 0xFF0A8F87, 1.2f, ButtonLook.Soft, MotionStyle.Soft, Decor.Sea),
+    Clay("clay", "Пластилин", UiBase.ClayDark, UiBase.ClayLight, 0xFFFF8FB6, 0xFFF0508A, 1.7f, ButtonLook.Filled, MotionStyle.Bouncy, Decor.Clay, lightFirst = true),
+    Note("note", "Школьная тетрадь", UiBase.NoteDark, UiBase.NoteLight, 0xFFFFD36B, 0xFFD93A3A, 0.35f, ButtonLook.Outline, MotionStyle.Soft, Decor.Note, lightFirst = true),
     ;
 
     fun applyTo(style: UiStyle, light: Boolean) = style.copy(

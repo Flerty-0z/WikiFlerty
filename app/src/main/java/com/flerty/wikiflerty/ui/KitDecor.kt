@@ -54,6 +54,7 @@ fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = 
     val washes = remember { specks(61, 6) }
     val pixels = remember { specks(71, 46) }
     val bubbles = remember { specks(83, 26) }
+    val doodle = remember { DoodleCache() }
     val light = base.light
     Box(modifier) {
         Canvas(Modifier.fillMaxSize()) {
@@ -68,6 +69,7 @@ fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = 
                 }
                 Decor.Comic -> comicStatic(light, Color(base.text), accent)
                 Decor.Wash -> washPaper(light)
+                Decor.Note -> noteStatic(light, Color(base.line))
                 Decor.Sea -> drawRect(Brush.verticalGradient(if (light) listOf(Color(0xFFBFF0EA), Color(base.background), Color(0xFFF6EFE0)) else listOf(Color(0xFF05495A), Color(base.background), Color(0xFF01131C))))
                 else -> Unit
             }
@@ -96,6 +98,8 @@ fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = 
                     Decor.Wash -> washLive(t, light, washes)
                     Decor.Pixel -> pixelLive(t, light, pixels)
                     Decor.Sea -> seaLive(t, light, bubbles)
+                    Decor.Clay -> clayLive(t, light)
+                    Decor.Note -> noteLive(t, light, Color(base.text), accent, doodle)
                     else -> Unit
                 }
             }
@@ -299,5 +303,152 @@ private fun DrawScope.seaLive(t: Float, light: Boolean, bubbles: List<Speck>) {
         val cy = size.height * (0.88f + 0.04f * sin(t * 0.33f + k * 1.9f))
         val r = size.width * 0.22f
         drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha = if (light) 0.22f else 0.06f), Color.Transparent), center = Offset(cx, cy), radius = r), r, Offset(cx, cy))
+    }
+}
+
+private val ClayBlobs = listOf(
+    floatArrayOf(0.92f, 0.06f, 0.36f),
+    floatArrayOf(0.02f, 0.72f, 0.4f),
+    floatArrayOf(0.86f, 0.9f, 0.28f),
+    floatArrayOf(0.2f, 0.25f, 0.18f),
+)
+private val ClayTones = listOf(0xFFFFD27A, 0xFF8FD9FF, 0xFFB9F0C4, 0xFFFFB3C7)
+
+private fun DrawScope.clayLive(t: Float, light: Boolean) {
+    ClayBlobs.forEachIndexed { i, b ->
+        val c = Color(ClayTones[i]).copy(alpha = if (light) 0.6f else 0.26f)
+        val base = size.width * b[2]
+        val bw = base * (1f + 0.07f * sin(t * 0.5f + i * 1.3f))
+        val bh = base * (1f + 0.07f * cos(t * 0.43f + i * 0.9f))
+        val center = Offset(size.width * b[0], size.height * b[1] + sin(t * 0.3f + i) * 6f * density)
+        val tl = Offset(center.x - bw / 2, center.y - bh / 2)
+        drawOval(c, tl, Size(bw, bh))
+        drawOval(
+            Brush.radialGradient(listOf(Color.White.copy(alpha = if (light) 0.6f else 0.18f), Color.Transparent), center = Offset(center.x - bw * 0.18f, center.y - bh * 0.2f), radius = bw * 0.45f),
+            tl,
+            Size(bw, bh),
+        )
+        drawOval(
+            Brush.radialGradient(listOf(Color.Transparent, Color.Black.copy(alpha = if (light) 0.08f else 0.2f)), center = Offset(center.x - bw * 0.1f, center.y - bh * 0.1f), radius = bw * 0.6f),
+            tl,
+            Size(bw, bh),
+        )
+    }
+}
+
+private fun DrawScope.noteStatic(light: Boolean, line: Color) {
+    val step = 14.dp.toPx()
+    if (light) {
+        var x = 0f
+        while (x < size.width) {
+            drawLine(line, Offset(x, 0f), Offset(x, size.height), 1f * density)
+            x += step
+        }
+        var y = 0f
+        while (y < size.height) {
+            drawLine(line, Offset(0f, y), Offset(size.width, y), 1f * density)
+            y += step
+        }
+        val m = 30.dp.toPx()
+        drawLine(Color(0xFFEF8A8A), Offset(m, 0f), Offset(m, size.height), 1.5f * density)
+    } else {
+        listOf(0.2f to 0.15f, 0.8f to 0.4f, 0.35f to 0.8f).forEach { (fx, fy) ->
+            val c = Offset(size.width * fx, size.height * fy)
+            val r = size.width * 0.5f
+            drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.05f), Color.Transparent), center = c, radius = r), r, c)
+        }
+        var y = size.height * 0.1f
+        val r = kotlin.random.Random(7)
+        while (y < size.height) {
+            val x = r.nextFloat() * size.width
+            drawLine(Color.White.copy(alpha = 0.03f), Offset(x, y), Offset(x + (40f + r.nextFloat() * 80f) * density, y + (r.nextFloat() - 0.5f) * 8f * density), 6f * density)
+            y += 60f * density
+        }
+    }
+}
+
+private class DoodleCache {
+    var w = 0f
+    var h = 0f
+    var paths: List<Path> = emptyList()
+    var lengths: List<Float> = emptyList()
+    val measure = androidx.compose.ui.graphics.PathMeasure()
+    val out = Path()
+}
+
+private fun DrawScope.doodles(c: DoodleCache) {
+    if (c.w == size.width && c.h == size.height && c.paths.isNotEmpty()) return
+    val d = density
+    val star = Path().apply {
+        val cx = size.width - 34f * d
+        val cy = 96f * d
+        val r1 = 16f * d
+        val r2 = 7f * d
+        for (k in 0 until 10) {
+            val a = -PI / 2 + PI * k / 5
+            val r = if (k % 2 == 0) r1 else r2
+            val x = cx + (r * cos(a)).toFloat()
+            val y = cy + (r * sin(a)).toFloat()
+            if (k == 0) moveTo(x, y) else lineTo(x, y)
+        }
+        close()
+    }
+    val arrow = Path().apply {
+        val x = 14f * d
+        val y = size.height * 0.42f
+        moveTo(x, y)
+        cubicTo(x - 9f * d, y + 18f * d, x + 9f * d, y + 30f * d, x, y + 50f * d)
+        lineTo(x - 6f * d, y + 43f * d)
+        lineTo(x, y + 50f * d)
+        lineTo(x + 6f * d, y + 43f * d)
+    }
+    val spiral = Path().apply {
+        val cx = size.width - 30f * d
+        val cy = size.height * 0.68f
+        for (k in 0..60) {
+            val a = k * 0.32f
+            val r = (1.5f + k * 0.28f) * d
+            val x = cx + r * cos(a)
+            val y = cy + r * sin(a)
+            if (k == 0) moveTo(x, y) else lineTo(x, y)
+        }
+    }
+    val wave = Path().apply {
+        val y = size.height * 0.9f
+        moveTo(40f * d, y)
+        var x = 40f * d
+        var up = true
+        while (x < 130f * d) {
+            quadraticTo(x + 7f * d, if (up) y - 8f * d else y + 8f * d, x + 14f * d, y)
+            x += 14f * d
+            up = !up
+        }
+    }
+    c.paths = listOf(star, arrow, spiral, wave)
+    c.lengths = c.paths.map { p -> c.measure.setPath(p, false); c.measure.length }
+    c.w = size.width
+    c.h = size.height
+}
+
+private fun DrawScope.noteLive(t: Float, light: Boolean, ink: Color, accent: Color, cache: DoodleCache) {
+    doodles(cache)
+    cache.paths.forEachIndexed { i, p ->
+        val cycle = (t / 14f + i * 0.27f) % 1f
+        val progress = (cycle / 0.35f).coerceIn(0f, 1f)
+        val alpha = when {
+            cycle < 0.75f -> 1f
+            else -> (1f - (cycle - 0.75f) / 0.25f).coerceIn(0f, 1f)
+        }
+        if (alpha <= 0f || progress <= 0f) return@forEachIndexed
+        val color = (if (i == 0) accent else ink).copy(alpha = alpha * if (light) 0.55f else 0.5f)
+        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(if (light) 1.8f * density else 2.6f * density, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
+        if (progress >= 1f) {
+            drawPath(p, color, style = stroke)
+        } else {
+            cache.out.reset()
+            cache.measure.setPath(p, false)
+            cache.measure.getSegment(0f, cache.lengths[i] * progress, cache.out, true)
+            drawPath(cache.out, color, style = stroke)
+        }
     }
 }

@@ -380,6 +380,29 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
                             }
                             if (highlighted) drawRect(accent.copy(alpha = 0.25f))
                         }
+                        Decor.Clay -> {
+                            val r = androidx.compose.ui.geometry.CornerRadius(size.height / 2)
+                            drawRoundRect(if (highlighted) AppColors.AccentLight else accent, cornerRadius = r)
+                            drawRoundRect(
+                                Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.55f), Color.Transparent, Color.Black.copy(alpha = 0.18f))),
+                                cornerRadius = r,
+                            )
+                        }
+                        Decor.Note -> {
+                            val w = size.width
+                            val y = size.height * 0.82f
+                            val p1 = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(2f, y)
+                                cubicTo(w * 0.2f, y - 3.dp.toPx(), w * 0.35f, y + 3.dp.toPx(), w * 0.5f, y - 1.dp.toPx())
+                                cubicTo(w * 0.7f, y - 4.dp.toPx(), w * 0.85f, y + 2.dp.toPx(), w - 2f, y - 1.dp.toPx())
+                            }
+                            val p2 = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(6f, y + 3.dp.toPx())
+                                cubicTo(w * 0.3f, y + 1.dp.toPx(), w * 0.6f, y + 5.dp.toPx(), w - 8f, y + 2.dp.toPx())
+                            }
+                            drawPath(p1, ink, style = Stroke(2.2.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                            drawPath(p2, ink.copy(alpha = 0.45f), style = Stroke(1.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                        }
                         Decor.Sea -> {
                             val core = size.height * 0.55f
                             drawRoundRect(accent.copy(alpha = if (highlighted) 0.3f else 0.18f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2))
@@ -428,12 +451,14 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
                         decor == Decor.Comic -> Color(0xFF111111)
                         decor == Decor.News || decor == Decor.Wash || decor == Decor.Sea -> AppColors.Text
                         decor == Decor.Pixel -> Color.White
+                        decor == Decor.Clay -> AppColors.OnAccent
+                        decor == Decor.Note -> AppColors.Text
                         decor == Decor.Zen -> if (light) Color(0xFF2B3A18) else Color(0xFFEDEFE0)
                         light -> Color(0xFF3A2612)
                         else -> Color(0xFFF7EBD8)
                     },
                     fontSize = 11.sp,
-                    fontWeight = if (decor == Decor.Comic || decor == Decor.News || decor == Decor.Pixel) FontWeight.ExtraBold else FontWeight.SemiBold,
+                    fontWeight = if (decor == Decor.Comic || decor == Decor.News || decor == Decor.Pixel || decor == Decor.Clay) FontWeight.ExtraBold else FontWeight.SemiBold,
                     fontStyle = if (decor == Decor.Wash) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
                     letterSpacing = if (decor == Decor.News) 1.5.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
                     maxLines = 1,
@@ -443,6 +468,9 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
                         .then(
                             when {
                                 plaque -> Modifier.background(Brush.verticalGradient(listOf(Color(0xFFF0D48A), Color(0xFFB8873F))), androidx.compose.foundation.shape.RoundedCornerShape(3.dp)).padding(horizontal = 10.dp)
+                                decor == Decor.Note -> Modifier.drawBehind {
+                                    drawRect(if (light) Color(0xB3FFF27A) else accent.copy(alpha = 0.35f), Offset(-4.dp.toPx(), size.height * 0.45f), androidx.compose.ui.geometry.Size(size.width + 8.dp.toPx(), size.height * 0.45f))
+                                }
                                 else -> Modifier
                             },
                         ),

@@ -40,6 +40,8 @@ fun Modifier.panelSurface(shape: Shape, elevation: Dp = 14.dp): Modifier = when 
     Decor.Sea -> this.shadow(elevation, shape, ambientColor = AppColors.Accent.copy(alpha = 0.35f), spotColor = AppColors.Accent.copy(alpha = 0.35f)).clip(shape)
         .background(Brush.verticalGradient(listOf(AppColors.PanelTop.copy(alpha = 0.88f), AppColors.PanelBottom.copy(alpha = 0.88f))))
         .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = if (AppStyle.light) 0.95f else 0.3f), AppColors.PanelBorder)), shape)
+    Decor.Clay -> this.shadow(elevation, shape, ambientColor = clayShadow, spotColor = clayShadow).clip(shape).background(AppColors.Panel).clayBevel(shape)
+    Decor.Note -> this.clip(shape).background(AppColors.Panel).sketchBorder(shape, AppColors.PanelBorder)
     else -> this.basePanelSurface(shape, elevation)
 }
 
@@ -77,6 +79,8 @@ fun Modifier.kitCover(shape: Shape): Modifier = when (AppStyle.kit.decor) {
     Decor.News -> this.border(1.5.dp, AppColors.Text, shape)
     Decor.Wash -> this.shadow(8.dp, shape, ambientColor = AppColors.Accent.copy(alpha = 0.4f), spotColor = AppColors.Accent.copy(alpha = 0.4f))
     Decor.Pixel -> this.border(2.dp, AppColors.Text, shape)
+    Decor.Clay -> this.shadow(10.dp, shape, ambientColor = clayShadow, spotColor = clayShadow).clayBevelOver(shape)
+    Decor.Note -> this.tapeStrip(AppColors.Accent.copy(alpha = 0.45f))
     Decor.Sea -> this.shadow(10.dp, shape, ambientColor = AppColors.Accent.copy(alpha = 0.5f), spotColor = AppColors.Accent.copy(alpha = 0.5f)).border(1.dp, Color.White.copy(alpha = 0.3f), shape)
     else -> this
 }
@@ -90,6 +94,9 @@ fun Modifier.fieldSurface(shape: Shape, selected: Boolean = false, accent: Color
     Decor.Pixel -> this.clip(Pixel3).background(AppColors.Field).border(if (selected) 3.dp else 2.dp, if (selected) accent else AppColors.PanelBorder.copy(alpha = 0.85f), Pixel3)
     Decor.Sea -> this.clip(shape).background(AppColors.Field.copy(alpha = 0.7f))
         .border(if (selected) 2.dp else 1.dp, if (selected) SolidColor(accent) else Brush.verticalGradient(listOf(Color.White.copy(alpha = if (AppStyle.light) 0.9f else 0.22f), AppColors.PanelBorder)), shape)
+    Decor.Clay -> this.shadow(if (AppStyle.light) 6.dp else 4.dp, shape, ambientColor = clayShadow, spotColor = clayShadow).clip(shape).background(AppColors.Field).clayBevel(shape, 4.dp)
+        .then(if (selected) Modifier.border(2.dp, accent, shape) else Modifier)
+    Decor.Note -> this.clip(shape).background(AppColors.Field).sketchBorder(shape, if (selected) accent else AppColors.PanelBorder.copy(alpha = 0.8f), if (selected) 2.dp else 1.1.dp)
     Decor.Wash -> this.clip(WashShape).background(AppColors.Field).border(if (selected) 2.dp else 1.dp, if (selected) accent else accent.copy(alpha = 0.18f), WashShape)
     else -> this.baseFieldSurface(shape, selected, accent)
 }
