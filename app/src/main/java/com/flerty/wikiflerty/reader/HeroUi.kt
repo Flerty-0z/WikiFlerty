@@ -535,7 +535,7 @@ private fun HeroBubble(bridge: HeroBridge, hero: Hero, text: String, writing: Bo
                 HeroTyping()
             } else {
                 Text(
-                    revealText(text, count, writing, AppColors.Text),
+                    heroReveal(text, count, writing),
                     color = AppColors.Text,
                     fontSize = 15.sp,
                     lineHeight = 22.sp,
@@ -544,6 +544,57 @@ private fun HeroBubble(bridge: HeroBridge, hero: Hero, text: String, writing: Bo
         }
     }
 }
+
+@Composable
+private fun heroReveal(text: String, count: Int, writing: Boolean): androidx.compose.ui.text.AnnotatedString {
+    val text0 = AppColors.Text
+    val muted = AppColors.Muted
+    val marker = AppColors.Accent.copy(alpha = 0.14f)
+    return androidx.compose.runtime.remember(text, count, writing, text0, muted, marker) {
+        val stage = androidx.compose.ui.text.SpanStyle(
+            color = muted,
+            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+            background = marker,
+        )
+        val full = heroMarkup(text, stage)
+        val shown = if (count >= text.length && !writing) full else full.subSequence(0, minOf(count, full.length))
+        if (count >= text.length && !writing) {
+            shown
+        } else {
+            androidx.compose.ui.text.AnnotatedString.Builder(shown).apply {
+                val tail = minOf(18, shown.length)
+                for (i in 0 until tail) {
+                    val pos = shown.length - 1 - i
+                    val a = 0.15f + 0.85f * (i.toFloat() / tail)
+                    val base = if (full.spanStyles.any { it.start <= pos && pos < it.end }) muted else text0
+                    addStyle(androidx.compose.ui.text.SpanStyle(color = base.copy(alpha = a)), pos, pos + 1)
+                }
+            }.toAnnotatedString()
+        }
+    }
+}
+
+private fun heroMarkup(raw: String, stage: androidx.compose.ui.text.SpanStyle): androidx.compose.ui.text.AnnotatedString =
+    androidx.compose.ui.text.buildAnnotatedString {
+        val t = raw.replace("\r", "").replace("**", "")
+        var inStage = false
+        for (c in t) {
+            when {
+                c != '*' -> append(c)
+                inStage -> {
+                    append(' ')
+                    pop()
+                    inStage = false
+                }
+                else -> {
+                    pushStyle(stage)
+                    append(' ')
+                    inStage = true
+                }
+            }
+        }
+        if (inStage) pop()
+    }
 
 @Composable
 private fun HeroTyping() {
