@@ -2103,9 +2103,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     val dx = x - swipeX0
                     val dy = y - swipeY0
                     val slop = android.view.ViewConfiguration.get(this).scaledTouchSlop
-                    if (ev.eventTime - swipeDown > android.view.ViewConfiguration.getLongPressTimeout()) {
-                        swipeState = SwipeState.Ignored
-                    } else if (kotlin.math.abs(dx) > slop && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.1f) {
+                    if (kotlin.math.abs(dx) > slop && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.1f) {
                         swipeState = SwipeState.Dragging
                         swipeX = x
                         swipeY = y
@@ -2115,7 +2113,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         ui.panelsVisible = false
                         startSwipe(forward = dx < 0)
                         return true
-                    } else if (kotlin.math.abs(dy) > slop * 2) {
+                    } else if (ev.eventTime - swipeDown > android.view.ViewConfiguration.getLongPressTimeout() && kotlin.math.abs(dx) < slop * 2 && kotlin.math.abs(dy) < slop * 2) {
                         swipeState = SwipeState.Ignored
                     }
                 }
@@ -2146,7 +2144,13 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         val dist = if (swipeForward) swipeX0 - swipeX else swipeX - swipeX0
                         val fling = 700 * resources.displayMetrics.density
                         val towards = if (swipeForward) -vx else vx
-                        val enough = dist > bookArea.width * 0.22f
+                        val w = bookArea.width.toFloat().coerceAtLeast(1f)
+                        val shown = if (settings.animation == PageAnimation.Curl) {
+                            (if (swipeForward) w - swipeCornerX() else swipeCornerX()) / w
+                        } else {
+                            swipeProgress()
+                        }
+                        val enough = shown > 0.3f || dist > w * 0.22f
                         swipeComplete = ev.actionMasked == android.view.MotionEvent.ACTION_UP &&
                             (towards > fling || (enough && towards > -fling))
                         swipeReleased = true
@@ -2223,6 +2227,22 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
     }
 
+    private fun afterRender(block: () -> Unit) {
+        var hide: Runnable? = null
+        hide = Runnable {
+            curl.postOnAnimation {
+                curl.postOnAnimation {
+                    if (curlHide === hide) {
+                        curlHide = null
+                        block()
+                    }
+                }
+            }
+        }
+        curlHide = hide
+        curl.postDelayed(hide, 150)
+    }
+
     private fun swipeProgress(): Float {
         val w = bookArea.width.toFloat().coerceAtLeast(1f)
         val dist = if (swipeForward) swipeX0 - swipeX else swipeX - swipeX0
@@ -2244,12 +2264,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     resyncListening()
                 } else {
                     go(!forward, animated = false)
-                    val hide = Runnable {
-                        curlHide = null
+                    afterRender {
                         resetTurnViews()
                     }
-                    curlHide = hide
-                    curl.postDelayed(hide, 90)
                 }
             }
             return
@@ -2262,13 +2279,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 resyncListening()
             } else {
                 go(!forward, animated = false)
-                val hide = Runnable {
-                    curlHide = null
+                afterRender {
                     curl.hide()
                     turning = false
                 }
-                curlHide = hide
-                curl.postDelayed(hide, 90)
             }
         }
     }
