@@ -1,6 +1,5 @@
 package com.flerty.wikiflerty.ui
 
-import androidx.compose.ui.focus.onFocusChanged
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
