@@ -175,9 +175,9 @@ fun PaperBookSheet(book: Book?, onDismiss: () -> Unit) {
         }
     }
     when (editing) {
-        0 -> TextInputSheet("Название", title, "Название книги", onDismiss = { editing = -1 }) { title = it }
-        1 -> TextInputSheet("Автор", author, "Автор книги", onDismiss = { editing = -1 }, maxLength = 120) { author = it }
-        2 -> TextInputSheet("Страниц в книге", pages, "Например, 320", onDismiss = { editing = -1 }, number = true, maxLength = 5) { pages = it }
+        0 -> TextInputSheet("Название", title, "Название книги", onDismiss = { editing = -1 }, icon = AppIcons.Book) { title = it }
+        1 -> TextInputSheet("Автор", author, "Автор книги", onDismiss = { editing = -1 }, icon = AppIcons.Pencil, maxLength = 120) { author = it }
+        2 -> TextInputSheet("Страниц в книге", pages, "Например, 320", onDismiss = { editing = -1 }, icon = AppIcons.Pages, number = true, maxLength = 5) { pages = it }
     }
 }
 

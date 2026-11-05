@@ -1,5 +1,9 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -666,51 +670,103 @@ fun TextInputSheet(
     initial: String,
     hint: String,
     onDismiss: () -> Unit,
+    icon: ImageVector? = null,
     number: Boolean = false,
     maxLength: Int = 200,
     onDone: (String) -> Unit,
 ) {
     var text by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(initial, androidx.compose.ui.text.TextRange(initial.length))) }
     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
-    androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-    AppSheet(onDismiss, title = title) {
-        val close = sheetClose(onDismiss)
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    val latest by androidx.compose.runtime.rememberUpdatedState(onDismiss)
+    var closing by remember { mutableStateOf(false) }
+    val close: () -> Unit = {
+        if (!closing) {
+            closing = true
+            focusManager.clearFocus(force = true)
+            keyboard?.hide()
+            scope.launch {
+                kotlinx.coroutines.delay(Motion.ms(120).toLong())
+                runCatching { sheetState.hide() }
+            }.invokeOnCompletion { latest() }
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(Motion.ms(300).toLong())
+        runCatching { focus.requestFocus() }
+    }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        sheetGesturesEnabled = false,
+        dragHandle = null,
+        properties = androidx.compose.material3.ModalBottomSheetProperties(
+            isAppearanceLightStatusBars = AppStyle.light,
+            isAppearanceLightNavigationBars = AppStyle.light,
+        ),
+        containerColor = AppColors.Panel,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(
+            topStart = (26 * AppStyle.current.corners).dp,
+            topEnd = (26 * AppStyle.current.corners).dp,
+        ),
+        contentWindowInsets = { androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0) },
+    ) {
+        KeepHostBars()
         val save = {
             onDone(text.text.trim())
             close()
         }
-        Box(
-            Modifier.fillMaxWidth().heightIn(min = 64.dp).fieldSurface(appCorner(18)).padding(horizontal = 18.dp, vertical = 14.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            if (text.text.isEmpty()) Text(hint, color = AppColors.Faint, fontSize = 20.sp, maxLines = 1)
-            BasicTextField(
-                value = text,
-                onValueChange = { v ->
-                    val clean = if (number) v.text.filter { it.isDigit() } else v.text.replace("\n", " ")
-                    text = v.copy(text = clean.take(maxLength))
-                },
-                singleLine = true,
-                textStyle = TextStyle(color = AppColors.Text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold),
-                cursorBrush = SolidColor(AppColors.Accent),
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                    keyboardType = if (number) androidx.compose.ui.text.input.KeyboardType.Number else androidx.compose.ui.text.input.KeyboardType.Text,
-                    capitalization = if (number) androidx.compose.ui.text.input.KeyboardCapitalization.None else androidx.compose.ui.text.input.KeyboardCapitalization.Sentences,
-                    imeAction = androidx.compose.ui.text.input.ImeAction.Done,
-                ),
-                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { save() }),
-                modifier = Modifier.fillMaxWidth().focusRequester(focus),
-            )
-        }
-        val shape = appCorner(16)
-        Box(
+        Column(
             Modifier
                 .fillMaxWidth()
-                .height(52.dp)
-                .liveClick(shape, sound = FeedbackSound.Toggle) { save() }
-                .accentHighlight(shape),
-            contentAlignment = Alignment.Center,
-        ) { ActionLabel("Готово", accentContent) }
+                .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.ime.union(androidx.compose.foundation.layout.WindowInsets.navigationBars))
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SheetHeader(title, close)
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 64.dp).fieldSurface(appCorner(18)).padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (icon != null) {
+                    Icon(icon, null, tint = AppColors.Muted, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(12.dp))
+                }
+                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    if (text.text.isEmpty()) Text(hint, color = AppColors.Faint, fontSize = 20.sp, maxLines = 1)
+                    BasicTextField(
+                        value = text,
+                        onValueChange = { v ->
+                            val clean = if (number) v.text.filter { it.isDigit() } else v.text.replace("\n", " ")
+                            text = v.copy(text = clean.take(maxLength))
+                        },
+                        singleLine = true,
+                        textStyle = TextStyle(color = AppColors.Text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold),
+                        cursorBrush = SolidColor(AppColors.Accent),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = if (number) androidx.compose.ui.text.input.KeyboardType.Number else androidx.compose.ui.text.input.KeyboardType.Text,
+                            capitalization = if (number) androidx.compose.ui.text.input.KeyboardCapitalization.None else androidx.compose.ui.text.input.KeyboardCapitalization.Sentences,
+                            imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                        ),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { save() }),
+                        modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                    )
+                }
+            }
+            val shape = appCorner(16)
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .liveClick(shape, sound = FeedbackSound.Toggle) { save() }
+                    .accentHighlight(shape),
+                contentAlignment = Alignment.Center,
+            ) { ActionLabel("Готово", accentContent) }
+        }
     }
 }
 
