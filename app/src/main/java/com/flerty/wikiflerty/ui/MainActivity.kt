@@ -17,6 +17,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (savedInstanceState == null) holdFirstFrame()
         setContent {
             CompositionLocalProvider(LocalFeedback provides (application as App).feedback) {
                 WikiFlertyTheme {
@@ -25,6 +26,24 @@ class MainActivity : ComponentActivity() {
             }
         }
         if (savedInstanceState == null) handleIncomingBook(intent)
+    }
+
+    private fun holdFirstFrame() {
+        val warm = (application as App).coversWarm
+        if (warm.isCompleted) return
+        val until = android.os.SystemClock.uptimeMillis() + 700
+        val content = findViewById<android.view.View>(android.R.id.content)
+        content.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                val ready = warm.isCompleted || android.os.SystemClock.uptimeMillis() >= until
+                if (ready) {
+                    content.viewTreeObserver.removeOnPreDrawListener(this)
+                } else {
+                    content.postDelayed({ content.invalidate() }, 16)
+                }
+                return ready
+            }
+        })
     }
 
     override fun onNewIntent(intent: Intent) {

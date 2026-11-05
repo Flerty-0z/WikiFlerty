@@ -132,7 +132,16 @@ class App : Application() {
             kotlinx.coroutines.delay(20_000)
             autoBackup.runIfDue()
         }
+        Thread({
+            runCatching {
+                val grid = libraryPrefs.prefs.value.view != com.flerty.wikiflerty.data.LibraryView.Shelves
+                com.flerty.wikiflerty.ui.warmCovers(library.books.value.mapNotNull { library.coverFile(it) }, grid)
+            }
+            coversWarm.complete(Unit)
+        }, "cover-warm").apply { priority = Thread.NORM_PRIORITY - 1 }.start()
     }
+
+    val coversWarm = kotlinx.coroutines.CompletableDeferred<Unit>()
 
     suspend fun prepareReader(book: Book, startAt: Locator? = null): Result<Unit> {
         closeReader()

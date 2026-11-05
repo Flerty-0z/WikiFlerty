@@ -1,5 +1,6 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.ui.focus.onFocusChanged
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -128,8 +129,15 @@ fun PaperBookSheet(book: Book?, onDismiss: () -> Unit) {
     val total = pages.toIntOrNull()
     val ready = title.isNotBlank() && total != null && total in 1..20000
 
+    var focusedField by remember { mutableIntStateOf(-1) }
+    val keyboard = rememberKeyboardOpen()
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    LaunchedEffect(keyboard) { if (!keyboard) focusManager.clearFocus() }
+    val compact = keyboard && focusedField >= 0
+
     AppSheet(onDismiss, title = if (book == null) "Бумажная книга" else "Изменить книгу") {
         val close = sheetClose(onDismiss)
+        Appear(!compact) {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Box(
                 Modifier
@@ -158,9 +166,11 @@ fun PaperBookSheet(book: Book?, onDismiss: () -> Unit) {
                 }
             }
         }
-        PaperField(title, { title = it.take(200) }, "Название", AppIcons.Book)
-        PaperField(author, { author = it.take(120) }, "Автор", AppIcons.Pencil)
-        PaperField(pages, { v -> pages = v.filter { it.isDigit() }.take(5) }, "Сколько страниц в книге", AppIcons.Pages, KeyboardType.Number)
+        }
+        val track: (Int) -> (Boolean) -> Unit = { i -> { on -> if (on) focusedField = i else if (focusedField == i) focusedField = -1 } }
+        PaperField(title, { title = it.take(200) }, "Название", AppIcons.Book, onFocus = track(0))
+        PaperField(author, { author = it.take(120) }, "Автор", AppIcons.Pencil, onFocus = track(1))
+        PaperField(pages, { v -> pages = v.filter { it.isDigit() }.take(5) }, "Сколько страниц в книге", AppIcons.Pages, KeyboardType.Number, onFocus = track(2))
         AppButton(if (book == null) "Добавить на полку" else "Сохранить", primary = true, modifier = Modifier.fillMaxWidth()) {
             if (!ready) return@AppButton
             app.appScope.launch {
@@ -190,7 +200,7 @@ private fun CoverButton(icon: androidx.compose.ui.graphics.vector.ImageVector, l
 }
 
 @Composable
-private fun PaperField(value: String, onChange: (String) -> Unit, hint: String, icon: androidx.compose.ui.graphics.vector.ImageVector, type: KeyboardType = KeyboardType.Text) {
+private fun PaperField(value: String, onChange: (String) -> Unit, hint: String, icon: androidx.compose.ui.graphics.vector.ImageVector, type: KeyboardType = KeyboardType.Text, onFocus: (Boolean) -> Unit = {}) {
     BasicTextField(
         value = value,
         onValueChange = onChange,
@@ -198,7 +208,7 @@ private fun PaperField(value: String, onChange: (String) -> Unit, hint: String, 
         textStyle = TextStyle(color = AppColors.Text, fontSize = 16.sp),
         cursorBrush = SolidColor(AppColors.Accent),
         keyboardOptions = KeyboardOptions(keyboardType = type),
-        modifier = Modifier.fillMaxWidth().height(52.dp).fieldSurface(appCorner(16)).padding(horizontal = 14.dp),
+        modifier = Modifier.fillMaxWidth().height(52.dp).onFocusChanged { onFocus(it.isFocused) }.fieldSurface(appCorner(16)).padding(horizontal = 14.dp),
         decorationBox = { inner ->
             Row(Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
                 Icon(icon, null, tint = AppColors.Muted, modifier = Modifier.size(18.dp))

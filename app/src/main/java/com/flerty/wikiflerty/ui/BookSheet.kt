@@ -164,6 +164,21 @@ fun AppSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable 
     }
 }
 
+@Composable
+fun rememberKeyboardOpen(): Boolean {
+    val raw = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+    var open by remember { mutableStateOf(raw) }
+    LaunchedEffect(raw) {
+        if (raw) {
+            open = true
+        } else {
+            kotlinx.coroutines.delay(260)
+            open = false
+        }
+    }
+    return open
+}
+
 class SheetFit(val body: androidx.compose.ui.unit.Dp, val keyboard: androidx.compose.ui.unit.Dp)
 
 @Composable

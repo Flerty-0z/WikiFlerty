@@ -48,15 +48,7 @@ fun propCount(decor: Decor): Int = when (decor) {
 }
 
 @Composable
-private fun propClock(): State<Float> {
-    if (!Motion.enabled) return remember { mutableFloatStateOf(0f) }
-    return rememberInfiniteTransition(label = "prop").animateFloat(
-        0f,
-        600f,
-        infiniteRepeatable(tween(600_000, easing = LinearEasing), RepeatMode.Restart),
-        label = "prop-time",
-    )
-}
+private fun propClock(): State<Float> = throttledClock(true, 600)
 
 @Composable
 fun ShelfProp(decor: Decor, index: Int, modifier: Modifier = Modifier) {

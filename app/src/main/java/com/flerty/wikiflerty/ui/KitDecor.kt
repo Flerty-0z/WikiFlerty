@@ -40,15 +40,7 @@ private fun specks(seed: Int, n: Int): List<Speck> {
 }
 
 @Composable
-private fun clock(animated: Boolean): State<Float> {
-    if (!animated || !Motion.enabled) return remember { mutableFloatStateOf(0f) }
-    return rememberInfiniteTransition(label = "kit").animateFloat(
-        0f,
-        3600f,
-        infiniteRepeatable(tween(3_600_000, easing = LinearEasing), RepeatMode.Restart),
-        label = "kit-time",
-    )
-}
+private fun clock(animated: Boolean): State<Float> = throttledClock(animated, 3600)
 
 @Composable
 fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = Modifier, animated: Boolean = true) {
@@ -123,8 +115,22 @@ fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = 
     }
 }
 
+private object GlowCache {
+    var color = Color.Unspecified
+    var center = Offset.Zero
+    var radius = 0f
+    var brush: Brush? = null
+}
+
 private fun DrawScope.glow(color: Color, alpha: Float, center: Offset, radius: Float) {
-    drawCircle(Brush.radialGradient(listOf(color.copy(alpha = alpha.coerceIn(0f, 1f)), Color.Transparent), center = center, radius = radius), radius, center)
+    val c = GlowCache
+    if (c.brush == null || c.color != color || c.center != center || c.radius != radius) {
+        c.color = color
+        c.center = center
+        c.radius = radius
+        c.brush = Brush.radialGradient(listOf(color, color.copy(alpha = 0f)), center = center, radius = radius)
+    }
+    drawCircle(c.brush!!, radius, center, alpha = alpha.coerceIn(0f, 1f))
 }
 
 private fun DrawScope.libraryStatic(light: Boolean) {

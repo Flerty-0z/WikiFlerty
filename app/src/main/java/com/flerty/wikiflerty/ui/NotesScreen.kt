@@ -153,7 +153,7 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
                 }
             }
         }
-        if (usedColors.size > 1) {
+        if (usedColors.isNotEmpty()) {
             item(key = "colors") {
                 Row(
                     motionItem().animateContentSize(Motion.tween(300)).horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),

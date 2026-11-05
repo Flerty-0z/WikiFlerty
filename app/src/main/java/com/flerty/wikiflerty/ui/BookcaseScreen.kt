@@ -494,6 +494,17 @@ private fun rememberCoverTones(book: Book): List<Color> {
     return tones
 }
 
+fun warmCovers(files: List<java.io.File>, grid: Boolean) {
+    files.take(36).forEachIndexed { i, file ->
+        if (!file.exists()) return@forEachIndexed
+        CoverCache.load(file, 160)
+        if (CoverCache.peekTones(file) == null) {
+            CoverCache.load(file, 64)?.let { coverTones(it.asAndroidBitmap()) }?.let { CoverCache.putTones(file, it) }
+        }
+        if (grid && i < 12) CoverCache.load(file)
+    }
+}
+
 private fun coverTones(bitmap: android.graphics.Bitmap): List<Color>? {
     if (bitmap.width == 0 || bitmap.height == 0) return null
     val bands = 7
