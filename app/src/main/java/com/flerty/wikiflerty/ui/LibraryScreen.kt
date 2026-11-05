@@ -1,5 +1,6 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.foundation.layout.offset
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.graphics.drawOutline
 
@@ -479,7 +480,12 @@ private fun FilterRow(filter: LibraryFilter, ids: List<String>, count: Int, sele
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        FilterCovers(ids, 24.dp)
+        Box(Modifier.padding(top = 6.dp, end = 8.dp)) {
+            FilterCovers(ids, 24.dp)
+            Box(Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-6).dp)) {
+                CountBadge(count, AppColors.OnAccent, AppColors.Accent, minSize = 20.dp)
+            }
+        }
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.size(18.dp), contentAlignment = Alignment.Center) {
                 Icon(filter.icon, null, tint = if (filter.id == "favorite") StarYellow else AppColors.Accent, modifier = Modifier.size(16.dp))
@@ -488,12 +494,12 @@ private fun FilterRow(filter: LibraryFilter, ids: List<String>, count: Int, sele
                 filter.title,
                 color = if (selected) AppColors.Accent else AppColors.Text,
                 fontSize = 15.sp,
+                lineHeight = 19.sp,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        CountBadge(count)
         if (onEdit != null) {
             Box(
                 Modifier.size(34.dp).liveClick(CircleShape, sound = FeedbackSound.Open, onClick = onEdit),
