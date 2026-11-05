@@ -1,7 +1,6 @@
 package com.flerty.wikiflerty.ui
 
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.using
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.positionInParent

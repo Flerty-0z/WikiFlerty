@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.ime
 import androidx.compose.ui.draw.clip
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.horizontalScroll
