@@ -135,7 +135,9 @@ fun BookcaseView(
         val width = maxWidth.value - 44f
         val decor = AppStyle.kit.decor
         val list = remember(planks, width, live, decor) { rows(planks, width, live, decor) }
+        val seen = remember(animationKey, live) { mutableSetOf<Any>() }
         androidx.compose.runtime.key(animationKey, live) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalShelfSeen provides seen) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp),
@@ -147,8 +149,11 @@ fun BookcaseView(
                 if (footer != null) item(key = "footer") { footer() }
             }
         }
+        }
     }
 }
+
+private val LocalShelfSeen = androidx.compose.runtime.staticCompositionLocalOf<MutableSet<Any>> { mutableSetOf() }
 
 @Composable
 fun NewShelfButton(onClick: () -> Unit) {
@@ -189,10 +194,10 @@ private fun Shelf(row: PlankRow, index: Int, onBook: (Book) -> Unit) {
     Column(Modifier.fillMaxWidth().scrollReveal()) {
         val content: @Composable (Int, ShelfUnit) -> Unit = { i, unit ->
             when (unit) {
-                is ShelfUnit.Standing -> StandingBook(unit.book, unit.lean, Modifier.dropIn(index, i)) { onBook(unit.book) }
-                is ShelfUnit.Stack -> BookStack(unit.books, Modifier.dropIn(index, i), onBook)
-                is ShelfUnit.Add -> Box(Modifier.dropIn(index, i)) { AddSlot(unit.onAdd) }
-                is ShelfUnit.Prop -> ShelfProp(AppStyle.kit.decor, unit.index, Modifier.dropIn(index, i))
+                is ShelfUnit.Standing -> StandingBook(unit.book, unit.lean, Modifier.dropIn(index, i, unit.key)) { onBook(unit.book) }
+                is ShelfUnit.Stack -> BookStack(unit.books, Modifier.dropIn(index, i, unit.key), onBook)
+                is ShelfUnit.Add -> Box(Modifier.dropIn(index, i, unit.key)) { AddSlot(unit.onAdd) }
+                is ShelfUnit.Prop -> ShelfProp(AppStyle.kit.decor, unit.index, Modifier.dropIn(index, i, unit.key))
             }
         }
         if (row.scroll) {
@@ -213,15 +218,18 @@ private fun Shelf(row: PlankRow, index: Int, onBook: (Book) -> Unit) {
                 row.units.forEachIndexed { i, unit -> androidx.compose.runtime.key(unit.key) { content(i, unit) } }
             }
         }
-        Box(Modifier.plankIn(index)) { Plank(row.name, false, row.onEdit) }
+        Box(Modifier.plankIn(index, "plank:" + row.key)) { Plank(row.name, false, row.onEdit) }
     }
 }
 
 @Composable
-private fun Modifier.dropIn(shelf: Int, item: Int): Modifier {
-    val p = remember { androidx.compose.animation.core.Animatable(if (Motion.enabled) 0f else 1f) }
+private fun Modifier.dropIn(shelf: Int, item: Int, id: Any): Modifier {
+    val seen = LocalShelfSeen.current
+    val fresh = remember { id !in seen }
+    val p = remember { androidx.compose.animation.core.Animatable(if (Motion.enabled && fresh) 0f else 1f) }
     androidx.compose.runtime.LaunchedEffect(Unit) {
-        p.animateTo(1f, Motion.tween(480, 120 + shelf.coerceAtMost(4) * 90 + item.coerceAtMost(8) * 55, androidx.compose.animation.core.FastOutSlowInEasing))
+        seen += id
+        if (p.value < 1f) p.animateTo(1f, Motion.tween(480, 120 + shelf.coerceAtMost(4) * 90 + item.coerceAtMost(8) * 55, androidx.compose.animation.core.FastOutSlowInEasing))
     }
     return this.graphicsLayer {
         alpha = p.value.coerceIn(0f, 1f)
@@ -229,10 +237,13 @@ private fun Modifier.dropIn(shelf: Int, item: Int): Modifier {
 }
 
 @Composable
-private fun Modifier.plankIn(shelf: Int): Modifier {
-    val p = remember { androidx.compose.animation.core.Animatable(if (Motion.enabled) 0f else 1f) }
+private fun Modifier.plankIn(shelf: Int, id: Any): Modifier {
+    val seen = LocalShelfSeen.current
+    val fresh = remember { id !in seen }
+    val p = remember { androidx.compose.animation.core.Animatable(if (Motion.enabled && fresh) 0f else 1f) }
     androidx.compose.runtime.LaunchedEffect(Unit) {
-        p.animateTo(1f, Motion.tween(460, 40 + shelf.coerceAtMost(4) * 110, androidx.compose.animation.core.FastOutSlowInEasing))
+        seen += id
+        if (p.value < 1f) p.animateTo(1f, Motion.tween(460, 40 + shelf.coerceAtMost(4) * 110, androidx.compose.animation.core.FastOutSlowInEasing))
     }
     return this.graphicsLayer {
         val v = p.value

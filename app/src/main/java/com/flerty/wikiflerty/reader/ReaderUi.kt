@@ -336,18 +336,6 @@ fun ReaderOverlay(
             )
         }
 
-        if (!state.pageTurning) {
-            val ribbon = remember { androidx.compose.animation.core.MutableTransitionState(false) }
-            ribbon.targetState = state.bookmarked && !state.panelsVisible
-            AnimatedVisibility(
-                visibleState = ribbon,
-                enter = fadeIn(Motion.fade(220)) + slideInVertically(Motion.tween(340)) { -it },
-                exit = fadeOut(Motion.fade(160)) + slideOutVertically(Motion.tween(220)) { -it },
-                modifier = Modifier.align(Alignment.TopEnd).padding(end = 22.dp),
-            ) {
-                PageRibbon()
-            }
-        }
 
         if (settings.showFlag) {
             ProgressFlag(
@@ -994,7 +982,7 @@ private fun SheetFrame(content: @Composable () -> Unit) {
             .padding(start = 12.dp, end = 12.dp, bottom = PanelGap)
             .widthIn(max = PanelMaxWidth)
             .fillMaxWidth()
-            .padding(bottom = com.flerty.wikiflerty.ui.stableImeBottom(minusNavigation = false))
+            .imePadding()
             .height(com.flerty.wikiflerty.ui.sheetHeight())
             .shadow(20.dp, appCorner(28), ambientColor = Color(0x66503010), spotColor = Color(0x66503010))
             .clip(appCorner(28))
@@ -1879,7 +1867,7 @@ internal fun SwitchRow(label: String, checked: Boolean, enabled: Boolean = true,
             SettingIcon(icon, 30.dp)
             Spacer(Modifier.width(12.dp))
         }
-        Text(label, color = AppColors.Text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 8.dp))
+        Text(label, color = AppColors.Text, fontSize = 15.sp, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(vertical = 6.dp).padding(end = 8.dp))
         Switch(
             checked = checked,
             onCheckedChange = change,

@@ -12,10 +12,25 @@
         android:layout_marginTop="20dp"
         android:layout_marginBottom="46dp">
 
-        <androidx.fragment.app.FragmentContainerView
-            android:id="@+id/navigator_container"
+        <FrameLayout
+            android:id="@+id/page_frame"
             android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+            android:layout_height="match_parent">
+
+            <androidx.fragment.app.FragmentContainerView
+                android:id="@+id/navigator_container"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <com.flerty.wikiflerty.reader.RibbonView
+                android:id="@+id/page_ribbon"
+                android:layout_width="16dp"
+                android:layout_height="28dp"
+                android:layout_gravity="top|end"
+                android:layout_marginEnd="22dp"
+                android:importantForAccessibility="no"
+                android:visibility="invisible" />
+        </FrameLayout>
 
         <ImageView
             android:id="@+id/page_snapshot"

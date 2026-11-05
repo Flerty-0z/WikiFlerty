@@ -267,7 +267,8 @@ private fun DictionaryList(viewModel: LibraryViewModel, entries: List<Dictionary
         AppSheet(onDismiss = { filterSheet = false }, title = "Показать") {
             val close = sheetClose { filterSheet = false }
             SettingsGroup(null) {
-                wordFilters(entries).forEach { f ->
+                wordFilters(entries).forEachIndexed { index, f ->
+                    if (index > 0) ListDivider()
                     val selected = f.id == wordFilter
                     Row(
                         Modifier

@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty.reader
 
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.toArgb
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -1137,6 +1139,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
         navigator = supportFragmentManager.findFragmentByTag(NAVIGATOR_TAG) as EpubNavigatorFragment
         navigator.addInputListener(tapListener)
+        lifecycleScope.launch {
+            androidx.compose.runtime.snapshotFlow { ui.bookmarked }.collect { showRibbon(it, animate = !turning) }
+        }
         if (savedInstanceState == null) {
             navContainer.alpha = 0f
             navContainer.postDelayed({
@@ -1908,7 +1913,42 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private var turnForward = true
     private var turnKind = PageAnimation.Fade
     private var turnProgress = 0f
-    private val navContainer: View by lazy { findViewById(R.id.navigator_container) }
+    private val navContainer: View by lazy { findViewById(R.id.page_frame) }
+    private val ribbon: RibbonView by lazy { findViewById(R.id.page_ribbon) }
+    private var ribbonOn = false
+
+    private fun showRibbon(on: Boolean, animate: Boolean) {
+        val accent = com.flerty.wikiflerty.ui.AppColors.Accent
+        ribbon.setColors(
+            androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.2f).compositeOver(accent).toArgb(),
+            accent.toArgb(),
+        )
+        if (on == ribbonOn) return
+        ribbonOn = on
+        ribbon.animate().setListener(null).cancel()
+        val h = ribbon.height.takeIf { it > 0 }?.toFloat() ?: (28 * resources.displayMetrics.density)
+        if (!animate || !com.flerty.wikiflerty.ui.Motion.enabled) {
+            ribbon.alpha = 1f
+            ribbon.translationY = 0f
+            ribbon.visibility = if (on) View.VISIBLE else View.INVISIBLE
+            return
+        }
+        if (on) {
+            if (ribbon.visibility != View.VISIBLE) {
+                ribbon.alpha = 0f
+                ribbon.translationY = -h
+                ribbon.visibility = View.VISIBLE
+            }
+            ribbon.animate().alpha(1f).translationY(0f).setDuration(320).setInterpolator(DecelerateInterpolator(1.6f)).start()
+        } else {
+            ribbon.animate().alpha(0f).translationY(-h).setDuration(220).setInterpolator(android.view.animation.AccelerateInterpolator(1.2f))
+                .withEndAction {
+                    ribbon.visibility = View.INVISIBLE
+                    ribbon.alpha = 1f
+                    ribbon.translationY = 0f
+                }.start()
+        }
+    }
 
     private fun turnSpec(animation: PageAnimation): Pair<Long, android.animation.TimeInterpolator> = when (animation) {
         PageAnimation.Fade -> 280L to DecelerateInterpolator(1.4f)

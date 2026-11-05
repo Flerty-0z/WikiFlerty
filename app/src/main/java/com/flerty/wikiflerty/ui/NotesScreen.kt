@@ -1,5 +1,6 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -61,11 +62,13 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
     val libraryPrefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
     val inPages = libraryPrefs.progressInPages
     val positions = books.associate { it.id to it.positions }
-    val usedColors = notes.map { it.color }.distinct()
     val bookOrderAll = books.map { it.id }
     val noteBooks = notes.map { it.bookId }.distinct()
         .sortedBy { id -> bookOrderAll.indexOf(id).let { if (it < 0) Int.MAX_VALUE else it } }
     if (bookFilter != null && bookFilter !in noteBooks) bookFilter = null
+    val scoped = notes.filter { bookFilter == null || it.bookId == bookFilter }
+    val usedColors = scoped.map { it.color }.distinct()
+    if (colorFilter != null && colorFilter !in usedColors) colorFilter = null
     val choices = noteBooks.map { id -> BookChoice(id, titles[id], notes.count { it.bookId == id }) }
     val filtered = notes
         .filter { bookFilter == null || it.bookId == bookFilter }
@@ -153,7 +156,7 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
         if (usedColors.size > 1) {
             item(key = "colors") {
                 Row(
-                    motionItem().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
+                    motionItem().animateContentSize(Motion.tween(300)).horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -168,13 +171,14 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            "Все · ${notes.size}",
+                            "Все · ${scoped.size}",
                             color = if (colorFilter == null) AppColors.OnAccent else AppColors.Text,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
                     usedColors.forEach { color ->
+                      androidx.compose.runtime.key(color) {
                         val selected = colorFilter == color
                         Box(
                             Modifier
@@ -188,6 +192,7 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
                         ) {
                             Box(Modifier.size(24.dp).clip(CircleShape).background(Color(color)))
                         }
+                      }
                     }
                 }
             }

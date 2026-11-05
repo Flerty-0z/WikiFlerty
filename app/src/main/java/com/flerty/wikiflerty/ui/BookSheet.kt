@@ -1,5 +1,6 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.ime
 import androidx.compose.ui.draw.clip
@@ -138,12 +139,14 @@ fun AppSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable 
         contentWindowInsets = { androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0) },
     ) {
         KeepHostBars()
+        androidx.compose.foundation.layout.BoxWithConstraints {
+        val fit = sheetFit(maxHeight)
         val enter = remember { androidx.compose.animation.core.Animatable(if (Motion.enabled) 0f else 1f) }
         LaunchedEffect(Unit) { enter.animateTo(1f, Motion.tween(340, 60)) }
         val viewport = remember { RevealViewport() }
         androidx.compose.runtime.CompositionLocalProvider(LocalSheetClose provides close, LocalRevealViewport provides viewport) {
             Column(
-                Modifier.height(sheetHeight()).graphicsLayer {
+                Modifier.padding(bottom = fit.keyboard).height(fit.body).graphicsLayer {
                     alpha = 0.35f + 0.65f * enter.value
                     translationY = (1f - enter.value) * 22f * density
                 },
@@ -155,28 +158,24 @@ fun AppSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable 
                 ) {
                     content()
                 }
-                Spacer(Modifier.height(stableImeBottom()))
             }
+        }
         }
     }
 }
 
+class SheetFit(val body: androidx.compose.ui.unit.Dp, val keyboard: androidx.compose.ui.unit.Dp)
+
 @Composable
-fun stableImeBottom(minusNavigation: Boolean = true): androidx.compose.ui.unit.Dp {
+fun sheetFit(maxHeight: androidx.compose.ui.unit.Dp, preferred: androidx.compose.ui.unit.Dp = sheetHeight()): SheetFit {
     val density = androidx.compose.ui.platform.LocalDensity.current
-    val raw = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(density)
+    val ime = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(density)
     val nav = androidx.compose.foundation.layout.WindowInsets.navigationBars.getBottom(density)
-    val target = (raw - if (minusNavigation) nav else 0).coerceAtLeast(0)
-    val shown = remember { androidx.compose.animation.core.Animatable(target.toFloat()) }
-    LaunchedEffect(target) {
-        if (target >= shown.value) {
-            shown.snapTo(target.toFloat())
-        } else {
-            kotlinx.coroutines.delay(160)
-            shown.animateTo(target.toFloat(), androidx.compose.animation.core.tween(220, easing = androidx.compose.animation.core.FastOutSlowInEasing))
-        }
-    }
-    return with(density) { shown.value.toDp() }
+    val top = androidx.compose.foundation.layout.WindowInsets.statusBars.getTop(density)
+    val keyboard = with(density) { (ime - nav).coerceAtLeast(0).toDp() }
+    val total = if (maxHeight == androidx.compose.ui.unit.Dp.Infinity) androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp else maxHeight
+    val room = total - keyboard - with(density) { top.toDp() } - 24.dp
+    return SheetFit(minOf(preferred, room.coerceAtLeast(160.dp)), keyboard)
 }
 
 @Composable

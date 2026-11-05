@@ -446,7 +446,9 @@ fun PickerSheet(
         contentWindowInsets = { androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0) },
     ) {
         KeepHostBars()
-        Column(Modifier.padding(bottom = stableImeBottom()).height(sheetHeight()).padding(horizontal = 16.dp).navigationBarsPadding().padding(bottom = 12.dp)) {
+        androidx.compose.foundation.layout.BoxWithConstraints {
+        val fit = sheetFit(maxHeight)
+        Column(Modifier.padding(bottom = fit.keyboard).height(fit.body).padding(horizontal = 16.dp).navigationBarsPadding().padding(bottom = 12.dp)) {
             SheetHeader(title, close)
             Spacer(Modifier.height(12.dp))
             if (searchable) {
@@ -488,6 +490,7 @@ fun PickerSheet(
                 }
             }
             Spacer(Modifier.height(12.dp))
+        }
         }
     }
 }
