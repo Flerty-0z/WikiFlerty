@@ -474,16 +474,25 @@ private fun FilterRow(filter: LibraryFilter, ids: List<String>, count: Int, sele
             .fillMaxWidth()
             .sheetReveal()
             .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.98f, onClick = onClick)
-            .background(if (selected) AppColors.Accent.copy(alpha = 0.14f) else AppColors.Line.copy(alpha = 0.45f), shape)
-            .border(1.dp, if (selected) AppColors.Accent.copy(alpha = 0.45f) else AppColors.PanelBorder, shape)
+            .background(androidx.compose.animation.animateColorAsState(if (selected) AppColors.Accent.copy(alpha = 0.14f) else AppColors.Line.copy(alpha = 0.45f), Motion.fade(240), label = "row-bg").value, shape)
+            .border(1.dp, androidx.compose.animation.animateColorAsState(if (selected) AppColors.Accent.copy(alpha = 0.45f) else AppColors.PanelBorder, Motion.fade(240), label = "row-edge").value, shape)
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(Modifier.padding(top = 6.dp, end = 8.dp)) {
+        Box(Modifier.padding(top = 3.dp, end = 4.dp)) {
             FilterCovers(ids, 24.dp)
-            Box(Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-6).dp)) {
-                CountBadge(count, AppColors.OnAccent, AppColors.Accent, minSize = 20.dp)
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 4.dp, y = (-3).dp)
+                    .heightIn(min = 12.dp)
+                    .widthIn(min = 12.dp)
+                    .background(AppColors.Accent, CircleShape)
+                    .padding(horizontal = 3.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("$count", color = AppColors.OnAccent, fontSize = 7.5.sp, lineHeight = 8.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
             }
         }
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -505,9 +514,6 @@ private fun FilterRow(filter: LibraryFilter, ids: List<String>, count: Int, sele
                 Modifier.size(34.dp).liveClick(CircleShape, sound = FeedbackSound.Open, onClick = onEdit),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Pencil, "Изменить", tint = AppColors.Muted, modifier = Modifier.size(17.dp)) }
-        }
-        Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) {
-            if (selected) Icon(AppIcons.Check, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp))
         }
     }
 }
