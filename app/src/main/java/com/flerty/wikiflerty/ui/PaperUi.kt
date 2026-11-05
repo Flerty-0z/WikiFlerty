@@ -129,15 +129,10 @@ fun PaperBookSheet(book: Book?, onDismiss: () -> Unit) {
     val total = pages.toIntOrNull()
     val ready = title.isNotBlank() && total != null && total in 1..20000
 
-    var focusedField by remember { mutableIntStateOf(-1) }
-    val keyboard = rememberKeyboardOpen()
-    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
-    LaunchedEffect(keyboard) { if (!keyboard) focusManager.clearFocus() }
-    val compact = keyboard && focusedField >= 0
+    var editing by remember { mutableIntStateOf(-1) }
 
     AppSheet(onDismiss, title = if (book == null) "Бумажная книга" else "Изменить книгу") {
         val close = sheetClose(onDismiss)
-        Appear(!compact) {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Box(
                 Modifier
@@ -166,11 +161,9 @@ fun PaperBookSheet(book: Book?, onDismiss: () -> Unit) {
                 }
             }
         }
-        }
-        val track: (Int) -> (Boolean) -> Unit = { i -> { on -> if (on) focusedField = i else if (focusedField == i) focusedField = -1 } }
-        PaperField(title, { title = it.take(200) }, "Название", AppIcons.Book, onFocus = track(0))
-        PaperField(author, { author = it.take(120) }, "Автор", AppIcons.Pencil, onFocus = track(1))
-        PaperField(pages, { v -> pages = v.filter { it.isDigit() }.take(5) }, "Сколько страниц в книге", AppIcons.Pages, KeyboardType.Number, onFocus = track(2))
+        PaperField(title, "Название", AppIcons.Book) { editing = 0 }
+        PaperField(author, "Автор", AppIcons.Pencil) { editing = 1 }
+        PaperField(pages, "Сколько страниц в книге", AppIcons.Pages) { editing = 2 }
         AppButton(if (book == null) "Добавить на полку" else "Сохранить", primary = true, modifier = Modifier.fillMaxWidth()) {
             if (!ready) return@AppButton
             app.appScope.launch {
@@ -181,6 +174,11 @@ fun PaperBookSheet(book: Book?, onDismiss: () -> Unit) {
         Appear(!ready && (title.isNotEmpty() || pages.isNotEmpty())) {
             Text("Нужны название и число страниц", color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
         }
+    }
+    when (editing) {
+        0 -> TextInputSheet("Название", title, "Название книги", onDismiss = { editing = -1 }) { title = it }
+        1 -> TextInputSheet("Автор", author, "Автор книги", onDismiss = { editing = -1 }, maxLength = 120) { author = it }
+        2 -> TextInputSheet("Страниц в книге", pages, "Например, 320", onDismiss = { editing = -1 }, number = true, maxLength = 5) { pages = it }
     }
 }
 
@@ -200,25 +198,24 @@ private fun CoverButton(icon: androidx.compose.ui.graphics.vector.ImageVector, l
 }
 
 @Composable
-private fun PaperField(value: String, onChange: (String) -> Unit, hint: String, icon: androidx.compose.ui.graphics.vector.ImageVector, type: KeyboardType = KeyboardType.Text, onFocus: (Boolean) -> Unit = {}) {
-    BasicTextField(
-        value = value,
-        onValueChange = onChange,
-        singleLine = true,
-        textStyle = TextStyle(color = AppColors.Text, fontSize = 16.sp),
-        cursorBrush = SolidColor(AppColors.Accent),
-        keyboardOptions = KeyboardOptions(keyboardType = type),
-        modifier = Modifier.fillMaxWidth().height(52.dp).onFocusChanged { onFocus(it.isFocused) }.fieldSurface(appCorner(16)).padding(horizontal = 14.dp),
-        decorationBox = { inner ->
-            Row(Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, null, tint = AppColors.Muted, modifier = Modifier.size(18.dp))
-                Box(Modifier.weight(1f).padding(start = 10.dp)) {
-                    if (value.isEmpty()) Text(hint, color = AppColors.Faint, fontSize = 16.sp, maxLines = 1)
-                    inner()
-                }
-            }
-        },
-    )
+private fun PaperField(value: String, hint: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    val shape = appCorner(16)
+    Row(
+        Modifier.fillMaxWidth().height(52.dp).liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick).fieldSurface(shape).padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = AppColors.Muted, modifier = Modifier.size(18.dp))
+        androidx.compose.animation.Crossfade(value.isEmpty(), Modifier.weight(1f).padding(start = 10.dp), animationSpec = Motion.fade(200), label = "paper-field") { empty ->
+            Text(
+                if (empty) hint else value,
+                color = if (empty) AppColors.Faint else AppColors.Text,
+                fontSize = 16.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Icon(AppIcons.Pencil, null, tint = AppColors.Faint, modifier = Modifier.size(15.dp))
+    }
 }
 
 @Composable

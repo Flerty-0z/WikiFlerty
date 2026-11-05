@@ -1,9 +1,5 @@
 package com.flerty.wikiflerty.ui
 
-import android.os.Build
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.ime
 import androidx.compose.ui.draw.clip
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.horizontalScroll
@@ -96,13 +92,6 @@ fun KeepHostBars() {
             }
             parent = parent.parent
         }
-        if (window != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.setSoftInputMode(
-                (window.attributes.softInputMode and android.view.WindowManager.LayoutParams.SOFT_INPUT_MASK_STATE.inv()).let {
-                    (it and android.view.WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST.inv()) or android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
-                } or (window.attributes.softInputMode and android.view.WindowManager.LayoutParams.SOFT_INPUT_MASK_STATE),
-            )
-        }
         if (window != null && hostWindow != null) {
             val insets = androidx.core.view.ViewCompat.getRootWindowInsets(hostWindow.decorView)
             if (insets != null && !insets.isVisible(androidx.core.view.WindowInsetsCompat.Type.statusBars())) {
@@ -144,17 +133,14 @@ fun AppSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable 
         ),
         containerColor = AppColors.Panel,
         shape = RoundedCornerShape(topStart = (26 * AppStyle.current.corners).dp, topEnd = (26 * AppStyle.current.corners).dp),
-        contentWindowInsets = { androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0) },
     ) {
         KeepHostBars()
-        androidx.compose.foundation.layout.BoxWithConstraints {
-        val fit = sheetFit(maxHeight)
         val enter = remember { androidx.compose.animation.core.Animatable(if (Motion.enabled) 0f else 1f) }
         LaunchedEffect(Unit) { enter.animateTo(1f, Motion.tween(340, 60)) }
         val viewport = remember { RevealViewport() }
         androidx.compose.runtime.CompositionLocalProvider(LocalSheetClose provides close, LocalRevealViewport provides viewport) {
             Column(
-                Modifier.padding(bottom = fit.keyboard).height(fit.body).graphicsLayer {
+                Modifier.height(sheetHeight()).graphicsLayer {
                     alpha = 0.35f + 0.65f * enter.value
                     translationY = (1f - enter.value) * 22f * density
                 },
@@ -168,37 +154,7 @@ fun AppSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable 
                 }
             }
         }
-        }
     }
-}
-
-@Composable
-fun rememberKeyboardOpen(): Boolean {
-    val raw = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
-    var open by remember { mutableStateOf(raw) }
-    LaunchedEffect(raw) {
-        if (raw) {
-            open = true
-        } else {
-            kotlinx.coroutines.delay(260)
-            open = false
-        }
-    }
-    return open
-}
-
-class SheetFit(val body: androidx.compose.ui.unit.Dp, val keyboard: androidx.compose.ui.unit.Dp)
-
-@Composable
-fun sheetFit(maxHeight: androidx.compose.ui.unit.Dp, preferred: androidx.compose.ui.unit.Dp = sheetHeight()): SheetFit {
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val ime = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(density)
-    val nav = androidx.compose.foundation.layout.WindowInsets.navigationBars.getBottom(density)
-    val top = androidx.compose.foundation.layout.WindowInsets.statusBars.getTop(density)
-    val keyboard = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) with(density) { (ime - nav).coerceAtLeast(0).toDp() } else 0.dp
-    val total = if (maxHeight == androidx.compose.ui.unit.Dp.Infinity) androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp else maxHeight
-    val room = total - keyboard - with(density) { top.toDp() } - 24.dp
-    return SheetFit(minOf(preferred, room.coerceAtLeast(160.dp)), keyboard)
 }
 
 @Composable

@@ -443,12 +443,9 @@ fun PickerSheet(
             topStart = (26 * AppStyle.current.corners).dp,
             topEnd = (26 * AppStyle.current.corners).dp,
         ),
-        contentWindowInsets = { androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0) },
     ) {
         KeepHostBars()
-        androidx.compose.foundation.layout.BoxWithConstraints {
-        val fit = sheetFit(maxHeight)
-        Column(Modifier.padding(bottom = fit.keyboard).height(fit.body).padding(horizontal = 16.dp).navigationBarsPadding().padding(bottom = 12.dp)) {
+        Column(Modifier.height(sheetHeight()).padding(horizontal = 16.dp).navigationBarsPadding().padding(bottom = 12.dp)) {
             SheetHeader(title, close)
             Spacer(Modifier.height(12.dp))
             if (searchable) {
@@ -490,7 +487,6 @@ fun PickerSheet(
                 }
             }
             Spacer(Modifier.height(12.dp))
-        }
         }
     }
 }
@@ -661,6 +657,60 @@ fun NumberInputSheet(
                 contentAlignment = Alignment.Center,
             ) { Text("Без цели", color = AppColors.Muted, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
         }
+    }
+}
+
+@Composable
+fun TextInputSheet(
+    title: String,
+    initial: String,
+    hint: String,
+    onDismiss: () -> Unit,
+    number: Boolean = false,
+    maxLength: Int = 200,
+    onDone: (String) -> Unit,
+) {
+    var text by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(initial, androidx.compose.ui.text.TextRange(initial.length))) }
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    AppSheet(onDismiss, title = title) {
+        val close = sheetClose(onDismiss)
+        val save = {
+            onDone(text.text.trim())
+            close()
+        }
+        Box(
+            Modifier.fillMaxWidth().heightIn(min = 64.dp).fieldSurface(appCorner(18)).padding(horizontal = 18.dp, vertical = 14.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            if (text.text.isEmpty()) Text(hint, color = AppColors.Faint, fontSize = 20.sp, maxLines = 1)
+            BasicTextField(
+                value = text,
+                onValueChange = { v ->
+                    val clean = if (number) v.text.filter { it.isDigit() } else v.text.replace("\n", " ")
+                    text = v.copy(text = clean.take(maxLength))
+                },
+                singleLine = true,
+                textStyle = TextStyle(color = AppColors.Text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold),
+                cursorBrush = SolidColor(AppColors.Accent),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = if (number) androidx.compose.ui.text.input.KeyboardType.Number else androidx.compose.ui.text.input.KeyboardType.Text,
+                    capitalization = if (number) androidx.compose.ui.text.input.KeyboardCapitalization.None else androidx.compose.ui.text.input.KeyboardCapitalization.Sentences,
+                    imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                ),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { save() }),
+                modifier = Modifier.fillMaxWidth().focusRequester(focus),
+            )
+        }
+        val shape = appCorner(16)
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .liveClick(shape, sound = FeedbackSound.Toggle) { save() }
+                .accentHighlight(shape),
+            contentAlignment = Alignment.Center,
+        ) { ActionLabel("Готово", accentContent) }
     }
 }
 
