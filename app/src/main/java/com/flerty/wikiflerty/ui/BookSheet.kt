@@ -1,5 +1,6 @@
 package com.flerty.wikiflerty.ui
 
+import android.os.Build
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.ime
@@ -95,6 +96,13 @@ fun KeepHostBars() {
             }
             parent = parent.parent
         }
+        if (window != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setSoftInputMode(
+                (window.attributes.softInputMode and android.view.WindowManager.LayoutParams.SOFT_INPUT_MASK_STATE.inv()).let {
+                    (it and android.view.WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST.inv()) or android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+                } or (window.attributes.softInputMode and android.view.WindowManager.LayoutParams.SOFT_INPUT_MASK_STATE),
+            )
+        }
         if (window != null && hostWindow != null) {
             val insets = androidx.core.view.ViewCompat.getRootWindowInsets(hostWindow.decorView)
             if (insets != null && !insets.isVisible(androidx.core.view.WindowInsetsCompat.Type.statusBars())) {
@@ -187,7 +195,7 @@ fun sheetFit(maxHeight: androidx.compose.ui.unit.Dp, preferred: androidx.compose
     val ime = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(density)
     val nav = androidx.compose.foundation.layout.WindowInsets.navigationBars.getBottom(density)
     val top = androidx.compose.foundation.layout.WindowInsets.statusBars.getTop(density)
-    val keyboard = with(density) { (ime - nav).coerceAtLeast(0).toDp() }
+    val keyboard = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) with(density) { (ime - nav).coerceAtLeast(0).toDp() } else 0.dp
     val total = if (maxHeight == androidx.compose.ui.unit.Dp.Infinity) androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp else maxHeight
     val room = total - keyboard - with(density) { top.toDp() } - 24.dp
     return SheetFit(minOf(preferred, room.coerceAtLeast(160.dp)), keyboard)
