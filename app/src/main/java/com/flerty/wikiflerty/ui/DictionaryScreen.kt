@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
@@ -54,38 +56,57 @@ import com.flerty.wikiflerty.data.DictionaryEntry
 @Composable
 fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
     val entries by viewModel.dictionary.collectAsStateWithLifecycle()
+    var studying by rememberSaveable { mutableStateOf(false) }
+    val mode = when {
+        studying && entries.isNotEmpty() -> 2
+        entries.isEmpty() -> 0
+        else -> 1
+    }
+    androidx.compose.animation.AnimatedContent(
+        targetState = mode,
+        modifier = modifier,
+        transitionSpec = {
+            (fadeIn(Motion.tween(300, 80)) + androidx.compose.animation.scaleIn(Motion.tween(340), initialScale = 0.96f)) togetherWith
+                (fadeOut(Motion.fade(160)) + androidx.compose.animation.scaleOut(Motion.tween(220), targetScale = 1.02f))
+        },
+        label = "dictionary",
+    ) { m ->
+        when (m) {
+            2 -> FlashcardSession(onClose = { studying = false }, modifier = Modifier.fillMaxSize())
+            0 -> DictionaryEmpty(Modifier.fillMaxSize())
+            else -> DictionaryList(viewModel, entries, onStudy = { studying = true }, modifier = Modifier.fillMaxSize())
+        }
+    }
+}
+
+@Composable
+private fun DictionaryEmpty(modifier: Modifier) {
+    Column(
+        modifier.padding(32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("Словарь пуст", color = AppColors.Text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+        Text(
+            "Выдели слово в книге → ✦ → «В словарь» под ответом.",
+            color = AppColors.Muted,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 10.dp),
+        )
+    }
+}
+
+@Composable
+private fun DictionaryList(viewModel: LibraryViewModel, entries: List<DictionaryEntry>, onStudy: () -> Unit, modifier: Modifier) {
     var query by remember { mutableStateOf("") }
     var openId by remember { mutableStateOf<String?>(null) }
     var toDelete by remember { mutableStateOf<DictionaryEntry?>(null) }
-    var studying by rememberSaveable { mutableStateOf(false) }
     var cardSettings by remember { mutableStateOf(false) }
     var exporting by remember { mutableStateOf(false) }
     var wordFilter by rememberSaveable { mutableStateOf("all") }
     var filterSheet by remember { mutableStateOf(false) }
-
-    if (studying && entries.isNotEmpty()) {
-        FlashcardSession(onClose = { studying = false }, modifier = modifier)
-        return
-    }
-
-    if (entries.isEmpty()) {
-        Column(
-            modifier.padding(32.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text("Словарь пуст", color = AppColors.Text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-            Text(
-                "Выдели слово в книге → ✦ → «В словарь» под ответом.",
-                color = AppColors.Muted,
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 10.dp),
-            )
-        }
-        return
-    }
 
     val filtered = entries.filter {
         (query.isBlank() || it.word.contains(query, true) || it.definition.contains(query, true)) &&
@@ -104,7 +125,7 @@ fun DictionaryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier)
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item(key = "study") {
-            StudyCard(entries, onStart = { studying = true }, onSettings = { cardSettings = true })
+            StudyCard(entries, onStart = onStudy, onSettings = { cardSettings = true })
         }
         item(key = "filters") {
             val shape = appCorner(22)

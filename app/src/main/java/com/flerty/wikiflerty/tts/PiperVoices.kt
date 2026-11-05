@@ -83,14 +83,33 @@ object PiperVoices {
             if (conn.responseCode !in 200..299) return@withContext false
             val total = conn.contentLengthLong.takeIf { it > 0 } ?: (64L shl 20)
             var read = 0L
+            var shown = -1
+            fun advance(n: Long) {
+                if (n <= 0) return
+                read += n
+                val pct = ((read * 100) / total).toInt().coerceIn(0, 99)
+                if (pct != shown) {
+                    shown = pct
+                    _progress.value = _progress.value + (id to pct / 100f)
+                }
+            }
             val counting = object : java.io.FilterInputStream(conn.inputStream.buffered(1 shl 16)) {
+                override fun read(): Int {
+                    val b = super.read()
+                    if (b >= 0) advance(1)
+                    return b
+                }
+
                 override fun read(b: ByteArray, off: Int, len: Int): Int {
                     val n = super.read(b, off, len)
-                    if (n > 0) {
-                        read += n
-                        _progress.value = _progress.value + (id to (read.toFloat() / total).coerceIn(0f, 0.99f))
-                    }
+                    advance(n.toLong())
                     return n
+                }
+
+                override fun skip(n: Long): Long {
+                    val s = super.skip(n)
+                    advance(s)
+                    return s
                 }
             }
             TarArchiveInputStream(BZip2CompressorInputStream(counting)).use { tar ->

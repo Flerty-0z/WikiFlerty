@@ -431,7 +431,7 @@ private fun GoalCard(goalMinutes: Int, inPages: Boolean, perDay: Map<LocalDate, 
                     RollingText("Цель: $goal $unit в день", rememberStagger(2)) {
                         Text(it, color = AppColors.Muted, fontSize = 13.sp, maxLines = 1)
                     }
-                    if (streak > 0) {
+                    Appear(streak > 0) {
                         Row(rememberStagger(3), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             Icon(AppIcons.Fire, null, tint = AppColors.Accent, modifier = Modifier.size(14.dp))
                             Text("Выполняешь ${StatsCalc.days(streak)} подряд", color = AppColors.Faint, fontSize = 12.sp, maxLines = 1)

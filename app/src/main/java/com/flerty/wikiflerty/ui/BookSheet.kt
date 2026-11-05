@@ -133,6 +133,7 @@ fun AppSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable 
         ),
         containerColor = AppColors.Panel,
         shape = RoundedCornerShape(topStart = (26 * AppStyle.current.corners).dp, topEnd = (26 * AppStyle.current.corners).dp),
+        contentWindowInsets = { androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0) },
     ) {
         KeepHostBars()
         val enter = remember { androidx.compose.animation.core.Animatable(if (Motion.enabled) 0f else 1f) }
@@ -152,9 +153,28 @@ fun AppSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable 
                 ) {
                     content()
                 }
+                Spacer(Modifier.height(stableImeBottom()))
             }
         }
     }
+}
+
+@Composable
+fun stableImeBottom(minusNavigation: Boolean = true): androidx.compose.ui.unit.Dp {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val raw = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(density)
+    val nav = androidx.compose.foundation.layout.WindowInsets.navigationBars.getBottom(density)
+    val target = (raw - if (minusNavigation) nav else 0).coerceAtLeast(0)
+    val shown = remember { androidx.compose.animation.core.Animatable(target.toFloat()) }
+    LaunchedEffect(target) {
+        if (target >= shown.value) {
+            shown.snapTo(target.toFloat())
+        } else {
+            kotlinx.coroutines.delay(160)
+            shown.animateTo(target.toFloat(), androidx.compose.animation.core.tween(220, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+        }
+    }
+    return with(density) { shown.value.toDp() }
 }
 
 @Composable

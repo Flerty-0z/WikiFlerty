@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.slideInVertically
 import android.content.Context
 import android.speech.tts.TextToSpeech
 import androidx.activity.compose.BackHandler
@@ -230,18 +232,27 @@ fun FlashcardSession(onClose: () -> Unit, modifier: Modifier = Modifier) {
             RoundButton(AppIcons.Close, "Закончить", onClose)
             Column(Modifier.weight(1f).padding(start = 8.dp)) {
                 Text("Карточки", color = AppColors.Text, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    if (queue.isEmpty()) "Готово" else "Осталось ${queue.size}",
-                    color = AppColors.Muted,
-                    fontSize = 12.sp,
-                )
+                RollingText(if (queue.isEmpty()) "Готово" else "Осталось ${queue.size}") {
+                    Text(it, color = AppColors.Muted, fontSize = 12.sp)
+                }
             }
             AnimatedVisibility(visible = undo != null) {
                 RoundButton(AppIcons.Back, "Отменить последний ответ") { undoLast() }
             }
         }
 
-        if (current == null) {
+        val lastCard = remember { mutableStateOf<DictionaryEntry?>(null) }
+        if (current != null) lastCard.value = current
+        AnimatedContent(
+            targetState = current == null,
+            transitionSpec = {
+                (fadeIn(Motion.tween(320, 100)) + androidx.compose.animation.scaleIn(Motion.tween(380), initialScale = 0.94f))
+                    .togetherWith(fadeOut(Motion.fade(160)) + androidx.compose.animation.scaleOut(Motion.tween(220), targetScale = 0.97f))
+            },
+            label = "study-done",
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+        ) { done ->
+        if (done) {
             FinishedView(
                 answered = answered,
                 correct = correct,
@@ -252,11 +263,12 @@ fun FlashcardSession(onClose: () -> Unit, modifier: Modifier = Modifier) {
                     queue.addAll(StudyQueue.build(app.dictionary.entries.value, app.flashcards.prefs.value, extraNew).filterNot { it in queue })
                 },
                 onClose = onClose,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxSize(),
             )
-        } else {
+        } else if ((current ?: lastCard.value) != null) {
+            Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             StudyBody(
-                current = current,
+                current = current ?: lastCard.value!!,
                 byId = byId,
                 queue = queue,
                 answered = answered,
@@ -270,6 +282,8 @@ fun FlashcardSession(onClose: () -> Unit, modifier: Modifier = Modifier) {
                 reviewLeft = reviewLeft,
                 now = now,
             )
+            }
+        }
         }
     }
 }
@@ -297,8 +311,9 @@ private fun androidx.compose.foundation.layout.ColumnScope.StudyBody(
             CountChip("Повтор", reviewLeft, AppColors.Good, AppIcons.Rotate, Modifier.weight(1f))
         }
         val total = answered + queue.size
+        val done by animateFloatAsState(if (total == 0) 0f else answered.toFloat() / total, Motion.tween(420), label = "study-progress")
         Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(AppColors.Line)) {
-            Box(Modifier.fillMaxWidth(if (total == 0) 0f else answered.toFloat() / total).fillMaxHeight().clip(CircleShape).background(AppColors.Accent))
+            Box(Modifier.fillMaxWidth(done.coerceIn(0f, 1f)).fillMaxHeight().clip(CircleShape).background(AppColors.Accent))
         }
 
         val reverse = when (prefs.direction) {
@@ -330,7 +345,15 @@ private fun androidx.compose.foundation.layout.ColumnScope.StudyBody(
             }
         }
 
-        if (flippedId != current.id) {
+        AnimatedContent(
+            targetState = flippedId == current.id,
+            transitionSpec = {
+                (fadeIn(Motion.tween(240, 90)) + slideInVertically(Motion.tween(300)) { it / 3 })
+                    .togetherWith(fadeOut(Motion.fade(140)) + slideOutVertically(Motion.tween(220)) { -it / 4 })
+            },
+            label = "answer-row",
+        ) { flipped ->
+        if (!flipped) {
             val shape = appCorner(18)
             Box(
                 Modifier.fillMaxWidth().padding(bottom = 40.dp).heightIn(min = 56.dp)
@@ -345,6 +368,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.StudyBody(
                 GradeButton("Хорошо", Srs.label(current.srs, Grade.Good, now), AppColors.Good, Modifier.weight(1f)) { onAnswer(current, Grade.Good) }
                 GradeButton("Легко", Srs.label(current.srs, Grade.Easy, now), AppColors.Accent, Modifier.weight(1f), filled = true) { onAnswer(current, Grade.Easy) }
             }
+        }
         }
     }
 }

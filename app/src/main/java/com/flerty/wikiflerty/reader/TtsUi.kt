@@ -180,9 +180,14 @@ private fun PiperVoiceList(selected: String, onSelect: (String) -> Unit) {
                         fontSize = 12.sp,
                         maxLines = 1,
                     )
-                    if (p != null) {
+                    val shownP by androidx.compose.animation.core.animateFloatAsState(
+                        p ?: 1f,
+                        com.flerty.wikiflerty.ui.Motion.tween(420),
+                        label = "dl",
+                    )
+                    com.flerty.wikiflerty.ui.Appear(p != null) {
                         Box(Modifier.padding(top = 4.dp).fillMaxWidth().height(3.dp).clip(CircleShape).background(AppColors.Line)) {
-                            Box(Modifier.fillMaxWidth(p).height(3.dp).clip(CircleShape).background(AppColors.Accent))
+                            Box(Modifier.fillMaxWidth(shownP.coerceIn(0f, 1f)).height(3.dp).clip(CircleShape).background(AppColors.Accent))
                         }
                     }
                 }

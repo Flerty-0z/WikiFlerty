@@ -122,12 +122,6 @@ fun AiSettingsContent(ai: AiManager, modifier: Modifier = Modifier) {
             AppSheet(onDismiss = { showAll = false }, title = "Нейросети") {
                 all.forEach { card(it) }
                 CustomCard(ai, expanded == "custom") { expanded = if (expanded == "custom") null else "custom" }
-                Text(
-                    "Нажми на нейросеть, вставь ключ и проверь",
-                    color = AppColors.Faint,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(start = 4.dp),
-                )
             }
         }
 

@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.using
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.positionInParent
@@ -356,4 +358,27 @@ fun Appear(
             verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(spacing),
         ) { content() }
     }
+}
+
+@Composable
+fun <T> Morph(
+    target: T,
+    modifier: Modifier = Modifier,
+    contentAlignment: androidx.compose.ui.Alignment = androidx.compose.ui.Alignment.TopStart,
+    content: @Composable androidx.compose.animation.AnimatedContentScope.(T) -> Unit,
+) {
+    androidx.compose.animation.AnimatedContent(
+        targetState = target,
+        modifier = modifier,
+        contentAlignment = contentAlignment,
+        transitionSpec = {
+            (
+                androidx.compose.animation.fadeIn(Motion.tween(260, 90)) +
+                    androidx.compose.animation.slideInVertically(Motion.tween(320)) { it / 14 }
+                ) togetherWith androidx.compose.animation.fadeOut(Motion.tween(140)) using
+                androidx.compose.animation.SizeTransform(clip = false) { _, _ -> Motion.tween(320) }
+        },
+        label = "morph",
+        content = content,
+    )
 }

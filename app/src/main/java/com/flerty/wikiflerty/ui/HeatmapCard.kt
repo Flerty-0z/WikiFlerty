@@ -6,6 +6,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.using
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -113,7 +114,10 @@ fun YearHeatmapCard(days: Map<String, Map<String, DayEntry>>, perDay: Map<LocalD
 
         AnimatedContent(
             targetState = year,
-            transitionSpec = { fadeIn(Motion.fade(260)).togetherWith(fadeOut(Motion.fade(160))) },
+            transitionSpec = {
+                fadeIn(Motion.fade(260)).togetherWith(fadeOut(Motion.fade(160))) using
+                    androidx.compose.animation.SizeTransform(clip = false) { _, _ -> Motion.tween(320) }
+            },
             label = "year",
         ) { y ->
             YearGrid(y, perDay, frozen, selected) { selected = it }
@@ -129,7 +133,7 @@ fun YearHeatmapCard(days: Map<String, Map<String, DayEntry>>, perDay: Map<LocalD
             Icon(AppIcons.Forward, "Больше", tint = AppColors.Faint, modifier = Modifier.padding(start = 2.dp).size(13.dp).rotate(-90f))
         }
 
-        DayDetail(selected, days, perDay, books, selected in frozen)
+        DayDetail(selected, days, perDay, books, frozen)
 
         val inYear = perDay.filter { it.key.year == year && it.value.ms >= 60_000 }
         val readDays = inYear.size
@@ -297,19 +301,22 @@ private fun YearGrid(year: Int, perDay: Map<LocalDate, DayEntry>, frozen: Set<Lo
 }
 
 @Composable
-private fun DayDetail(day: LocalDate, days: Map<String, Map<String, DayEntry>>, perDay: Map<LocalDate, DayEntry>, books: List<Book>, frozen: Boolean) {
-    val entry = perDay[day]
-    val minutes = (entry?.ms ?: 0) / 60_000
-    val perBook = days[day.toString()].orEmpty().filterValues { it.ms > 0 }.entries.sortedByDescending { it.value.ms }
-    val read = perBook.mapNotNull { (key, e) ->
-        val b = books.firstOrNull { it.statsKey == key } ?: return@mapNotNull null
-        b to e
-    }
+private fun DayDetail(selected: LocalDate, days: Map<String, Map<String, DayEntry>>, perDay: Map<LocalDate, DayEntry>, books: List<Book>, frozenDays: Set<LocalDate>) {
     AnimatedContent(
-        targetState = day,
-        transitionSpec = { fadeIn(Motion.fade(200)).togetherWith(fadeOut(Motion.fade(120))) },
+        targetState = selected,
+        transitionSpec = {
+            fadeIn(Motion.tween(240, 80)).togetherWith(fadeOut(Motion.fade(120))) using
+                androidx.compose.animation.SizeTransform(clip = false) { _, _ -> Motion.tween(320) }
+        },
         label = "day",
-    ) { _ ->
+    ) { day ->
+        val frozen = day in frozenDays
+        val entry = perDay[day]
+        val minutes = (entry?.ms ?: 0) / 60_000
+        val read = remember(day, days, books) {
+            days[day.toString()].orEmpty().filterValues { it.ms > 0 }.entries.sortedByDescending { it.value.ms }
+                .mapNotNull { (key, e) -> books.firstOrNull { it.statsKey == key }?.let { it to e } }
+        }
         Column(
             Modifier.fillMaxWidth().clip(appCorner(12)).background(AppColors.Background).border(1.dp, AppColors.PanelBorder, appCorner(12)).padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),

@@ -104,6 +104,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private var systemBars: Insets = Insets.NONE
     private var turning = false
+        set(value) {
+            field = value
+            if (!value) ui.pageTurning = false
+        }
     private var selectionJob: Job? = null
     private var actionMode: ActionMode? = null
     private var bookId: String = ""
@@ -1941,6 +1945,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             navContainer.elevation = 18 * resources.displayMetrics.density
         }
         snapshot.visibility = View.VISIBLE
+        ui.pageTurning = true
         applyTurn(0f)
     }
 
@@ -2063,6 +2068,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             snapshot.alpha = 1f
             snapshot.rotationY = 0f
             snapshot.visibility = View.VISIBLE
+            ui.pageTurning = true
             if (!go(forward, animated = false)) {
                 hideSnapshot()
                 pendingTurn = null
@@ -2265,6 +2271,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 snapshot.rotationY = 0f
                 snapshot.translationX = 0f
                 snapshot.visibility = View.VISIBLE
+                ui.pageTurning = true
                 if (!go(forward, animated = false)) {
                     hideSnapshot()
                     swipeReady = false

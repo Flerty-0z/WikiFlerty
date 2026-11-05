@@ -59,6 +59,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -167,7 +168,7 @@ fun PaperBookSheet(book: Book?, onDismiss: () -> Unit) {
             }
             close()
         }
-        if (!ready && (title.isNotEmpty() || pages.isNotEmpty())) {
+        Appear(!ready && (title.isNotEmpty() || pages.isNotEmpty())) {
             Text("Нужны название и число страниц", color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
         }
     }
@@ -253,7 +254,7 @@ fun PaperMain(book: Book, onEdit: () -> Unit) {
         }
     }
 
-    if (sessions.isNotEmpty()) {
+    Appear(sessions.isNotEmpty()) {
         StatPanel(
             "Темп",
             listOf(
@@ -294,7 +295,7 @@ fun PaperMain(book: Book, onEdit: () -> Unit) {
             if (current > lastPage) grew++
             lastPage = current
         }
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.animateContentSize(Motion.tween(320)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             BookProgressBlock(current, total, fraction, grew, pace)
             AddSessionCard { form = SessionForm(null, current, current, System.currentTimeMillis(), 0L, fromStopwatch = false) }
             val shown = if (showAll) sessions else sessions.take(6)
@@ -306,7 +307,7 @@ fun PaperMain(book: Book, onEdit: () -> Unit) {
                     }
                 }
             }
-            if (sessions.size > 6) {
+            Appear(sessions.size > 6) {
                 Text(
                     if (showAll) "Свернуть" else "Показать все · ${sessions.size}",
                     color = AppColors.Accent,

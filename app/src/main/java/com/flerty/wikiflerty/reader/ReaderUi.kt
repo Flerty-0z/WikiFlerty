@@ -185,6 +185,7 @@ class ReaderUiState {
     var askFinished by mutableStateOf(false)
     var chatFromHistory by mutableStateOf(false)
     var bookmarked by mutableStateOf(false)
+    var pageTurning by mutableStateOf(false)
     var quote by mutableStateOf<QuoteDraft?>(null)
     var topPanelBottom = 0f
     var bottomPanelTop = Float.MAX_VALUE
@@ -335,13 +336,17 @@ fun ReaderOverlay(
             )
         }
 
-        AnimatedVisibility(
-            visible = state.bookmarked && !state.panelsVisible,
-            enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(320)) { -it },
-            exit = fadeOut(Motion.fade(160)) + slideOutVertically(Motion.tween(220)) { -it },
-            modifier = Modifier.align(Alignment.TopEnd).padding(end = 22.dp),
-        ) {
-            PageRibbon()
+        if (!state.pageTurning) {
+            val ribbon = remember { androidx.compose.animation.core.MutableTransitionState(false) }
+            ribbon.targetState = state.bookmarked && !state.panelsVisible
+            AnimatedVisibility(
+                visibleState = ribbon,
+                enter = fadeIn(Motion.fade(220)) + slideInVertically(Motion.tween(340)) { -it },
+                exit = fadeOut(Motion.fade(160)) + slideOutVertically(Motion.tween(220)) { -it },
+                modifier = Modifier.align(Alignment.TopEnd).padding(end = 22.dp),
+            ) {
+                PageRibbon()
+            }
         }
 
         if (settings.showFlag) {
@@ -989,7 +994,7 @@ private fun SheetFrame(content: @Composable () -> Unit) {
             .padding(start = 12.dp, end = 12.dp, bottom = PanelGap)
             .widthIn(max = PanelMaxWidth)
             .fillMaxWidth()
-            .imePadding()
+            .padding(bottom = com.flerty.wikiflerty.ui.stableImeBottom(minusNavigation = false))
             .height(com.flerty.wikiflerty.ui.sheetHeight())
             .shadow(20.dp, appCorner(28), ambientColor = Color(0x66503010), spotColor = Color(0x66503010))
             .clip(appCorner(28))

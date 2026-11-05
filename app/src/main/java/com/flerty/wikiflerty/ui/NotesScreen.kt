@@ -140,18 +140,20 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
         }
         if (noteBooks.size > 1) {
             item(key = "books") {
-                BookChoiceButton(
-                    selectedId = bookFilter,
-                    allIds = noteBooks,
-                    fallbackTitle = bookFilter?.let { titles[it] },
-                    count = if (bookFilter == null) notes.size else notes.count { it.bookId == bookFilter },
-                ) { bookSheet = true }
+                Box(motionItem()) {
+                    BookChoiceButton(
+                        selectedId = bookFilter,
+                        allIds = noteBooks,
+                        fallbackTitle = bookFilter?.let { titles[it] },
+                        count = if (bookFilter == null) notes.size else notes.count { it.bookId == bookFilter },
+                    ) { bookSheet = true }
+                }
             }
         }
         if (usedColors.size > 1) {
             item(key = "colors") {
                 Row(
-                    Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
+                    motionItem().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -192,7 +194,7 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
         }
         if (filtered.isEmpty()) {
             item(key = "empty") {
-                Text("Ничего не найдено", color = AppColors.Muted, fontSize = 15.sp, modifier = Modifier.padding(vertical = 16.dp))
+                Text("Ничего не найдено", color = AppColors.Muted, fontSize = 15.sp, modifier = motionItem().padding(vertical = 16.dp))
             }
         }
         groups.forEach { (bookId, bookNotes) ->

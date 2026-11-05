@@ -443,9 +443,10 @@ fun PickerSheet(
             topStart = (26 * AppStyle.current.corners).dp,
             topEnd = (26 * AppStyle.current.corners).dp,
         ),
+        contentWindowInsets = { androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0) },
     ) {
         KeepHostBars()
-        Column(Modifier.height(sheetHeight()).padding(horizontal = 16.dp).navigationBarsPadding().padding(bottom = 12.dp)) {
+        Column(Modifier.padding(bottom = stableImeBottom()).height(sheetHeight()).padding(horizontal = 16.dp).navigationBarsPadding().padding(bottom = 12.dp)) {
             SheetHeader(title, close)
             Spacer(Modifier.height(12.dp))
             if (searchable) {
