@@ -66,6 +66,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.key
@@ -198,6 +199,7 @@ class ReaderUiState {
     var peopleFocus by mutableStateOf<String?>(null)
     var translate by mutableStateOf<TranslateInfo?>(null)
     var returnTo by mutableStateOf<org.readium.r2.shared.publication.Locator?>(null)
+    var feedPull by mutableStateOf<FeedPull?>(null)
     var topPanelBottom = 0f
     var bottomPanelTop = Float.MAX_VALUE
 
@@ -355,11 +357,25 @@ fun ReaderOverlay(
 
 
         if (settings.showFlag) {
+            val flagAlpha by animateFloatAsState(if (state.feedPull?.dir == 1) 0f else 1f, Motion.tween(160), label = "flag-hide")
             ProgressFlag(
                 chapter = state.chapter,
                 progress = progressText,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = FlagBottom),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = FlagBottom).graphicsLayer { alpha = flagAlpha },
             )
+        }
+
+        val lastPull = remember { arrayOf(FeedPull(1, 0f, true)) }
+        state.feedPull?.let { lastPull[0] = it }
+        AnimatedVisibility(
+            visible = state.feedPull != null && state.sheet == null,
+            enter = fadeIn(Motion.fade(140)) + scaleIn(Motion.tween(220), initialScale = 0.6f),
+            exit = fadeOut(Motion.fade(160)) + scaleOut(Motion.tween(200), targetScale = 0.7f),
+            modifier = Modifier
+                .align(if (lastPull[0].dir > 0) Alignment.BottomCenter else Alignment.TopCenter)
+                .padding(top = 6.dp, bottom = 4.dp),
+        ) {
+            FeedBadge(lastPull[0], settings)
         }
 
         LaunchedEffect(state.ttsActive) {

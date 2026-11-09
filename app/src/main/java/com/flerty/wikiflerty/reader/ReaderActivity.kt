@@ -707,9 +707,18 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 ui.handles = null
             }
             "auto-end" -> onAutoEnd()
-            "feed-next" -> feedJump(true)
-            "feed-prev" -> feedJump(false)
-            else -> if (type.startsWith("person:")) showPerson(type.removePrefix("person:"))
+            "feed-next" -> {
+                ui.feedPull = null
+                feedJump(true)
+            }
+            "feed-prev" -> {
+                ui.feedPull = null
+                feedJump(false)
+            }
+            else -> when {
+                type.startsWith("person:") -> showPerson(type.removePrefix("person:"))
+                type.startsWith("feed:") -> onFeedPull(type.removePrefix("feed:"))
+            }
         }
     }
 
@@ -1540,6 +1549,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private fun navigatorConfiguration() = EpubNavigatorFragment.Configuration {
         servedAssets += "fonts/.*"
+        disablePageTurnsWhileScrolling = true
         selectionActionModeCallback = selectionCallback
         registerJavascriptInterface(TextSelection.BRIDGE) {
             TextSelectionBridge(
@@ -1925,7 +1935,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             val moved = runCatching {
                 navigator.evaluateJavascript("window.__wfPage ? window.__wfPage(${if (forward) 1 else -1}) : false")
             }.getOrNull()
-            if (moved != "true") go(forward, animated = false)
+            if (moved != "true") {
+                if (settings.scroll) feedJump(forward, force = true) else go(forward, animated = false)
+            }
         }
     }
 
@@ -2772,27 +2784,25 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private fun feedCall(): String {
         val i = resourceIndex()
-        val order = publication?.readingOrder.orEmpty()
-        val n = order.size
-        fun hex(c: Int) = String.format("#%06X", c and 0xFFFFFF)
-        val page = settings.pageTheme
-        val accent = pageAccent()
-        val light = (0.299 * android.graphics.Color.red(accent) + 0.587 * android.graphics.Color.green(accent) + 0.114 * android.graphics.Color.blue(accent)) / 255.0 > 0.6
-        val deep = android.graphics.Color.rgb(
-            (android.graphics.Color.red(accent) * 0.7).toInt(),
-            (android.graphics.Color.green(accent) * 0.7).toInt(),
-            (android.graphics.Color.blue(accent) * 0.7).toInt(),
-        )
-        val style = org.json.JSONObject()
-            .put("kit", com.flerty.wikiflerty.ui.AppStyle.kit.id)
-            .put("acc", hex(accent))
-            .put("bg", hex(page.background.toInt()))
-            .put("fg", hex(page.text.toInt()))
-            .put("ink", if (light) "#181410" else "#FFFFFF")
-            .put("deep", hex(deep))
-            .put("prev", order.getOrNull(i - 1)?.takeIf { i > 0 }?.let { chapterTitle(it) }.orEmpty())
-            .put("next", order.getOrNull(i + 1)?.takeIf { i >= 0 }?.let { chapterTitle(it) }.orEmpty())
-        return "window.__wfFeed && window.__wfFeed(${settings.scroll}, ${i > 0}, ${i in 0 until n - 1}, $style)"
+        val n = publication?.readingOrder?.size ?: 0
+        return "window.__wfFeed && window.__wfFeed(${settings.scroll}, ${i > 0}, ${i in 0 until n - 1})"
+    }
+
+    private fun onFeedPull(raw: String) {
+        val parts = raw.split(':')
+        val dir = parts.getOrNull(0)?.toIntOrNull() ?: 0
+        if (dir == 0 || !settings.scroll) {
+            ui.feedPull = null
+            return
+        }
+        val k = parts.getOrNull(1)?.toFloatOrNull() ?: 0f
+        val has = parts.getOrNull(2) == "1"
+        val before = ui.feedPull
+        val pull = FeedPull(dir, k, has)
+        if (pull.ready && before?.ready != true) {
+            navigator.publicationView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+        }
+        ui.feedPull = pull
     }
 
     private var feedAt = 0L
