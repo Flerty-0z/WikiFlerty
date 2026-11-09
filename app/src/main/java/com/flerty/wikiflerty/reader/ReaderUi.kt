@@ -197,6 +197,7 @@ class ReaderUiState {
     var personDraft by mutableStateOf<PersonDraft?>(null)
     var peopleFocus by mutableStateOf<String?>(null)
     var translate by mutableStateOf<TranslateInfo?>(null)
+    var returnTo by mutableStateOf<org.readium.r2.shared.publication.Locator?>(null)
     var topPanelBottom = 0f
     var bottomPanelTop = Float.MAX_VALUE
 
@@ -298,6 +299,7 @@ fun ReaderOverlay(
     people: List<com.flerty.wikiflerty.data.BookCharacter> = emptyList(),
     peopleActions: PeopleActions? = null,
     translateActions: TranslateActions? = null,
+    onReturn: () -> Unit = {},
 ) {
     val progressText = progressText(state, settings)
     val feedback = LocalFeedback.current
@@ -556,6 +558,16 @@ fun ReaderOverlay(
     }
 
     AnimatedVisibility(
+        visible = state.returnTo != null && state.sheet == null && state.selection == null && state.footnote == null &&
+            state.translate == null && state.person == null && !state.panelsVisible,
+        enter = fadeIn(Motion.fade(200)) + scaleIn(Motion.tween(260), initialScale = 0.85f),
+        exit = fadeOut(Motion.fade(160)) + scaleOut(Motion.tween(200), targetScale = 0.9f),
+        modifier = Modifier.align(Alignment.BottomEnd).windowInsetsPadding(WindowInsets.systemBars).padding(end = 16.dp, bottom = MiniBottom),
+    ) {
+        ReturnPill(onReturn = onReturn, onDismiss = { state.returnTo = null })
+    }
+
+    AnimatedVisibility(
         visible = state.autoActive && !state.autoCollapsed && state.sheet == null && state.footnote == null && state.selection == null,
         enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(240)) { it / 2 },
         exit = fadeOut(Motion.fade(160)),
@@ -682,6 +694,31 @@ fun ReaderOverlay(
             )
         }
     }
+    }
+}
+
+@Composable
+private fun ReturnPill(onReturn: () -> Unit, onDismiss: () -> Unit) {
+    val shape = appCorner(22)
+    Row(
+        Modifier.height(44.dp).panelSurface(shape, elevation = 12.dp).padding(start = 4.dp, end = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            Modifier
+                .height(38.dp)
+                .liveClick(appCorner(19), sound = FeedbackSound.Open, onClick = onReturn)
+                .padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(AppIcons.Back, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
+            Text("К тексту", color = AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+        Box(
+            Modifier.size(36.dp).liveClick(CircleShape, sound = FeedbackSound.Close, pressedScale = 0.85f, onClick = onDismiss),
+            contentAlignment = Alignment.Center,
+        ) { Icon(AppIcons.Close, "Скрыть", tint = AppColors.Muted, modifier = Modifier.size(15.dp)) }
     }
 }
 

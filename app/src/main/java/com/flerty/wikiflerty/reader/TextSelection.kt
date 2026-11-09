@@ -20,7 +20,7 @@ class TextSelectionBridge(
 internal object TextSelection {
     const val BRIDGE = "WikiFlertySelection"
 
-    fun script(accent: String): String = SCRIPT.replace("__ACCENT__", accent) + "\n" + NOTES + "\n" + AUTO + "\n" + PEOPLE.replace("__ACCENT__", accent)
+    fun script(accent: String): String = SCRIPT.replace("__ACCENT__", accent) + "\n" + NOTES + "\n" + AUTO + "\n" + PEOPLE.replace("__ACCENT__", accent) + "\n" + FEED.replace("__ACCENT__", accent)
 
     fun peopleCall(people: List<com.flerty.wikiflerty.data.BookCharacter>): String {
         val keys = org.json.JSONArray()
@@ -80,6 +80,75 @@ internal object TextSelection {
             start: function (s) { speed = s; ended = false; if (!raf) { last = 0; raf = requestAnimationFrame(step); } },
             stop: function () { speed = 0; }
           };
+        })();
+    """.trimIndent()
+
+    private val FEED = """
+        (function () {
+          if (window.__wfFeedReady) return;
+          window.__wfFeedReady = true;
+          var on = false, prev = false, next = false, last = 0, edge = null, dir = 0, pull = 0, pill = null;
+          var NEED = 90;
+          function root() { return document.scrollingElement || document.documentElement; }
+          function atEnd() { return window.scrollY + window.innerHeight >= root().scrollHeight - 3; }
+          function atTop() { return window.scrollY <= 1; }
+          function ensure() {
+            if (pill && pill.isConnected) return;
+            pill = document.createElement("div");
+            pill.style.cssText = "position:fixed;left:50%;z-index:2147483647;transform:translateX(-50%) scale(.92);padding:9px 16px;border-radius:999px;" +
+              "font:600 13px/1.2 monospace;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .18s,transform .18s;" +
+              "background:rgba(22,19,17,.86);color:#fff;border:1px solid __ACCENT__;box-shadow:0 6px 18px rgba(0,0,0,.25)";
+            document.documentElement.appendChild(pill);
+          }
+          function show(k) {
+            ensure();
+            var has = dir > 0 ? next : prev;
+            var ready = k >= 1;
+            pill.textContent = !has ? (dir > 0 ? "Конец книги" : "Начало книги")
+              : dir > 0 ? (ready ? "Отпусти — следующая глава" : "↓ Следующая глава")
+              : (ready ? "Отпусти — предыдущая глава" : "↑ Предыдущая глава");
+            pill.style.top = dir > 0 ? "" : "16px";
+            pill.style.bottom = dir > 0 ? "22px" : "";
+            pill.style.opacity = String(Math.min(1, 0.2 + k));
+            pill.style.transform = "translateX(-50%) scale(" + (ready && has ? 1 : 0.92) + ")";
+            pill.style.borderColor = ready && has ? "__ACCENT__" : "rgba(255,255,255,.18)";
+          }
+          function hide() { if (pill) { pill.style.opacity = "0"; pill.style.transform = "translateX(-50%) scale(.92)"; } }
+          function reset() { edge = null; dir = 0; pull = 0; }
+          window.__wfFeed = function (enabled, hasPrev, hasNext) {
+            on = !!enabled; prev = !!hasPrev; next = !!hasNext;
+            if (!on) { reset(); hide(); }
+          };
+          window.addEventListener("touchstart", function (e) {
+            if (!on || e.touches.length !== 1) return;
+            last = e.touches[0].clientY;
+            reset();
+          }, { passive: true, capture: true });
+          window.addEventListener("touchmove", function (e) {
+            if (!on || e.touches.length !== 1) return;
+            var y = e.touches[0].clientY;
+            if (!dir) {
+              var sel = window.getSelection && window.getSelection();
+              if (sel && !sel.isCollapsed) { last = y; return; }
+              if (y < last && atEnd()) { dir = 1; edge = y; }
+              else if (y > last && atTop()) { dir = -1; edge = y; }
+              last = y;
+              if (!dir) return;
+            }
+            pull = dir > 0 ? edge - y : y - edge;
+            if (pull < -8) { reset(); hide(); return; }
+            show(Math.max(0, pull) / NEED);
+          }, { passive: true, capture: true });
+          function end() {
+            if (!on || !dir) return;
+            var ready = pull >= NEED && (dir > 0 ? next : prev);
+            var d = dir;
+            reset();
+            hide();
+            if (ready) { try { window.${BRIDGE}.onEvent(d > 0 ? "feed-next" : "feed-prev"); } catch (x) {} }
+          }
+          window.addEventListener("touchend", end, { passive: true, capture: true });
+          window.addEventListener("touchcancel", function () { reset(); hide(); }, { passive: true, capture: true });
         })();
     """.trimIndent()
 

@@ -706,6 +706,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 ui.handles = null
             }
             "auto-end" -> onAutoEnd()
+            "feed-next" -> feedJump(true)
+            "feed-prev" -> feedJump(false)
             else -> if (type.startsWith("person:")) showPerson(type.removePrefix("person:"))
         }
     }
@@ -973,6 +975,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             "(function(){window.__wfCols=false;var d=document,s=d.getElementById('wf-cols');if(s)s.remove();var r=d.documentElement.style;if(r.getPropertyValue('--RS__colCount')){r.removeProperty('--RS__colCount');r.removeProperty('--RS__colWidth');r.removeProperty('--RS__colGap');r.removeProperty('--RS__pageGutter');window.dispatchEvent(new Event('resize'));}})()"
         }
         runCatching { navigator.evaluateJavascript(script) }
+        runCatching { navigator.evaluateJavascript(feedCall()) }
     }
 
     private var autoJob: Job? = null
@@ -1355,7 +1358,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         people = people,
                         peopleActions = peopleActions,
                         translateActions = translateActions,
+                        onReturn = ::goReturn,
                         onFootnoteGo = { url ->
+                            rememberReturn()
                             lifecycleScope.launch {
                                 runCatching { navigator.evaluateJavascript("window.__wfGo && window.__wfGo(${org.json.JSONObject.quote(url)})") }
                             }
@@ -2730,6 +2735,55 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             if (mySession != null) app.readAloud.stop()
             app.ambient.stopAll()
             app.closeReader()
+        }
+    }
+
+    @OptIn(org.readium.r2.shared.ExperimentalReadiumApi::class)
+    override fun shouldFollowInternalLink(link: org.readium.r2.shared.publication.Link, context: org.readium.r2.navigator.HyperlinkNavigator.LinkContext?): Boolean {
+        rememberReturn()
+        return true
+    }
+
+    private fun rememberReturn() {
+        if (ui.returnTo == null && ::navigator.isInitialized) ui.returnTo = navigator.currentLocator.value
+    }
+
+    private fun goReturn() {
+        val target = ui.returnTo ?: return
+        ui.returnTo = null
+        lifecycleScope.launch {
+            navigator.go(target, animated = false)
+            resyncListening()
+        }
+    }
+
+    private fun resourceIndex(): Int {
+        val pub = publication ?: return -1
+        val href = navigator.currentLocator.value.href.toString().substringBefore('#')
+        return pub.readingOrder.indexOfFirst { it.url().toString().substringBefore('#') == href }
+    }
+
+    private fun feedCall(): String {
+        val i = resourceIndex()
+        val n = publication?.readingOrder?.size ?: 0
+        return "window.__wfFeed && window.__wfFeed(${settings.scroll}, ${i > 0}, ${i in 0 until n - 1})"
+    }
+
+    private var feedAt = 0L
+
+    private fun feedJump(forward: Boolean) {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - feedAt < 700 || !settings.scroll) return
+        feedAt = now
+        val pub = publication ?: return
+        val i = resourceIndex()
+        if (i < 0) return
+        val link = pub.readingOrder.getOrNull(if (forward) i + 1 else i - 1) ?: return
+        val base = pub.locatorFromLink(link) ?: return
+        val target = if (forward) base.copyWithLocations(progression = 0.0) else base.copyWithLocations(progression = 0.9999)
+        lifecycleScope.launch {
+            navigator.go(target, animated = false)
+            resyncListening()
         }
     }
 
