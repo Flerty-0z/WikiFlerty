@@ -40,9 +40,12 @@ class CloudSync(private val app: App) {
         val enabled: Boolean get() = code != null
     }
 
+    data class Device(val id: String, val name: String, val seen: Long, val self: Boolean)
+
     class WrongCode : Exception("Код не подходит")
     class UnknownCode : Exception("Такого кода нет. Проверь, что он введён без ошибок")
     private class Conflict : Exception()
+    class Removed : Exception("Этот телефон удалили из синхронизации на другом устройстве")
 
     private val prefs = app.getSharedPreferences("cloud_sync", Context.MODE_PRIVATE)
     private val _status = MutableStateFlow(
@@ -53,6 +56,86 @@ class CloudSync(private val app: App) {
         ),
     )
     val status: StateFlow<Status> = _status.asStateFlow()
+
+    private val deviceId: String = prefs.getString("deviceId", null) ?: java.util.UUID.randomUUID().toString().also { prefs.edit().putString("deviceId", it).apply() }
+    private val deviceName: String = run {
+        val maker = android.os.Build.MANUFACTURER.orEmpty().replaceFirstChar { it.uppercase() }
+        val model = android.os.Build.MODEL.orEmpty()
+        if (model.startsWith(maker, ignoreCase = true)) model else "$maker $model".trim()
+    }
+    private val _devices = MutableStateFlow(deviceList())
+    val devices: StateFlow<List<Device>> = _devices.asStateFlow()
+
+    private fun deviceState(): JSONObject = runCatching { JSONObject(prefs.getString("devices", null) ?: "{}") }.getOrElse { JSONObject() }
+
+    private fun saveDevices(state: JSONObject) {
+        prefs.edit().putString("devices", state.toString()).apply()
+        _devices.value = deviceList()
+    }
+
+    private fun deviceList(): List<Device> {
+        val state = deviceState()
+        val list = state.optJSONObject("list") ?: JSONObject()
+        val removed = state.optJSONObject("removed") ?: JSONObject()
+        val out = list.keys().asSequence().mapNotNull { id ->
+            val d = list.optJSONObject(id) ?: return@mapNotNull null
+            val seen = d.optLong("seen")
+            if (id != deviceId && removed.optLong(id, -1) >= seen) return@mapNotNull null
+            Device(id, d.optString("name").ifBlank { "Устройство" }, seen, id == deviceId)
+        }.toMutableList()
+        if (_status.value.enabled && out.none { it.self }) out += Device(deviceId, deviceName, prefs.getLong("lastSync", 0), true)
+        return out.sortedWith(compareByDescending<Device> { it.self }.thenByDescending { it.seen })
+    }
+
+    private fun mergeDevices(remote: JSONObject) {
+        val state = deviceState()
+        val list = state.optJSONObject("list") ?: JSONObject()
+        val removed = state.optJSONObject("removed") ?: JSONObject()
+        remote.optJSONObject("list")?.let { r ->
+            r.keys().forEach { id ->
+                val d = r.optJSONObject(id) ?: return@forEach
+                val mine = list.optJSONObject(id)
+                if (mine == null || d.optLong("seen") > mine.optLong("seen")) list.put(id, d)
+            }
+        }
+        remote.optJSONObject("removed")?.let { r ->
+            r.keys().forEach { id -> if (r.optLong(id) > removed.optLong(id)) removed.put(id, r.optLong(id)) }
+        }
+        saveDevices(JSONObject().put("list", list).put("removed", removed))
+    }
+
+    private fun devicesPart(): JSONObject {
+        val state = deviceState()
+        val list = state.optJSONObject("list") ?: JSONObject()
+        val removed = state.optJSONObject("removed") ?: JSONObject()
+        val now = System.currentTimeMillis()
+        var seen = prefs.getLong("selfSeen", 0)
+        if (now - seen > 30 * 60_000L) {
+            seen = now
+            prefs.edit().putLong("selfSeen", seen).apply()
+        }
+        list.put(deviceId, JSONObject().put("name", deviceName).put("seen", seen))
+        removed.remove(deviceId)
+        val pruned = JSONObject()
+        list.keys().forEach { id ->
+            val d = list.optJSONObject(id) ?: return@forEach
+            if (now - d.optLong("seen") < 365L * 24 * 60 * 60_000L) pruned.put(id, d)
+        }
+        saveDevices(JSONObject().put("list", pruned).put("removed", removed))
+        return JSONObject().put("devices", JSONObject().put("list", pruned).put("removed", removed))
+    }
+
+    fun removeDevice(id: String) {
+        if (id == deviceId) {
+            stop()
+            return
+        }
+        val state = deviceState()
+        val removed = state.optJSONObject("removed") ?: JSONObject()
+        removed.put(id, System.currentTimeMillis())
+        saveDevices(state.put("removed", removed))
+        request(0)
+    }
     private val mutex = Mutex()
     private var pending: Job? = null
 
@@ -84,8 +167,9 @@ class CloudSync(private val app: App) {
     fun stop() {
         pending?.cancel()
         setCode(null)
-        prefs.edit().remove("seenGens").remove("pushedParts").remove("uploaded").remove("remoteImages").remove("error").apply()
+        prefs.edit().remove("seenGens").remove("pushedParts").remove("uploaded").remove("remoteImages").remove("error").remove("devices").apply()
         _status.value = _status.value.copy(error = null, lastReport = null)
+        _devices.value = deviceList()
     }
 
     suspend fun forget(): Result<Unit> = withContext(Dispatchers.IO) {
@@ -114,9 +198,11 @@ class CloudSync(private val app: App) {
     suspend fun syncNow(): Result<MergeReport> = runSync(requireExisting = false)
 
     private fun setCode(code: String?) {
+        if (code != null && code != _status.value.code) prefs.edit().putLong("joinedAt", System.currentTimeMillis()).remove("devices").remove("selfSeen").apply()
         prefs.edit().apply { if (code == null) remove("code") else putString("code", code) }.apply()
         if (code != _status.value.code) prefs.edit().remove("seenGens").remove("pushedParts").remove("uploaded").remove("remoteImages").apply()
         _status.value = _status.value.copy(code = code)
+        _devices.value = deviceList()
     }
 
     private suspend fun runSync(requireExisting: Boolean): Result<MergeReport> = withContext(Dispatchers.IO) {
@@ -136,7 +222,7 @@ class CloudSync(private val app: App) {
     }
 
     private fun describe(e: Throwable): String = when (e) {
-        is WrongCode, is UnknownCode -> e.message.orEmpty()
+        is WrongCode, is UnknownCode, is Removed -> e.message.orEmpty()
         is IOException -> "Нет связи с сервером. Попробую позже"
         else -> "Не получилось синхронизировать"
     }
@@ -194,6 +280,7 @@ class CloudSync(private val app: App) {
         group("ai", "aiHistory", "heroes")
         group("settings", "settings")
         out["images"] = JSONObject().put("images", images)
+        out["devices"] = devicesPart()
         return out
     }
 
@@ -245,6 +332,14 @@ class CloudSync(private val app: App) {
                             merged.put(k, json.get(k))
                         }
                     }
+                }
+                merged.optJSONObject("devices")?.let { remoteDevices ->
+                    val removedAt = remoteDevices.optJSONObject("removed")?.optLong(deviceId, -1) ?: -1
+                    if (removedAt > prefs.getLong("joinedAt", 0)) {
+                        app.appScope.launch { stop() }
+                        throw Removed()
+                    }
+                    mergeDevices(remoteDevices)
                 }
                 report += Backup.merge(app, merged, applySettings = app.sync.store.state.value.syncSettings)
                 merged.optJSONObject("images")?.let { prefs.edit().putString("remoteImages", it.toString()).apply() }

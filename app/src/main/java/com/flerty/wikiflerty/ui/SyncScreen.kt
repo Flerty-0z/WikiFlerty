@@ -48,7 +48,7 @@ fun SyncContent() {
     val scope = rememberCoroutineScope()
     var entering by remember { mutableStateOf(false) }
     var choosing by remember { mutableStateOf(false) }
-    var confirmOff by remember { mutableStateOf(false) }
+    var removing by remember { mutableStateOf<CloudSync.Device?>(null) }
     var busy by remember { mutableStateOf(false) }
 
     fun toast(text: String) = Toast.makeText(context, text, Toast.LENGTH_LONG).show()
@@ -107,20 +107,7 @@ fun SyncContent() {
                         app.sync.store.update { it.copy(syncSettings = v) }
                     }
                 }
-                val shape = appCorner(14)
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 50.dp)
-                        .liveClick(shape, sound = FeedbackSound.Close) { confirmOff = true }
-                        .border(1.dp, AppColors.Bad.copy(alpha = 0.4f), shape)
-                        .padding(horizontal = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Icon(AppIcons.Close, null, tint = AppColors.Bad, modifier = Modifier.size(18.dp))
-                    Text("Отключить на этом телефоне", color = AppColors.Bad, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                }
+                DevicesPanel(cloud) { device -> removing = device }
             }
         }
     }
@@ -129,7 +116,7 @@ fun SyncContent() {
         AppSheet(onDismiss = { choosing = false }, title = "Ввести код") {
             val close = sheetClose { choosing = false }
             SettingsGroup(null) {
-                SettingsNavRow(AppIcons.Qr, "Сканировать QR-код", "Наведи камеру на код с другого телефона", framed = false) {
+                SettingsNavRow(AppIcons.Qr, "QR-код", "", framed = false) {
                     close()
                     scan.launch(
                         com.journeyapps.barcodescanner.ScanOptions()
@@ -140,7 +127,7 @@ fun SyncContent() {
                     )
                 }
                 ListDivider()
-                SettingsNavRow(AppIcons.Pencil, "Ввести вручную", "25 символов", framed = false) {
+                SettingsNavRow(AppIcons.Pencil, "Вручную", "", framed = false) {
                     close()
                     entering = true
                 }
@@ -163,15 +150,20 @@ fun SyncContent() {
         }
     }
 
-    if (confirmOff) {
+    removing?.let { device ->
         ConfirmSheet(
-            title = "Отключить синхронизацию?",
-            text = "Данные на этом телефоне останутся. Чтобы подключиться снова, понадобится код.",
-            confirm = "Отключить",
-            onConfirm = { cloud.stop() },
-            onDismiss = { confirmOff = false },
+            title = if (device.self) "Отключить этот телефон?" else "Удалить устройство?",
+            text = if (device.self) {
+                "Синхронизация на этом телефоне выключится. Данные на нём останутся. Чтобы подключиться снова, понадобится код."
+            } else {
+                "«${device.name}» перестанет синхронизироваться при следующем подключении к интернету. Данные на нём останутся."
+            },
+            confirm = "Удалить",
+            onConfirm = { cloud.removeDevice(device.id) },
+            onDismiss = { removing = null },
         )
     }
+
 }
 
 @Composable
@@ -250,7 +242,7 @@ private fun CodeCard(code: String) {
                 Modifier.fillMaxWidth().background(AppColors.Background.copy(alpha = 0.5f), appCorner(14)).padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                HelpLine("1", "На другом телефоне: Настройки → Синхронизация → «Ввести код» — отсканируй QR или введи вручную")
+                HelpLine("1", "На другом телефоне: Настройки → Синхронизация → «Ввести код» → QR-код или вручную")
                 HelpLine("2", "Добавь туда те же книги — прогресс, заметки и обложки подтянутся сами")
             }
         }
@@ -350,14 +342,6 @@ private fun QrSheet(code: String, onDismiss: () -> Unit) {
                 }
             }
         }
-        Text(
-            "На другом телефоне: Синхронизация → «Ввести код» → «Сканировать QR-код»",
-            color = AppColors.Muted,
-            fontSize = 13.sp,
-            lineHeight = 18.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-        )
     }
 }
 
@@ -372,3 +356,56 @@ private fun qrBitmap(text: String, size: Int): androidx.compose.ui.graphics.Imag
     }
     android.graphics.Bitmap.createBitmap(pixels, matrix.width, matrix.height, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
 }.getOrNull()
+
+@Composable
+private fun DevicesPanel(cloud: CloudSync, onRemove: (CloudSync.Device) -> Unit) {
+    val devices by cloud.devices.collectAsStateWithLifecycle()
+    TabbedFrame("Устройства", icon = AppIcons.Phone, trailing = { CountBadge(devices.size) }) {
+        Column(Modifier.padding(vertical = 6.dp)) {
+            devices.forEachIndexed { i, d ->
+                if (i > 0) ListDivider()
+                androidx.compose.runtime.key(d.id) {
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 58.dp).padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        SettingIcon(AppIcons.Phone)
+                        Column(Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    d.name,
+                                    color = AppColors.Text,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false),
+                                )
+                                if (d.self) {
+                                    Text(
+                                        "это",
+                                        color = AppColors.Accent,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.background(AppColors.Accent.copy(alpha = 0.14f), androidx.compose.foundation.shape.CircleShape).padding(horizontal = 8.dp, vertical = 2.dp),
+                                    )
+                                }
+                            }
+                            Text(
+                                if (d.seen > 0) SimpleDateFormat("d MMM, HH:mm", Locale.forLanguageTag("ru")).format(Date(d.seen)) else "—",
+                                color = AppColors.Faint,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                            )
+                        }
+                        Box(
+                            Modifier.size(38.dp).liveClick(androidx.compose.foundation.shape.CircleShape, sound = FeedbackSound.Close) { onRemove(d) },
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(AppIcons.Trash, "Удалить устройство", tint = AppColors.Bad, modifier = Modifier.size(18.dp)) }
+                    }
+                }
+            }
+        }
+    }
+}
