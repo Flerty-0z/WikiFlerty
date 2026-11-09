@@ -1172,7 +1172,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 return true
             }
             val s = settings
-            if (s.edgeTaps) {
+            if (s.edgeTaps && !s.scroll) {
                 val width = navigator.publicationView.width.toFloat()
                 if (width > 0f) {
                     val x = event.point.x
@@ -1935,7 +1935,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             return
         }
         val s = settings
-        if (s.edgeTaps) {
+        if (s.edgeTaps && !s.scroll) {
             manualTurn(forward = !left || s.leftTapForward)
         } else {
             ui.panelsVisible = true
