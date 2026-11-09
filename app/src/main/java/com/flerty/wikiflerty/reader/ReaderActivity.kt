@@ -2581,6 +2581,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     override fun onStop() {
         flushProgress()
         super.onStop()
+        app.cloud.request(2_000)
     }
 
     override fun onDestroy() {

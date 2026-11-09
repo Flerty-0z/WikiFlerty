@@ -673,6 +673,7 @@ fun TextInputSheet(
     icon: ImageVector? = null,
     number: Boolean = false,
     maxLength: Int = 200,
+    code: Boolean = false,
     onDone: (String) -> Unit,
 ) {
     var text by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(initial, androidx.compose.ui.text.TextRange(initial.length))) }
@@ -749,7 +750,12 @@ fun TextInputSheet(
                         cursorBrush = SolidColor(AppColors.Accent),
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = if (number) androidx.compose.ui.text.input.KeyboardType.Number else androidx.compose.ui.text.input.KeyboardType.Text,
-                            capitalization = if (number) androidx.compose.ui.text.input.KeyboardCapitalization.None else androidx.compose.ui.text.input.KeyboardCapitalization.Sentences,
+                            capitalization = when {
+                                number -> androidx.compose.ui.text.input.KeyboardCapitalization.None
+                                code -> androidx.compose.ui.text.input.KeyboardCapitalization.Characters
+                                else -> androidx.compose.ui.text.input.KeyboardCapitalization.Sentences
+                            },
+                            autoCorrectEnabled = !code,
                             imeAction = androidx.compose.ui.text.input.ImeAction.Done,
                         ),
                         keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { save() }),

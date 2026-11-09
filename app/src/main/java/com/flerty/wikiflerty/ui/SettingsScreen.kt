@@ -78,6 +78,7 @@ private enum class SettingsPage(val title: String) {
     Custom("Кастомизация"),
     Sound("Звук и отклик"),
     Backup("Резервная копия"),
+    Sync("Синхронизация"),
 }
 
 @Composable
@@ -116,6 +117,7 @@ fun SettingsScreen(modifier: Modifier = Modifier, onAbout: (() -> Unit)? = null)
                     SettingsPage.Custom -> Unit
                     SettingsPage.Sound -> SoundContent()
                     SettingsPage.Backup -> BackupContent()
+                    SettingsPage.Sync -> SyncContent()
                 }
             }
         }
@@ -128,6 +130,7 @@ private fun SettingsHome(onAbout: (() -> Unit)?, onOpen: (SettingsPage) -> Unit)
         Triple(AppIcons.Sparkle, "ИИ-помощник" to "Ключи, модели, перевод") { onOpen(SettingsPage.Ai) },
         Triple(AppIcons.Theme, "Кастомизация" to "Цвета, форма, фон") { onOpen(SettingsPage.Custom) },
         Triple(AppIcons.Sound, "Звук и отклик" to "Звуки и вибрация") { onOpen(SettingsPage.Sound) },
+        Triple(AppIcons.Cloud, "Синхронизация" to "Между устройствами") { onOpen(SettingsPage.Sync) },
         Triple(AppIcons.Backup, "Резервная копия" to "Экспорт и импорт") { onOpen(SettingsPage.Backup) },
         onAbout?.let { Triple(AppIcons.Info, "О приложении" to "Обновления, журнал сбоев", it) },
     )

@@ -76,6 +76,7 @@ class App : Application() {
     val crashLog: com.flerty.wikiflerty.system.CrashLog by lazy { com.flerty.wikiflerty.system.CrashLog(this) }
 
     val autoBackup: com.flerty.wikiflerty.system.AutoBackup by lazy { com.flerty.wikiflerty.system.AutoBackup(this) }
+    val cloud: com.flerty.wikiflerty.sync.CloudSync by lazy { com.flerty.wikiflerty.sync.CloudSync(this) }
 
     val updates: com.flerty.wikiflerty.system.Updates by lazy { com.flerty.wikiflerty.system.Updates(this) }
 
@@ -132,6 +133,35 @@ class App : Application() {
             kotlinx.coroutines.delay(20_000)
             autoBackup.runIfDue()
         }
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            private var started = 0
+            private var ticker: kotlinx.coroutines.Job? = null
+            override fun onActivityStarted(activity: android.app.Activity) {
+                started++
+                if (started == 1) {
+                    cloud.request(2_500)
+                    ticker?.cancel()
+                    ticker = appScope.launch {
+                        while (true) {
+                            kotlinx.coroutines.delay(4 * 60_000L)
+                            cloud.request(0)
+                        }
+                    }
+                }
+            }
+            override fun onActivityStopped(activity: android.app.Activity) {
+                started = (started - 1).coerceAtLeast(0)
+                if (started == 0) {
+                    ticker?.cancel()
+                    cloud.request(0)
+                }
+            }
+            override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) = Unit
+            override fun onActivityResumed(activity: android.app.Activity) = Unit
+            override fun onActivityPaused(activity: android.app.Activity) = Unit
+            override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) = Unit
+            override fun onActivityDestroyed(activity: android.app.Activity) = Unit
+        })
         Thread({
             runCatching {
                 val grid = libraryPrefs.prefs.value.view != com.flerty.wikiflerty.data.LibraryView.Shelves
