@@ -51,26 +51,27 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun importAll(uris: List<Uri>) {
-        if (uris.isEmpty()) return
-        viewModelScope.launch {
-            val before = app.library.books.value.map { it.id }.toSet()
-            var added = 0
-            var failed = 0
-            uris.forEachIndexed { index, uri ->
-                _busy.value = "Добавляю книги ${index + 1}/${uris.size}…"
-                app.library.import(uri)
-                    .onSuccess { if (it.id !in before) added++ }
-                    .onFailure { failed++ }
-            }
-            _busy.value = null
-            _messages.emit(
+        app.imports.add(uris)
+    }
+
+    init {
+        app.imports.onFinished = { p ->
+            _messages.tryEmit(
                 buildString {
-                    append("Добавлено книг: $added")
-                    val same = uris.size - added - failed
-                    if (same > 0) append(" · уже были: $same")
-                    if (failed > 0) append(" · ошибок: $failed")
+                    append("Добавлено книг: ${p.added}")
+                    if (p.same > 0) append(" · уже были: ${p.same}")
+                    if (p.failed > 0) append(" · не открылись: ${p.failed}")
                 },
             )
+        }
+        viewModelScope.launch {
+            app.imports.progress.collect { p ->
+                if (p != null) {
+                    _busy.value = "Добавляю книги ${p.done + 1}/${p.total}…"
+                } else if (_busy.value?.startsWith("Добавляю книги") == true) {
+                    _busy.value = null
+                }
+            }
         }
     }
 

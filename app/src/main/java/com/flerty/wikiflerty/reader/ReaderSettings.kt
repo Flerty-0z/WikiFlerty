@@ -112,6 +112,7 @@ data class ReaderSettings(
     val lineHeight: Double = 1.5,
     val margins: Double = 1.0,
     val bold: Boolean = false,
+    val bionic: Boolean = false,
     val italic: Boolean = false,
     val justify: Boolean = true,
     val hyphens: Boolean = true,
@@ -194,6 +195,7 @@ data class ReaderSettings(
         put("lineHeight", lineHeight)
         put("margins", margins)
         put("bold", bold)
+        put("bionic", bionic)
         put("italic", italic)
         put("justify", justify)
         put("hyphens", hyphens)
@@ -252,6 +254,7 @@ data class ReaderSettings(
                 lineHeight = json.optDouble("lineHeight", d.lineHeight).coerceIn(1.0, 2.0),
                 margins = json.optDouble("margins", d.margins).coerceIn(0.0, 4.0),
                 bold = json.optBoolean("bold", d.bold),
+                bionic = json.optBoolean("bionic", d.bionic),
                 italic = json.optBoolean("italic", d.italic),
                 justify = json.optBoolean("justify", d.justify),
                 hyphens = json.optBoolean("hyphens", d.hyphens),

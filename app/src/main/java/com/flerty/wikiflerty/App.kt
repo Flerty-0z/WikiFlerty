@@ -26,6 +26,7 @@ class App : Application() {
         private set
 
     lateinit var library: LibraryRepository
+    val imports by lazy { com.flerty.wikiflerty.system.ImportQueue(this) }
         private set
 
     lateinit var style: StyleStore
@@ -120,6 +121,7 @@ class App : Application() {
             cloud.request(1_000)
         }
         appScope.launch { library.ensureFingerprints() }
+        imports.resume()
         backgroundAudio.install()
         achievements.start(appScope)
         runCatching { com.flerty.wikiflerty.system.ReadingReminder.schedule(this) }

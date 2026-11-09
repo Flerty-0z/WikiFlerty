@@ -56,7 +56,7 @@ object BookScanner {
     }
 
     private fun walk(context: Context, tree: Uri, docId: String, path: String, depth: Int, known: Set<String>, out: MutableList<FoundBook>) {
-        if (depth > MAX_DEPTH || out.size >= 2000) return
+        if (depth > MAX_DEPTH || out.size >= 6000) return
         val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, docId)
         val columns = arrayOf(
             DocumentsContract.Document.COLUMN_DOCUMENT_ID,

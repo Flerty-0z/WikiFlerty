@@ -156,8 +156,9 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
         }
         if (usedColors.isNotEmpty()) {
             item(key = "colors") {
+                Box(motionItem().fillMaxWidth().fieldSurface(appCorner(20)).clip(appCorner(20))) {
                 Row(
-                    motionItem().animateContentSize(Motion.tween(300)).horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
+                    Modifier.animateContentSize(Motion.tween(300)).horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -166,7 +167,7 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
                         Modifier
                             .height(36.dp)
                             .liveClick(shape, sound = FeedbackSound.Toggle) { colorFilter = null }
-                            .background(if (colorFilter == null) AppColors.Accent else AppColors.Field)
+                            .background(if (colorFilter == null) AppColors.Accent else AppColors.Field, shape)
                             .border(1.dp, AppColors.PanelBorder, shape)
                             .padding(horizontal = 14.dp),
                         contentAlignment = Alignment.Center,
@@ -195,6 +196,7 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
                         }
                       }
                     }
+                }
                 }
             }
         }

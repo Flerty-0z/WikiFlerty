@@ -56,7 +56,7 @@ class LibraryRepository(
                     val name = displayName(uri)?.substringBeforeLast('.')?.removeSuffix(".fb2")?.takeIf { it.isNotBlank() } ?: "Без названия"
                     try {
                         BookConverter.toEpub(source, kind, file, name, fingerprintOf(source).take(24))
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         file.delete()
                         val what = if (kind == BookConverter.Kind.Txt) "текстовый файл" else "FB2"
                         return@withContext Result.failure(Exception("Не удалось прочитать $what: файл повреждён или в необычном формате"))
@@ -118,10 +118,11 @@ class LibraryRepository(
             } finally {
                 publication.close()
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             file.delete()
             source.delete()
-            Result.failure(e)
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(if (e is OutOfMemoryError) Exception("Книга слишком большая для памяти телефона") else e)
         }
     }
 

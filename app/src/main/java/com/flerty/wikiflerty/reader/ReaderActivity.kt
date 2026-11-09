@@ -948,6 +948,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private var lastColumns: String? = null
     private var lastColumnsScroll = false
     private var lastColumnsLayout = ""
+    private var lastBionic: Boolean? = null
 
     private var injectJob: Job? = null
 
@@ -958,6 +959,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 delay(wait)
                 if (!::navigator.isInitialized) continue
                 runCatching { navigator.evaluateJavascript(selectionScript) }
+                runCatching { navigator.evaluateJavascript("window.__wfBionic && window.__wfBionic(${settings.bionic})") }
                 runCatching { navigator.evaluateJavascript(TextSelection.peopleCall(peopleNow)) }
                 applyColumns(settings)
             }
@@ -1454,6 +1456,13 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         applyWindowSettings(s)
                         applyListeningSettings(s)
                         val layoutKey = "${s.margins}|${s.fontSize}|${s.lineHeight}|${s.font}"
+                        if (s.bionic != lastBionic) {
+                            lastBionic = s.bionic
+                            launch {
+                                runCatching { navigator.evaluateJavascript("window.__wfBionic && window.__wfBionic(${s.bionic})") }
+                                runCatching { navigator.evaluateJavascript(TextSelection.peopleCall(peopleNow)) }
+                            }
+                        }
                         if (s.columns != lastColumns || s.scroll != lastColumnsScroll || layoutKey != lastColumnsLayout) {
                             lastColumns = s.columns
                             lastColumnsScroll = s.scroll

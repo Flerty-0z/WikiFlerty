@@ -20,7 +20,7 @@ class TextSelectionBridge(
 internal object TextSelection {
     const val BRIDGE = "WikiFlertySelection"
 
-    fun script(accent: String): String = SCRIPT.replace("__ACCENT__", accent) + "\n" + NOTES + "\n" + AUTO + "\n" + PEOPLE.replace("__ACCENT__", accent) + "\n" + FEED
+    fun script(accent: String): String = SCRIPT.replace("__ACCENT__", accent) + "\n" + NOTES + "\n" + AUTO + "\n" + PEOPLE.replace("__ACCENT__", accent) + "\n" + FEED + "\n" + BIONIC
 
     fun peopleCall(people: List<com.flerty.wikiflerty.data.BookCharacter>): String {
         val keys = org.json.JSONArray()
@@ -80,6 +80,63 @@ internal object TextSelection {
             start: function (s) { speed = s; ended = false; if (!raf) { last = 0; raf = requestAnimationFrame(step); } },
             stop: function () { speed = 0; }
           };
+        })();
+    """.trimIndent()
+
+    private val BIONIC = """
+        (function () {
+          if (window.__wfBionicReady) return;
+          window.__wfBionicReady = true;
+          var applied = false;
+          var word = /[\p{L}\p{M}]+/gu;
+          function strong(len) { return len <= 3 ? 1 : Math.ceil(len * 0.45); }
+          function relayout() { setTimeout(function () { window.dispatchEvent(new Event("resize")); }, 60); }
+          function apply() {
+            if (applied || !document.body) return;
+            if (!document.getElementById("wf-bio-style")) {
+              var st = document.createElement("style");
+              st.id = "wf-bio-style";
+              st.textContent = "b.wf-bio{font-weight:700;font-style:inherit;color:inherit}";
+              (document.head || document.documentElement).appendChild(st);
+            }
+            var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+              acceptNode: function (n) {
+                var p = n.parentNode;
+                if (!p || /^(SCRIPT|STYLE|TITLE|CODE|PRE)$/i.test(p.nodeName)) return NodeFilter.FILTER_REJECT;
+                if (p.classList && p.classList.contains("wf-bio")) return NodeFilter.FILTER_REJECT;
+                return /\p{L}/u.test(n.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+              }
+            });
+            var nodes = [], n;
+            while ((n = walker.nextNode())) nodes.push(n);
+            nodes.forEach(function (node) {
+              var text = node.nodeValue, frag = document.createDocumentFragment(), last = 0, m;
+              word.lastIndex = 0;
+              while ((m = word.exec(text))) {
+                if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+                var k = strong(m[0].length);
+                var b = document.createElement("b");
+                b.className = "wf-bio";
+                b.textContent = m[0].slice(0, k);
+                frag.appendChild(b);
+                if (k < m[0].length) frag.appendChild(document.createTextNode(m[0].slice(k)));
+                last = m.index + m[0].length;
+              }
+              if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+              if (node.parentNode) node.parentNode.replaceChild(frag, node);
+            });
+            applied = true;
+            relayout();
+          }
+          function remove() {
+            var list = document.querySelectorAll("b.wf-bio");
+            if (!list.length) { applied = false; return; }
+            for (var i = 0; i < list.length; i++) list[i].replaceWith(document.createTextNode(list[i].textContent));
+            if (document.body) document.body.normalize();
+            applied = false;
+            relayout();
+          }
+          window.__wfBionic = function (on) { if (on) apply(); else remove(); };
         })();
     """.trimIndent()
 

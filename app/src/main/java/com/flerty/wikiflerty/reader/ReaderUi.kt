@@ -1441,6 +1441,7 @@ private fun TextOptions(
     }
     }
     SwitchRow("Переносы", settings.hyphens, icon = AppIcons.Wrap) { v -> onSettingsChange { it.copy(hyphens = v) } }
+    SwitchRow("Бионическое чтение", settings.bionic, icon = AppIcons.Eye) { v -> onSettingsChange { it.copy(bionic = v) } }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     Column(Modifier.alpha(if (settings.scroll) 0.45f else 1f)) {
         Segmented(
