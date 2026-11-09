@@ -57,7 +57,8 @@ class EngineTts private constructor(
             } else {
                 TextToSpeech(context, listener, enginePackage)
             }
-            return if (ready.await()) tts else null.also { tts.shutdown() }
+            val ok = kotlinx.coroutines.withTimeoutOrNull(8_000) { ready.await() } == true
+            return if (ok) tts else null.also { runCatching { tts.shutdown() } }
         }
 
         fun android.speech.tts.Voice.toVoice() = AndroidTtsEngine.Voice(

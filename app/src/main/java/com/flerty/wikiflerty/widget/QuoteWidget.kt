@@ -117,7 +117,7 @@ open class QuoteWidget : AppWidgetProvider() {
             val book = app.library.books.value.firstOrNull { it.id == note.bookId }
             val quote = note.text.trim().replace(Regex("\\s+"), " ").let { if (it.length > 320) it.take(320).trimEnd() + "…" else it }
             views.setTextViewText(R.id.quote_text, "«$quote»")
-            views.setTextViewText(R.id.quote_book, book?.title ?: "Удалённая книга")
+            views.setTextViewText(R.id.quote_book, book?.title ?: app.syncedTitle(note.bookId) ?: "Удалённая книга")
             if (!small) {
                 val place = if (book != null && book.positions > 0) {
                     "${(note.progression * book.positions).roundToInt().coerceIn(1, book.positions)}/${book.positions}"

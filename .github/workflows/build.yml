@@ -40,10 +40,12 @@ jobs:
         run: |
           curl -fsSL --retry 3 -o sherpa.tar.bz2 "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-android.tar.bz2" \
             && mkdir -p sherpa && tar xjf sherpa.tar.bz2 -C sherpa \
-            && mkdir -p app/src/main/jniLibs/arm64-v8a \
-            && d="$(dirname "$(find sherpa -path '*arm64-v8a/libsherpa-onnx-jni.so' | head -1)")" \
-            && cp "$d/libsherpa-onnx-jni.so" "$d/libonnxruntime.so" app/src/main/jniLibs/arm64-v8a/ \
-            && ls -la app/src/main/jniLibs/arm64-v8a \
+            && for abi in arm64-v8a armeabi-v7a; do \
+                 mkdir -p "app/src/main/jniLibs/$abi" \
+                 && d="$(dirname "$(find sherpa -path "*$abi/libsherpa-onnx-jni.so" | head -1)")" \
+                 && cp "$d/libsherpa-onnx-jni.so" "$d/libonnxruntime.so" "app/src/main/jniLibs/$abi/" || echo "::warning::$abi speech libs missing"; \
+               done \
+            && ls -la app/src/main/jniLibs/* \
             || echo "::warning::Offline speech engine not downloaded"
           rm -rf sherpa sherpa.tar.bz2
 

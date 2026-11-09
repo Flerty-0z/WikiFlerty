@@ -57,8 +57,9 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
     var bookFilter by remember { mutableStateOf<String?>(null) }
     var bookSheet by remember { mutableStateOf(false) }
 
-    val titles = books.associate { it.id to it.title }
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.flerty.wikiflerty.App
+    val synced by app.sync.store.state.collectAsStateWithLifecycle()
+    val titles = synced.foreignBooks.associate { "fp:${it.fingerprint}" to it.title } + books.associate { it.id to it.title }
     val libraryPrefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
     val inPages = libraryPrefs.progressInPages
     val positions = books.associate { it.id to it.positions }

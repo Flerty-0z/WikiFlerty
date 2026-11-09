@@ -78,6 +78,11 @@ class App : Application() {
     val autoBackup: com.flerty.wikiflerty.system.AutoBackup by lazy { com.flerty.wikiflerty.system.AutoBackup(this) }
     val cloud: com.flerty.wikiflerty.sync.CloudSync by lazy { com.flerty.wikiflerty.sync.CloudSync(this) }
 
+    fun syncedTitle(bookId: String?): String? {
+        val fp = bookId?.takeIf { it.startsWith("fp:") }?.removePrefix("fp:") ?: return null
+        return sync.store.state.value.foreignBooks.firstOrNull { it.fingerprint == fp }?.title?.takeIf { it.isNotBlank() }
+    }
+
     val updates: com.flerty.wikiflerty.system.Updates by lazy { com.flerty.wikiflerty.system.Updates(this) }
 
     val backgroundAudio: com.flerty.wikiflerty.system.BackgroundAudio by lazy { com.flerty.wikiflerty.system.BackgroundAudio(this) }

@@ -46,7 +46,7 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
     private val _session = MutableStateFlow<ReadAloudSession?>(null)
     val session: StateFlow<ReadAloudSession?> = _session.asStateFlow()
 
-    data class Problem(val message: String, val canInstallVoice: Boolean = false)
+    data class Problem(val message: String, val canInstallVoice: Boolean = false, val openVoices: Boolean = false)
 
     private val _problems = MutableSharedFlow<Problem>(extraBufferCapacity = 4)
     val problems = _problems.asSharedFlow()
@@ -63,26 +63,7 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
         stop()
         scope.launch {
             try {
-                val neural = if (NeuralVoices.isNeural(settings.ttsEngine)) NeuralTtsProvider(app, settings.ttsEngine) else null
-                val factory = if (neural != null) {
-                    TtsNavigatorFactory(app, publication, neural, tokenizerFactory = { language ->
-                        val base = org.readium.r2.shared.util.tokenizer.DefaultTextContentTokenizer(org.readium.r2.shared.util.tokenizer.TextUnit.Sentence, language)
-                        org.readium.r2.shared.util.tokenizer.Tokenizer<String, IntRange> { text ->
-                            base.tokenize(text).also { ranges -> neural.engine?.prefetch(ranges.map { text.substring(it) }) }
-                        }
-                    })
-                } else {
-                    TtsNavigatorFactory(app, publication, EngineTtsProvider(app, settings.ttsEngine.ifBlank { null }))
-                }
-                if (factory == null) {
-                    _problems.emit(Problem("Эту книгу нельзя прочитать вслух"))
-                    return@launch
-                }
-                val navigator = factory.createNavigator(this@ReadAloud, start, preferences(settings)).getOrNull()
-                if (navigator == null) {
-                    _problems.emit(Problem("Синтезатор речи не запустился. Проверь, что он установлен"))
-                    return@launch
-                }
+                val navigator = open(publication, start, settings) ?: return@launch
                 _session.value = ReadAloudSession(bookId, navigator)
                 app.startService(Intent(app, ReadAloudService::class.java))
                 watch(navigator, bookId)
@@ -91,6 +72,90 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
                 starting = false
             }
         }
+    }
+
+    private suspend fun open(publication: Publication, start: Locator?, settings: ReaderSettings): AndroidTtsNavigator? {
+        val neuralId = settings.ttsEngine.takeIf { NeuralVoices.isNeural(it) }
+        if (neuralId == NeuralVoices.PIPER) {
+            if (!PiperVoices.supported()) {
+                _problems.emit(Problem("Офлайн-голоса не работают на этом телефоне. Выбери голос телефона или онлайн-голос", openVoices = true))
+                return null
+            }
+            val voice = NeuralVoices.voiceOrDefault(NeuralVoices.PIPER, settings.ttsVoice)
+            if (!PiperVoices.isInstalled(app, voice)) {
+                _problems.emit(Problem("Этот голос ещё не скачан. Скачай его в настройках чтения вслух", openVoices = true))
+                return null
+            }
+        }
+        val engines: List<String?> = if (neuralId != null) listOf(neuralId) else systemEngines(settings.ttsEngine.ifBlank { null })
+        val places = startPlaces(publication, start)
+        var engineFailed = false
+        for (engine in engines) {
+            val factory = factory(publication, engine) ?: run {
+                _problems.emit(Problem("Эту книгу нельзя прочитать вслух"))
+                return null
+            }
+            engineFailed = false
+            for (place in places) {
+                val result = runCatching { factory.createNavigator(this@ReadAloud, place, preferences(settings)) }.getOrNull() ?: continue
+                result.getOrNull()?.let { return it }
+                if (result.failureOrNull() is TtsNavigatorFactory.Error.EngineInitialization) {
+                    engineFailed = true
+                    break
+                }
+            }
+            if (!engineFailed) break
+        }
+        _problems.emit(
+            if (engineFailed) {
+                Problem("Синтезатор речи телефона не запустился. Попробуй офлайн-нейроголос — он работает без него", openVoices = true)
+            } else {
+                Problem("Не нашёл текст для чтения на этой странице. Перелистни дальше и попробуй ещё раз")
+            },
+        )
+        return null
+    }
+
+    private fun factory(publication: Publication, engine: String?) =
+        if (engine != null && NeuralVoices.isNeural(engine)) {
+            val neural = NeuralTtsProvider(app, engine)
+            TtsNavigatorFactory(app, publication, neural, tokenizerFactory = { language ->
+                val base = org.readium.r2.shared.util.tokenizer.DefaultTextContentTokenizer(org.readium.r2.shared.util.tokenizer.TextUnit.Sentence, language)
+                org.readium.r2.shared.util.tokenizer.Tokenizer<String, IntRange> { text ->
+                    base.tokenize(text).also { ranges -> runCatching { neural.engine?.prefetch(ranges.map { text.substring(it) }) } }
+                }
+            })
+        } else {
+            TtsNavigatorFactory(app, publication, EngineTtsProvider(app, engine))
+        }
+
+    private fun systemEngines(chosen: String?): List<String?> {
+        val installed = runCatching {
+            app.packageManager.queryIntentServices(Intent(TextToSpeech.Engine.INTENT_ACTION_TTS_SERVICE), 0)
+                .mapNotNull { it.serviceInfo?.packageName }
+        }.getOrDefault(emptyList())
+        val preferred = listOf("com.google.android.tts")
+        return (listOf(chosen, null) + preferred.filter { it in installed } + installed).distinct()
+    }
+
+    private fun startPlaces(publication: Publication, start: Locator?): List<Locator?> {
+        if (start == null) return listOf(null)
+        val out = mutableListOf<Locator?>(start)
+        val order = publication.readingOrder
+        fun name(s: String) = android.net.Uri.decode(s.substringBefore('#').substringBefore('?')).substringAfterLast('/').lowercase()
+        val target = name(start.href.toString())
+        val index = order.indexOfFirst { name(it.url().toString()) == target }
+        if (index >= 0) {
+            val base = runCatching { publication.locatorFromLink(order[index]) }.getOrNull()
+            if (base != null) {
+                start.locations.progression?.let { p -> out += base.copyWithLocations(progression = p) }
+                out += base
+            }
+            for (i in index + 1 until minOf(index + 4, order.size)) {
+                runCatching { publication.locatorFromLink(order[i]) }.getOrNull()?.let { out += it }
+            }
+        }
+        return out
     }
 
     private fun watch(navigator: AndroidTtsNavigator, bookId: String) {

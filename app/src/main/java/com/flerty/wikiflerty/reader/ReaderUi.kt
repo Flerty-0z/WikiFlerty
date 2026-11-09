@@ -374,7 +374,7 @@ fun ReaderOverlay(
         ) {
             val last = remember { arrayOf<com.flerty.wikiflerty.tts.ReadAloud.Problem?>(null) }
             problem?.let { last[0] = it }
-            last[0]?.let { TtsProblemPrompt(it, onInstall = { state.ttsProblem = null; onInstallVoices() }, onDismiss = { state.ttsProblem = null }) }
+            last[0]?.let { TtsProblemPrompt(it, onInstall = { state.ttsProblem = null; onInstallVoices() }, onDismiss = { state.ttsProblem = null }, onVoices = { state.ttsProblem = null; state.sheet = ReaderSheet.Listen }) }
         }
 
         AnimatedVisibility(

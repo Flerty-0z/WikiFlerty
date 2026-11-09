@@ -105,7 +105,7 @@ private fun BarButton(icon: androidx.compose.ui.graphics.vector.ImageVector, des
 }
 
 @Composable
-fun TtsProblemPrompt(problem: ReadAloud.Problem, onInstall: () -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+fun TtsProblemPrompt(problem: ReadAloud.Problem, onInstall: () -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier, onVoices: () -> Unit = {}) {
     Row(
         modifier
             .padding(horizontal = 16.dp)
@@ -116,6 +116,13 @@ fun TtsProblemPrompt(problem: ReadAloud.Problem, onInstall: () -> Unit, onDismis
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(problem.message, color = AppColors.Text, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.weight(1f))
+        if (problem.openVoices) {
+            val shape = appCorner(14)
+            Box(
+                Modifier.heightIn(min = 36.dp).liveClick(shape, sound = FeedbackSound.Open, onClick = onVoices).accentHighlight(shape).padding(horizontal = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) { Icon(AppIcons.Headphones, "Голоса", tint = accentContent, modifier = Modifier.size(18.dp)) }
+        }
         if (problem.canInstallVoice) {
             val shape = appCorner(14)
             Box(

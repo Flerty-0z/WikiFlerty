@@ -122,7 +122,8 @@ fun BookChoiceButton(selectedId: String?, allIds: List<String>, fallbackTitle: S
 fun bookTitle(bookId: String?, fallback: String?): String {
     val app = LocalContext.current.applicationContext as App
     val books by app.library.books.collectAsStateWithLifecycle()
-    return books.firstOrNull { it.id == bookId }?.title ?: fallback ?: "Удалённая книга"
+    val synced by app.sync.store.state.collectAsStateWithLifecycle()
+    return books.firstOrNull { it.id == bookId }?.title ?: synced.let { app.syncedTitle(bookId) } ?: fallback ?: "Удалённая книга"
 }
 
 data class BookChoice(val id: String, val title: String?, val count: Int)
@@ -203,7 +204,8 @@ fun BookTag(
     val app = LocalContext.current.applicationContext as App
     val books by app.library.books.collectAsStateWithLifecycle()
     val book = books.firstOrNull { it.id == bookId }
-    val title = book?.title ?: fallbackTitle ?: "Удалённая книга"
+    val synced by app.sync.store.state.collectAsStateWithLifecycle()
+    val title = book?.title ?: synced.let { app.syncedTitle(bookId) } ?: fallbackTitle ?: "Удалённая книга"
     val shape = appCorner(14)
     Row(
         modifier
