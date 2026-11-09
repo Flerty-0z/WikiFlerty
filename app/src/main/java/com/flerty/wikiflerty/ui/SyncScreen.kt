@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.background
 import androidx.compose.animation.animateContentSize
 import android.widget.Toast
@@ -45,6 +47,7 @@ fun SyncContent() {
     val state by app.sync.store.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var entering by remember { mutableStateOf(false) }
+    var choosing by remember { mutableStateOf(false) }
     var confirmOff by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
 
@@ -60,22 +63,34 @@ fun SyncContent() {
         }
     }
 
+    val scan = androidx.activity.compose.rememberLauncherForActivityResult(com.journeyapps.barcodescanner.ScanContract()) { result ->
+        val raw = result.contents ?: return@rememberLauncherForActivityResult
+        val code = cloud.normalize(raw.substringAfterLast(':'))
+        if (code == null) toast("Это не QR-код синхронизации WikiFlerty") else begin(code, existing = true)
+    }
+
     Crossfade(status.enabled) { on ->
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (!on) {
-                Text(
-                    "Прогресс, заметки, закладки, словарь, статистика и настройки — одинаковые на всех твоих устройствах. Без регистрации, данные зашифрованы.",
-                    color = AppColors.Muted,
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp,
-                    modifier = Modifier.padding(horizontal = 4.dp),
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SyncButton("Включить", "Новый код", AppIcons.Cloud, Modifier.weight(1f), filled = true, enabled = !busy) {
-                        begin(cloud.newCode(), existing = false)
-                    }
-                    SyncButton("Ввести код", "С другого телефона", AppIcons.Lock, Modifier.weight(1f), filled = false, enabled = !busy) {
-                        entering = true
+                Column(
+                    Modifier.fillMaxWidth().fieldSurface(appCorner(20)).padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        "Прогресс, заметки, закладки, словарь, статистика и настройки — одинаковые на всех твоих устройствах. Без регистрации, данные зашифрованы.",
+                        color = AppColors.Muted,
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp,
+                        modifier = Modifier.padding(horizontal = 2.dp),
+                    )
+                    ListDivider()
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        SyncButton("Создать код", AppIcons.Cloud, Modifier.weight(1f), filled = true, enabled = !busy) {
+                            begin(cloud.newCode(), existing = false)
+                        }
+                        SyncButton("Ввести код", AppIcons.Lock, Modifier.weight(1f), filled = false, enabled = !busy) {
+                            choosing = true
+                        }
                     }
                 }
                 Appear(busy) {
@@ -105,6 +120,29 @@ fun SyncContent() {
                 ) {
                     Icon(AppIcons.Close, null, tint = AppColors.Bad, modifier = Modifier.size(18.dp))
                     Text("Отключить на этом телефоне", color = AppColors.Bad, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                }
+            }
+        }
+    }
+
+    if (choosing) {
+        AppSheet(onDismiss = { choosing = false }, title = "Ввести код") {
+            val close = sheetClose { choosing = false }
+            SettingsGroup(null) {
+                SettingsNavRow(AppIcons.Qr, "Сканировать QR-код", "Наведи камеру на код с другого телефона", framed = false) {
+                    close()
+                    scan.launch(
+                        com.journeyapps.barcodescanner.ScanOptions()
+                            .setDesiredBarcodeFormats(com.journeyapps.barcodescanner.ScanOptions.QR_CODE)
+                            .setPrompt("Наведи камеру на QR-код синхронизации")
+                            .setBeepEnabled(false)
+                            .setOrientationLocked(true),
+                    )
+                }
+                ListDivider()
+                SettingsNavRow(AppIcons.Pencil, "Ввести вручную", "25 символов", framed = false) {
+                    close()
+                    entering = true
                 }
             }
         }
@@ -145,6 +183,8 @@ private fun <T> Crossfade(target: T, content: @Composable (T) -> Unit) {
 private fun CodeCard(code: String) {
     val context = LocalContext.current
     var help by remember { mutableStateOf(false) }
+    var showQr by remember { mutableStateOf(false) }
+    if (showQr) QrSheet(code) { showQr = false }
     Column(
         Modifier.fillMaxWidth().fieldSurface(appCorner(20)).animateContentSize(Motion.tween(300)).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -195,13 +235,22 @@ private fun CodeCard(code: String) {
             AppButton("Поделиться", primary = false, modifier = Modifier.weight(1f)) {
                 shareText(context, "Код синхронизации WikiFlerty: $code", "Код синхронизации WikiFlerty")
             }
+            val shape = appCorner(12)
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(44.dp)
+                    .liveClick(shape, sound = FeedbackSound.Open) { showQr = true }
+                    .border(1.dp, AppColors.Accent.copy(alpha = 0.35f), shape),
+                contentAlignment = Alignment.Center,
+            ) { Icon(AppIcons.Qr, "QR-код", tint = AppColors.Accent, modifier = Modifier.size(21.dp)) }
         }
         Appear(help) {
             Column(
                 Modifier.fillMaxWidth().background(AppColors.Background.copy(alpha = 0.5f), appCorner(14)).padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                HelpLine("1", "На другом телефоне: Настройки → Синхронизация → «Ввести код»")
+                HelpLine("1", "На другом телефоне: Настройки → Синхронизация → «Ввести код» — отсканируй QR или введи вручную")
                 HelpLine("2", "Добавь туда те же книги — прогресс, заметки и обложки подтянутся сами")
             }
         }
@@ -258,7 +307,6 @@ private fun StatusRow(status: CloudSync.Status, onSync: () -> Unit) {
 @Composable
 private fun SyncButton(
     title: String,
-    hint: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     modifier: Modifier,
     filled: Boolean,
@@ -273,10 +321,54 @@ private fun SyncButton(
             .then(if (filled) Modifier.accentHighlight(shape) else Modifier.border(1.dp, AppColors.Accent.copy(alpha = 0.4f), shape))
             .padding(horizontal = 12.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
     ) {
         Icon(icon, null, tint = if (filled) accentContent else AppColors.Accent, modifier = Modifier.size(22.dp))
         Text(title, color = if (filled) accentContent else AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-        Text(hint, color = if (filled) accentContent.copy(alpha = 0.75f) else AppColors.Muted, fontSize = 11.5.sp, textAlign = TextAlign.Center, maxLines = 1)
     }
 }
+
+@Composable
+private fun QrSheet(code: String, onDismiss: () -> Unit) {
+    val bitmap = remember(code) { qrBitmap("wikiflerty:sync:$code", 720) }
+    AppSheet(onDismiss = onDismiss, title = "QR-код") {
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier
+                    .size(260.dp)
+                    .background(androidx.compose.ui.graphics.Color.White, appCorner(20))
+                    .padding(14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (bitmap != null) {
+                    androidx.compose.foundation.Image(
+                        bitmap,
+                        "QR-код синхронизации",
+                        modifier = Modifier.fillMaxWidth(),
+                        filterQuality = androidx.compose.ui.graphics.FilterQuality.None,
+                    )
+                }
+            }
+        }
+        Text(
+            "На другом телефоне: Синхронизация → «Ввести код» → «Сканировать QR-код»",
+            color = AppColors.Muted,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+private fun qrBitmap(text: String, size: Int): androidx.compose.ui.graphics.ImageBitmap? = runCatching {
+    val hints = mapOf(com.google.zxing.EncodeHintType.MARGIN to 0)
+    val matrix = com.google.zxing.qrcode.QRCodeWriter().encode(text, com.google.zxing.BarcodeFormat.QR_CODE, size, size, hints)
+    val pixels = IntArray(matrix.width * matrix.height)
+    for (y in 0 until matrix.height) {
+        for (x in 0 until matrix.width) {
+            pixels[y * matrix.width + x] = if (matrix[x, y]) 0xFF111111.toInt() else 0xFFFFFFFF.toInt()
+        }
+    }
+    android.graphics.Bitmap.createBitmap(pixels, matrix.width, matrix.height, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
+}.getOrNull()
