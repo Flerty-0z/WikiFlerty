@@ -81,6 +81,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "v0.1.${{ github.run_number }}" "out/WikiFlerty-0.1.${{ github.run_number }}.apk" \
-            --title "WikiFlerty 0.1.${{ github.run_number }}" \
+            --title "WikiFlerty 0.1.${{ github.run_number }} · тест" \
             --notes "" \
+            --prerelease \
+            --latest=false \
             --target "${{ github.sha }}"
