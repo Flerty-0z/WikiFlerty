@@ -40,6 +40,12 @@
             android:importantForAccessibility="no"
             android:scaleType="fitXY"
             android:visibility="gone" />
+
+        <com.flerty.wikiflerty.reader.ChapterShiftView
+            android:id="@+id/chapter_shift"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no" />
     </FrameLayout>
 
     <androidx.compose.ui.platform.ComposeView

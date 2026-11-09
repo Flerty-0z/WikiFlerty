@@ -66,6 +66,7 @@ import com.flerty.wikiflerty.ui.WikiFlertyTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collectLatest
@@ -1056,7 +1057,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private fun onAutoEnd() {
         if (!ui.autoActive || ui.autoPaused || !settings.scroll) return
-        if (!navigator.goForward(animated = false)) stopAuto()
+        if (!feedJump(true, force = true)) stopAuto()
     }
 
     private val search = SearchState()
@@ -2770,21 +2771,58 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private var feedAt = 0L
+    private val shiftView: ChapterShiftView by lazy { findViewById(R.id.chapter_shift) }
 
-    private fun feedJump(forward: Boolean) {
+    private fun chapterTitle(link: org.readium.r2.shared.publication.Link): String {
+        val pub = publication ?: return ""
+        val href = link.url().toString().substringBefore('#')
+        return flattenToc(pub.tableOfContents).firstOrNull { it.link.url().toString().substringBefore('#') == href }?.title
+            ?: link.title?.trim().orEmpty()
+    }
+
+    private fun shiftKind(): ChapterShiftView.Kind = when (com.flerty.wikiflerty.ui.AppStyle.kit) {
+        com.flerty.wikiflerty.ui.Kit.Library -> ChapterShiftView.Kind.Library
+        com.flerty.wikiflerty.ui.Kit.Zen -> ChapterShiftView.Kind.Zen
+        com.flerty.wikiflerty.ui.Kit.Comic -> ChapterShiftView.Kind.Comic
+        com.flerty.wikiflerty.ui.Kit.News -> ChapterShiftView.Kind.News
+        com.flerty.wikiflerty.ui.Kit.Sea -> ChapterShiftView.Kind.Sea
+        com.flerty.wikiflerty.ui.Kit.Clay -> ChapterShiftView.Kind.Clay
+    }
+
+    private fun feedJump(forward: Boolean, force: Boolean = false): Boolean {
         val now = android.os.SystemClock.uptimeMillis()
-        if (now - feedAt < 700 || !settings.scroll) return
-        feedAt = now
-        val pub = publication ?: return
+        if (!force && (now - feedAt < 700 || !settings.scroll)) return false
+        if (shiftView.active) return true
+        val pub = publication ?: return false
         val i = resourceIndex()
-        if (i < 0) return
-        val link = pub.readingOrder.getOrNull(if (forward) i + 1 else i - 1) ?: return
-        val base = pub.locatorFromLink(link) ?: return
+        if (i < 0) return false
+        val link = pub.readingOrder.getOrNull(if (forward) i + 1 else i - 1) ?: return false
+        val base = pub.locatorFromLink(link) ?: return false
+        feedAt = now
         val target = if (forward) base.copyWithLocations(progression = 0.0) else base.copyWithLocations(progression = 0.9999)
-        lifecycleScope.launch {
-            navigator.go(target, animated = false)
-            resyncListening()
+        val targetHref = link.url().toString().substringBefore('#')
+        if (settings.animation == PageAnimation.None || com.flerty.wikiflerty.ui.Motion.ms(100) == 0) {
+            lifecycleScope.launch {
+                navigator.go(target, animated = false)
+                resyncListening()
+            }
+            return true
         }
+        val page = settings.pageTheme
+        val title = chapterTitle(link)
+        capturePage { bitmap ->
+            shiftView.start(bitmap, title, forward, shiftKind(), page.background.toInt(), page.text.toInt(), selectionAccent(), navContainer)
+            lifecycleScope.launch {
+                navigator.go(target, animated = false)
+                kotlinx.coroutines.withTimeoutOrNull(1800) {
+                    navigator.currentLocator.first { it.href.toString().substringBefore('#') == targetHref }
+                }
+                delay(260)
+                shiftView.reveal()
+                resyncListening()
+            }
+        }
+        return true
     }
 
     override fun onExternalLinkActivated(url: AbsoluteUrl) {
