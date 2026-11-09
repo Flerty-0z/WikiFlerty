@@ -181,6 +181,24 @@ class LibraryRepository(
         }
     }
 
+    fun customCover(book: Book): File? {
+        val name = book.coverFileName ?: return null
+        if (!book.paper && name == "${book.id}.jpg") return null
+        return File(coversDir, name).takeIf { it.exists() }
+    }
+
+    suspend fun applyCover(bookId: String, bytes: ByteArray, at: Long) {
+        val name = "$bookId-$at.jpg"
+        val file = File(coversDir, name)
+        withContext(Dispatchers.IO) {
+            file.writeBytes(bytes)
+            file.setLastModified(at)
+        }
+        val old = _books.value.firstOrNull { it.id == bookId }?.let { coverFile(it) }
+        update { list -> list.map { if (it.id == bookId) it.copy(coverFileName = name) else it } }
+        withContext(Dispatchers.IO) { old?.takeIf { it.name != name }?.delete() }
+    }
+
     suspend fun setCover(bookId: String, cover: Uri) {
         val name = withContext(Dispatchers.IO) { saveCover(bookId, cover) } ?: return
         val old = _books.value.firstOrNull { it.id == bookId }?.let { coverFile(it) }

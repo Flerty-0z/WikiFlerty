@@ -139,7 +139,10 @@ class HeroStore(private val context: Context) {
         load(from).forEach { h ->
             val old = avatar(from, h.id)
             val target = load(to).firstOrNull { it.id == h.id || it.name.equals(h.name, true) }?.id ?: h.id
-            if (old.exists() && !avatar(to, target).exists()) old.copyTo(avatar(to, target))
+            if (old.exists() && !avatar(to, target).exists()) {
+                val copy = old.copyTo(avatar(to, target))
+                copy.setLastModified(old.lastModified())
+            }
             old.delete()
             chatFile(from, h.id).delete()
         }

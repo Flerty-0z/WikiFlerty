@@ -84,7 +84,7 @@ class CloudSync(private val app: App) {
     fun stop() {
         pending?.cancel()
         setCode(null)
-        prefs.edit().remove("seenHead").remove("pushedHash").remove("error").apply()
+        prefs.edit().remove("seenHead").remove("pushedHash").remove("uploaded").remove("remoteImages").remove("error").apply()
         _status.value = _status.value.copy(error = null, lastReport = null)
     }
 
@@ -117,7 +117,7 @@ class CloudSync(private val app: App) {
 
     private fun setCode(code: String?) {
         prefs.edit().apply { if (code == null) remove("code") else putString("code", code) }.apply()
-        if (code != _status.value.code) prefs.edit().remove("seenHead").remove("pushedHash").apply()
+        if (code != _status.value.code) prefs.edit().remove("seenHead").remove("pushedHash").remove("uploaded").remove("remoteImages").apply()
         _status.value = _status.value.copy(code = code)
     }
 
@@ -166,9 +166,20 @@ class CloudSync(private val app: App) {
                 if (!complete) return@repeat
                 val remote = JSONObject(unpack(text.toString(), key))
                 report += Backup.merge(app, remote, applySettings = app.sync.store.state.value.syncSettings)
+                prefs.edit().putString("remoteImages", (remote.optJSONObject("images") ?: JSONObject()).toString()).apply()
             }
 
-            val snapshot = Backup.snapshot(app)
+            val remoteImages = runCatching { JSONObject(prefs.getString("remoteImages", null) ?: "{}") }.getOrElse { JSONObject() }
+            applyImages(space, key, code, remoteImages)
+            val local = localImages()
+            uploadImages(space, key, code, local)
+            val images = JSONObject(remoteImages.toString())
+            local.forEach { (k, entry) ->
+                val known = images.optJSONObject(k)
+                if (known == null || entry.json.optLong("at") >= known.optLong("at")) images.put(k, entry.json)
+            }
+
+            val snapshot = Backup.snapshot(app).put("images", images)
             val hash = fingerprint(snapshot)
             if (head != null && hash == prefs.getString("pushedHash", null)) {
                 prefs.edit().putString("seenHead", head.time).apply()
@@ -199,6 +210,119 @@ class CloudSync(private val app: App) {
         throw IOException("busy")
     }
 
+    private class LocalImage(val json: JSONObject, val file: java.io.File)
+
+    private fun seconds(ms: Long) = ms / 1000 * 1000
+
+    private fun localImages(): Map<String, LocalImage> {
+        val out = mutableMapOf<String, LocalImage>()
+        val books = app.library.books.value
+        books.forEach { b ->
+            val fp = b.fingerprint ?: return@forEach
+            val file = app.library.customCover(b) ?: return@forEach
+            out["c|$fp"] = LocalImage(JSONObject().put("kind", "c").put("fp", fp).put("at", seconds(file.lastModified())), file)
+        }
+        val fpById = books.filter { it.fingerprint != null }.associate { it.id to it.fingerprint!! }
+        app.heroes.books().forEach { bookId ->
+            val fp = fpById[bookId] ?: bookId.takeIf { it.startsWith("fp:") }?.removePrefix("fp:") ?: return@forEach
+            app.heroes.load(bookId).forEach { h ->
+                val file = app.heroes.avatar(bookId, h.id)
+                if (!file.exists()) return@forEach
+                val name = h.name.trim().lowercase()
+                out["a|$fp|$name"] = LocalImage(
+                    JSONObject().put("kind", "a").put("fp", fp).put("hero", name).put("at", seconds(file.lastModified())),
+                    file,
+                )
+            }
+        }
+        return out
+    }
+
+    private fun imageName(code: String, entry: String, at: Long) = "i" + hex(sha("wikiflerty-img|$code", "$entry|$at")).take(24)
+
+    private fun uploadImages(space: String, key: SecretKeySpec, code: String, local: Map<String, LocalImage>) {
+        val done = prefs.getStringSet("uploaded", emptySet()).orEmpty().toMutableSet()
+        var changed = false
+        local.forEach { (k, img) ->
+            val name = imageName(code, k, img.json.optLong("at"))
+            if (name in done) return@forEach
+            val bytes = if (img.json.optString("kind") == "c") shrink(img.file) else img.file.readBytes()
+            if (bytes == null) return@forEach
+            val blob = encrypt(bytes, key)
+            if (blob.length >= CHUNK) return@forEach
+            put(space, name, blob, Precondition.None)
+            done += name
+            changed = true
+        }
+        if (changed) prefs.edit().putStringSet("uploaded", done).apply()
+    }
+
+    private suspend fun applyImages(space: String, key: SecretKeySpec, code: String, remote: JSONObject) {
+        val books = app.library.books.value
+        val idByFp = books.filter { it.fingerprint != null }.associate { it.fingerprint!! to it.id }
+        remote.keys().asSequence().toList().forEach { k ->
+            val entry = remote.optJSONObject(k) ?: return@forEach
+            val fp = entry.optString("fp").ifBlank { return@forEach }
+            val at = entry.optLong("at")
+            when (entry.optString("kind")) {
+                "c" -> {
+                    val book = books.firstOrNull { it.fingerprint == fp } ?: return@forEach
+                    val current = app.library.customCover(book)?.let { seconds(it.lastModified()) } ?: -1L
+                    if (at <= current) return@forEach
+                    val bytes = download(space, key, imageName(code, k, at)) ?: return@forEach
+                    app.library.applyCover(book.id, bytes, at)
+                }
+                "a" -> {
+                    val bookId = idByFp[fp] ?: "fp:$fp"
+                    val name = entry.optString("hero")
+                    val hero = app.heroes.load(bookId).firstOrNull { it.name.trim().lowercase() == name } ?: return@forEach
+                    val file = app.heroes.avatar(bookId, hero.id)
+                    val current = if (file.exists()) seconds(file.lastModified()) else -1L
+                    if (at <= current) return@forEach
+                    val bytes = download(space, key, imageName(code, k, at)) ?: return@forEach
+                    file.writeBytes(bytes)
+                    file.setLastModified(at)
+                }
+            }
+        }
+    }
+
+    private fun download(space: String, key: SecretKeySpec, name: String): ByteArray? {
+        val doc = get(space, name) ?: return null
+        return runCatching { decrypt(doc.blob, key) }.getOrNull()
+    }
+
+    private fun shrink(file: java.io.File): ByteArray? = runCatching {
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeFile(file.path, bounds)
+        var sample = 1
+        while (bounds.outHeight / (sample * 2) >= 600) sample *= 2
+        val bitmap = android.graphics.BitmapFactory.decodeFile(file.path, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+            ?: return@runCatching null
+        val scaled = if (bitmap.height > 600) {
+            android.graphics.Bitmap.createScaledBitmap(bitmap, (bitmap.width * 600f / bitmap.height).toInt().coerceAtLeast(1), 600, true)
+        } else {
+            bitmap
+        }
+        ByteArrayOutputStream().also { scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 82, it) }.toByteArray()
+    }.getOrNull()
+
+    private fun encrypt(bytes: ByteArray, key: SecretKeySpec): String {
+        val iv = ByteArray(12).also { SecureRandom().nextBytes(it) }
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(128, iv)) }
+        return Base64.encodeToString(iv + cipher.doFinal(bytes), Base64.NO_WRAP)
+    }
+
+    private fun decrypt(blob: String, key: SecretKeySpec): ByteArray {
+        val bytes = Base64.decode(blob, Base64.NO_WRAP)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, bytes, 0, 12)) }
+        return try {
+            cipher.doFinal(bytes, 12, bytes.size - 12)
+        } catch (e: AEADBadTagException) {
+            throw WrongCode()
+        }
+    }
+
     private fun fingerprint(snapshot: JSONObject): String {
         val copy = JSONObject(snapshot.toString())
         copy.remove("savedAt")
@@ -217,19 +341,11 @@ class CloudSync(private val app: App) {
 
     private fun pack(text: String, key: SecretKeySpec): String {
         val zipped = ByteArrayOutputStream().also { out -> GZIPOutputStream(out).use { it.write(text.toByteArray(Charsets.UTF_8)) } }.toByteArray()
-        val iv = ByteArray(12).also { SecureRandom().nextBytes(it) }
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(128, iv)) }
-        return Base64.encodeToString(iv + cipher.doFinal(zipped), Base64.NO_WRAP)
+        return encrypt(zipped, key)
     }
 
     private fun unpack(blob: String, key: SecretKeySpec): String {
-        val bytes = Base64.decode(blob, Base64.NO_WRAP)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, bytes, 0, 12)) }
-        val zipped = try {
-            cipher.doFinal(bytes, 12, bytes.size - 12)
-        } catch (e: AEADBadTagException) {
-            throw WrongCode()
-        }
+        val zipped = decrypt(blob, key)
         return GZIPInputStream(ByteArrayInputStream(zipped)).use { it.readBytes() }.toString(Charsets.UTF_8)
     }
 

@@ -107,7 +107,10 @@ class App : Application() {
         readerSettings.onChanged = { sync.settingsChanged() }
         style.onChanged = { sync.settingsChanged() }
         ai.store.onChanged = { sync.settingsChanged() }
-        library.onBookAdded = { book -> Backup.onBookAdded(this, book) }
+        library.onBookAdded = { book ->
+            Backup.onBookAdded(this, book)
+            cloud.request(1_000)
+        }
         appScope.launch { library.ensureFingerprints() }
         backgroundAudio.install()
         achievements.start(appScope)
