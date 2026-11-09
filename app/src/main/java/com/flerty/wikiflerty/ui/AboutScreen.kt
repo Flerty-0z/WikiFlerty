@@ -88,7 +88,7 @@ fun AboutScreen(modifier: Modifier = Modifier) {
             }
         }
 
-        if (!com.flerty.wikiflerty.BuildConfig.STORE) {
+        run {
             SettingsGroup("Обновления") {
                 UpdatePanel(app, Modifier.padding(vertical = 8.dp))
                 SettingSwitch(
@@ -154,19 +154,16 @@ fun AboutScreen(modifier: Modifier = Modifier) {
 
 @Composable
 fun UpdatePanel(app: App, modifier: Modifier = Modifier, onLater: (() -> Unit)? = null) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val state by app.updates.state.collectAsStateWithLifecycle()
-    var needsPermission by remember { mutableStateOf(false) }
+    val where = if (com.flerty.wikiflerty.system.Updates.IN_RUSTORE) "RuStore" else "Telegram-канале"
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         val (title, subtitle, color) = when (val s = state) {
-            UpdateState.Idle -> Triple("Проверить обновления", "Новые версии берутся с GitHub", AppColors.Text)
+            UpdateState.Idle -> Triple("Проверить обновления", "Узнать, вышла ли новая версия", AppColors.Text)
             UpdateState.Checking -> Triple("Проверяю…", "Секунду", AppColors.Text)
             UpdateState.UpToDate -> Triple("Установлена последняя версия", "Обновлений нет", Good)
-            is UpdateState.Available -> Triple("Доступна версия ${s.info.version}", sizeText(s.info.size), AppColors.Accent)
-            is UpdateState.Downloading -> Triple("Скачиваю ${s.info.version}", "${(s.progress * 100).toInt()}%", AppColors.Accent)
-            is UpdateState.Ready -> Triple("Версия ${s.info.version} скачана", "Осталось установить", Good)
+            is UpdateState.Available -> Triple("Вышла версия ${s.info.version}", "Скачай её в $where", AppColors.Accent)
             is UpdateState.Failed -> Triple("Не получилось", s.message, Bad)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -195,49 +192,26 @@ fun UpdatePanel(app: App, modifier: Modifier = Modifier, onLater: (() -> Unit)? 
                     .padding(10.dp),
             )
         }
-        (state as? UpdateState.Downloading)?.let { s ->
-            LinearProgressIndicator(
-                progress = { s.progress },
-                modifier = Modifier.fillMaxWidth().height(6.dp).clip(appCorner(3)),
-                color = AppColors.Accent,
-                trackColor = AppColors.Line,
-                drawStopIndicator = {},
-            )
-        }
-        if (needsPermission) {
-            Text(
-                "Разреши WikiFlerty устанавливать приложения, вернись и нажми «Установить» ещё раз",
-                color = AppColors.Muted,
-                fontSize = 12.sp,
-                lineHeight = 16.sp,
-            )
-        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            when (val s = state) {
+            when (state) {
                 UpdateState.Idle, UpdateState.UpToDate, is UpdateState.Failed -> {
-                    val retry = (s as? UpdateState.Failed)?.info
-                    AppButton(if (retry != null) "Повторить" else "Проверить", primary = true, modifier = Modifier.weight(1f)) {
-                        scope.launch { if (retry != null) app.updates.download(retry) else app.updates.check() }
+                    AppButton("Проверить", primary = true, modifier = Modifier.weight(1f)) {
+                        scope.launch { app.updates.check() }
                     }
                 }
                 UpdateState.Checking -> Unit
                 is UpdateState.Available -> {
-                    AppButton("Скачать и установить", primary = true, modifier = Modifier.weight(1f)) {
-                        scope.launch {
-                            app.updates.download(s.info)
-                            val ready = app.updates.state.value as? UpdateState.Ready
-                            if (ready != null) needsPermission = !app.updates.install(ready.file)
+                    if (com.flerty.wikiflerty.system.Updates.IN_RUSTORE) {
+                        AppButton("RuStore", primary = true, modifier = Modifier.weight(1f)) {
+                            app.updates.open(com.flerty.wikiflerty.system.Updates.RUSTORE)
                         }
                     }
-                }
-                is UpdateState.Downloading -> Unit
-                is UpdateState.Ready -> {
-                    AppButton("Установить", primary = true, modifier = Modifier.weight(1f)) {
-                        needsPermission = !app.updates.install(s.file)
+                    AppButton("Telegram", primary = !com.flerty.wikiflerty.system.Updates.IN_RUSTORE, modifier = Modifier.weight(1f)) {
+                        app.updates.open(com.flerty.wikiflerty.system.Updates.TELEGRAM)
                     }
                 }
             }
-            if (onLater != null && state !is UpdateState.Downloading) {
+            if (onLater != null) {
                 AppButton("Позже", primary = false, modifier = Modifier.weight(0.6f), onClick = onLater)
             }
         }
@@ -301,12 +275,7 @@ fun StartupPrompts() {
         return
     }
 
-    val offered = when (val s = state) {
-        is UpdateState.Available -> s.info.code
-        is UpdateState.Downloading -> s.info.code
-        is UpdateState.Ready -> s.info.code
-        else -> null
-    }
+    val offered = (state as? UpdateState.Available)?.info?.code
     if (offered != null && !updateDismissed && offered != app.updates.dismissedCode) {
         val dismiss = {
             updateDismissed = true
@@ -327,8 +296,5 @@ fun shareText(context: Context, text: String, subject: String) {
         context.startActivity(Intent.createChooser(intent, subject).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 }
-
-private fun sizeText(bytes: Long): String =
-    if (bytes <= 0) "Нажми, чтобы скачать" else "Размер %.1f МБ".format(bytes / 1_048_576.0)
 
 const val PRIVACY_URL = "https://github.com/Flerty-0z/WikiFlerty/blob/main/PRIVACY.md"

@@ -62,7 +62,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
           set -o pipefail
-          ./gradlew assembleRelease assembleRustore --stacktrace 2>&1 | tee build.log
+          ./gradlew assembleRelease --stacktrace 2>&1 | tee build.log
 
       - name: Report build errors
         if: failure()
@@ -75,13 +75,12 @@ jobs:
         run: |
           mkdir -p out
           cp app/build/outputs/apk/release/app-release.apk "out/WikiFlerty-0.1.${{ github.run_number }}.apk"
-          cp app/build/outputs/apk/rustore/app-rustore.apk "out/WikiFlerty-RuStore-0.1.${{ github.run_number }}.apk"
 
       - name: Publish release with the APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v0.1.${{ github.run_number }}" "out/WikiFlerty-0.1.${{ github.run_number }}.apk" "out/WikiFlerty-RuStore-0.1.${{ github.run_number }}.apk" \
+          gh release create "v0.1.${{ github.run_number }}" "out/WikiFlerty-0.1.${{ github.run_number }}.apk" \
             --title "WikiFlerty 0.1.${{ github.run_number }}" \
             --notes "" \
             --target "${{ github.sha }}"

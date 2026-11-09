@@ -35,15 +35,6 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            buildConfigField("boolean", "STORE", "false")
-        }
-        create("rustore") {
-            initWith(getByName("release"))
-            matchingFallbacks += "release"
-            buildConfigField("boolean", "STORE", "true")
-        }
-        debug {
-            buildConfigField("boolean", "STORE", "false")
         }
     }
 
