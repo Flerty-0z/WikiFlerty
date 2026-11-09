@@ -137,7 +137,8 @@ fun BookcaseView(
         val list = remember(planks, width, live, decor) { rows(planks, width, live, decor) }
         val seen = remember(animationKey, live) { mutableSetOf<Any>() }
         androidx.compose.runtime.key(animationKey, live) {
-        androidx.compose.runtime.CompositionLocalProvider(LocalShelfSeen provides seen) {
+        val shelfState = if (live) rememberShelfState() else LocalShelfState.current
+        androidx.compose.runtime.CompositionLocalProvider(LocalShelfSeen provides seen, LocalShelfState provides shelfState) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp),
