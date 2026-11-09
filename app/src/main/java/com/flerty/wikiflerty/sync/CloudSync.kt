@@ -263,7 +263,10 @@ class CloudSync(private val app: App) {
             val parts = localParts(code, space, key, upload = true)
             val now = hashes(parts)
             val changed = parts.keys.filter { name -> now[name] != pushed[name] || remote[name] == null }
-            if (changed.isEmpty() && LEGACY !in remote) return report
+            if (changed.isEmpty() && LEGACY !in remote) {
+                parts["images"]?.optJSONObject("images")?.let { prefs.edit().putString("remoteImages", it.toString()).apply() }
+                return report
+            }
 
             val next = remote.filterKeys { it != LEGACY }.toMutableMap()
             val written = mutableListOf<Pair<String, PartRef>>()
@@ -293,6 +296,7 @@ class CloudSync(private val app: App) {
             seen.keys.retainAll(next.keys)
             writeMap("pushedParts", pushed)
             writeMap("seenGens", seen)
+            parts["images"]?.optJSONObject("images")?.let { prefs.edit().putString("remoteImages", it.toString()).apply() }
             return report
         }
         throw IOException("busy")
