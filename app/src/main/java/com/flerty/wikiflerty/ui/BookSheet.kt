@@ -287,14 +287,12 @@ fun BookSheet(
     var confirmDelete by remember { mutableStateOf(false) }
     var rating by remember { mutableStateOf(false) }
     var editPaper by remember { mutableStateOf(false) }
+    var editInfo by remember { mutableStateOf(false) }
     val inPages = book.paper || app.libraryPrefs.prefs.value.progressInPages
 
     AppSheet(onDismiss) {
         val close = sheetClose(onDismiss)
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            val pickCover = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
-                if (uri != null) app.appScope.launch { app.library.setCover(book.id, uri) }
-            }
             Box(Modifier.size(width = 84.dp, height = 126.dp)) {
                 SmallCover(coverFile, Modifier.matchParentSize())
                 Box(
@@ -302,11 +300,11 @@ fun BookSheet(
                         .align(Alignment.BottomEnd)
                         .padding(5.dp)
                         .size(28.dp)
-                        .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.85f) { pickCover.launch("image/*") }
+                        .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.85f) { if (book.paper) editPaper = true else editInfo = true }
                         .background(Color(0xD9100D0B))
                         .border(1.dp, Color.White.copy(alpha = 0.14f), CircleShape),
                     contentAlignment = Alignment.Center,
-                ) { Icon(AppIcons.Pencil, "Сменить обложку", tint = Color.White, modifier = Modifier.size(14.dp)) }
+                ) { Icon(AppIcons.Pencil, "Изменить книгу", tint = Color.White, modifier = Modifier.size(14.dp)) }
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(book.title, color = AppColors.Text, fontSize = 18.sp, lineHeight = 23.sp, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
@@ -353,6 +351,7 @@ fun BookSheet(
 
     if (rating) RatingSheet(book.id, celebrate = false) { rating = false }
     if (editPaper) PaperBookSheet(book) { editPaper = false }
+    if (editInfo) BookEditSheet(book) { editInfo = false }
     if (confirmDelete) {
         ConfirmSheet(
             title = "Удалить книгу?",
@@ -476,7 +475,8 @@ private fun DeleteRow(label: String, onDelete: () -> Unit) {
 @Composable
 private fun BookAbout(app: App, book: Book) {
     val info by androidx.compose.runtime.produceState<com.flerty.wikiflerty.data.BookInfo?>(null, book.id) { value = app.library.info(book) }
-    val data = info ?: return
+    val loaded = info ?: return
+    val data = book.customDescription?.let { loaded.copy(description = it) } ?: loaded
     val facts = listOfNotNull(
         data.publisher.takeIf { it.isNotBlank() },
         data.year.takeIf { it.isNotBlank() },

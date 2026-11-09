@@ -98,6 +98,7 @@ class NoteActions(
     val onSelectionAi: () -> Unit,
     val onSelectionClose: () -> Unit,
     val onSelectionQuote: () -> Unit = {},
+    val onSelectionPerson: () -> Unit = {},
 )
 
 @Composable
@@ -127,6 +128,9 @@ fun SelectionMenu(markerColor: Long, actions: NoteActions, modifier: Modifier = 
             MenuAction("Цитата", onClick = actions.onSelectionQuote) {
                 Icon(AppIcons.Quote, null, tint = AppColors.Text, modifier = Modifier.size(20.dp))
             }
+            MenuAction("Персонаж", onClick = actions.onSelectionPerson) {
+                Icon(AppIcons.Person, null, tint = AppColors.Text, modifier = Modifier.size(21.dp))
+            }
             MenuAction("Копировать", onClick = actions.onSelectionCopy) {
                 Icon(AppIcons.Copy, null, tint = AppColors.Text, modifier = Modifier.size(21.dp))
             }
@@ -148,7 +152,7 @@ private fun MenuAction(
     val shape = appCorner(24)
     Box(
         modifier = Modifier
-            .size(width = 48.dp, height = 46.dp)
+            .size(width = 44.dp, height = 46.dp)
             .liveClick(shape, sound = sound, pressedScale = 0.88f, onClick = onClick)
             .then(if (highlighted) Modifier.accentHighlight(shape) else Modifier)
             .semantics { contentDescription = label },

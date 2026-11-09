@@ -181,6 +181,17 @@ class LibraryRepository(
         }
     }
 
+    suspend fun editInfo(bookId: String, title: String, author: String, description: String) {
+        editMeta(bookId) { b ->
+            b.copy(
+                title = title.trim().ifBlank { b.title },
+                author = author.trim(),
+                customDescription = description.trim(),
+                edited = true,
+            )
+        }
+    }
+
     fun customCover(book: Book): File? {
         val name = book.coverFileName ?: return null
         if (!book.paper && name == "${book.id}.jpg") return null

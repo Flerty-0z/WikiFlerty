@@ -6,6 +6,7 @@ import android.os.Build
 import com.flerty.wikiflerty.App
 import com.flerty.wikiflerty.ai.AiSettings
 import com.flerty.wikiflerty.data.Book
+import com.flerty.wikiflerty.data.BookCharacter
 import com.flerty.wikiflerty.data.Bookmark
 import com.flerty.wikiflerty.data.DictionaryEntry
 import com.flerty.wikiflerty.data.Note
@@ -81,6 +82,12 @@ object Backup {
                     put(b.toJson().put("bookId", JSONObject.NULL).put("book", book))
                 }
             })
+            put("characters", JSONArray().apply {
+                app.characters.characters.value.forEach { c ->
+                    val book = ref(c.bookId) ?: return@forEach
+                    put(c.toJson().put("bookId", JSONObject.NULL).put("book", book))
+                }
+            })
             put("dictionary", JSONArray().apply {
                 app.dictionary.entries.value.forEach { e ->
                     put(e.toJson().put("bookId", JSONObject.NULL).put("book", ref(e.bookId) ?: JSONObject.NULL))
@@ -106,6 +113,7 @@ object Backup {
             put("deletedNotes", JSONObject(state.deletedNotes))
             put("deletedWords", JSONObject(state.deletedWords))
             put("deletedBookmarks", JSONObject(state.deletedBookmarks))
+            put("deletedCharacters", JSONObject(state.deletedCharacters))
             put("settings", JSONObject().apply {
                 put("changedAt", state.settingsChangedAt)
                 put("reader", app.readerSettings.settings.value.toJson())
@@ -125,6 +133,7 @@ object Backup {
         val deletedNotes = maxMerge(state.deletedNotes, remote.optJSONObject("deletedNotes").toLongMap())
         val deletedWords = maxMerge(state.deletedWords, remote.optJSONObject("deletedWords").toLongMap())
         val deletedBookmarks = maxMerge(state.deletedBookmarks, remote.optJSONObject("deletedBookmarks").toLongMap())
+        val deletedCharacters = maxMerge(state.deletedCharacters, remote.optJSONObject("deletedCharacters").toLongMap())
 
         val localNotes = app.notes.notes.value.associateBy { it.id }.toMutableMap()
         var notesChanged = 0
@@ -155,6 +164,22 @@ object Backup {
         }
         val marksAfter = localMarks.values.filterNot { deletedBookmarks.containsKey(it.id) }
         if (marksChanged > 0 || marksAfter.size != app.bookmarks.bookmarks.value.size) app.bookmarks.replaceAll(marksAfter)
+
+        val localPeople = app.characters.characters.value.associateBy { it.id }.toMutableMap()
+        var peopleChanged = 0
+        remote.optJSONArray("characters").objects().forEach { j ->
+            val bookId = localBookId(j.optString("book").takeIf { it.isNotEmpty() }) ?: return@forEach
+            val person = runCatching { BookCharacter.fromJson(j.put("bookId", bookId)) }.getOrNull() ?: return@forEach
+            val deletedAt = deletedCharacters[person.id]
+            if (deletedAt != null && deletedAt >= person.updatedAt) return@forEach
+            val mine = localPeople[person.id]
+            if (mine == null || person.updatedAt > mine.updatedAt) {
+                localPeople[person.id] = person
+                peopleChanged++
+            }
+        }
+        val peopleAfter = localPeople.values.filter { c -> deletedCharacters[c.id]?.let { it < c.updatedAt } ?: true }
+        if (peopleChanged > 0 || peopleAfter.size != app.characters.characters.value.size) app.characters.replaceAll(peopleAfter)
 
         val localWords = app.dictionary.entries.value.associateBy { it.id }.toMutableMap()
         var wordsChanged = 0
@@ -232,6 +257,7 @@ object Backup {
                 deletedNotes = deletedNotes,
                 deletedWords = deletedWords,
                 deletedBookmarks = deletedBookmarks,
+                deletedCharacters = deletedCharacters,
                 foreignBooks = foreign.values.toList(),
                 settingsChangedAt = if (settingsApplied) remoteChangedAt else it.settingsChangedAt,
             )
@@ -243,6 +269,7 @@ object Backup {
         val fp = book.fingerprint ?: return
         app.notes.remapBook(FOREIGN + fp, book.id)
         app.bookmarks.remapBook(FOREIGN + fp, book.id)
+        app.characters.remapBook(FOREIGN + fp, book.id)
         app.dictionary.remapBook(FOREIGN + fp, book.id)
         app.aiHistory.rename(FOREIGN + fp, book.id)
         app.heroes.rename(FOREIGN + fp, book.id)

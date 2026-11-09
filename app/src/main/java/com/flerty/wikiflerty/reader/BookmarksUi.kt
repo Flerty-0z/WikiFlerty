@@ -76,7 +76,7 @@ class BookmarkActions(
     val onDelete: (Bookmark) -> Unit,
 )
 
-internal val NavSheets = listOf(ReaderSheet.Toc, ReaderSheet.Notes, ReaderSheet.Bookmarks)
+internal val NavSheets = listOf(ReaderSheet.Toc, ReaderSheet.Notes, ReaderSheet.Bookmarks, ReaderSheet.People)
 
 @Composable
 internal fun NavTabs(current: ReaderSheet, onSelect: (ReaderSheet) -> Unit, modifier: Modifier = Modifier) {
@@ -117,6 +117,7 @@ internal fun NavTabs(current: ReaderSheet, onSelect: (ReaderSheet) -> Unit, modi
                         when (sheet) {
                             ReaderSheet.Notes -> if (selected) AppIcons.StarFilled else AppIcons.Star
                             ReaderSheet.Bookmarks -> AppIcons.Bookmark
+                            ReaderSheet.People -> AppIcons.Person
                             else -> AppIcons.Toc
                         },
                         contentDescription = sheet.title,

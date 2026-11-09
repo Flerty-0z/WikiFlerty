@@ -46,6 +46,7 @@ data class SyncState(
     val deletedNotes: Map<String, Long> = emptyMap(),
     val deletedWords: Map<String, Long> = emptyMap(),
     val deletedBookmarks: Map<String, Long> = emptyMap(),
+    val deletedCharacters: Map<String, Long> = emptyMap(),
     val foreignBooks: List<ForeignBook> = emptyList(),
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
@@ -55,6 +56,7 @@ data class SyncState(
         put("deletedNotes", JSONObject(deletedNotes))
         put("deletedWords", JSONObject(deletedWords))
         put("deletedBookmarks", JSONObject(deletedBookmarks))
+        put("deletedCharacters", JSONObject(deletedCharacters))
         put("foreignBooks", JSONArray().apply { foreignBooks.forEach { put(it.toJson()) } })
     }
 
@@ -65,6 +67,7 @@ data class SyncState(
             deletedNotes = j.optJSONObject("deletedNotes").toLongMap(),
             deletedWords = j.optJSONObject("deletedWords").toLongMap(),
             deletedBookmarks = j.optJSONObject("deletedBookmarks").toLongMap(),
+            deletedCharacters = j.optJSONObject("deletedCharacters").toLongMap(),
             foreignBooks = j.optJSONArray("foreignBooks")?.let { a ->
                 (0 until a.length()).mapNotNull { runCatching { ForeignBook.fromJson(a.getJSONObject(it)) }.getOrNull() }
             }.orEmpty(),

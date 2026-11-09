@@ -82,6 +82,7 @@ import com.flerty.wikiflerty.data.Bookmark
 import kotlinx.coroutines.CancellationException
 import org.readium.r2.navigator.epub.css.RsProperties
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import org.readium.r2.navigator.Decoration
 import org.readium.r2.navigator.DecorableNavigator
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
@@ -705,7 +706,42 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 ui.handles = null
             }
             "auto-end" -> onAutoEnd()
+            else -> if (type.startsWith("person:")) showPerson(type.removePrefix("person:"))
         }
+    }
+
+    private var peopleNow: List<com.flerty.wikiflerty.data.BookCharacter> = emptyList()
+
+    private fun showPerson(id: String) {
+        val person = peopleNow.firstOrNull { it.id == id } ?: return
+        ui.panelsVisible = false
+        ui.footnote = null
+        ui.person = person
+        app.feedback.play(FeedbackSound.Open)
+    }
+
+    private fun applyPeople() {
+        if (!::navigator.isInitialized) return
+        val call = TextSelection.peopleCall(peopleNow)
+        lifecycleScope.launch { runCatching { navigator.evaluateJavascript(call) } }
+    }
+
+    private val peopleActions by lazy {
+        PeopleActions(
+            onSave = { draft ->
+                lifecycleScope.launch {
+                    val saved = app.characters.save(bookId, draft.id, draft.name, draft.note)
+                    if (ui.person?.id == saved.id) ui.person = saved
+                    if (ui.sheet == ReaderSheet.People) ui.peopleFocus = saved.id
+                }
+            },
+            onDelete = { id ->
+                lifecycleScope.launch {
+                    app.characters.delete(listOf(id))
+                    if (ui.person?.id == id) ui.person = null
+                }
+            },
+        )
     }
 
     private fun seekTo(fraction: Double) {
@@ -798,6 +834,15 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 }
             },
             onSelectionClose = { endSelection() },
+            onSelectionPerson = {
+                val selection = ui.selection
+                if (selection != null) {
+                    val name = selection.text.replace(Regex("\\s+"), " ").trim().trim('.', ',', '!', '?', ':', ';', '«', '»', '"', '—', '-').take(80)
+                    endSelection()
+                    val known = peopleNow.firstOrNull { it.name.equals(name, ignoreCase = true) }
+                    ui.personDraft = if (known != null) PersonDraft(known.id, known.name, known.note) else PersonDraft(null, name, "")
+                }
+            },
             onSelectionQuote = {
                 val selection = ui.selection
                 if (selection != null) {
@@ -823,6 +868,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 delay(wait)
                 if (!::navigator.isInitialized) continue
                 runCatching { navigator.evaluateJavascript(selectionScript) }
+                runCatching { navigator.evaluateJavascript(TextSelection.peopleCall(peopleNow)) }
                 applyColumns(settings)
             }
         }
@@ -1171,6 +1217,16 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val bookMarks = app.bookmarks.bookmarks.map { list ->
             list.filter { it.bookId == session.bookId }.sortedBy { it.progression }
         }
+        val bookPeople = app.characters.characters.map { list ->
+            list.filter { it.bookId == session.bookId }.sortedBy { it.name.lowercase() }
+        }
+        lifecycleScope.launch {
+            bookPeople.distinctUntilChanged().collect { list ->
+                peopleNow = list
+                ui.person = ui.person?.let { p -> list.firstOrNull { it.id == p.id } }
+                applyPeople()
+            }
+        }
 
         val book = app.library.books.value.firstOrNull { it.id == session.bookId }
         val title = book?.title ?: session.publication.metadata.title.orEmpty()
@@ -1184,6 +1240,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     val current by app.readerSettings.settings.collectAsState()
                     val notes by bookNotes.collectAsState(initial = emptyList())
                     val marks by bookMarks.collectAsState(initial = emptyList())
+                    val people by bookPeople.collectAsState(initial = emptyList())
                     ReaderOverlay(
                         state = ui,
                         settings = current,
@@ -1216,6 +1273,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         bookmarks = marks,
                         bookmarkActions = bookmarkActions,
                         quoteActions = quoteActions,
+                        people = people,
+                        peopleActions = peopleActions,
                         onFootnoteGo = { url ->
                             lifecycleScope.launch {
                                 runCatching { navigator.evaluateJavascript("window.__wfGo && window.__wfGo(${org.json.JSONObject.quote(url)})") }

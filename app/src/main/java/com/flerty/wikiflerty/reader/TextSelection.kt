@@ -20,7 +20,23 @@ class TextSelectionBridge(
 internal object TextSelection {
     const val BRIDGE = "WikiFlertySelection"
 
-    fun script(accent: String): String = SCRIPT.replace("__ACCENT__", accent) + "\n" + NOTES + "\n" + AUTO
+    fun script(accent: String): String = SCRIPT.replace("__ACCENT__", accent) + "\n" + NOTES + "\n" + AUTO + "\n" + PEOPLE.replace("__ACCENT__", accent)
+
+    fun peopleCall(people: List<com.flerty.wikiflerty.data.BookCharacter>): String {
+        val keys = org.json.JSONArray()
+        people.forEach { p ->
+            p.name.split(Regex("[\\s\\-]+")).map { it.trim('.', ',', '«', '»', '"', '\'', '(', ')') }
+                .filter { it.length >= 2 && it.first().isLetter() }
+                .forEach { word ->
+                    var stem = word.lowercase().replace('ё', 'е')
+                    val short = stem.length <= 3
+                    if (stem.length > 4 && stem.last() in "йь") stem = stem.dropLast(1)
+                    if (stem.length > 3 && stem.last() in "аеиоуыэюяy") stem = stem.dropLast(1)
+                    keys.put(org.json.JSONArray().put(stem).put(if (short) 0 else 3).put(p.id))
+                }
+        }
+        return "window.__wfPeople && window.__wfPeople($keys)"
+    }
 
     private val AUTO = """
         (function () {
@@ -64,6 +80,85 @@ internal object TextSelection {
             start: function (s) { speed = s; ended = false; if (!raf) { last = 0; raf = requestAnimationFrame(step); } },
             stop: function () { speed = 0; }
           };
+        })();
+    """.trimIndent()
+
+    private val PEOPLE = """
+        (function () {
+          if (window.__wfPeopleReady) return;
+          window.__wfPeopleReady = true;
+          var hits = [];
+          var word = /(^|[^\p{L}\p{N}])(\p{Lu}[\p{L}]*)/gu;
+          window.__wfPeople = function (list) {
+            hits = [];
+            var hl = window.CSS && CSS.highlights && window.Highlight;
+            if (hl) CSS.highlights.delete("wf-hero");
+            if (!document.body || !list || !list.length) return;
+            var map = {};
+            list.forEach(function (k) { var o = map[k[0]]; if (!o || o.s < k[1]) map[k[0]] = { s: k[1], id: k[2] }; });
+            var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+              acceptNode: function (n) {
+                var p = n.parentNode;
+                if (!p || /^(SCRIPT|STYLE|TITLE)$/i.test(p.nodeName)) return NodeFilter.FILTER_REJECT;
+                return NodeFilter.FILTER_ACCEPT;
+              }
+            });
+            var n;
+            while ((n = walker.nextNode())) {
+              var text = n.nodeValue;
+              if (!text || text.length < 2) continue;
+              word.lastIndex = 0;
+              var m;
+              while ((m = word.exec(text))) {
+                var w = m[2];
+                var low = w.toLowerCase().replace(/ё/g, "е");
+                var start = m.index + m[1].length;
+                for (var k = low.length; k >= Math.max(2, low.length - 3); k--) {
+                  var hit = map[low.slice(0, k)];
+                  if (hit && low.length - k <= hit.s) {
+                    var r = document.createRange();
+                    r.setStart(n, start);
+                    r.setEnd(n, start + w.length);
+                    hits.push({ r: r, id: hit.id });
+                    break;
+                  }
+                }
+              }
+            }
+            if (!hl || !hits.length) return;
+            var st = document.getElementById("wf-hero-style");
+            if (!st) {
+              st = document.createElement("style");
+              st.id = "wf-hero-style";
+              (document.head || document.documentElement).appendChild(st);
+            }
+            st.textContent = "::highlight(wf-hero){text-decoration-line:underline;text-decoration-style:dotted;text-decoration-color:__ACCENT__;text-decoration-thickness:2px}";
+            CSS.highlights.set("wf-hero", new Highlight(...hits.map(function (h) { return h.r; })));
+          };
+          window.addEventListener("click", function (e) {
+            if (!hits.length || e.defaultPrevented) return;
+            var sel = window.getSelection && window.getSelection();
+            if (sel && !sel.isCollapsed) return;
+            if (e.target && e.target.closest && e.target.closest("a[href]")) return;
+            var c = document.caretRangeFromPoint ? document.caretRangeFromPoint(e.clientX, e.clientY) : null;
+            if (!c) return;
+            for (var i = 0; i < hits.length; i++) {
+              var r = hits[i].r;
+              if (r.startContainer !== c.startContainer) continue;
+              if (c.startOffset < r.startOffset || c.startOffset > r.endOffset) continue;
+              var rects = r.getClientRects();
+              var inside = false;
+              for (var j = 0; j < rects.length; j++) {
+                var b = rects[j];
+                if (e.clientX >= b.left - 4 && e.clientX <= b.right + 4 && e.clientY >= b.top - 6 && e.clientY <= b.bottom + 6) { inside = true; break; }
+              }
+              if (!inside) continue;
+              e.preventDefault();
+              e.stopImmediatePropagation();
+              try { window.${BRIDGE}.onEvent("person:" + hits[i].id); } catch (x) {}
+              return;
+            }
+          }, true);
         })();
     """.trimIndent()
 

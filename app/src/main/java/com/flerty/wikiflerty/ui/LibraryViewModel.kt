@@ -128,6 +128,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             app.library.delete(book)
             app.notes.deleteForBook(book.id)
             app.bookmarks.deleteForBook(book.id)
+            app.characters.deleteForBook(book.id)
             if (book.paper) app.paper.removeBook(book)
             _messages.emit("Удалено: ${book.title}")
         }

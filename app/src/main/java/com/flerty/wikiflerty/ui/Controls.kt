@@ -674,6 +674,7 @@ fun TextInputSheet(
     number: Boolean = false,
     maxLength: Int = 200,
     code: Boolean = false,
+    multiline: Boolean = false,
     onDone: (String) -> Unit,
 ) {
     var text by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(initial, androidx.compose.ui.text.TextRange(initial.length))) }
@@ -733,20 +734,26 @@ fun TextInputSheet(
                 Modifier.fillMaxWidth().heightIn(min = 64.dp).fieldSurface(appCorner(18)).padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (icon != null) {
+                if (icon != null && !multiline) {
                     Icon(icon, null, tint = AppColors.Muted, modifier = Modifier.size(22.dp))
                     Spacer(Modifier.width(12.dp))
                 }
-                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                    if (text.text.isEmpty()) Text(hint, color = AppColors.Faint, fontSize = 20.sp, maxLines = 1)
+                Box(Modifier.weight(1f), contentAlignment = if (multiline) Alignment.TopStart else Alignment.CenterStart) {
+                    if (text.text.isEmpty()) Text(hint, color = AppColors.Faint, fontSize = if (multiline) 16.sp else 20.sp, maxLines = 1)
                     BasicTextField(
                         value = text,
                         onValueChange = { v ->
-                            val clean = if (number) v.text.filter { it.isDigit() } else v.text.replace("\n", " ")
+                            val clean = when {
+                                number -> v.text.filter { it.isDigit() }
+                                multiline -> v.text
+                                else -> v.text.replace("\n", " ")
+                            }
                             text = v.copy(text = clean.take(maxLength))
                         },
-                        singleLine = true,
-                        textStyle = TextStyle(color = AppColors.Text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold),
+                        singleLine = !multiline,
+                        minLines = if (multiline) 4 else 1,
+                        maxLines = if (multiline) 9 else 1,
+                        textStyle = if (multiline) TextStyle(color = AppColors.Text, fontSize = 16.sp, lineHeight = 22.sp) else TextStyle(color = AppColors.Text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold),
                         cursorBrush = SolidColor(AppColors.Accent),
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = if (number) androidx.compose.ui.text.input.KeyboardType.Number else androidx.compose.ui.text.input.KeyboardType.Text,
@@ -756,7 +763,7 @@ fun TextInputSheet(
                                 else -> androidx.compose.ui.text.input.KeyboardCapitalization.Sentences
                             },
                             autoCorrectEnabled = !code,
-                            imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                            imeAction = if (multiline) androidx.compose.ui.text.input.ImeAction.Default else androidx.compose.ui.text.input.ImeAction.Done,
                         ),
                         keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { save() }),
                         modifier = Modifier.fillMaxWidth().focusRequester(focus),

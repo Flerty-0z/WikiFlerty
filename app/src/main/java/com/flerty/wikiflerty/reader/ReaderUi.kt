@@ -145,6 +145,7 @@ enum class ReaderSheet(val title: String, val depth: Int) {
     Fonts("Шрифт", 2),
     Notes("Заметки", 0),
     Bookmarks("Закладки", 0),
+    People("Персонажи", 0),
     Quote("Цитата", 0),
     NoteEditor("Заметка", 3),
     AiMenu("ИИ", 0),
@@ -187,6 +188,9 @@ class ReaderUiState {
     var bookmarked by mutableStateOf(false)
     var pageTurning by mutableStateOf(false)
     var quote by mutableStateOf<QuoteDraft?>(null)
+    var person by mutableStateOf<com.flerty.wikiflerty.data.BookCharacter?>(null)
+    var personDraft by mutableStateOf<PersonDraft?>(null)
+    var peopleFocus by mutableStateOf<String?>(null)
     var topPanelBottom = 0f
     var bottomPanelTop = Float.MAX_VALUE
 
@@ -285,15 +289,18 @@ fun ReaderOverlay(
     bookmarks: List<com.flerty.wikiflerty.data.Bookmark> = emptyList(),
     bookmarkActions: BookmarkActions,
     quoteActions: QuoteActions,
+    people: List<com.flerty.wikiflerty.data.BookCharacter> = emptyList(),
+    peopleActions: PeopleActions? = null,
 ) {
     val progressText = progressText(state, settings)
     val feedback = LocalFeedback.current
     val view = LocalView.current
 
-    BackHandler(enabled = state.sheet != null || state.panelsVisible || state.selection != null || state.footnote != null) {
+    BackHandler(enabled = state.sheet != null || state.panelsVisible || state.selection != null || state.footnote != null || state.person != null) {
         val sheet = state.sheet
         when {
             state.footnote != null -> state.footnote = null
+            state.person != null && sheet == null -> state.person = null
             state.selection != null && sheet == null -> noteActions.onSelectionClose()
             sheet == null -> state.panelsVisible = false
             sheet == ReaderSheet.Fonts -> state.sheet = ReaderSheet.Text
@@ -435,6 +442,10 @@ fun ReaderOverlay(
                         QuickButton.Screen -> state.sheet = ReaderSheet.Screen
                         QuickButton.Notes -> state.sheet = ReaderSheet.Notes
                         QuickButton.Bookmarks -> state.sheet = ReaderSheet.Bookmarks
+                        QuickButton.People -> {
+                            state.peopleFocus = null
+                            state.sheet = ReaderSheet.People
+                        }
                         QuickButton.Listen -> state.sheet = ReaderSheet.Listen
                         QuickButton.Search -> state.sheet = ReaderSheet.Search
                         QuickButton.Auto -> auto.onStart()
@@ -495,6 +506,9 @@ fun ReaderOverlay(
                         notes = notes,
                         bookmarks = bookmarks,
                         bookmarkActions = bookmarkActions,
+                        people = people,
+                        peopleFocus = state.peopleFocus,
+                        onPerson = { state.personDraft = it },
                         quote = state.quote,
                         quoteActions = quoteActions,
                         editor = state.editor,
@@ -583,6 +597,32 @@ fun ReaderOverlay(
                 onClose = { state.footnote = null },
                 modifier = Modifier.blockTaps(),
             )
+        }
+    }
+
+    AnimatedVisibility(
+        visible = state.person != null && state.sheet == null,
+        enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(260)) { it / 3 },
+        exit = fadeOut(Motion.fade(160)) + slideOutVertically(Motion.tween(200)) { it / 3 },
+        modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.systemBars).padding(bottom = 16.dp),
+    ) {
+        val last = remember { arrayOf<com.flerty.wikiflerty.data.BookCharacter?>(null) }
+        state.person?.let { last[0] = it }
+        val person = last[0]
+        if (person != null) {
+            PersonPopup(
+                person = person,
+                onEdit = { state.personDraft = PersonDraft(person.id, person.name, person.note) },
+                onClose = { state.person = null },
+                modifier = Modifier.blockTaps(),
+            )
+        }
+    }
+
+    val draft = state.personDraft
+    if (draft != null && peopleActions != null) {
+        androidx.compose.runtime.key(draft) {
+            PersonSheet(draft, onDismiss = { state.personDraft = null }, actions = peopleActions)
         }
     }
 
@@ -894,6 +934,7 @@ private fun quickIconVector(button: QuickButton): ImageVector = when (button) {
     QuickButton.Screen -> AppIcons.Screen
     QuickButton.Notes -> AppIcons.Note
     QuickButton.Bookmarks -> AppIcons.Bookmark
+    QuickButton.People -> AppIcons.Person
     QuickButton.Listen -> AppIcons.Headphones
     QuickButton.Search -> AppIcons.Search
     QuickButton.Auto -> AppIcons.Play
@@ -1002,6 +1043,9 @@ private fun SheetContent(
     notes: List<com.flerty.wikiflerty.data.Note>,
     bookmarks: List<com.flerty.wikiflerty.data.Bookmark>,
     bookmarkActions: BookmarkActions,
+    people: List<com.flerty.wikiflerty.data.BookCharacter>,
+    peopleFocus: String?,
+    onPerson: (PersonDraft) -> Unit,
     quote: QuoteDraft?,
     quoteActions: QuoteActions,
     editor: NoteDraft?,
@@ -1075,7 +1119,7 @@ private fun SheetContent(
         com.flerty.wikiflerty.ui.SheetDivider()
 
         when (sheet) {
-            ReaderSheet.Toc, ReaderSheet.Notes, ReaderSheet.Bookmarks -> AnimatedContent(
+            ReaderSheet.Toc, ReaderSheet.Notes, ReaderSheet.Bookmarks, ReaderSheet.People -> AnimatedContent(
                 targetState = sheet,
                 transitionSpec = {
                     val dir = if (NavSheets.indexOf(targetState) > NavSheets.indexOf(initialState)) 1 else -1
@@ -1089,6 +1133,12 @@ private fun SheetContent(
                 when (tab) {
                     ReaderSheet.Notes -> BookNotesList(notes = notes, onOpen = noteActions.onGoTo, onEdit = onEditNote)
                     ReaderSheet.Bookmarks -> BookmarkList(bookmarks, bookmarkActions)
+                    ReaderSheet.People -> PeopleList(
+                        people = people,
+                        focus = peopleFocus,
+                        onAdd = { onPerson(PersonDraft(null, "", "")) },
+                        onEdit = { onPerson(PersonDraft(it.id, it.name, it.note)) },
+                    )
                     else -> TocList(toc, onTocSelect, Modifier)
                 }
             }

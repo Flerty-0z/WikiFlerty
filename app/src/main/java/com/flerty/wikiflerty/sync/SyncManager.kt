@@ -20,6 +20,11 @@ class SyncManager(@Suppress("unused") private val app: App) {
         store.update { it.copy(deletedBookmarks = it.deletedBookmarks + ids.associateWith { now }) }
     }
 
+    fun characterDeleted(ids: List<String>) {
+        val now = System.currentTimeMillis()
+        store.update { it.copy(deletedCharacters = it.deletedCharacters + ids.associateWith { now }) }
+    }
+
     fun settingsChanged() {
         store.update { it.copy(settingsChangedAt = System.currentTimeMillis()) }
     }

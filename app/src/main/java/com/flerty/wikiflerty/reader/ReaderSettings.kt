@@ -69,6 +69,7 @@ enum class QuickButton(val id: String, val title: String, val ai: Boolean = fals
     Screen("screen", "Экран"),
     Notes("notes", "Заметки"),
     Bookmarks("bookmarks", "Закладки"),
+    People("people", "Персонажи"),
     Listen("listen", "Слушать"),
     Search("search", "Поиск"),
     Auto("auto", "Авто"),

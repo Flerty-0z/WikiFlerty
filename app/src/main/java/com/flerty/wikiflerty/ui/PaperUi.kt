@@ -184,7 +184,7 @@ fun PaperBookSheet(book: Book?, onDismiss: () -> Unit) {
 private fun Modifier.matchParentSizeCompat(): Modifier = this.fillMaxWidth().fillMaxHeight()
 
 @Composable
-private fun CoverButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
+internal fun CoverButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
     val shape = appCorner(14)
     Row(
         Modifier.fillMaxWidth().heightIn(min = 44.dp).liveClick(shape, sound = FeedbackSound.Open, onClick = onClick).fieldSurface(shape).padding(horizontal = 12.dp),
@@ -197,7 +197,7 @@ private fun CoverButton(icon: androidx.compose.ui.graphics.vector.ImageVector, l
 }
 
 @Composable
-private fun PaperField(value: String, hint: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+internal fun PaperField(value: String, hint: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
     val shape = appCorner(16)
     Row(
         Modifier.fillMaxWidth().height(52.dp).liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick).fieldSurface(shape).padding(horizontal = 14.dp),

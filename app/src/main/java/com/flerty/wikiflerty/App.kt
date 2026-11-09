@@ -41,6 +41,7 @@ class App : Application() {
         private set
 
     lateinit var bookmarks: com.flerty.wikiflerty.data.BookmarksRepository
+    lateinit var characters: com.flerty.wikiflerty.data.CharactersRepository
         private set
 
     lateinit var sync: SyncManager
@@ -104,11 +105,13 @@ class App : Application() {
         notes = NotesRepository(this)
         dictionary = DictionaryRepository(this)
         bookmarks = com.flerty.wikiflerty.data.BookmarksRepository(this)
+        characters = com.flerty.wikiflerty.data.CharactersRepository(this)
         sync = SyncManager(this)
 
         notes.onDeleted = { sync.noteDeleted(it) }
         dictionary.onDeleted = { sync.wordDeleted(it) }
         bookmarks.onDeleted = { sync.bookmarkDeleted(it) }
+        characters.onDeleted = { sync.characterDeleted(it) }
         readerSettings.onChanged = { sync.settingsChanged() }
         style.onChanged = { sync.settingsChanged() }
         ai.store.onChanged = { sync.settingsChanged() }
