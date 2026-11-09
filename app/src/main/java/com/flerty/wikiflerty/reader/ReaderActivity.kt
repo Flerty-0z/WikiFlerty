@@ -712,10 +712,75 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private var peopleNow: List<com.flerty.wikiflerty.data.BookCharacter> = emptyList()
 
+    private var translateJob: Job? = null
+    private var translateLocator: org.readium.r2.shared.publication.Locator? = null
+
+    private fun cleanWord(text: String): String =
+        text.replace(Regex("\\s+"), " ").trim().trim('.', ',', '!', '?', ':', ';', '«', '»', '"', '“', '”', '(', ')', '—', '-', '…')
+
+    private fun startTranslate(text: String, locator: org.readium.r2.shared.publication.Locator?, word: Boolean, target: String = settings.translateTo) {
+        val clean = if (word) cleanWord(text).take(120) else text.trim()
+        if (clean.isBlank()) return
+        translateJob?.cancel()
+        translateLocator = locator
+        ui.footnote = null
+        ui.person = null
+        ui.panelsVisible = false
+        val known = word && app.dictionary.entries.value.any { it.word.equals(clean, ignoreCase = true) }
+        ui.translate = TranslateInfo(clean, target, word, saved = known)
+        translateJob = lifecycleScope.launch {
+            val result = runCatching { Translator.translate(clean, target) }
+            val current = ui.translate?.takeIf { it.text == clean && it.target == target } ?: return@launch
+            result.onSuccess { r ->
+                ui.translate = current.copy(loading = false, result = r, error = null)
+                if (word && !current.saved && r.text.isNotBlank()) saveTranslation()
+            }.onFailure { e ->
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                ui.translate = current.copy(loading = false, error = "Нет связи с переводчиком")
+            }
+        }
+    }
+
+    private fun saveTranslation() {
+        val info = ui.translate ?: return
+        val result = info.result ?: return
+        if (info.saved) return
+        ui.translate = info.copy(saved = true)
+        val locator = translateLocator
+        val word = if (info.word) info.text else info.text.take(300)
+        app.appScope.launch {
+            app.dictionary.add(word, result.card(), locator?.let { contextAround(it) }.orEmpty().take(400), bookId, bookTitle, locator)
+        }
+        app.feedback.play(FeedbackSound.Toggle)
+    }
+
+    private val translateActions by lazy {
+        TranslateActions(
+            onTarget = { code ->
+                val info = ui.translate
+                app.readerSettings.update { it.copy(translateTo = code) }
+                if (info != null) startTranslate(info.text, translateLocator, info.word, code)
+            },
+            onSave = { saveTranslation() },
+            onRetry = { ui.translate?.let { startTranslate(it.text, translateLocator, it.word, it.target) } },
+            onCopy = {
+                ui.translate?.result?.let { r ->
+                    getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("WikiFlerty", r.text))
+                    Toast.makeText(this, "Скопировано", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onClose = {
+                translateJob?.cancel()
+                ui.translate = null
+            },
+        )
+    }
+
     private fun showPerson(id: String) {
         val person = peopleNow.firstOrNull { it.id == id } ?: return
         ui.panelsVisible = false
         ui.footnote = null
+        ui.translate = null
         ui.person = person
         app.feedback.play(FeedbackSound.Open)
     }
@@ -834,6 +899,20 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 }
             },
             onSelectionClose = { endSelection() },
+            onSelectionTranslate = {
+                val selection = ui.selection
+                if (selection != null) {
+                    endSelection()
+                    startTranslate(selection.text, selection.locator, word = false)
+                }
+            },
+            onSelectionDictionary = {
+                val selection = ui.selection
+                if (selection != null) {
+                    endSelection()
+                    startTranslate(selection.text, selection.locator, word = true)
+                }
+            },
             onSelectionPerson = {
                 val selection = ui.selection
                 if (selection != null) {
@@ -1275,6 +1354,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         quoteActions = quoteActions,
                         people = people,
                         peopleActions = peopleActions,
+                        translateActions = translateActions,
                         onFootnoteGo = { url ->
                             lifecycleScope.launch {
                                 runCatching { navigator.evaluateJavascript("window.__wfGo && window.__wfGo(${org.json.JSONObject.quote(url)})") }

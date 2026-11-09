@@ -87,6 +87,25 @@ enum class QuickButton(val id: String, val title: String, val ai: Boolean = fals
     }
 }
 
+enum class SelectionButton(val id: String, val title: String) {
+    Note("note", "Заметка"),
+    Marker("marker", "Маркер"),
+    Translate("translate", "Перевод"),
+    Dictionary("dictionary", "В словарь"),
+    Ai("ai", "Спросить ИИ"),
+    Quote("quote", "Цитата"),
+    Person("person", "Персонаж"),
+    Copy("copy", "Копировать"),
+    ;
+
+    companion object {
+        fun of(id: String) = entries.firstOrNull { it.id == id }
+        val defaults = listOf(Note, Marker, Translate, Dictionary, Ai)
+        val defaultMore = listOf(Quote, Person, Copy)
+        const val MAX = 5
+    }
+}
+
 data class ReaderSettings(
     val font: String = "literata",
     val fontSize: Double = 1.0,
@@ -112,6 +131,9 @@ data class ReaderSettings(
     val showFlag: Boolean = true,
     val progressInPages: Boolean = false,
     val quickButtons: List<String> = QuickButton.defaults.map { it.id },
+    val selectionButtons: List<String> = SelectionButton.defaults.map { it.id },
+    val selectionMore: List<String> = SelectionButton.defaultMore.map { it.id },
+    val translateTo: String = "ru",
     val sounds: Boolean = true,
     val soundVolume: Double = 0.35,
     val haptics: Boolean = true,
@@ -191,6 +213,9 @@ data class ReaderSettings(
         put("showFlag", showFlag)
         put("progressInPages", progressInPages)
         put("quickButtons", JSONArray(quickButtons))
+        put("selectionButtons", JSONArray(selectionButtons))
+        put("selectionMore", JSONArray(selectionMore))
+        put("translateTo", translateTo)
         put("sounds", sounds)
         put("soundVolume", soundVolume)
         put("haptics", haptics)
@@ -246,6 +271,13 @@ data class ReaderSettings(
                 showFlag = json.optBoolean("showFlag", d.showFlag),
                 progressInPages = json.optBoolean("progressInPages", d.progressInPages),
                 quickButtons = quick,
+                selectionButtons = json.optJSONArray("selectionButtons")?.let { arr ->
+                    (0 until arr.length()).mapNotNull { i -> arr.optString(i).takeIf { SelectionButton.of(it) != null } }
+                } ?: d.selectionButtons,
+                selectionMore = json.optJSONArray("selectionMore")?.let { arr ->
+                    (0 until arr.length()).mapNotNull { i -> arr.optString(i).takeIf { SelectionButton.of(it) != null } }
+                } ?: d.selectionMore,
+                translateTo = json.optString("translateTo", d.translateTo).ifBlank { d.translateTo },
                 sounds = json.optBoolean("sounds", d.sounds),
                 soundVolume = json.optDouble("soundVolume", d.soundVolume).coerceIn(0.05, 1.0),
                 haptics = json.optBoolean("haptics", d.haptics),
@@ -317,3 +349,12 @@ object AutoScroll {
     fun label(speed: Int, scroll: Boolean): String =
         if (scroll) "Скорость $speed" else "${pageSeconds[(speed - 1).coerceIn(0, 9)]} с/стр"
 }
+
+fun ReaderSettings.selectionLayout(): Pair<List<SelectionButton>, List<SelectionButton>> {
+    val main = selectionButtons.distinct().mapNotNull { SelectionButton.of(it) }.take(SelectionButton.MAX)
+    val more = (selectionMore.mapNotNull { SelectionButton.of(it) } + SelectionButton.entries).distinct().filterNot { it in main }
+    return main to more
+}
+
+fun ReaderSettings.withSelection(main: List<SelectionButton>, more: List<SelectionButton>): ReaderSettings =
+    copy(selectionButtons = main.map { it.id }, selectionMore = more.map { it.id })

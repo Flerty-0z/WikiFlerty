@@ -76,6 +76,8 @@ object AppIcons {
     val Phone by lazy { icon("phone", "M8 3h8a1.5 1.5 0 0 1 1.5 1.5v15A1.5 1.5 0 0 1 16 21H8a1.5 1.5 0 0 1-1.5-1.5v-15A1.5 1.5 0 0 1 8 3z", "M11 18h2") }
     val Alert by lazy { icon("alert", "M12 4L2.8 19.5h18.4z", "M12 10v4.5M12 17h.01") }
     val Person by lazy { icon("person", "M12 4a4 4 0 1 0 0 8a4 4 0 1 0 0-8z", "M4.5 20.5c.8-3.8 3.8-6 7.5-6s6.7 2.2 7.5 6") }
+    val More by lazy { icon("more", "M5.5 12h.01", "M12 12h.01", "M18.5 12h.01", width = 3.2f) }
+    val Select by lazy { icon("select", "M9 4.5h6", "M12 4.5v15", "M9 19.5h6", "M5 9H3.5v6H5", "M19 9h1.5v6H19") }
     val Help by lazy { icon("help", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.1-2.4 3.6", "M12 17h.01") }
     val Info by lazy { icon("info", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 11v5M12 8h.01") }
     val TextSize by lazy { icon("text-size", "M3 19L8 5l5 14", "M5 14.5h6", "M14.5 19l3.25-8 3.25 8", "M15.6 16.3h4.3") }

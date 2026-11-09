@@ -66,6 +66,9 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.key
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -140,7 +143,9 @@ enum class ReaderSheet(val title: String, val depth: Int) {
     Panel("Панель", 1),
     Gestures("Жесты", 1),
     Screen("Экран", 1),
-    Sound("Звуки/Атмосфера", 1),
+    Sound("Звук", 1),
+    Atmosphere("Атмосфера", 1),
+    Selection("Выделение", 1),
     Listen("Чтение вслух", 1),
     Fonts("Шрифт", 2),
     Notes("Заметки", 0),
@@ -191,6 +196,7 @@ class ReaderUiState {
     var person by mutableStateOf<com.flerty.wikiflerty.data.BookCharacter?>(null)
     var personDraft by mutableStateOf<PersonDraft?>(null)
     var peopleFocus by mutableStateOf<String?>(null)
+    var translate by mutableStateOf<TranslateInfo?>(null)
     var topPanelBottom = 0f
     var bottomPanelTop = Float.MAX_VALUE
 
@@ -291,15 +297,17 @@ fun ReaderOverlay(
     quoteActions: QuoteActions,
     people: List<com.flerty.wikiflerty.data.BookCharacter> = emptyList(),
     peopleActions: PeopleActions? = null,
+    translateActions: TranslateActions? = null,
 ) {
     val progressText = progressText(state, settings)
     val feedback = LocalFeedback.current
     val view = LocalView.current
 
-    BackHandler(enabled = state.sheet != null || state.panelsVisible || state.selection != null || state.footnote != null || state.person != null) {
+    BackHandler(enabled = state.sheet != null || state.panelsVisible || state.selection != null || state.footnote != null || state.person != null || state.translate != null) {
         val sheet = state.sheet
         when {
             state.footnote != null -> state.footnote = null
+            state.translate != null && sheet == null -> translateActions?.onClose?.invoke() ?: run { state.translate = null }
             state.person != null && sheet == null -> state.person = null
             state.selection != null && sheet == null -> noteActions.onSelectionClose()
             sheet == null -> state.panelsVisible = false
@@ -619,6 +627,20 @@ fun ReaderOverlay(
         }
     }
 
+    AnimatedVisibility(
+        visible = state.translate != null && state.sheet == null && translateActions != null,
+        enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(260)) { it / 3 },
+        exit = fadeOut(Motion.fade(160)) + slideOutVertically(Motion.tween(200)) { it / 3 },
+        modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.systemBars).padding(bottom = 16.dp),
+    ) {
+        val last = remember { arrayOf<TranslateInfo?>(null) }
+        state.translate?.let { last[0] = it }
+        val info = last[0]
+        if (info != null && translateActions != null) {
+            TranslatePopup(info, translateActions, Modifier.blockTaps())
+        }
+    }
+
     val draft = state.personDraft
     if (draft != null && peopleActions != null) {
         androidx.compose.runtime.key(draft) {
@@ -650,9 +672,12 @@ fun ReaderOverlay(
                 below <= maxY -> below
                 else -> maxY
             }.coerceIn(minY, maxOf(minY, maxY))
+            val layout = remember(settings.selectionButtons, settings.selectionMore) { settings.selectionLayout() }
             SelectionMenu(
                 markerColor = settings.markerColor,
                 actions = noteActions,
+                main = layout.first,
+                more = layout.second,
                 modifier = Modifier.fillMaxWidth().offset { androidx.compose.ui.unit.IntOffset(0, y.roundToInt()) },
             )
         }
@@ -1198,10 +1223,9 @@ private fun SheetContent(
                     ReaderSheet.Panel -> OptionFrame { PanelOptions(settings, onSettingsChange) }
                     ReaderSheet.Gestures -> OptionFrame { GestureOptions(settings, onSettingsChange) }
                     ReaderSheet.Screen -> OptionFrame { ScreenOptions(settings, onSettingsChange) }
-                    ReaderSheet.Sound -> {
-                        OptionFrame { SoundOptions(settings, onSettingsChange) }
-                        AmbienceOptions(title = "Атмосфера")
-                    }
+                    ReaderSheet.Sound -> OptionFrame { SoundOptions(settings, onSettingsChange) }
+                    ReaderSheet.Atmosphere -> AmbienceOptions(title = "Звуки фона")
+                    ReaderSheet.Selection -> OptionFrame { SelectionOptions(settings, onSettingsChange) }
                     ReaderSheet.Listen -> OptionFrame { TtsOptions(settings, bookLanguage, ttsActive, ttsPlaying, ttsSleep, tts, onSettingsChange) }
                     else -> Unit
                 }
@@ -1220,10 +1244,12 @@ private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
         Tile(ReaderSheet.Scroll, "Режим, анимация", AppIcons.Pages, 0xFFA78BFA, 0xFF7653E0),
         Tile(ReaderSheet.Theme, "Фон страницы", AppIcons.Theme, 0xFFF6C770, 0xFFD9922B, dark = true),
         Tile(ReaderSheet.Panel, "Кнопки, прогресс", AppIcons.Panel, 0xFF5EEAD4, 0xFF1FA392, dark = true),
+        Tile(ReaderSheet.Selection, "Меню, перевод", AppIcons.Select, 0xFFFDA4AF, 0xFFE0475F),
         Tile(ReaderSheet.Gestures, "Тапы, свайпы", AppIcons.Gesture, 0xFFF49AC1, 0xFFD45A93),
         Tile(ReaderSheet.Screen, "Яркость, поворот", AppIcons.Screen, 0xFFF7D774, 0xFFD9A92B, dark = true),
         Tile(ReaderSheet.Listen, "Голос, скорость", AppIcons.Headphones, 0xFF8BD3A5, 0xFF3E9E66, dark = true),
-        Tile(ReaderSheet.Sound, "Звуки, дождь, камин", AppIcons.Sound, 0xFFF6A26B, 0xFFD9692B),
+        Tile(ReaderSheet.Sound, "Кнопки, вибрация", AppIcons.Sound, 0xFFF6A26B, 0xFFD9692B),
+        Tile(ReaderSheet.Atmosphere, "Дождь, камин", AppIcons.Fire, 0xFFFCA5A5, 0xFFB45309),
         Tile(ReaderSheet.AiChapter, "Пересказ, тест", AppIcons.Book, 0xFF7DD3FC, 0xFF3B82C4),
         Tile(ReaderSheet.AiSetup, "Нейросети, модели", AppIcons.Sparkle, 0xFF8AB4F8, 0xFF7653E0),
     )
@@ -1573,6 +1599,80 @@ private fun PanelOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
     Group("ИИ в панели", icon = AppIcons.Sparkle) {
         QuickButtonList(QuickButton.entries.filter { it.ai }, settings, onSettingsChange)
         Hint("Быстрый доступ к функциям «ИИ по главе».")
+    }
+}
+
+@Composable
+private fun SelectionOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit) {
+    val (main, more) = settings.selectionLayout()
+    Group("В меню · ${main.size}/${SelectionButton.MAX}", icon = AppIcons.Select) {
+        SelectionButtonList(main, settings.markerColor, toMain = false, canMove = true,
+            onUp = { b -> onSettingsChange { s -> val (m, o) = s.selectionLayout(); s.withSelection(m.moveUp(b), o) } },
+            onMove = { b -> onSettingsChange { s -> val (m, o) = s.selectionLayout(); s.withSelection(m - b, listOf(b) + o) } },
+        )
+    }
+    Group("Под «⋯»", icon = AppIcons.More) {
+        SelectionButtonList(more, settings.markerColor, toMain = true, canMove = main.size < SelectionButton.MAX,
+            onUp = { b -> onSettingsChange { s -> val (m, o) = s.selectionLayout(); s.withSelection(m, o.moveUp(b)) } },
+            onMove = { b -> onSettingsChange { s -> val (m, o) = s.selectionLayout(); if (m.size >= SelectionButton.MAX) s else s.withSelection(m + b, o - b) } },
+        )
+    }
+    PickerRow(
+        label = "Перевод на",
+        icon = AppIcons.Translate,
+        options = Translator.languages.map { PickerOption(it.code, it.title) },
+        selectedId = settings.translateTo,
+    ) { code -> onSettingsChange { it.copy(translateTo = code) } }
+}
+
+private fun List<SelectionButton>.moveUp(b: SelectionButton): List<SelectionButton> {
+    val i = indexOf(b)
+    if (i <= 0) return this
+    return toMutableList().apply { removeAt(i); add(i - 1, b) }
+}
+
+@Composable
+private fun SelectionButtonList(
+    buttons: List<SelectionButton>,
+    markerColor: Long,
+    toMain: Boolean,
+    canMove: Boolean,
+    onUp: (SelectionButton) -> Unit,
+    onMove: (SelectionButton) -> Unit,
+) {
+    Column(Modifier.clip(appCorner(16)).background(AppColors.Field).animateContentSize(Motion.tween(260))) {
+        if (buttons.isEmpty()) {
+            Text("Пусто", color = AppColors.Faint, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 15.dp))
+        }
+        buttons.forEachIndexed { index, button ->
+            key(button) {
+                if (index > 0) com.flerty.wikiflerty.ui.ListDivider()
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(50.dp).padding(start = 14.dp, end = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) { SelectionIcon(button, markerColor, AppColors.Text) }
+                    Spacer(Modifier.width(12.dp))
+                    Text(button.title, color = AppColors.Text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    val upAlpha by androidx.compose.animation.core.animateFloatAsState(if (index > 0) 1f else 0f, Motion.tween(200), label = "up")
+                    Box(
+                        Modifier
+                            .size(40.dp)
+                            .graphicsLayer { alpha = upAlpha }
+                            .liveClick(CircleShape, sound = FeedbackSound.Toggle, enabled = index > 0, pressedScale = 0.85f) { onUp(button) },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(AppIcons.Chevron, "Выше", tint = AppColors.Muted, modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = -90f }) }
+                    val moveAlpha by androidx.compose.animation.core.animateFloatAsState(if (canMove) 1f else 0.3f, Motion.tween(200), label = "move")
+                    Box(
+                        Modifier
+                            .size(40.dp)
+                            .graphicsLayer { alpha = moveAlpha }
+                            .liveClick(CircleShape, sound = FeedbackSound.Toggle, enabled = canMove, pressedScale = 0.85f) { onMove(button) },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(if (toMain) AppIcons.Plus else AppIcons.More, if (toMain) "В меню" else "Под «⋯»", tint = AppColors.Accent, modifier = Modifier.size(18.dp)) }
+                }
+            }
+        }
     }
 }
 

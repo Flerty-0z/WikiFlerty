@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -99,45 +101,93 @@ class NoteActions(
     val onSelectionClose: () -> Unit,
     val onSelectionQuote: () -> Unit = {},
     val onSelectionPerson: () -> Unit = {},
+    val onSelectionTranslate: () -> Unit = {},
+    val onSelectionDictionary: () -> Unit = {},
 )
 
 @Composable
-fun SelectionMenu(markerColor: Long, actions: NoteActions, modifier: Modifier = Modifier) {
+fun SelectionMenu(markerColor: Long, actions: NoteActions, main: List<SelectionButton>, more: List<SelectionButton>, modifier: Modifier = Modifier) {
+    var expanded by remember(main, more) { mutableStateOf(false) }
     Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Row(
-            modifier = Modifier
-                .panelSurface(appCorner(28), elevation = 16.dp)
-                .padding(5.dp),
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
-        ) {
-            MenuAction("Заметка", onClick = actions.onSelectionNote) {
-                Icon(AppIcons.Note, null, tint = AppColors.Text, modifier = Modifier.size(22.dp))
-            }
-            MenuAction("Спросить ИИ", highlighted = true, onClick = actions.onSelectionAi) {
-                Icon(AppIcons.Sparkle, null, tint = accentContent, modifier = Modifier.size(22.dp))
-            }
-            MenuAction("Маркер", sound = FeedbackSound.Toggle, onClick = actions.onSelectionMarker) {
-                Box(
-                    Modifier
-                        .size(20.dp)
-                        .clip(CircleShape)
-                        .background(Color(markerColor))
-                        .border(1.dp, Color(0x55FFFFFF), CircleShape),
-                )
-            }
-            MenuAction("Цитата", onClick = actions.onSelectionQuote) {
-                Icon(AppIcons.Quote, null, tint = AppColors.Text, modifier = Modifier.size(20.dp))
-            }
-            MenuAction("Персонаж", onClick = actions.onSelectionPerson) {
-                Icon(AppIcons.Person, null, tint = AppColors.Text, modifier = Modifier.size(21.dp))
-            }
-            MenuAction("Копировать", onClick = actions.onSelectionCopy) {
-                Icon(AppIcons.Copy, null, tint = AppColors.Text, modifier = Modifier.size(21.dp))
-            }
-            MenuAction("Закрыть", sound = FeedbackSound.Close, onClick = actions.onSelectionClose) {
-                Icon(AppIcons.Close, null, tint = AppColors.Muted, modifier = Modifier.size(19.dp))
+        androidx.compose.animation.AnimatedContent(
+            targetState = expanded,
+            transitionSpec = {
+                val dir = if (targetState) 1 else -1
+                (androidx.compose.animation.slideInHorizontally(Motion.tween(240)) { dir * it / 6 } + fadeIn(Motion.fade(200)))
+                    .togetherWith(androidx.compose.animation.slideOutHorizontally(Motion.tween(200)) { -dir * it / 6 } + fadeOut(Motion.fade(140)))
+                    .using(androidx.compose.animation.SizeTransform(clip = false))
+            },
+            label = "selection-menu",
+        ) { open ->
+            Row(
+                modifier = Modifier
+                    .panelSurface(appCorner(28), elevation = 16.dp)
+                    .padding(5.dp)
+                    .then(if (open) Modifier.horizontalScroll(rememberScrollState()) else Modifier),
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                if (open) {
+                    MenuAction("Назад", sound = FeedbackSound.Close, onClick = { expanded = false }) {
+                        Icon(AppIcons.Back, null, tint = AppColors.Muted, modifier = Modifier.size(20.dp))
+                    }
+                    more.forEach { SelectionAction(it, markerColor, actions) }
+                } else {
+                    main.forEach { SelectionAction(it, markerColor, actions) }
+                    if (more.isNotEmpty()) {
+                        MenuAction("Ещё", sound = FeedbackSound.Toggle, onClick = { expanded = true }) {
+                            Icon(AppIcons.More, null, tint = AppColors.Text, modifier = Modifier.size(22.dp))
+                        }
+                    }
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun SelectionAction(button: SelectionButton, markerColor: Long, actions: NoteActions) {
+    val click = when (button) {
+        SelectionButton.Note -> actions.onSelectionNote
+        SelectionButton.Marker -> actions.onSelectionMarker
+        SelectionButton.Translate -> actions.onSelectionTranslate
+        SelectionButton.Dictionary -> actions.onSelectionDictionary
+        SelectionButton.Ai -> actions.onSelectionAi
+        SelectionButton.Quote -> actions.onSelectionQuote
+        SelectionButton.Person -> actions.onSelectionPerson
+        SelectionButton.Copy -> actions.onSelectionCopy
+    }
+    MenuAction(
+        button.title,
+        highlighted = button == SelectionButton.Ai,
+        sound = if (button == SelectionButton.Marker) FeedbackSound.Toggle else FeedbackSound.Open,
+        onClick = click,
+    ) { SelectionIcon(button, markerColor, if (button == SelectionButton.Ai) accentContent else AppColors.Text) }
+}
+
+@Composable
+internal fun SelectionIcon(button: SelectionButton, markerColor: Long, tint: Color) {
+    when (button) {
+        SelectionButton.Marker -> Box(
+            Modifier
+                .size(20.dp)
+                .clip(CircleShape)
+                .background(Color(markerColor))
+                .border(1.dp, Color(0x55FFFFFF), CircleShape),
+        )
+        else -> Icon(
+            when (button) {
+                SelectionButton.Note -> AppIcons.Note
+                SelectionButton.Translate -> AppIcons.Translate
+                SelectionButton.Dictionary -> AppIcons.TextSize
+                SelectionButton.Ai -> AppIcons.Sparkle
+                SelectionButton.Quote -> AppIcons.Quote
+                SelectionButton.Person -> AppIcons.Person
+                else -> AppIcons.Copy
+            },
+            null,
+            tint = tint,
+            modifier = Modifier.size(21.dp),
+        )
     }
 }
 
@@ -152,7 +202,7 @@ private fun MenuAction(
     val shape = appCorner(24)
     Box(
         modifier = Modifier
-            .size(width = 44.dp, height = 46.dp)
+            .size(width = 48.dp, height = 46.dp)
             .liveClick(shape, sound = sound, pressedScale = 0.88f, onClick = onClick)
             .then(if (highlighted) Modifier.accentHighlight(shape) else Modifier)
             .semantics { contentDescription = label },
