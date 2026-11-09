@@ -84,7 +84,7 @@ class CloudSync(private val app: App) {
     fun stop() {
         pending?.cancel()
         setCode(null)
-        prefs.edit().remove("seenHead").remove("pushedHash").remove("uploaded").remove("remoteImages").remove("error").apply()
+        prefs.edit().remove("seenGens").remove("pushedParts").remove("uploaded").remove("remoteImages").remove("error").apply()
         _status.value = _status.value.copy(error = null, lastReport = null)
     }
 
@@ -94,9 +94,7 @@ class CloudSync(private val app: App) {
             mutex.withLock {
                 val space = space(code)
                 get(space, HEAD)?.let { head ->
-                    val meta = JSONObject(head.blob)
-                    val gen = meta.optString("gen")
-                    for (i in 0 until meta.optInt("n")) delete(space, chunk(gen, i))
+                    parseHead(head.blob).values.forEach { ref -> for (i in 0 until ref.n) delete(space, chunk(ref.gen, i)) }
                     delete(space, HEAD)
                 }
                 Unit
@@ -117,7 +115,7 @@ class CloudSync(private val app: App) {
 
     private fun setCode(code: String?) {
         prefs.edit().apply { if (code == null) remove("code") else putString("code", code) }.apply()
-        if (code != _status.value.code) prefs.edit().remove("seenHead").remove("pushedHash").remove("uploaded").remove("remoteImages").apply()
+        if (code != _status.value.code) prefs.edit().remove("seenGens").remove("pushedParts").remove("uploaded").remove("remoteImages").apply()
         _status.value = _status.value.copy(code = code)
     }
 
@@ -143,6 +141,79 @@ class CloudSync(private val app: App) {
         else -> "Не получилось синхронизировать"
     }
 
+    private class PartRef(val gen: String, val n: Int)
+
+    private fun parseHead(blob: String): Map<String, PartRef> {
+        val meta = JSONObject(blob)
+        val parts = meta.optJSONObject("parts")
+        if (parts == null) {
+            val gen = meta.optString("gen")
+            return if (gen.isBlank()) emptyMap() else mapOf(LEGACY to PartRef(gen, meta.optInt("n")))
+        }
+        return parts.keys().asSequence().toList().mapNotNull { k ->
+            val j = parts.optJSONObject(k) ?: return@mapNotNull null
+            k to PartRef(j.optString("gen"), j.optInt("n"))
+        }.toMap()
+    }
+
+    private fun headJson(parts: Map<String, PartRef>): String {
+        val j = JSONObject()
+        parts.forEach { (k, r) -> j.put(k, JSONObject().put("gen", r.gen).put("n", r.n)) }
+        return JSONObject().put("v", 2).put("parts", j).toString()
+    }
+
+    private fun readMap(name: String): MutableMap<String, String> {
+        val j = runCatching { JSONObject(prefs.getString(name, null) ?: "{}") }.getOrElse { JSONObject() }
+        return j.keys().asSequence().associateWith { j.optString(it) }.toMutableMap()
+    }
+
+    private fun writeMap(name: String, map: Map<String, String>) {
+        prefs.edit().putString(name, JSONObject(map).toString()).apply()
+    }
+
+    private fun bucket(fingerprint: String): String = "b" + hex(sha("bucket", fingerprint)).first()
+
+    private fun split(snapshot: JSONObject, images: JSONObject): Map<String, JSONObject> {
+        val out = linkedMapOf<String, JSONObject>()
+        val books = snapshot.optJSONArray("books") ?: org.json.JSONArray()
+        for (i in 0 until books.length()) {
+            val b = books.optJSONObject(i) ?: continue
+            val fp = b.optString("fingerprint").ifBlank { continue }
+            val part = out.getOrPut(bucket(fp)) { JSONObject().put("books", org.json.JSONArray()) }
+            part.getJSONArray("books").put(b)
+        }
+        fun group(name: String, vararg keys: String) {
+            val j = JSONObject()
+            keys.forEach { k -> if (snapshot.has(k)) j.put(k, snapshot.get(k)) }
+            out[name] = j
+        }
+        group("notes", "notes", "deletedNotes")
+        group("marks", "bookmarks", "deletedBookmarks")
+        group("words", "dictionary", "deletedWords")
+        group("stats", "stats", "achievements", "freezes", "paperSessions")
+        group("ai", "aiHistory", "heroes")
+        group("settings", "settings")
+        out["images"] = JSONObject().put("images", images)
+        return out
+    }
+
+    private fun combinedImages(code: String, space: String, key: SecretKeySpec, upload: Boolean): JSONObject {
+        val remoteImages = runCatching { JSONObject(prefs.getString("remoteImages", null) ?: "{}") }.getOrElse { JSONObject() }
+        val local = localImages()
+        if (upload) uploadImages(space, key, code, local)
+        val images = JSONObject(remoteImages.toString())
+        local.forEach { (k, entry) ->
+            val known = images.optJSONObject(k)
+            if (known == null || entry.json.optLong("at") >= known.optLong("at")) images.put(k, entry.json)
+        }
+        return images
+    }
+
+    private fun localParts(code: String, space: String, key: SecretKeySpec, upload: Boolean): Map<String, JSONObject> =
+        split(Backup.snapshot(app), combinedImages(code, space, key, upload))
+
+    private fun hashes(parts: Map<String, JSONObject>) = parts.mapValues { hex(sha("part", it.value.toString())) }
+
     private suspend fun exchange(code: String, requireExisting: Boolean): MergeReport {
         val space = space(code)
         val key = key(code)
@@ -150,61 +221,78 @@ class CloudSync(private val app: App) {
         repeat(4) {
             val head = get(space, HEAD)
             if (head == null && requireExisting) throw UnknownCode()
-            if (head != null && head.time != prefs.getString("seenHead", null)) {
-                val meta = JSONObject(head.blob)
-                val gen = meta.optString("gen")
-                val text = StringBuilder()
-                var complete = true
-                for (i in 0 until meta.optInt("n")) {
-                    val part = get(space, chunk(gen, i))
-                    if (part == null) {
-                        complete = false
-                        break
+            val remote = head?.let { parseHead(it.blob) }.orEmpty()
+            val seen = readMap("seenGens")
+            val pushed = readMap("pushedParts")
+            val fetch = remote.filter { (name, ref) -> seen[name] != ref.gen }
+
+            if (fetch.isNotEmpty()) {
+                val before = hashes(localParts(code, space, key, upload = false))
+                val merged = JSONObject().put("format", "wikiflerty").put("version", 1)
+                for ((name, ref) in fetch) {
+                    val text = StringBuilder()
+                    for (i in 0 until ref.n) {
+                        val part = get(space, chunk(ref.gen, i)) ?: return@repeat
+                        text.append(part.blob)
                     }
-                    text.append(part.blob)
+                    val json = JSONObject(unpack(text.toString(), key))
+                    json.keys().asSequence().toList().forEach { k ->
+                        if (k == "books") {
+                            val all = merged.optJSONArray("books") ?: org.json.JSONArray().also { merged.put("books", it) }
+                            val arr = json.getJSONArray("books")
+                            for (i in 0 until arr.length()) all.put(arr.get(i))
+                        } else {
+                            merged.put(k, json.get(k))
+                        }
+                    }
                 }
-                if (!complete) return@repeat
-                val remote = JSONObject(unpack(text.toString(), key))
-                report += Backup.merge(app, remote, applySettings = app.sync.store.state.value.syncSettings)
-                prefs.edit().putString("remoteImages", (remote.optJSONObject("images") ?: JSONObject()).toString()).apply()
+                report += Backup.merge(app, merged, applySettings = app.sync.store.state.value.syncSettings)
+                merged.optJSONObject("images")?.let { prefs.edit().putString("remoteImages", it.toString()).apply() }
+                applyImages(space, key, code, runCatching { JSONObject(prefs.getString("remoteImages", null) ?: "{}") }.getOrElse { JSONObject() })
+                val after = hashes(localParts(code, space, key, upload = false))
+                fetch.keys.forEach { name ->
+                    if (name != LEGACY && before[name] == pushed[name] && after[name] != null) pushed[name] = after[name]!!
+                    seen[name] = fetch.getValue(name).gen
+                }
+                writeMap("pushedParts", pushed)
+                writeMap("seenGens", seen)
+            } else {
+                applyImages(space, key, code, runCatching { JSONObject(prefs.getString("remoteImages", null) ?: "{}") }.getOrElse { JSONObject() })
             }
 
-            val remoteImages = runCatching { JSONObject(prefs.getString("remoteImages", null) ?: "{}") }.getOrElse { JSONObject() }
-            applyImages(space, key, code, remoteImages)
-            val local = localImages()
-            uploadImages(space, key, code, local)
-            val images = JSONObject(remoteImages.toString())
-            local.forEach { (k, entry) ->
-                val known = images.optJSONObject(k)
-                if (known == null || entry.json.optLong("at") >= known.optLong("at")) images.put(k, entry.json)
-            }
+            val parts = localParts(code, space, key, upload = true)
+            val now = hashes(parts)
+            val changed = parts.keys.filter { name -> now[name] != pushed[name] || remote[name] == null }
+            if (changed.isEmpty() && LEGACY !in remote) return report
 
-            val snapshot = Backup.snapshot(app).put("images", images)
-            val hash = fingerprint(snapshot)
-            if (head != null && hash == prefs.getString("pushedHash", null)) {
-                prefs.edit().putString("seenHead", head.time).apply()
-                return report
+            val next = remote.filterKeys { it != LEGACY }.toMutableMap()
+            val written = mutableListOf<Pair<String, PartRef>>()
+            changed.forEach { name ->
+                val blob = pack(parts.getValue(name).toString(), key)
+                val gen = java.lang.Long.toString(System.currentTimeMillis(), 36) + (1000 + SecureRandom().nextInt(9000))
+                val chunks = blob.chunked(CHUNK)
+                chunks.forEachIndexed { i, c -> put(space, chunk(gen, i), c, Precondition.None) }
+                val ref = PartRef(gen, chunks.size)
+                next[name] = ref
+                written += name to ref
             }
-
-            val blob = pack(snapshot.toString(), key)
-            val gen = java.lang.Long.toString(System.currentTimeMillis(), 36) + (1000 + SecureRandom().nextInt(9000))
-            val parts = blob.chunked(CHUNK)
-            parts.forEachIndexed { i, part -> put(space, chunk(gen, i), part, Precondition.None) }
-            val meta = JSONObject().put("v", 1).put("gen", gen).put("n", parts.size).toString()
-            val written = try {
-                put(space, HEAD, meta, if (head == null) Precondition.Missing else Precondition.At(head.time))
+            next.keys.retainAll(parts.keys)
+            try {
+                put(space, HEAD, headJson(next), if (head == null) Precondition.Missing else Precondition.At(head.time))
             } catch (e: Conflict) {
-                parts.indices.forEach { runCatching { delete(space, chunk(gen, it)) } }
+                written.forEach { (_, ref) -> for (i in 0 until ref.n) runCatching { delete(space, chunk(ref.gen, i)) } }
                 return@repeat
             }
-            if (head != null) {
-                runCatching {
-                    val old = JSONObject(head.blob)
-                    val oldGen = old.optString("gen")
-                    if (oldGen != gen) for (i in 0 until old.optInt("n")) delete(space, chunk(oldGen, i))
-                }
+            remote.forEach { (name, old) ->
+                if (next[name]?.gen != old.gen) for (i in 0 until old.n) runCatching { delete(space, chunk(old.gen, i)) }
             }
-            prefs.edit().putString("seenHead", written).putString("pushedHash", hash).apply()
+            written.forEach { (name, ref) ->
+                pushed[name] = now.getValue(name)
+                seen[name] = ref.gen
+            }
+            seen.keys.retainAll(next.keys)
+            writeMap("pushedParts", pushed)
+            writeMap("seenGens", seen)
             return report
         }
         throw IOException("busy")
@@ -323,12 +411,6 @@ class CloudSync(private val app: App) {
         }
     }
 
-    private fun fingerprint(snapshot: JSONObject): String {
-        val copy = JSONObject(snapshot.toString())
-        copy.remove("savedAt")
-        copy.remove("device")
-        return hex(sha("snapshot", copy.toString()))
-    }
 
     private fun space(code: String) = hex(sha("wikiflerty-space", code))
 
@@ -428,6 +510,7 @@ class CloudSync(private val app: App) {
         const val LENGTH = 25
         const val CHUNK = 700_000
         const val HEAD = "head"
+        const val LEGACY = "all"
         const val KEY = "AIzaSyCu6eR2CIY4EKqllpI8AJ6NfX1urr_klYM"
         const val BASE = "https://firestore.googleapis.com/v1/projects/wikiflerty-main/databases/(default)/documents/spaces/"
         const val NAME = "projects/wikiflerty-main/databases/(default)/documents/spaces/"

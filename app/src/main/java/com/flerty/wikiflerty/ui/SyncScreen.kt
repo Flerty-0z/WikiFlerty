@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.animation.animateContentSize
 import android.widget.Toast
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -90,13 +92,6 @@ fun SyncContent() {
                         app.sync.store.update { it.copy(syncSettings = v) }
                     }
                 }
-                Text(
-                    "На другом телефоне: Настройки → Синхронизация → «Ввести код». Книги добавь туда сам — прогресс подтянется автоматически.",
-                    color = AppColors.Faint,
-                    fontSize = 12.sp,
-                    lineHeight = 17.sp,
-                    modifier = Modifier.padding(horizontal = 4.dp),
-                )
                 val shape = appCorner(14)
                 Row(
                     Modifier
@@ -149,13 +144,23 @@ private fun <T> Crossfade(target: T, content: @Composable (T) -> Unit) {
 @Composable
 private fun CodeCard(code: String) {
     val context = LocalContext.current
+    var help by remember { mutableStateOf(false) }
     Column(
-        Modifier.fillMaxWidth().fieldSurface(appCorner(20)).padding(16.dp),
+        Modifier.fillMaxWidth().fieldSurface(appCorner(20)).animateContentSize(Motion.tween(300)).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingIcon(AppIcons.Lock)
             Text("Твой код", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            val tint by androidx.compose.animation.animateColorAsState(if (help) AppColors.OnAccent else AppColors.Accent, Motion.fade(220), label = "help-tint")
+            val bg by androidx.compose.animation.animateColorAsState(if (help) AppColors.Accent else AppColors.Accent.copy(alpha = 0.14f), Motion.fade(220), label = "help-bg")
+            Box(
+                Modifier
+                    .size(34.dp)
+                    .liveClick(androidx.compose.foundation.shape.CircleShape, sound = FeedbackSound.Toggle) { help = !help }
+                    .background(bg, androidx.compose.foundation.shape.CircleShape),
+                contentAlignment = Alignment.Center,
+            ) { Icon(AppIcons.Help, "Как подключить другой телефон", tint = tint, modifier = Modifier.size(19.dp)) }
         }
         Text(
             code,
@@ -168,13 +173,19 @@ private fun CodeCard(code: String) {
             autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 19.sp, stepSize = 0.5.sp),
             modifier = Modifier.fillMaxWidth(),
         )
-        Text(
-            "Сохрани его — без кода данные на новом телефоне не восстановить",
-            color = AppColors.Faint,
-            fontSize = 12.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        Row(
+            Modifier
+                .align(Alignment.CenterHorizontally)
+                .background(AppColors.Warn.copy(alpha = 0.14f), appCorner(12))
+                .border(1.dp, AppColors.Warn.copy(alpha = 0.35f), appCorner(12))
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(AppIcons.Alert, null, tint = AppColors.Warn, modifier = Modifier.size(16.dp))
+            Text("Сохрани код — без него не восстановить", color = AppColors.Warn, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false,
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 12.sp, stepSize = 0.5.sp))
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AppButton("Копировать", primary = true, modifier = Modifier.weight(1f)) {
                 val clip = context.getSystemService(android.content.ClipboardManager::class.java)
@@ -185,6 +196,25 @@ private fun CodeCard(code: String) {
                 shareText(context, "Код синхронизации WikiFlerty: $code", "Код синхронизации WikiFlerty")
             }
         }
+        Appear(help) {
+            Column(
+                Modifier.fillMaxWidth().background(AppColors.Background.copy(alpha = 0.5f), appCorner(14)).padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                HelpLine("1", "На другом телефоне: Настройки → Синхронизация → «Ввести код»")
+                HelpLine("2", "Добавь туда те же книги — прогресс, заметки и обложки подтянутся сами")
+            }
+        }
+    }
+}
+
+@Composable
+private fun HelpLine(n: String, text: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+        Box(Modifier.size(20.dp).background(AppColors.Accent.copy(alpha = 0.16f), androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
+            Text(n, color = AppColors.Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+        Text(text, color = AppColors.Muted, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.weight(1f))
     }
 }
 

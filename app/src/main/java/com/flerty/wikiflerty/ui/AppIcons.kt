@@ -65,6 +65,8 @@ object AppIcons {
     val Shelf by lazy { icon("shelf", "M5 4v16M10 4v16", "M14.5 5.5l4 14", "M3 20h18") }
     val Plus by lazy { icon("plus", "M12 5v14M5 12h14") }
     val Clock by lazy { icon("clock", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 7v5l3 2") }
+    val Alert by lazy { icon("alert", "M12 4L2.8 19.5h18.4z", "M12 10v4.5M12 17h.01") }
+    val Help by lazy { icon("help", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.1-2.4 3.6", "M12 17h.01") }
     val Info by lazy { icon("info", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 11v5M12 8h.01") }
     val TextSize by lazy { icon("text-size", "M3 19L8 5l5 14", "M5 14.5h6", "M14.5 19l3.25-8 3.25 8", "M15.6 16.3h4.3") }
     val LineHeight by lazy { icon("line-height", "M11 6h9M11 12h9M11 18h9", "M5 4v16", "M3 6l2-2 2 2", "M3 18l2 2 2-2") }
