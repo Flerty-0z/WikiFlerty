@@ -361,37 +361,30 @@ private fun qrBitmap(text: String, size: Int): androidx.compose.ui.graphics.Imag
 private fun DevicesPanel(cloud: CloudSync, onRemove: (CloudSync.Device) -> Unit) {
     val devices by cloud.devices.collectAsStateWithLifecycle()
     TabbedFrame("Устройства", icon = AppIcons.Phone, trailing = { CountBadge(devices.size) }) {
-        Column(Modifier.padding(vertical = 6.dp)) {
-            devices.forEachIndexed { i, d ->
-                if (i > 0) ListDivider()
+        Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            devices.forEach { d ->
                 androidx.compose.runtime.key(d.id) {
+                    val shape = appCorner(14)
                     Row(
-                        Modifier.fillMaxWidth().heightIn(min = 58.dp).padding(vertical = 6.dp),
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 58.dp)
+                            .background(if (d.self) AppColors.Accent.copy(alpha = 0.14f) else AppColors.Line.copy(alpha = 0.45f), shape)
+                            .border(1.dp, if (d.self) AppColors.Accent.copy(alpha = 0.45f) else AppColors.PanelBorder, shape)
+                            .padding(start = 10.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         SettingIcon(AppIcons.Phone)
                         Column(Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(
-                                    d.name,
-                                    color = AppColors.Text,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f, fill = false),
-                                )
-                                if (d.self) {
-                                    Text(
-                                        "это",
-                                        color = AppColors.Accent,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.background(AppColors.Accent.copy(alpha = 0.14f), androidx.compose.foundation.shape.CircleShape).padding(horizontal = 8.dp, vertical = 2.dp),
-                                    )
-                                }
-                            }
+                            Text(
+                                d.name,
+                                color = if (d.self) AppColors.Accent else AppColors.Text,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            )
                             Text(
                                 if (d.seen > 0) SimpleDateFormat("d MMM, HH:mm", Locale.forLanguageTag("ru")).format(Date(d.seen)) else "—",
                                 color = AppColors.Faint,
