@@ -258,7 +258,17 @@ class NeuralTts(
                 withContext(Dispatchers.Main) { listener?.onError(requestId, err) }
                 return@launch
             }
-            play(requestId, text, pcm)
+            try {
+                play(requestId, text, pcm)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                lastError = "Не удалось открыть звук: ${e.message}"
+                track?.runCatching { release() }
+                track = null
+                trackRate = 0
+                withContext(Dispatchers.Main) { listener?.onError(requestId, AndroidTtsEngine.Error.Synthesis) }
+            }
         }
     }
 
@@ -308,8 +318,20 @@ class NeuralTts(
     private fun ensureTrack(rate: Int): AudioTrack {
         track?.takeIf { trackRate == rate }?.let { return it }
         track?.runCatching { release() }
+        track = null
         val min = AudioTrack.getMinBufferSize(rate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
-        val t = AudioTrack.Builder()
+        val wanted = maxOf(if (min > 0) min * 2 else 0, rate)
+        val t = runCatching { buildTrack(rate, wanted - wanted % 2) }
+            .recoverCatching { buildTrack(rate, if (min > 0) min - min % 2 else 8192) }
+            .getOrThrow()
+        track = t
+        trackRate = rate
+        applyParams()
+        return t
+    }
+
+    private fun buildTrack(rate: Int, bytes: Int): AudioTrack =
+        AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -323,14 +345,9 @@ class NeuralTts(
                     .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                     .build(),
             )
-            .setBufferSizeInBytes(maxOf(min * 2, rate / 2))
+            .setBufferSizeInBytes(bytes.coerceAtLeast(2))
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
-        track = t
-        trackRate = rate
-        applyParams()
-        return t
-    }
 
     private fun applyParams() {
         val t = track ?: return
