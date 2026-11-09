@@ -99,6 +99,7 @@ class CloudSync(private val app: App) {
                     for (i in 0 until meta.optInt("n")) delete(space, chunk(gen, i))
                     delete(space, HEAD)
                 }
+                Unit
             }
         }.also { if (it.isSuccess) stop() }
     }
