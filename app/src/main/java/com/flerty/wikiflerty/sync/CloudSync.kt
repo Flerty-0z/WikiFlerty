@@ -253,19 +253,30 @@ class CloudSync(private val app: App) {
     }
 
     private fun put(space: String, part: String, blob: String, condition: Precondition): String {
-        val extra = when (condition) {
-            Precondition.None -> ""
-            Precondition.Missing -> "&currentDocument.exists=false"
-            is Precondition.At -> "&currentDocument.updateTime=" + URLEncoder.encode(condition.time, "UTF-8")
+        val write = JSONObject()
+            .put(
+                "update",
+                JSONObject()
+                    .put("name", "$NAME$space/parts/$part")
+                    .put(
+                        "fields",
+                        JSONObject()
+                            .put("blob", JSONObject().put("stringValue", blob))
+                            .put("updated", JSONObject().put("integerValue", System.currentTimeMillis().toString())),
+                    ),
+            )
+        when (condition) {
+            Precondition.None -> Unit
+            Precondition.Missing -> write.put("currentDocument", JSONObject().put("exists", false))
+            is Precondition.At -> write.put("currentDocument", JSONObject().put("updateTime", condition.time))
         }
-        val body = JSONObject().put(
-            "fields",
-            JSONObject()
-                .put("blob", JSONObject().put("stringValue", blob))
-                .put("updated", JSONObject().put("integerValue", System.currentTimeMillis().toString())),
-        ).toString()
-        val r = call("PATCH", url(space, part, extra), body)
-        if (r.code in 200..299) return JSONObject(r.body).optString("updateTime")
+        val body = JSONObject().put("writes", org.json.JSONArray().put(write)).toString()
+        val r = call("POST", "$COMMIT?key=$KEY", body)
+        if (r.code in 200..299) {
+            val json = JSONObject(r.body)
+            return json.optJSONArray("writeResults")?.optJSONObject(0)?.optString("updateTime")?.takeIf { it.isNotEmpty() }
+                ?: json.optString("commitTime")
+        }
         if (condition != Precondition.None && (r.code == 409 || r.code == 412 || r.code == 404 || (r.code == 400 && r.body.contains("FAILED_PRECONDITION")))) throw Conflict()
         throw IOException("HTTP ${r.code}")
     }
@@ -282,12 +293,7 @@ class CloudSync(private val app: App) {
         try {
             c.connectTimeout = 15_000
             c.readTimeout = 30_000
-            if (method == "PATCH") {
-                c.requestMethod = "POST"
-                c.setRequestProperty("X-HTTP-Method-Override", "PATCH")
-            } else {
-                c.requestMethod = method
-            }
+            c.requestMethod = method
             if (body != null) {
                 c.doOutput = true
                 c.setRequestProperty("Content-Type", "application/json; charset=utf-8")
@@ -308,6 +314,8 @@ class CloudSync(private val app: App) {
         const val HEAD = "head"
         const val KEY = "AIzaSyCu6eR2CIY4EKqllpI8AJ6NfX1urr_klYM"
         const val BASE = "https://firestore.googleapis.com/v1/projects/wikiflerty-main/databases/(default)/documents/spaces/"
+        const val NAME = "projects/wikiflerty-main/databases/(default)/documents/spaces/"
+        const val COMMIT = "https://firestore.googleapis.com/v1/projects/wikiflerty-main/databases/(default)/documents:commit"
 
         fun chunk(gen: String, i: Int) = "d$gen-$i"
     }
