@@ -12,18 +12,34 @@ data class TranslationResult(
     val source: String,
     val variants: List<Pair<String, List<String>>>,
     val definitions: List<Pair<String, String>>,
+    val original: String = "",
+    val lemma: String? = null,
+    val meanings: List<String> = emptyList(),
 ) {
+    val same: Boolean get() = text.trim().equals(original.trim(), ignoreCase = true)
+
+    val empty: Boolean get() = (same || text.isBlank()) && variants.isEmpty() && definitions.isEmpty() && meanings.isEmpty()
+
     fun card(): String = buildString {
-        append(text)
+        if (lemma != null && !lemma.equals(original, ignoreCase = true)) append("**").append(lemma).append("**")
+        if (!same && text.isNotBlank()) {
+            if (isNotEmpty()) append("\n\n")
+            append(text)
+        }
         variants.forEach { (pos, terms) ->
-            append("\n\n")
+            if (isNotEmpty()) append("\n\n")
             if (pos.isNotBlank()) append("*").append(pos).append("* ")
             append(terms.joinToString(", "))
         }
         definitions.take(3).forEach { (pos, gloss) ->
-            append("\n\n")
+            if (isNotEmpty()) append("\n\n")
             if (pos.isNotBlank()) append("*").append(pos).append("* ")
             append(gloss)
+        }
+        meanings.take(4).forEachIndexed { i, m ->
+            if (isNotEmpty()) append("\n\n")
+            if (meanings.size > 1) append(i + 1).append(". ")
+            append(m)
         }
     }.trim()
 }
@@ -67,7 +83,21 @@ object Translator {
             source = parts.firstOrNull()?.source.orEmpty(),
             variants = parts.flatMap { it.variants },
             definitions = parts.flatMap { it.definitions },
+            original = clean,
         )
+    }
+
+    suspend fun lookup(word: String, target: String): TranslationResult = withContext(Dispatchers.IO) {
+        val base = runCatching { translate(word, target) }.getOrNull()
+        val source = base?.source.orEmpty()
+        val sameLanguage = base == null || base.same || source.equals(target, ignoreCase = true)
+        val russian = source == "ru" || (source.isBlank() && word.any { it in 'а'..'я' || it in 'А'..'Я' || it == 'ё' })
+        val wiki = if (sameLanguage && russian) runCatching { Wiktionary.meanings(word) }.getOrNull() else null
+        when {
+            base == null && wiki == null -> throw java.io.IOException("offline")
+            base == null -> TranslationResult("", "ru", emptyList(), emptyList(), word, wiki?.first, wiki?.second.orEmpty())
+            else -> base.copy(lemma = wiki?.first, meanings = wiki?.second.orEmpty())
+        }
     }
 
     private fun split(text: String): List<String> {

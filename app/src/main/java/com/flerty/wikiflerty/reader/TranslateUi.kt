@@ -156,7 +156,7 @@ internal fun TranslatePopup(info: TranslateInfo, actions: TranslateActions, modi
                     val result = info.result
                     if (result != null) {
                         Text(
-                            markdown(if (info.word) result.card() else result.text),
+                            markdown(if (info.word) result.card().ifBlank { "Значение не найдено" } else result.text),
                             color = AppColors.Text,
                             fontSize = 16.sp,
                             lineHeight = 23.sp,
@@ -172,7 +172,7 @@ internal fun TranslatePopup(info: TranslateInfo, actions: TranslateActions, modi
             }
         }
         AnimatedVisibility(
-            visible = info.result != null,
+            visible = info.result != null && !(info.word && info.result.empty),
             enter = expandVertically(Motion.tween(240)) + fadeIn(Motion.fade(200)),
             exit = shrinkVertically(Motion.tween(200)) + fadeOut(Motion.fade(140)),
         ) {

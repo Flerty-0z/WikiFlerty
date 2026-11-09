@@ -87,36 +87,118 @@ internal object TextSelection {
         (function () {
           if (window.__wfFeedReady) return;
           window.__wfFeedReady = true;
-          var on = false, prev = false, next = false, last = 0, edge = null, dir = 0, pull = 0, pill = null;
+          var on = false, prev = false, next = false, last = 0, edge = null, dir = 0, pull = 0, el = null;
+          var kit = "library", bg = "#111", fg = "#eee", ink = "#111", deep = "#333", acc = "__ACCENT__", prevTitle = "", nextTitle = "";
           var NEED = 90;
+          var WORDS = {
+            library: ["Следующая глава", "Предыдущая глава", "Отпусти"],
+            zen: ["дальше", "назад", "отпусти"],
+            comic: ["Тяни!", "Тяни!", "Отпускай!"],
+            news: ["Далее", "Ранее", "Отпусти — читать"],
+            sea: ["Плыви дальше", "Плыви назад", "Отпусти"],
+            clay: ["Тяни ещё", "Тяни ещё", "Отпускай!"]
+          };
           function root() { return document.scrollingElement || document.documentElement; }
           function atEnd() { return window.scrollY + window.innerHeight >= root().scrollHeight - 3; }
           function atTop() { return window.scrollY <= 1; }
-          function ensure() {
-            if (pill && pill.isConnected) return;
-            pill = document.createElement("div");
-            pill.style.cssText = "position:fixed;left:50%;z-index:2147483647;transform:translateX(-50%) scale(.92);padding:9px 16px;border-radius:999px;" +
-              "font:600 13px/1.2 monospace;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .18s,transform .18s;" +
-              "background:rgba(22,19,17,.86);color:#fff;border:1px solid __ACCENT__;box-shadow:0 6px 18px rgba(0,0,0,.25)";
-            document.documentElement.appendChild(pill);
+          function css() {
+            var st = document.getElementById("wf-feed-style");
+            if (!st) {
+              st = document.createElement("style");
+              st.id = "wf-feed-style";
+              (document.head || document.documentElement).appendChild(st);
+            }
+            st.textContent =
+              "#wf-feed{position:fixed;left:0;right:0;margin:0 auto;width:max-content;max-width:86vw;z-index:2147483647;pointer-events:none;opacity:0;" +
+              "transition:opacity .2s ease,border-color .2s ease,box-shadow .2s ease,background .2s ease;box-sizing:border-box;--k:0}" +
+              "#wf-feed.on{opacity:1}#wf-feed.down{bottom:22px;top:auto}#wf-feed.up{top:18px;bottom:auto}" +
+              "#wf-feed .wf-t{white-space:nowrap}#wf-feed .wf-s{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:72vw}" +
+              "#wf-feed .wf-s:empty{display:none}" +
+              ".wf-library{display:flex;flex-direction:column;align-items:center;padding:10px 24px 11px;background:" + bg + ";color:" + fg + ";" +
+              "border:1px solid " + acc + "66;border-radius:6px;font-family:Georgia,'Noto Serif',serif;box-shadow:0 10px 26px rgba(0,0,0,.28);" +
+              "transform:translateY(calc((1 - var(--k)) * 16px))}" +
+              ".wf-library.up{transform:translateY(calc((var(--k) - 1) * 16px))}" +
+              ".wf-library .wf-t{font-style:italic;font-size:15px}.wf-library .wf-s{font-size:12px;opacity:.65;margin-top:3px}" +
+              ".wf-library .wf-p{order:3;height:1.5px;margin-top:8px;width:calc(var(--k) * 150px);max-width:150px;background:" + acc + "}" +
+              ".wf-library.ready{border-color:" + acc + "}.wf-library.ready .wf-t:before{content:'◆  ';color:" + acc + "}.wf-library.ready .wf-t:after{content:'  ◆';color:" + acc + "}" +
+              ".wf-zen{display:flex;flex-direction:column;align-items:center;gap:8px;color:" + fg + ";font-family:Georgia,serif;letter-spacing:.16em;" +
+              "transform:scale(calc(.9 + var(--k) * .1))}" +
+              ".wf-zen.up{flex-direction:column-reverse}" +
+              ".wf-zen .wf-p svg{width:46px;height:46px;transform:rotate(-100deg);overflow:visible}" +
+              ".wf-zen .wf-t{font-size:13px;opacity:.85}.wf-zen .wf-s{font-size:11px;opacity:.55;letter-spacing:.08em}" +
+              ".wf-zen.ready .wf-p svg circle.dot{opacity:1;transform:scale(1)}" +
+              ".wf-comic{padding:10px 18px 11px;background:" + acc + ";color:" + ink + ";border:3px solid #141210;border-radius:16px;" +
+              "box-shadow:5px 5px 0 #141210;font:900 16px/1.15 'Arial Black',Impact,sans-serif;text-transform:uppercase;text-align:center;" +
+              "transform:rotate(-3deg) scale(calc(.6 + var(--k) * .4));transform-origin:50% 100%}" +
+              ".wf-comic.up{transform-origin:50% 0}" +
+              ".wf-comic .wf-s{font:700 11px/1.2 sans-serif;text-transform:none;margin-top:3px;opacity:.8}.wf-comic .wf-p{display:none}" +
+              ".wf-comic.ready{animation:wfShake .28s ease-in-out infinite}" +
+              "@keyframes wfShake{0%,100%{transform:rotate(-3deg) scale(1.06)}50%{transform:rotate(2deg) scale(1.1)}}" +
+              ".wf-news{min-width:76vw;display:flex;flex-direction:column;gap:5px;padding:8px 14px 9px;background:" + bg + ";color:" + fg + ";" +
+              "border-top:3px solid " + fg + ";border-bottom:1px solid " + fg + ";font:700 11px/1.2 Georgia,serif;letter-spacing:.18em;text-transform:uppercase;" +
+              "transform:translateY(calc((1 - var(--k)) * 10px))}" +
+              ".wf-news.up{transform:translateY(calc((var(--k) - 1) * 10px))}" +
+              ".wf-news .wf-t:before{content:'▸ ';color:" + acc + "}.wf-news .wf-s{font:400 14px/1.25 Georgia,serif;letter-spacing:0;text-transform:none}" +
+              ".wf-news .wf-p{height:3px;width:calc(var(--k) * 100%);background:" + acc + "}" +
+              ".wf-sea{position:relative;isolation:isolate;overflow:hidden;padding:10px 22px 11px;border-radius:999px;border:1.5px solid " + acc + "99;background:" + bg + ";" +
+              "color:" + fg + ";font:600 13px/1.25 sans-serif;text-align:center;transform:translateY(calc((1 - var(--k)) * 12px))}" +
+              ".wf-sea.up{transform:translateY(calc((var(--k) - 1) * 12px))}" +
+              ".wf-sea .wf-s{font-weight:400;font-size:11px;opacity:.7;margin-top:2px}" +
+              ".wf-sea .wf-p{position:absolute;left:-10%;right:-10%;bottom:-6px;height:calc(var(--k) * 100% + 6px);background:" + acc + ";opacity:.32;z-index:-1;" +
+              "border-radius:45% 55% 0 0 / 9px 9px 0 0;animation:wfWave 1.1s ease-in-out infinite alternate}" +
+              "@keyframes wfWave{from{border-radius:45% 55% 0 0 / 9px 9px 0 0;transform:translateX(-4%)}to{border-radius:55% 45% 0 0 / 7px 11px 0 0;transform:translateX(4%)}}" +
+              ".wf-sea.ready{border-color:" + acc + ";box-shadow:0 0 0 4px " + acc + "33}" +
+              ".wf-clay{display:flex;flex-direction:column;align-items:center;padding:11px 24px 12px;border-radius:999px;background:" + acc + ";color:" + ink + ";" +
+              "font:800 14px/1.2 sans-serif;box-shadow:0 6px 0 " + deep + ",0 12px 20px rgba(0,0,0,.25);" +
+              "transform:scale(calc(1 + var(--k) * .1),calc(1 - var(--k) * .14))}" +
+              ".wf-clay .wf-s{font-weight:600;font-size:11px;opacity:.75;margin-top:2px}" +
+              ".wf-clay .wf-p{height:5px;border-radius:3px;margin-top:6px;width:calc(var(--k) * 120px);max-width:120px;background:rgba(255,255,255,.45)}" +
+              ".wf-clay.ready{transform:scale(1.08);transition:opacity .2s ease,transform .32s cubic-bezier(.3,1.8,.5,1)}" +
+              ".wf-f.end .wf-p{visibility:hidden}";
           }
-          function show(k) {
+          function ensure() {
+            if (el && el.isConnected) return;
+            css();
+            el = document.createElement("div");
+            el.id = "wf-feed";
+            el.innerHTML = "<div class='wf-p'></div><div class='wf-t'></div><div class='wf-s'></div>";
+            document.documentElement.appendChild(el);
+          }
+          function zen() {
+            var p = el.querySelector(".wf-p");
+            if (kit !== "zen") { if (p.firstChild) p.innerHTML = ""; return; }
+            if (!p.firstChild) {
+              p.innerHTML = "<svg viewBox='0 0 46 46'><circle cx='23' cy='23' r='19' fill='none' stroke='" + acc + "' stroke-width='3.2' stroke-linecap='round' stroke-dasharray='119.4' stroke-dashoffset='119.4'></circle>" +
+                "<circle class='dot' cx='23' cy='23' r='4' fill='" + acc + "' style='opacity:0;transform:scale(.3);transform-origin:23px 23px;transition:all .25s'></circle></svg>";
+            }
+            var ring = p.querySelector("circle");
+            var k = Math.min(1, pull / NEED);
+            ring.setAttribute("stroke-dashoffset", String(119.4 * (1 - k * 0.88)));
+          }
+          function show() {
             ensure();
             var has = dir > 0 ? next : prev;
-            var ready = k >= 1;
-            pill.textContent = !has ? (dir > 0 ? "Конец книги" : "Начало книги")
-              : dir > 0 ? (ready ? "Отпусти — следующая глава" : "↓ Следующая глава")
-              : (ready ? "Отпусти — предыдущая глава" : "↑ Предыдущая глава");
-            pill.style.top = dir > 0 ? "" : "16px";
-            pill.style.bottom = dir > 0 ? "22px" : "";
-            pill.style.opacity = String(Math.min(1, 0.2 + k));
-            pill.style.transform = "translateX(-50%) scale(" + (ready && has ? 1 : 0.92) + ")";
-            pill.style.borderColor = ready && has ? "__ACCENT__" : "rgba(255,255,255,.18)";
+            var k = has ? Math.max(0, Math.min(1, pull / NEED)) : Math.min(0.4, Math.max(0, pull / NEED));
+            var ready = has && pull >= NEED;
+            var w = WORDS[kit] || WORDS.library;
+            var t = !has ? (dir > 0 ? "Конец книги" : "Начало книги") : ready ? w[2] : (dir > 0 ? w[0] : w[1]);
+            var s = has && kit !== "zen" ? (dir > 0 ? nextTitle : prevTitle) : (has ? (dir > 0 ? nextTitle : prevTitle) : "");
+            el.className = "wf-f wf-" + kit + (dir > 0 ? " down" : " up") + (pull > 6 ? " on" : "") + (ready ? " ready" : "") + (has ? "" : " end");
+            el.style.setProperty("--k", String(k));
+            var te = el.querySelector(".wf-t"), se = el.querySelector(".wf-s");
+            if (te.textContent !== t) te.textContent = t;
+            if (se.textContent !== s) se.textContent = s;
+            zen();
           }
-          function hide() { if (pill) { pill.style.opacity = "0"; pill.style.transform = "translateX(-50%) scale(.92)"; } }
+          function hide() { if (el) el.classList.remove("on"); }
           function reset() { edge = null; dir = 0; pull = 0; }
-          window.__wfFeed = function (enabled, hasPrev, hasNext) {
+          window.__wfFeed = function (enabled, hasPrev, hasNext, style) {
             on = !!enabled; prev = !!hasPrev; next = !!hasNext;
+            if (style) {
+              kit = style.kit || kit; acc = style.acc || acc; bg = style.bg || bg; fg = style.fg || fg; ink = style.ink || ink; deep = style.deep || deep;
+              prevTitle = style.prev || ""; nextTitle = style.next || "";
+              if (el && el.isConnected) { css(); el.querySelector(".wf-p").innerHTML = ""; }
+            }
             if (!on) { reset(); hide(); }
           };
           window.addEventListener("touchstart", function (e) {
@@ -137,7 +219,8 @@ internal object TextSelection {
             }
             pull = dir > 0 ? edge - y : y - edge;
             if (pull < -8) { reset(); hide(); return; }
-            show(Math.max(0, pull) / NEED);
+            pull = Math.max(0, pull);
+            show();
           }, { passive: true, capture: true });
           function end() {
             if (!on || !dir) return;

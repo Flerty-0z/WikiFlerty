@@ -732,11 +732,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val known = word && app.dictionary.entries.value.any { it.word.equals(clean, ignoreCase = true) }
         ui.translate = TranslateInfo(clean, target, word, saved = known)
         translateJob = lifecycleScope.launch {
-            val result = runCatching { Translator.translate(clean, target) }
+            val result = runCatching { if (word) Translator.lookup(clean, target) else Translator.translate(clean, target) }
             val current = ui.translate?.takeIf { it.text == clean && it.target == target } ?: return@launch
             result.onSuccess { r ->
                 ui.translate = current.copy(loading = false, result = r, error = null)
-                if (word && !current.saved && r.text.isNotBlank()) saveTranslation()
             }.onFailure { e ->
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 ui.translate = current.copy(loading = false, error = "Нет связи с переводчиком")
@@ -747,7 +746,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private fun saveTranslation() {
         val info = ui.translate ?: return
         val result = info.result ?: return
-        if (info.saved) return
+        if (info.saved || (info.word && result.empty)) return
         ui.translate = info.copy(saved = true)
         val locator = translateLocator
         val word = if (info.word) info.text else info.text.take(300)
@@ -2764,10 +2763,36 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         return pub.readingOrder.indexOfFirst { it.url().toString().substringBefore('#') == href }
     }
 
+    private fun pageAccent(): Int {
+        val kit = com.flerty.wikiflerty.ui.AppStyle.kit
+        val a = com.flerty.wikiflerty.ui.AppStyle.current.accent
+        val custom = a != kit.accent && a != kit.accentLight
+        return (if (custom) a else if (settings.pageTheme.isLight) kit.accentLight else kit.accent).toInt()
+    }
+
     private fun feedCall(): String {
         val i = resourceIndex()
-        val n = publication?.readingOrder?.size ?: 0
-        return "window.__wfFeed && window.__wfFeed(${settings.scroll}, ${i > 0}, ${i in 0 until n - 1})"
+        val order = publication?.readingOrder.orEmpty()
+        val n = order.size
+        fun hex(c: Int) = String.format("#%06X", c and 0xFFFFFF)
+        val page = settings.pageTheme
+        val accent = pageAccent()
+        val light = (0.299 * android.graphics.Color.red(accent) + 0.587 * android.graphics.Color.green(accent) + 0.114 * android.graphics.Color.blue(accent)) / 255.0 > 0.6
+        val deep = android.graphics.Color.rgb(
+            (android.graphics.Color.red(accent) * 0.7).toInt(),
+            (android.graphics.Color.green(accent) * 0.7).toInt(),
+            (android.graphics.Color.blue(accent) * 0.7).toInt(),
+        )
+        val style = org.json.JSONObject()
+            .put("kit", com.flerty.wikiflerty.ui.AppStyle.kit.id)
+            .put("acc", hex(accent))
+            .put("bg", hex(page.background.toInt()))
+            .put("fg", hex(page.text.toInt()))
+            .put("ink", if (light) "#181410" else "#FFFFFF")
+            .put("deep", hex(deep))
+            .put("prev", order.getOrNull(i - 1)?.takeIf { i > 0 }?.let { chapterTitle(it) }.orEmpty())
+            .put("next", order.getOrNull(i + 1)?.takeIf { i >= 0 }?.let { chapterTitle(it) }.orEmpty())
+        return "window.__wfFeed && window.__wfFeed(${settings.scroll}, ${i > 0}, ${i in 0 until n - 1}, $style)"
     }
 
     private var feedAt = 0L
@@ -2811,7 +2836,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val page = settings.pageTheme
         val title = chapterTitle(link)
         capturePage { bitmap ->
-            shiftView.start(bitmap, title, forward, shiftKind(), page.background.toInt(), page.text.toInt(), selectionAccent(), navContainer)
+            shiftView.start(bitmap, title, forward, shiftKind(), page.background.toInt(), page.text.toInt(), pageAccent(), navContainer)
             lifecycleScope.launch {
                 navigator.go(target, animated = false)
                 kotlinx.coroutines.withTimeoutOrNull(1800) {
