@@ -732,7 +732,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val known = word && app.dictionary.entries.value.any { it.word.equals(clean, ignoreCase = true) }
         ui.translate = TranslateInfo(clean, target, word, saved = known)
         translateJob = lifecycleScope.launch {
-            val result = runCatching { if (word) Translator.lookup(clean, target) else Translator.translate(clean, target) }
+            val result = runCatching { if (word) Translator.define(clean, target) else Translator.translate(clean, target) }
             val current = ui.translate?.takeIf { it.text == clean && it.target == target } ?: return@launch
             result.onSuccess { r ->
                 ui.translate = current.copy(loading = false, result = r, error = null)

@@ -15,31 +15,43 @@ data class TranslationResult(
     val original: String = "",
     val lemma: String? = null,
     val meanings: List<String> = emptyList(),
+    val dictionary: Boolean = false,
 ) {
     val same: Boolean get() = text.trim().equals(original.trim(), ignoreCase = true)
 
-    val empty: Boolean get() = (same || text.isBlank()) && variants.isEmpty() && definitions.isEmpty() && meanings.isEmpty()
+    val empty: Boolean get() = if (dictionary) definitions.isEmpty() && meanings.isEmpty()
+        else (same || text.isBlank()) && variants.isEmpty() && definitions.isEmpty() && meanings.isEmpty()
 
     fun card(): String = buildString {
+        fun gap() { if (isNotEmpty()) append("\n\n") }
         if (lemma != null && !lemma.equals(original, ignoreCase = true)) append("**").append(lemma).append("**")
-        if (!same && text.isNotBlank()) {
-            if (isNotEmpty()) append("\n\n")
+        if (!dictionary && !same && text.isNotBlank()) {
+            gap()
             append(text)
         }
-        variants.forEach { (pos, terms) ->
-            if (isNotEmpty()) append("\n\n")
-            if (pos.isNotBlank()) append("*").append(pos).append("* ")
-            append(terms.joinToString(", "))
+        if (!dictionary) {
+            variants.forEach { (pos, terms) ->
+                gap()
+                if (pos.isNotBlank()) append("*").append(pos).append("* ")
+                append(terms.joinToString(", "))
+            }
         }
-        definitions.take(3).forEach { (pos, gloss) ->
-            if (isNotEmpty()) append("\n\n")
+        val numbered = definitions.size + meanings.size > 1
+        var n = 0
+        definitions.take(4).forEach { (pos, gloss) ->
+            gap()
+            if (numbered) append(++n).append(". ")
             if (pos.isNotBlank()) append("*").append(pos).append("* ")
             append(gloss)
         }
-        meanings.take(4).forEachIndexed { i, m ->
-            if (isNotEmpty()) append("\n\n")
-            if (meanings.size > 1) append(i + 1).append(". ")
+        meanings.take(4).forEach { m ->
+            gap()
+            if (numbered) append(++n).append(". ")
             append(m)
+        }
+        if (dictionary && !same && text.isNotBlank() && isNotEmpty()) {
+            gap()
+            append("*перевод:* ").append(text)
         }
     }.trim()
 }
@@ -87,17 +99,18 @@ object Translator {
         )
     }
 
-    suspend fun lookup(word: String, target: String): TranslationResult = withContext(Dispatchers.IO) {
-        val base = runCatching { translate(word, target) }.getOrNull()
-        val source = base?.source.orEmpty()
-        val sameLanguage = base == null || base.same || source.equals(target, ignoreCase = true)
-        val russian = source == "ru" || (source.isBlank() && word.any { it in 'а'..'я' || it in 'А'..'Я' || it == 'ё' })
-        val wiki = if (sameLanguage && russian) runCatching { Wiktionary.meanings(word) }.getOrNull() else null
-        when {
-            base == null && wiki == null -> throw java.io.IOException("offline")
-            base == null -> TranslationResult("", "ru", emptyList(), emptyList(), word, wiki?.first, wiki?.second.orEmpty())
-            else -> base.copy(lemma = wiki?.first, meanings = wiki?.second.orEmpty())
+    suspend fun define(word: String, target: String): TranslationResult = withContext(Dispatchers.IO) {
+        val cyrillic = word.any { it in 'а'..'я' || it in 'А'..'Я' || it == 'ё' || it == 'Ё' }
+        if (cyrillic) {
+            val wiki = runCatching { Wiktionary.meanings(word) }
+            if (wiki.isFailure) throw java.io.IOException("offline")
+            val found = wiki.getOrNull()
+            val translation = if (target != "ru") runCatching { translate(word, target) }.getOrNull()?.text.orEmpty() else ""
+            return@withContext TranslationResult(translation, "ru", emptyList(), emptyList(), word, found?.first, found?.second.orEmpty(), dictionary = true)
         }
+        val base = translate(word, target)
+        val extra = if (base.definitions.isEmpty()) runCatching { EnglishWiktionary.define(word, base.source) }.getOrNull().orEmpty() else emptyList()
+        base.copy(meanings = extra, dictionary = true)
     }
 
     private fun split(text: String): List<String> {

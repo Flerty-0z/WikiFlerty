@@ -137,3 +137,36 @@ object Wiktionary {
         }
     }
 }
+
+object EnglishWiktionary {
+    fun define(word: String, source: String): List<String> {
+        val encoded = URLEncoder.encode(word.trim(), "UTF-8").replace("+", "%20")
+        val conn = (URL("https://en.wiktionary.org/api/rest_v1/page/definition/$encoded").openConnection() as HttpURLConnection).apply {
+            connectTimeout = 8_000
+            readTimeout = 10_000
+            setRequestProperty("User-Agent", "WikiFlerty/1.0 (Android reader)")
+        }
+        val json = try {
+            if (conn.responseCode !in 200..299) return emptyList()
+            JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+        } finally {
+            conn.disconnect()
+        }
+        val key = source.substringBefore('-').lowercase()
+        val list = json.optJSONArray(key) ?: json.optJSONArray("en") ?: json.keys().asSequence().firstOrNull()?.let { json.optJSONArray(it) } ?: return emptyList()
+        val out = mutableListOf<String>()
+        for (i in 0 until list.length()) {
+            val entry = list.optJSONObject(i) ?: continue
+            val pos = entry.optString("partOfSpeech").lowercase()
+            val defs = entry.optJSONArray("definitions") ?: continue
+            for (j in 0 until defs.length()) {
+                val raw = defs.optJSONObject(j)?.optString("definition").orEmpty()
+                val text = android.text.Html.fromHtml(raw, android.text.Html.FROM_HTML_MODE_COMPACT).toString().replace(Regex("\\s+"), " ").trim()
+                if (text.length < 3) continue
+                out += if (pos.isNotBlank()) "*$pos* $text" else text
+                if (out.size >= 4) return out
+            }
+        }
+        return out
+    }
+}
