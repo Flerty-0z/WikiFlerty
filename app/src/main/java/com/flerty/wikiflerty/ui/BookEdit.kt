@@ -51,6 +51,7 @@ fun BookEditSheet(book: Book, onDismiss: () -> Unit) {
     val original by produceState("", book.id) { value = app.library.info(book).description }
     val shownDescription = description ?: original
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) cover = uri }
+    val camera = rememberCoverShot { cover = it }
     val preview by produceState<ImageBitmap?>(null, cover) {
         value = cover?.let { uri ->
             withContext(Dispatchers.IO) {
@@ -77,6 +78,7 @@ fun BookEditSheet(book: Book, onDismiss: () -> Unit) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Обложка", color = AppColors.Muted, fontSize = 13.sp)
                 CoverButton(AppIcons.Image, "Из галереи") { pick.launch("image/*") }
+                CoverButton(AppIcons.Camera, "Сфотографировать", onClick = camera)
             }
         }
         PaperField(title, "Название", AppIcons.Book) { editing = 0 }

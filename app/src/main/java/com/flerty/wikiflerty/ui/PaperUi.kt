@@ -115,9 +115,8 @@ fun PaperBookSheet(book: Book?, onDismiss: () -> Unit) {
     var author by remember { mutableStateOf(book?.author.orEmpty()) }
     var pages by remember { mutableStateOf(book?.positions?.takeIf { it > 0 }?.toString().orEmpty()) }
     var cover by remember { mutableStateOf<Uri?>(null) }
-    var shot by remember { mutableStateOf<Uri?>(null) }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) cover = uri }
-    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok -> if (ok) cover = shot }
+    val camera = rememberCoverShot { cover = it }
     val preview by produceState<ImageBitmap?>(null, cover) {
         value = cover?.let { uri ->
             withContext(Dispatchers.IO) {
@@ -151,13 +150,7 @@ fun PaperBookSheet(book: Book?, onDismiss: () -> Unit) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Обложка", color = AppColors.Muted, fontSize = 13.sp)
                 CoverButton(AppIcons.Image, "Из галереи") { pick.launch("image/*") }
-                CoverButton(AppIcons.Camera, "Сфотографировать") {
-                    val dir = File(context.cacheDir, "share").apply { mkdirs() }
-                    val file = File(dir, "paper-cover-${System.currentTimeMillis()}.jpg")
-                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
-                    shot = uri
-                    camera.launch(uri)
-                }
+                CoverButton(AppIcons.Camera, "Сфотографировать", onClick = camera)
             }
         }
         PaperField(title, "Название", AppIcons.Book) { editing = 0 }
@@ -178,6 +171,27 @@ fun PaperBookSheet(book: Book?, onDismiss: () -> Unit) {
         0 -> TextInputSheet("Название", title, "Название книги", onDismiss = { editing = -1 }, icon = AppIcons.Book) { title = it }
         1 -> TextInputSheet("Автор", author, "Автор книги", onDismiss = { editing = -1 }, icon = AppIcons.Pencil, maxLength = 120) { author = it }
         2 -> TextInputSheet("Страниц в книге", pages, "Например, 320", onDismiss = { editing = -1 }, icon = AppIcons.Pages, number = true, maxLength = 5) { pages = it }
+    }
+}
+
+@Composable
+fun rememberCoverShot(onShot: (Uri) -> Unit): () -> Unit {
+    val context = LocalContext.current
+    var shot by remember { mutableStateOf<Uri?>(null) }
+    val latest by androidx.compose.runtime.rememberUpdatedState(onShot)
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok -> if (ok) shot?.let(latest) }
+    val launch = {
+        val dir = File(context.cacheDir, "share").apply { mkdirs() }
+        val file = File(dir, "cover-${System.currentTimeMillis()}.jpg")
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+        shot = uri
+        runCatching { camera.launch(uri) }
+        Unit
+    }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> if (granted) launch() }
+    return {
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (granted) launch() else permission.launch(android.Manifest.permission.CAMERA)
     }
 }
 

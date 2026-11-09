@@ -57,7 +57,24 @@ class CloudSync(private val app: App) {
     )
     val status: StateFlow<Status> = _status.asStateFlow()
 
-    private val deviceId: String = prefs.getString("deviceId", null) ?: java.util.UUID.randomUUID().toString().also { prefs.edit().putString("deviceId", it).apply() }
+    private val deviceId: String = run {
+        val hw = runCatching { android.provider.Settings.Secure.getString(app.contentResolver, android.provider.Settings.Secure.ANDROID_ID) }.getOrNull()
+            ?.takeIf { it.isNotBlank() && it != "9774d56d682e549c" }
+        val old = prefs.getString("deviceId", null)
+        val id = hw?.let { "a" + hex(sha("device", it)).take(24) } ?: old ?: java.util.UUID.randomUUID().toString()
+        if (old != id) {
+            val edit = prefs.edit().putString("deviceId", id)
+            if (old != null) {
+                val state = runCatching { JSONObject(prefs.getString("devices", null) ?: "{}") }.getOrElse { JSONObject() }
+                val removed = state.optJSONObject("removed") ?: JSONObject()
+                removed.put(old, System.currentTimeMillis())
+                state.optJSONObject("list")?.remove(old)
+                edit.putString("devices", state.put("removed", removed).toString())
+            }
+            edit.apply()
+        }
+        id
+    }
     private val deviceName: String = run {
         val maker = android.os.Build.MANUFACTURER.orEmpty().replaceFirstChar { it.uppercase() }
         val model = android.os.Build.MODEL.orEmpty()
