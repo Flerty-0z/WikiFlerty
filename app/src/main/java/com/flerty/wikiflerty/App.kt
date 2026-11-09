@@ -26,8 +26,8 @@ class App : Application() {
         private set
 
     lateinit var library: LibraryRepository
-    val imports by lazy { com.flerty.wikiflerty.system.ImportQueue(this) }
         private set
+    val imports by lazy { com.flerty.wikiflerty.system.ImportQueue(this) }
 
     lateinit var style: StyleStore
         private set
