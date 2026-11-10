@@ -1590,6 +1590,7 @@ private fun ScrollOptions(
 
 @Composable
 private fun ThemeOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit) {
+    SwitchRow("Стиль шаблона в книге", settings.kitStyle, icon = AppIcons.Palette) { v -> onSettingsChange { it.copy(kitStyle = v) } }
     Group(if (settings.autoNight) "Днём" else "Фон страницы") {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             PageTheme.entries.chunked(3).forEach { row ->

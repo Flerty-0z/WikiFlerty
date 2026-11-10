@@ -949,6 +949,34 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private var lastColumnsScroll = false
     private var lastColumnsLayout = ""
     private var lastBionic: Boolean? = null
+    private var lastKitLook = ""
+
+    private fun kitCall(): String {
+        fun hex(c: Int) = String.format("#%06X", c and 0xFFFFFF)
+        val s = settings
+        val page = s.pageTheme
+        val accent = pageAccent()
+        val deep = android.graphics.Color.rgb(
+            (android.graphics.Color.red(accent) * 0.68).toInt(),
+            (android.graphics.Color.green(accent) * 0.68).toInt(),
+            (android.graphics.Color.blue(accent) * 0.68).toInt(),
+        )
+        val style = org.json.JSONObject()
+            .put("on", s.kitStyle && com.flerty.wikiflerty.ui.AppStyle.decor != com.flerty.wikiflerty.ui.Decor.None)
+            .put("kit", com.flerty.wikiflerty.ui.AppStyle.kit.id)
+            .put("acc", hex(accent))
+            .put("bg", hex(page.background.toInt()))
+            .put("fg", hex(page.text.toInt()))
+            .put("deep", hex(deep))
+        return "window.__wfKit && window.__wfKit($style)"
+    }
+
+    private fun applyKitTexture() {
+        val s = settings
+        val page = s.pageTheme
+        val decor = if (s.kitStyle) com.flerty.wikiflerty.ui.AppStyle.decor else com.flerty.wikiflerty.ui.Decor.None
+        findViewById<PageTextureView>(R.id.page_texture)?.configure(decor, page.text.toInt(), pageAccent(), page.isLight)
+    }
 
     private var injectJob: Job? = null
 
@@ -960,6 +988,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 if (!::navigator.isInitialized) continue
                 runCatching { navigator.evaluateJavascript(selectionScript) }
                 runCatching { navigator.evaluateJavascript("window.__wfBionic && window.__wfBionic(${settings.bionic})") }
+                runCatching { navigator.evaluateJavascript(kitCall()) }
                 runCatching { navigator.evaluateJavascript(TextSelection.peopleCall(peopleNow)) }
                 applyColumns(settings)
             }
@@ -1456,6 +1485,12 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         applyWindowSettings(s)
                         applyListeningSettings(s)
                         val layoutKey = "${s.margins}|${s.fontSize}|${s.lineHeight}|${s.font}"
+                        val kitKey = "${s.kitStyle}|${s.pageTheme.id}"
+                        if (kitKey != lastKitLook) {
+                            lastKitLook = kitKey
+                            applyKitTexture()
+                            launch { runCatching { navigator.evaluateJavascript(kitCall()) } }
+                        }
                         if (s.bionic != lastBionic) {
                             lastBionic = s.bionic
                             launch {

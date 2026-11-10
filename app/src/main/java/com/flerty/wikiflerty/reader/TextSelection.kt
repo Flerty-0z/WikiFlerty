@@ -20,7 +20,7 @@ class TextSelectionBridge(
 internal object TextSelection {
     const val BRIDGE = "WikiFlertySelection"
 
-    fun script(accent: String): String = SCRIPT.replace("__ACCENT__", accent) + "\n" + NOTES + "\n" + AUTO + "\n" + PEOPLE.replace("__ACCENT__", accent) + "\n" + FEED + "\n" + BIONIC
+    fun script(accent: String): String = SCRIPT.replace("__ACCENT__", accent) + "\n" + NOTES + "\n" + AUTO + "\n" + PEOPLE.replace("__ACCENT__", accent) + "\n" + FEED + "\n" + BIONIC + "\n" + KITBOOK
 
     fun peopleCall(people: List<com.flerty.wikiflerty.data.BookCharacter>): String {
         val keys = org.json.JSONArray()
@@ -79,6 +79,100 @@ internal object TextSelection {
           window.__wfAuto = {
             start: function (s) { speed = s; ended = false; if (!raf) { last = 0; raf = requestAnimationFrame(step); } },
             stop: function () { speed = 0; }
+          };
+        })();
+    """.trimIndent()
+
+    private val KITBOOK = """
+        (function () {
+          if (window.__wfKitReady) return;
+          window.__wfKitReady = true;
+          function relayout() { setTimeout(function () { window.dispatchEvent(new Event("resize")); }, 60); }
+          function svg(body, w) {
+            return "url(\"data:image/svg+xml;utf8," + encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + (w || 180) + " 20'>" + body + "</svg>") + "\")";
+          }
+          function ornament(o) {
+            var a = o.acc, f = o.fg;
+            switch (o.kit) {
+              case "zen": return svg("<path d='M56 11c22-4 46 4 68-1' stroke='" + f + "' stroke-width='1.6' stroke-linecap='round' fill='none' opacity='.55'/><circle cx='90' cy='10' r='4.5' fill='" + a + "'/>");
+              case "comic": return svg("<path d='M34 14l14-9 14 9 14-9 14 9 14-9 14 9 14-9 14 9' stroke='#141210' stroke-width='6' fill='none' stroke-linejoin='round' stroke-linecap='round'/><path d='M34 14l14-9 14 9 14-9 14 9 14-9 14 9 14-9 14 9' stroke='" + a + "' stroke-width='2.6' fill='none' stroke-linejoin='round' stroke-linecap='round'/>");
+              case "news": return svg("<rect x='0' y='5' width='180' height='3' fill='" + f + "'/><rect x='0' y='11' width='180' height='1' fill='" + f + "'/>");
+              case "sea": return svg("<path d='M22 10q8.5-8 17 0t17 0 17 0 17 0 17 0 17 0 17 0 17 0' stroke='" + a + "' stroke-width='1.9' fill='none' stroke-linecap='round'/>");
+              case "clay": return svg("<circle cx='68' cy='10' r='5.5' fill='" + a + "'/><circle cx='90' cy='10' r='5.5' fill='#B48CFF'/><circle cx='112' cy='10' r='5.5' fill='#8AD09A'/><circle cx='66' cy='8' r='1.6' fill='#fff' opacity='.7'/><circle cx='88' cy='8' r='1.6' fill='#fff' opacity='.7'/><circle cx='110' cy='8' r='1.6' fill='#fff' opacity='.7'/>");
+              default: return svg("<path d='M12 10H72M108 10H168' stroke='" + a + "' stroke-width='1.2'/><path d='M90 3l7 7-7 7-7-7z' fill='" + a + "'/><circle cx='78' cy='10' r='1.7' fill='" + a + "'/><circle cx='102' cy='10' r='1.7' fill='" + a + "'/>");
+            }
+          }
+          function css(o) {
+            var a = o.acc, f = o.fg, b = o.bg, cap;
+            switch (o.kit) {
+              case "zen":
+                cap = "font-family:Georgia,'Noto Serif',serif;font-weight:600;font-size:2.9em;color:" + b + ";background:" + a + ";padding:.1em .15em .05em;border-radius:.1em;margin:.06em .16em 0 0;line-height:.9";
+                break;
+              case "comic":
+                cap = "font-family:Impact,'Arial Black','Roboto Condensed',sans-serif;font-weight:900;font-size:3.6em;color:" + a + ";text-shadow:-1px -1px 0 #141210,1px -1px 0 #141210,-1px 1px 0 #141210,1px 1px 0 #141210,.07em .07em 0 #141210;margin:.02em .14em 0 0;line-height:.84";
+                break;
+              case "news":
+                cap = "font-family:Georgia,'Noto Serif',serif;font-weight:900;font-size:3.9em;color:" + f + ";margin:.02em .1em 0 0;line-height:.8";
+                break;
+              case "sea":
+                cap = "font-family:Georgia,'Noto Serif',serif;font-style:italic;font-weight:700;font-size:3.4em;color:" + a + ";text-shadow:0 0 .2em " + a + "77;margin:.04em .12em 0 0;line-height:.84";
+                break;
+              case "clay":
+                cap = "font-family:'Arial Rounded MT Bold','Nunito',sans-serif;font-weight:900;font-size:3.4em;color:" + a + ";text-shadow:0 .05em 0 " + o.deep + ",0 .1em .12em rgba(0,0,0,.22);margin:.02em .12em 0 0;line-height:.86";
+                break;
+              default:
+                cap = "font-family:Georgia,'Noto Serif',serif;font-weight:700;font-size:3.1em;color:" + a + ";background:" + a + "1A;border:1px solid " + a + "99;border-radius:3px;padding:.08em .14em .03em;margin:.06em .16em 0 0;line-height:.9;text-shadow:0 1px 0 rgba(0,0,0,.2)";
+            }
+            var wide = o.kit === "news";
+            return "p.wf-dropcap{text-indent:0!important}" +
+              "p.wf-dropcap::first-letter{float:left;font-style:normal;" + cap + "}" +
+              ".wf-head::after{content:'';display:block;height:1em;margin:.55em auto 0;width:" + (wide ? "100%" : "9em") + ";max-width:100%;" +
+              "background:" + ornament(o) + " center/" + (wide ? "100% 100%" : "contain") + " no-repeat}";
+          }
+          var SKIP = "blockquote,.epigraph,.poem,.stanza,.cite,.annotation,.subtitle,header,figure,table,li,aside,nav,.footnote,.note";
+          function pick(head) {
+            if (!head) return null;
+            var all = document.body.querySelectorAll("p");
+            var seen = 0;
+            for (var i = 0; i < all.length; i++) {
+              var p = all[i];
+              if (!(head.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING)) continue;
+              if (head.contains(p)) continue;
+              if (++seen > 5) return null;
+              if (p.closest(SKIP)) continue;
+              var t = (p.textContent || "").replace(/^\s+/, "");
+              if (t.length < 140) continue;
+              if (!/^[«"„“']?\p{L}/u.test(t)) return null;
+              var al = getComputedStyle(p).textAlign;
+              if (al === "center" || al === "right") continue;
+              return p;
+            }
+            return null;
+          }
+          window.__wfKit = function (o) {
+            if (!document.body) return;
+            var st = document.getElementById("wf-kit-style");
+            var old = document.querySelectorAll(".wf-dropcap,.wf-head");
+            for (var i = 0; i < old.length; i++) { old[i].classList.remove("wf-dropcap"); old[i].classList.remove("wf-head"); }
+            if (!o || !o.on) {
+              if (st) { st.remove(); relayout(); }
+              return;
+            }
+            if (!st) {
+              st = document.createElement("style");
+              st.id = "wf-kit-style";
+              (document.head || document.documentElement).appendChild(st);
+            }
+            var next = css(o);
+            var changed = st.textContent !== next;
+            if (changed) st.textContent = next;
+            var head = document.body.querySelector("h1,h2,h3,.title");
+            if (head && (head.textContent || "").trim().length > 0) {
+              head.classList.add("wf-head");
+              var p = pick(head);
+              if (p) p.classList.add("wf-dropcap");
+            }
+            relayout();
           };
         })();
     """.trimIndent()
