@@ -94,7 +94,7 @@ fun BackupContent() {
     }
     busy?.let {
         Row(Modifier.padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = AppColors.Accent)
+            com.flerty.wikiflerty.ui.KitSpinner(Modifier.size(16.dp), AppColors.Accent)
             Spacer(Modifier.width(8.dp))
             Text(it, color = AppColors.Muted, fontSize = 13.sp)
         }
@@ -184,7 +184,7 @@ private fun AutoBackupGroup() {
             modifier = Modifier.weight(1f),
         )
         if (running) {
-            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = AppColors.Accent)
+            com.flerty.wikiflerty.ui.KitSpinner(Modifier.size(18.dp), AppColors.Accent)
         } else if (config.folder != null) {
             ActionPill("Сейчас", AppIcons.Backup) {
                 scope.launch {

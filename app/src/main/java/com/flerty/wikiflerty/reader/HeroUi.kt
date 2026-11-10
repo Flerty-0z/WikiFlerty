@@ -182,7 +182,7 @@ fun HeroesContent(bridge: HeroBridge, modifier: Modifier = Modifier) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                CircularProgressIndicator(color = AppColors.Accent, strokeWidth = 2.5.dp, modifier = Modifier.size(22.dp))
+                com.flerty.wikiflerty.ui.KitSpinner(Modifier.size(22.dp), AppColors.Accent)
                 Text("Ищу героев в книге…", color = AppColors.Muted, fontSize = 14.sp)
             }
         }

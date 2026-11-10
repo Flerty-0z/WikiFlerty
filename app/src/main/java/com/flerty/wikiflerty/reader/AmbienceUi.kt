@@ -146,7 +146,7 @@ private fun VolumeRow(sound: AmbientSound, volume: Float?, player: com.flerty.wi
     Row(Modifier.height(44.dp).graphicsLayer { this.alpha = alpha }, verticalAlignment = Alignment.CenterVertically) {
         Text(sound.emoji, fontSize = 18.sp, modifier = Modifier.width(30.dp))
         com.flerty.wikiflerty.ui.FitText(sound.title, if (on) AppColors.Text else AppColors.Muted, 13.sp, Modifier.width(70.dp))
-        Slider(
+        com.flerty.wikiflerty.ui.KitSlider(
             value = dragging ?: stored.floatValue,
             onValueChange = { v ->
                 dragging = v
@@ -157,7 +157,6 @@ private fun VolumeRow(sound: AmbientSound, volume: Float?, player: com.flerty.wi
                 dragging = null
             },
             modifier = Modifier.weight(1f).height(36.dp),
-            colors = SliderDefaults.colors(thumbColor = AppColors.Accent, activeTrackColor = AppColors.Accent, inactiveTrackColor = AppColors.Line),
         )
         Text(
             if (on) "${((dragging ?: volume ?: 0f) * 100).roundToInt()}%" else "—",

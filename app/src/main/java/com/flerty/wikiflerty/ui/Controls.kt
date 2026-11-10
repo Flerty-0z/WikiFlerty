@@ -148,18 +148,7 @@ fun SettingSwitch(
             FitText(label, AppColors.Text, 15.sp)
             if (hint != null) Text(hint, color = AppColors.Faint, fontSize = 12.sp, lineHeight = 16.sp)
         }
-        Switch(
-            checked = checked,
-            onCheckedChange = change,
-            enabled = enabled,
-            colors = SwitchDefaults.colors(
-                checkedTrackColor = AppColors.Accent,
-                checkedThumbColor = AppColors.OnAccent,
-                uncheckedTrackColor = AppColors.Line,
-                uncheckedThumbColor = AppColors.Faint,
-                uncheckedBorderColor = Color.Transparent,
-            ),
-        )
+        KitSwitch(checked, change, enabled = enabled)
     }
 }
 
@@ -184,20 +173,13 @@ fun SettingSlider(
             Text(label, color = if (icon != null) AppColors.Text else AppColors.Muted, fontSize = if (icon != null) 15.sp else 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 8.dp))
             Text(format(current), color = AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
-        Slider(
+        KitSlider(
             value = current,
             onValueChange = { current = it },
             onValueChangeFinished = { onCommit(current) },
             valueRange = range,
             steps = steps,
             enabled = enabled,
-            colors = SliderDefaults.colors(
-                thumbColor = AppColors.Text,
-                activeTrackColor = AppColors.Accent,
-                inactiveTrackColor = AppColors.Line,
-                activeTickColor = Color.Transparent,
-                inactiveTickColor = Color.Transparent,
-            ),
         )
     }
 }

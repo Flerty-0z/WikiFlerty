@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
@@ -42,8 +43,71 @@ private fun specks(seed: Int, n: Int): List<Speck> {
 @Composable
 private fun clock(animated: Boolean): State<Float> = throttledClock(animated, 3600)
 
+private fun DrawScope.kitStatic(decor: Decor, base: UiBase, accent: Color, fibers: List<Speck>, measurer: androidx.compose.ui.text.TextMeasurer) {
+    val light = base.light
+    drawRect(Color(base.background))
+    when (decor) {
+        Decor.Library -> {
+            libraryStatic(light)
+            libraryExtras(light)
+        }
+        Decor.Zen -> {
+            fibers.forEach { f ->
+                val x = f.x * size.width
+                val y = f.y * size.height
+                val len = (6f + f.size * 18f) * density
+                drawLine(Color(base.text).copy(alpha = 0.035f), Offset(x, y), Offset(x + len, y + len * 0.15f), 0.8f * density)
+            }
+            zenExtras(light)
+        }
+        Decor.Comic -> {
+            comicStatic(light, Color(base.text), accent)
+            comicExtras(light, measurer)
+        }
+        Decor.News -> newsExtras(light)
+        Decor.Sea -> {
+            drawRect(Brush.verticalGradient(if (light) listOf(Color(0xFFBFF0EA), Color(base.background), Color(0xFFF6EFE0)) else listOf(Color(0xFF05495A), Color(base.background), Color(0xFF01131C))))
+            seaExtras(light)
+        }
+        Decor.Clay -> clayExtras(light, accent)
+        else -> Unit
+    }
+}
+
+private val KitThumbs = java.util.concurrent.ConcurrentHashMap<String, androidx.compose.ui.graphics.ImageBitmap>()
+
 @Composable
-fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = Modifier, animated: Boolean = true) {
+fun rememberKitThumb(kit: Kit, light: Boolean, width: androidx.compose.ui.unit.Dp, height: androidx.compose.ui.unit.Dp): State<androidx.compose.ui.graphics.ImageBitmap?> {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val resolver = androidx.compose.ui.platform.LocalFontFamilyResolver.current
+    val w = with(density) { width.roundToPx() }.coerceAtLeast(1)
+    val h = with(density) { height.roundToPx() }.coerceAtLeast(1)
+    val key = "${kit.id}|$light|$w|$h"
+    return androidx.compose.runtime.produceState(KitThumbs[key], key) {
+        if (value == null) {
+            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                runCatching {
+                    val bitmap = androidx.compose.ui.graphics.ImageBitmap(w, h)
+                    val base = if (light) kit.light else kit.dark
+                    val accent = Color(if (light) kit.accentLight else kit.accent)
+                    val plain = Density(density.density, 1f)
+                    val measurer = androidx.compose.ui.text.TextMeasurer(resolver, plain, androidx.compose.ui.unit.LayoutDirection.Ltr)
+                    androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(
+                        plain,
+                        androidx.compose.ui.unit.LayoutDirection.Ltr,
+                        androidx.compose.ui.graphics.Canvas(bitmap),
+                        Size(w.toFloat(), h.toFloat()),
+                    ) { kitStatic(kit.decor, base, accent, specks(41, 70), measurer) }
+                    KitThumbs[key] = bitmap
+                    bitmap
+                }.getOrNull()
+            }
+        }
+    }
+}
+
+@Composable
+fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = Modifier, animated: Boolean = true, staticLayer: Boolean = true) {
     val time = clock(animated && decor != Decor.None)
     val petals = remember { specks(23, 14) }
     val fibers = remember { specks(41, 70) }
@@ -52,34 +116,8 @@ fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = 
     val bubbles = remember { specks(83, 26) }
     val light = base.light
     Box(modifier) {
-        Canvas(Modifier.fillMaxSize().graphicsLayer()) {
-            drawRect(Color(base.background))
-            when (decor) {
-                Decor.Library -> {
-                    libraryStatic(light)
-                    libraryExtras(light)
-                }
-                Decor.Zen -> {
-                    fibers.forEach { f ->
-                        val x = f.x * size.width
-                        val y = f.y * size.height
-                        val len = (6f + f.size * 18f) * density
-                        drawLine(Color(base.text).copy(alpha = 0.035f), Offset(x, y), Offset(x + len, y + len * 0.15f), 0.8f * density)
-                    }
-                    zenExtras(light)
-                }
-                Decor.Comic -> {
-                    comicStatic(light, Color(base.text), accent)
-                    comicExtras(light, measurer)
-                }
-                Decor.News -> newsExtras(light)
-                Decor.Sea -> {
-                    drawRect(Brush.verticalGradient(if (light) listOf(Color(0xFFBFF0EA), Color(base.background), Color(0xFFF6EFE0)) else listOf(Color(0xFF05495A), Color(base.background), Color(0xFF01131C))))
-                    seaExtras(light)
-                }
-                Decor.Clay -> clayExtras(light, accent)
-                else -> Unit
-            }
+        if (staticLayer) {
+            Canvas(Modifier.fillMaxSize().graphicsLayer()) { kitStatic(decor, base, accent, fibers, measurer) }
         }
         if (decor != Decor.None) {
             Canvas(Modifier.fillMaxSize().graphicsLayer()) {
@@ -123,14 +161,17 @@ private object GlowCache {
 }
 
 private fun DrawScope.glow(color: Color, alpha: Float, center: Offset, radius: Float) {
-    val c = GlowCache
-    if (c.brush == null || c.color != color || c.center != center || c.radius != radius) {
-        c.color = color
-        c.center = center
-        c.radius = radius
-        c.brush = Brush.radialGradient(listOf(color, color.copy(alpha = 0f)), center = center, radius = radius)
+    val brush = synchronized(GlowCache) {
+        val c = GlowCache
+        if (c.brush == null || c.color != color || c.center != center || c.radius != radius) {
+            c.color = color
+            c.center = center
+            c.radius = radius
+            c.brush = Brush.radialGradient(listOf(color, color.copy(alpha = 0f)), center = center, radius = radius)
+        }
+        c.brush!!
     }
-    drawCircle(c.brush!!, radius, center, alpha = alpha.coerceIn(0f, 1f))
+    drawCircle(brush, radius, center, alpha = alpha.coerceIn(0f, 1f))
 }
 
 private fun DrawScope.libraryStatic(light: Boolean) {

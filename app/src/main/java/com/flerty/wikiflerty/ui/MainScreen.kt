@@ -201,11 +201,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                             }
                         }
                         if (busy != null) {
-                            LinearProgressIndicator(
-                                modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter),
-                                color = AppColors.Accent,
-                                trackColor = AppColors.Line,
-                            )
+                            KitLinearProgress(Modifier.fillMaxWidth().align(Alignment.BottomCenter))
                         }
                     }
                 },

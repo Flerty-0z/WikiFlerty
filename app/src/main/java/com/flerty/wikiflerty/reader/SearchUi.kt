@@ -157,7 +157,7 @@ internal fun SearchContent(search: SearchActions, modifier: Modifier) {
         }
         if (status != null) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (state.running) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = AppColors.Accent)
+                if (state.running) com.flerty.wikiflerty.ui.KitSpinner(Modifier.size(14.dp), AppColors.Accent)
                 Text(status, color = AppColors.Muted, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp))
             }
         }

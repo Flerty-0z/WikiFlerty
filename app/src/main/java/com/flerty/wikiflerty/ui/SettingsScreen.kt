@@ -224,6 +224,7 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
     TabbedFrame("Шаблоны оформления", icon = AppIcons.Palette, inset = false) {
         val current = Kit.of(style.kit)
         val start = Kit.entries.indexOf(current).coerceAtLeast(0)
+        Kit.entries.forEach { rememberKitThumb(it, AppStyle.light, 124.dp, 176.dp) }
         androidx.compose.foundation.lazy.LazyRow(
             state = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = (start - 1).coerceAtLeast(0)),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 14.dp),
@@ -417,7 +418,7 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
         val kind = BackgroundKind.of(style.background)
         if (copying) {
             Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = AppColors.Accent)
+                com.flerty.wikiflerty.ui.KitSpinner(Modifier.size(18.dp), AppColors.Accent)
                 Spacer(Modifier.width(10.dp))
                 Text("Загружаю…", color = AppColors.Muted, fontSize = 14.sp)
             }
@@ -608,7 +609,15 @@ private fun KitCard(kit: Kit, selected: Boolean, onClick: () -> Unit) {
             .liveClick(shape, sound = FeedbackSound.Toggle, onClick = onClick)
             .border(if (selected) 2.dp else 1.dp, if (selected) accent else AppColors.PanelBorder, shape),
     ) {
-        KitBackdrop(kit.decor, base, accent, Modifier.matchParentSize(), animated = selected)
+        val thumb by rememberKitThumb(kit, light, 124.dp, 176.dp)
+        androidx.compose.animation.Crossfade(thumb, Modifier.matchParentSize(), animationSpec = Motion.fade(180), label = "kit-thumb") { image ->
+            if (image != null) {
+                androidx.compose.foundation.Image(image, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.FillBounds)
+            } else {
+                Box(Modifier.fillMaxSize().background(Color(base.background)))
+            }
+        }
+        if (selected) KitBackdrop(kit.decor, base, accent, Modifier.matchParentSize(), animated = true, staticLayer = false)
         Column(Modifier.matchParentSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             val coverShape = RoundedCornerShape((4 * kit.corners).dp + 2.dp)
             val covers = listOf(0xFFE59AAE, 0xFF4F7EA0, 0xFFD9B25A, 0xFF5F7A4E)

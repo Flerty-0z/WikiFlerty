@@ -108,6 +108,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.flerty.wikiflerty.ui.AppColors
+import com.flerty.wikiflerty.ui.KitSwitch
+import com.flerty.wikiflerty.ui.KitSlider
+import com.flerty.wikiflerty.ui.KitSpinner
 import com.flerty.wikiflerty.ai.AiAction
 import com.flerty.wikiflerty.ui.Motion
 import com.flerty.wikiflerty.ui.PickerOption
@@ -1988,7 +1991,7 @@ internal fun StepSlider(
             Text(label, color = if (icon != null) AppColors.Text else AppColors.Muted, fontSize = if (icon != null) 15.sp else 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 8.dp))
             Text(format(current.toDouble()), color = AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
-        Slider(
+        KitSlider(
             value = current,
             onValueChange = { current = it },
             enabled = enabled,
@@ -1998,16 +2001,6 @@ internal fun StepSlider(
             },
             valueRange = range.start.toFloat()..range.endInclusive.toFloat(),
             steps = steps.coerceAtLeast(0),
-            colors = SliderDefaults.colors(
-                thumbColor = AppColors.Text,
-                activeTrackColor = AppColors.Accent,
-                inactiveTrackColor = AppColors.Line,
-                activeTickColor = Color.Transparent,
-                inactiveTickColor = Color.Transparent,
-                disabledThumbColor = AppColors.Faint,
-                disabledActiveTrackColor = AppColors.Line,
-                disabledInactiveTrackColor = AppColors.Line,
-            ),
         )
     }
 }
@@ -2072,18 +2065,7 @@ internal fun SwitchRow(label: String, checked: Boolean, enabled: Boolean = true,
             Spacer(Modifier.width(12.dp))
         }
         Text(label, color = AppColors.Text, fontSize = 15.sp, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(vertical = 6.dp).padding(end = 8.dp))
-        Switch(
-            checked = checked,
-            onCheckedChange = change,
-            enabled = enabled,
-            colors = SwitchDefaults.colors(
-                checkedTrackColor = AppColors.Accent,
-                checkedThumbColor = AppColors.OnAccent,
-                uncheckedTrackColor = AppColors.Line,
-                uncheckedThumbColor = AppColors.Faint,
-                uncheckedBorderColor = Color.Transparent,
-            ),
-        )
+        KitSwitch(checked, change, enabled = enabled)
     }
 }
 

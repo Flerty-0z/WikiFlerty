@@ -106,7 +106,7 @@ internal fun QuoteContent(draft: QuoteDraft, actions: QuoteActions, modifier: Mo
                         Image(image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                     } else {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = AppColors.Accent, strokeWidth = 2.dp, modifier = Modifier.size(26.dp))
+                            com.flerty.wikiflerty.ui.KitSpinner(Modifier.size(26.dp), AppColors.Accent)
                         }
                     }
                 }
@@ -156,7 +156,7 @@ internal fun QuoteContent(draft: QuoteDraft, actions: QuoteActions, modifier: Mo
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (actions.busy) {
-                    CircularProgressIndicator(color = AppColors.OnAccent, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                    com.flerty.wikiflerty.ui.KitSpinner(Modifier.size(22.dp), AppColors.OnAccent)
                 } else {
                     Icon(AppIcons.Share, "Поделиться", tint = AppColors.OnAccent, modifier = Modifier.size(24.dp))
                 }

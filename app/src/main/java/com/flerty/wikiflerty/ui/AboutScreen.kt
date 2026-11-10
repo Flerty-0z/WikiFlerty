@@ -173,7 +173,7 @@ fun UpdatePanel(app: App, modifier: Modifier = Modifier, onLater: (() -> Unit)? 
                 Text(subtitle, color = AppColors.Faint, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             if (state is UpdateState.Checking) {
-                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = AppColors.Accent)
+                com.flerty.wikiflerty.ui.KitSpinner(Modifier.size(18.dp), AppColors.Accent)
             }
         }
         val notes = (state as? UpdateState.Available)?.info?.notes.orEmpty()

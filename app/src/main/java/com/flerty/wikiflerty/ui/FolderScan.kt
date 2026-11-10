@@ -149,7 +149,7 @@ fun FolderScanSheet(onDismiss: () -> Unit, onImport: (List<Uri>) -> Unit) {
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                CircularProgressIndicator(color = AppColors.Accent, strokeWidth = 2.5.dp, modifier = Modifier.size(22.dp))
+                com.flerty.wikiflerty.ui.KitSpinner(Modifier.size(22.dp), AppColors.Accent)
                 Text("Ищу книги…", color = AppColors.Muted, fontSize = 14.sp, modifier = Modifier.padding(start = 12.dp))
             }
             is ScanStage.Found -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

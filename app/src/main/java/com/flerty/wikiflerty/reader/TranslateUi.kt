@@ -150,7 +150,7 @@ internal fun TranslatePopup(info: TranslateInfo, actions: TranslateActions, modi
         ) { s ->
             when (s) {
                 0 -> Box(Modifier.fillMaxWidth().height(64.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = AppColors.Accent, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
+                    com.flerty.wikiflerty.ui.KitSpinner(Modifier.size(24.dp), AppColors.Accent)
                 }
                 1 -> {
                     val result = info.result

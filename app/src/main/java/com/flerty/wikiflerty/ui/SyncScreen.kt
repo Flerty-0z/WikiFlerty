@@ -95,7 +95,7 @@ fun SyncContent() {
                 }
                 Appear(busy) {
                     Row(Modifier.padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = AppColors.Accent)
+                        com.flerty.wikiflerty.ui.KitSpinner(Modifier.size(16.dp), AppColors.Accent)
                         Text("Подключаю…", color = AppColors.Muted, fontSize = 13.sp)
                     }
                 }
@@ -285,7 +285,7 @@ private fun StatusRow(status: CloudSync.Status, onSync: () -> Unit) {
         }
         Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
             if (status.running) {
-                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = AppColors.Accent)
+                com.flerty.wikiflerty.ui.KitSpinner(Modifier.size(20.dp), AppColors.Accent)
             } else {
                 Box(
                     Modifier.size(40.dp).liveClick(androidx.compose.foundation.shape.CircleShape, sound = FeedbackSound.Toggle, onClick = onSync),

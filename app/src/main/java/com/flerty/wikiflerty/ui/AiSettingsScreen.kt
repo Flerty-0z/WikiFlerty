@@ -204,7 +204,7 @@ private fun ProviderCard(
                 )
             }
             if (check is KeyCheck.Loading) {
-                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = AppColors.Accent)
+                com.flerty.wikiflerty.ui.KitSpinner(Modifier.size(18.dp), AppColors.Accent)
             } else {
                 Icon(
                     AppIcons.Chevron,
@@ -502,7 +502,7 @@ private fun ActionButton(text: String, enabled: Boolean, busy: Boolean, onClick:
         contentAlignment = Alignment.Center,
     ) {
         if (busy) {
-            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = AppColors.OnAccent)
+            com.flerty.wikiflerty.ui.KitSpinner(Modifier.size(18.dp), AppColors.OnAccent)
         } else {
             Text(text, color = AppColors.OnAccent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
