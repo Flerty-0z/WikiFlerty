@@ -128,6 +128,7 @@ fun PaperBookSheet(book: Book?, onDismiss: () -> Unit) {
     val ready = title.isNotBlank() && total != null && total in 1..20000
 
     var editing by remember { mutableIntStateOf(-1) }
+    var searching by remember { mutableStateOf(false) }
 
     AppSheet(onDismiss, title = if (book == null) "Бумажная книга" else "Изменить книгу") {
         val close = sheetClose(onDismiss)
@@ -147,10 +148,13 @@ fun PaperBookSheet(book: Book?, onDismiss: () -> Unit) {
                     else -> Icon(AppIcons.Book, null, tint = AppColors.Accent, modifier = Modifier.size(30.dp))
                 }
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Обложка", color = AppColors.Muted, fontSize = 13.sp)
-                CoverButton(AppIcons.Image, "Из галереи") { pick.launch("image/*") }
-                CoverButton(AppIcons.Camera, "Сфотографировать", onClick = camera)
+            Column(Modifier.weight(1f).height(126.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                CoverButton(AppIcons.Image, "Из галереи", Modifier.weight(1f)) { pick.launch("image/*") }
+                CoverButton(AppIcons.Camera, "Сфотографировать", Modifier.weight(1f), onClick = camera)
+                CoverButton(AppIcons.Search, "Найти в интернете", Modifier.weight(1f)) {
+                    if (title.isNotBlank()) searching = true
+                    else android.widget.Toast.makeText(context, "Сначала укажи название", android.widget.Toast.LENGTH_SHORT).show()
+                }
             }
         }
         PaperField(title, "Название", AppIcons.Book) { editing = 0 }
@@ -166,6 +170,9 @@ fun PaperBookSheet(book: Book?, onDismiss: () -> Unit) {
         Appear(!ready && (title.isNotEmpty() || pages.isNotEmpty())) {
             Text("Нужны название и число страниц", color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
         }
+    }
+    if (searching) {
+        CoverSearchSheet(title, author, onDismiss = { searching = false }) { uri, _ -> cover = uri }
     }
     when (editing) {
         0 -> TextInputSheet("Название", title, "Название книги", onDismiss = { editing = -1 }, icon = AppIcons.Book) { title = it }
@@ -198,15 +205,21 @@ fun rememberCoverShot(onShot: (Uri) -> Unit): () -> Unit {
 private fun Modifier.matchParentSizeCompat(): Modifier = this.fillMaxWidth().fillMaxHeight()
 
 @Composable
-internal fun CoverButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
-    val shape = appCorner(14)
+internal fun CoverButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val shape = appCorner(12)
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 44.dp).liveClick(shape, sound = FeedbackSound.Open, onClick = onClick).fieldSurface(shape).padding(horizontal = 12.dp),
+        modifier.fillMaxWidth().liveClick(shape, sound = FeedbackSound.Open, onClick = onClick).fieldSurface(shape).padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
-        Text(label, color = AppColors.Text, fontSize = 14.sp, maxLines = 1)
+        Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(16.dp))
+        Text(
+            label,
+            color = AppColors.Text,
+            maxLines = 1,
+            softWrap = false,
+            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 13.sp, stepSize = 0.5.sp),
+        )
     }
 }
 

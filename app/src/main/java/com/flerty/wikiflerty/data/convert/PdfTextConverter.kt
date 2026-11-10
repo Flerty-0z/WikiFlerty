@@ -14,13 +14,14 @@ import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.pdmodel.PDPage
 import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineNode
 import com.tom_roush.pdfbox.text.PDFTextStripper
+import com.tom_roush.pdfbox.text.TextPosition
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.StringWriter
 import org.json.JSONArray
 import org.json.JSONObject
 
-class PdfPageMap(val pages: Int, val parts: List<Part>) {
+class PdfPageMap(val pages: Int, val parts: List<Part>, val version: Int = 1) {
     class Part(val href: String, val from: Int, val to: Int)
 
     fun hrefOf(page: Int): Part? = parts.firstOrNull { page in it.from..it.to } ?: parts.lastOrNull()
@@ -32,7 +33,7 @@ class PdfPageMap(val pages: Int, val parts: List<Part>) {
         return (part.from + (progression.coerceIn(0.0, 1.0) * span).toInt()).coerceIn(part.from, part.to)
     }
 
-    fun toJson(): JSONObject = JSONObject().put("pages", pages).put(
+    fun toJson(): JSONObject = JSONObject().put("pages", pages).put("v", version).put(
         "parts",
         JSONArray().apply { parts.forEach { put(JSONObject().put("href", it.href).put("from", it.from).put("to", it.to)) } },
     )
@@ -43,7 +44,7 @@ class PdfPageMap(val pages: Int, val parts: List<Part>) {
             return PdfPageMap(j.getInt("pages"), (0 until arr.length()).map { i ->
                 val o = arr.getJSONObject(i)
                 Part(o.getString("href"), o.getInt("from"), o.getInt("to"))
-            })
+            }, j.optInt("v", 1))
         }
 
         fun file(context: Context, bookId: String) = File(File(context.filesDir, "pdfmeta"), "$bookId.map.json")
@@ -65,6 +66,8 @@ object PdfTextConverter {
         ready = true
     }
 
+    const val VERSION = 2
+
     private class Stripper : PDFTextStripper() {
         init {
             paragraphStart = PARA_START
@@ -78,13 +81,84 @@ object PdfTextConverter {
             output.write(PAGE)
             super.startPage(page)
         }
+
+        override fun writeString(text: String?, textPositions: MutableList<TextPosition>?) {
+            val list = textPositions
+            if (!list.isNullOrEmpty()) {
+                var size = 0f
+                var n = 0
+                var bold = 0
+                for (tp in list) {
+                    var v = tp.fontSizeInPt
+                    if (v < 2f) v = tp.heightDir * 1.35f
+                    if (v > 0f) {
+                        size += v
+                        n++
+                    }
+                    val name = runCatching { tp.font?.name.orEmpty() }.getOrDefault("")
+                    if (name.contains("Bold", true) || name.contains("Black", true) || name.contains("Heavy", true)) bold++
+                }
+                val avg = if (n > 0) size / n else 0f
+                output.write(SIZE_START + (avg * 10).toInt() + (if (bold * 2 > list.size) "b" else "") + SIZE_END)
+            }
+            super.writeString(text, textPositions)
+        }
     }
 
     private const val PAGE = "\u0001"
     private const val PARA_START = "\u0002"
     private const val PARA_END = "\u0003"
+    private const val SIZE_START = "\u0004"
+    private const val SIZE_END = "\u0005"
 
-    private class Para(val lines: List<String>, val verse: Boolean)
+    private class Line(val text: String, val size: Float, val bold: Boolean)
+
+    private sealed class Item {
+        class Anchor(val page: Int) : Item()
+        class Heading(val lines: List<String>, val level: Int, val sub: String?) : Item() {
+            val text: String get() = lines.joinToString(" ").replace(Regex("\\s+"), " ").trim()
+        }
+        class Para(val lines: List<String>, val verse: Boolean) : Item()
+        class Picture(val page: Int) : Item()
+    }
+
+    private val markerRegex = Regex("\u0004(\\d+)(b?)\u0005")
+
+    private fun parseLine(raw: String): Line? {
+        var weighted = 0f
+        var chars = 0
+        var boldChars = 0
+        val matches = markerRegex.findAll(raw).toList()
+        matches.forEachIndexed { i, m ->
+            val segEnd = matches.getOrNull(i + 1)?.range?.first ?: raw.length
+            val seg = raw.substring(m.range.last + 1, segEnd)
+            val len = seg.count { !it.isWhitespace() }.coerceAtLeast(1)
+            weighted += m.groupValues[1].toInt() / 10f * len
+            chars += len
+            if (m.groupValues[2] == "b") boldChars += len
+        }
+        val text = raw.replace(markerRegex, "").replace(' ', ' ').trim()
+        if (text.isEmpty()) return null
+        return Line(text, if (chars > 0) weighted / chars else 0f, chars > 0 && boldChars * 2 > chars)
+    }
+
+    private fun parseBlocks(text: String): MutableList<MutableList<Line>> {
+        val blocks = mutableListOf<MutableList<Line>>()
+        text.split(PARA_START).forEach { chunk ->
+            chunk.split(PARA_END).forEach { part ->
+                val lines = part.split('\n').mapNotNull { parseLine(it) }
+                if (lines.isNotEmpty()) blocks += lines.toMutableList()
+            }
+        }
+        return blocks
+    }
+
+    private fun isCaps(t: String): Boolean {
+        val letters = t.filter { it.isLetter() }
+        return letters.length >= 3 && letters.all { it.isUpperCase() }
+    }
+
+    private fun isCredit(t: String) = t.length <= 120 && t.startsWith("(") && t.endsWith(")")
 
     fun convert(context: Context, source: File, target: File, fallbackTitle: String, identifier: String): PdfTextResult? {
         init(context)
@@ -97,7 +171,7 @@ object PdfTextConverter {
             Stripper().writeText(doc, writer)
             val raw = writer.toString().split(PAGE).drop(1)
             val pagesText = List(count) { i -> raw.getOrNull(i).orEmpty().replace("­", "").replace("\r", "") }
-            val totalChars = pagesText.sumOf { t -> t.count { it.isLetterOrDigit() } }
+            val totalChars = pagesText.sumOf { t -> t.replace(markerRegex, "").count { it.isLetterOrDigit() } }
             if (totalChars < count * 60 && totalChars < 4000) return null
 
             val info = runCatching { doc.documentInformation }.getOrNull()
@@ -105,78 +179,204 @@ object PdfTextConverter {
             val metaAuthor = info?.author?.trim()?.takeIf { it.length in 2..200 }
             val outline = runCatching { readOutline(doc) }.getOrDefault(emptyList())
 
-            val pages = pagesText.map { parseParas(it) }
+            val pages = pagesText.map { parseBlocks(it) }
             stripRunningLines(pages)
 
+            val sizes = HashMap<Int, Int>()
+            pages.forEach { blocks -> blocks.forEach { b -> b.forEach { l -> if (l.size > 0f) sizes.merge((l.size * 2).toInt(), l.text.length, Int::plus) } } }
+            val totalLen = sizes.values.sum().coerceAtLeast(1)
+            var acc = 0
+            var body = 0f
+            for (k in sizes.keys.sorted()) {
+                acc += sizes[k] ?: 0
+                if (acc * 2 >= totalLen) {
+                    body = k / 2f
+                    break
+                }
+            }
+
+            fun headingLevel(l: Line, blockSize: Int): Int {
+                val t = l.text
+                if (t.length > 140 || t.count { it.isLetterOrDigit() } == 0) return 0
+                if (body > 0f && l.size >= body * 1.5f) return 1
+                if (body > 0f && l.size >= body * 1.18f) return 2
+                if (isCaps(t) && t.length <= 70 && !t.endsWith(",") && blockSize <= 40) return 2
+                if (l.bold && t.length <= 80 && blockSize <= 2 && !t.endsWith(".") && !t.endsWith(",")) return 2
+                return 0
+            }
+
+            val emptyPages = pages.indices.filter { i -> pages[i].sumOf { b -> b.sumOf { it.text.length } } < 12 }.toSet()
+            val images = renderImages(source, emptyPages.take(60))
+
+            val items = mutableListOf<Item>()
+            for (p in 0 until count) {
+                items += Item.Anchor(p)
+                if (images[p] != null) {
+                    items += Item.Picture(p)
+                    continue
+                }
+                val blocks = pages[p]
+                val bodyLines = blocks.flatten().filter { headingLevel(it, 99) == 0 }.map { it.text.length }.sorted()
+                val p90 = bodyLines.getOrNull(((bodyLines.size - 1) * 0.9).toInt())?.coerceAtLeast(1) ?: 1
+                val pageVerse = p90 < 46 && bodyLines.size >= 4
+                for (block in blocks) {
+                    var i = 0
+                    val plain = mutableListOf<String>()
+                    fun flush() {
+                        if (plain.isEmpty()) return
+                        val inner = plain.dropLast(1)
+                        val shortShare = if (inner.isEmpty()) 0.0 else inner.count { it.length < p90 * 0.72 }.toDouble() / inner.size
+                        items += Item.Para(plain.toList(), plain.size > 1 && (pageVerse || shortShare > 0.5))
+                        plain.clear()
+                    }
+                    while (i < block.size) {
+                        val level = headingLevel(block[i], block.size)
+                        if (level == 0) {
+                            plain += block[i].text
+                            i++
+                            continue
+                        }
+                        flush()
+                        val head = mutableListOf(block[i].text)
+                        var lvl = level
+                        i++
+                        while (i < block.size && head.size < 4) {
+                            val l2 = headingLevel(block[i], block.size)
+                            if (l2 == 0) break
+                            head += block[i].text
+                            lvl = minOf(lvl, l2)
+                            i++
+                        }
+                        val sub = if (i < block.size && isCredit(block[i].text)) block[i++].text else null
+                        val last = items.lastOrNull()
+                        if (last is Item.Para && last.lines.size == 1 && Regex("^[\\dIVXLCivxlc]{1,4}\\.?$").matches(last.lines[0])) {
+                            items.removeAt(items.lastIndex)
+                            head.add(0, last.lines[0])
+                        }
+                        items += Item.Heading(head, lvl, sub)
+                    }
+                    flush()
+                }
+            }
+
+            val headings = items.filterIsInstance<Item.Heading>()
+            val tops = outline.filter { it.depth == 0 }.map { it.page }.filter { it in 0 until count }.toSet()
+            val chapterLevel = when {
+                tops.size >= 2 -> 0
+                headings.count { it.level == 1 } >= 2 -> 1
+                headings.count { it.level == 2 } >= 2 -> 2
+                else -> -1
+            }
+
             val title = metaTitle ?: fallbackTitle
-            val sample = pagesText.take(30).joinToString(" ").take(30_000)
+            val sample = pagesText.take(30).joinToString(" ").replace(markerRegex, "").take(30_000)
             val language = if (Regex("[а-яё]", RegexOption.IGNORE_CASE).containsMatchIn(sample)) "ru" else "en"
             val book = EpubBuilder(identifier, title, listOfNotNull(metaAuthor), language)
 
-            val tops = outline.filter { it.depth == 0 }.map { it.page }.filter { it in 0 until count }.distinct().sorted()
-            val starts: List<Int> = if (tops.size >= 2) {
-                (listOf(0) + tops).distinct().sorted()
-            } else {
-                (0 until count step 12).toList()
+            val groups = mutableListOf<MutableList<Item>>(mutableListOf())
+            var pagesInGroup = 0
+            items.forEach { item ->
+                val cur = groups.last()
+                val breakHere = when {
+                    chapterLevel == 0 -> item is Item.Anchor && item.page in tops && item.page != 0
+                    chapterLevel > 0 -> item is Item.Heading && item.level <= chapterLevel
+                    else -> item is Item.Anchor && pagesInGroup >= 12
+                }
+                if (breakHere && cur.any { it !is Item.Anchor }) {
+                    val moved = mutableListOf<Item>()
+                    while (cur.isNotEmpty() && cur.last() is Item.Anchor) moved.add(0, cur.removeAt(cur.lastIndex))
+                    groups += (moved + item).toMutableList()
+                    pagesInGroup = moved.size + if (item is Item.Anchor) 1 else 0
+                } else {
+                    cur += item
+                    if (item is Item.Anchor) pagesInGroup++
+                }
             }
-            val ranges = starts.mapIndexed { i, s -> s to ((starts.getOrNull(i + 1) ?: count) - 1) }.filter { it.second >= it.first }
-
-            val emptyPages = pages.indices.filter { i -> pages[i].sumOf { p -> p.lines.sumOf { it.length } } < 12 }.toSet()
-            val images = renderImages(source, emptyPages.take(60))
 
             val parts = mutableListOf<PdfPageMap.Part>()
-            var pending: StringBuilder? = null
-            ranges.forEachIndexed { index, (from, to) ->
+            val toc = mutableListOf<TocEntry>()
+            var headingId = 0
+            var lastPage = 0
+            groups.filter { it.isNotEmpty() }.forEachIndexed { index, group ->
                 val href = "part${index + 1}.xhtml"
+                val anchors = group.filterIsInstance<Item.Anchor>().map { it.page }
+                val from = anchors.minOrNull() ?: lastPage
+                val to = anchors.maxOrNull() ?: from
+                lastPage = to
                 parts += PdfPageMap.Part("OEBPS/$href", from, to)
                 val html = StringBuilder(xhtmlHead(title, language))
-                if (index == 0) html.append("<h1>${esc(title)}</h1>\n")
-                for (p in from..to) {
-                    val anchor = "<span id=\"${PdfPageMap.anchor(p)}\"></span>"
-                    val paras = pages[p]
-                    val image = images[p]
-                    if (image != null) {
-                        pending?.let { html.append("<p>").append(it).append("</p>\n") }
-                        pending = null
-                        val name = "img/page$p.jpg"
-                        book.addImage(name, "image/jpeg", image)
-                        html.append("<div style=\"text-align:center\">").append(anchor).append("<img src=\"$name\" alt=\"\" style=\"max-width:100%\"/></div>\n")
-                        continue
-                    }
-                    if (paras.isEmpty()) {
-                        pending?.let { html.append("<p>").append(it).append("</p>\n") }
-                        pending = null
-                        html.append(anchor).append('\n')
-                        continue
-                    }
-                    paras.forEachIndexed paraLoop@{ k, para ->
-                        val body = if (para.verse) para.lines.joinToString("<br/>") { esc(it) } else esc(joinProse(para.lines))
-                        val prefix = if (k == 0) anchor else ""
-                        val carry = pending
-                        if (k == 0 && carry != null && !para.verse && para.lines.first().firstOrNull()?.isLowerCase() == true) {
-                            html.append("<p>").append(carry).append(' ').append(prefix).append(body).append("</p>\n")
-                            pending = null
-                            return@paraLoop
+                if (index == 0 && group.none { it is Item.Heading }) html.append("<h1>${esc(title)}</h1>\n")
+                var entry: TocEntry? = null
+                var pendingAnchor = ""
+                var carry: StringBuilder? = null
+                fun flushCarry() {
+                    carry?.let { html.append("<p>").append(it).append("</p>\n") }
+                    carry = null
+                }
+                group.forEach { item ->
+                    when (item) {
+                        is Item.Anchor -> pendingAnchor += "<span id=\"${PdfPageMap.anchor(item.page)}\"></span>"
+                        is Item.Picture -> {
+                            flushCarry()
+                            val name = "img/page${item.page}.jpg"
+                            images[item.page]?.let { book.addImage(name, "image/jpeg", it) }
+                            html.append("<div style=\"text-align:center\">").append(pendingAnchor).append("<img src=\"$name\" alt=\"\" style=\"max-width:100%\"/></div>\n")
+                            pendingAnchor = ""
                         }
-                        carry?.let { html.append("<p>").append(it).append("</p>\n") }
-                        pending = null
-                        val last = k == paras.lastIndex
-                        val open = !para.verse && last && p < to && !Regex("[.!?…:;»\"”)]$").containsMatchIn(para.lines.last())
-                        if (open) {
-                            pending = StringBuilder().append(prefix).append(body)
-                        } else {
-                            html.append(if (para.verse) "<p class=\"verse\">" else "<p>").append(prefix).append(body).append("</p>\n")
+                        is Item.Heading -> {
+                            flushCarry()
+                            val id = "h${++headingId}"
+                            val top = chapterLevel > 0 && item.level <= chapterLevel || entry == null && chapterLevel <= 0
+                            val tag = if (top) "h2" else "h3"
+                            html.append(pendingAnchor)
+                            pendingAnchor = ""
+                            html.append("<$tag id=\"$id\">").append(item.lines.joinToString("<br/>") { esc(it) }).append("</$tag>\n")
+                            item.sub?.let { html.append("<p class=\"subtitle\" style=\"text-align:center !important;text-indent:0 !important;font-style:italic;opacity:.75\">").append(esc(it)).append("</p>\n") }
+                            if (chapterLevel > 0) {
+                                val e = TocEntry(item.text, "$href#$id")
+                                if (item.level <= chapterLevel) {
+                                    if (entry == null) entry = TocEntry(item.text, href)
+                                } else if (entry != null) {
+                                    entry!!.children += e
+                                }
+                            } else if (entry == null) {
+                                entry = TocEntry(item.text, href)
+                            }
+                        }
+                        is Item.Para -> {
+                            if (item.verse) {
+                                flushCarry()
+                                html.append("<p class=\"poem\" style=\"text-align:left !important;text-indent:0 !important\">").append(pendingAnchor)
+                                pendingAnchor = ""
+                                item.lines.forEach { html.append("<span style=\"display:block;padding-left:1.4em;text-indent:-1.4em\">").append(esc(it)).append("</span>") }
+                                html.append("</p>\n")
+                            } else {
+                                val text = esc(joinProse(item.lines))
+                                val c = carry
+                                if (c != null && pendingAnchor.isNotEmpty() && item.lines.first().firstOrNull()?.isLowerCase() == true) {
+                                    c.append(' ').append(pendingAnchor).append(text)
+                                    pendingAnchor = ""
+                                } else {
+                                    flushCarry()
+                                    carry = StringBuilder().append(pendingAnchor).append(text)
+                                    pendingAnchor = ""
+                                }
+                                if (Regex("[.!?…:;»\"”)]$").containsMatchIn(item.lines.last())) flushCarry()
+                            }
                         }
                     }
                 }
-                pending?.let { html.append("<p>").append(it).append("</p>\n") }
-                pending = null
+                flushCarry()
+                html.append(pendingAnchor).append('\n')
                 html.append(XHTML_END)
                 book.addPage(href, html.toString())
+                if (chapterLevel != 0) {
+                    toc += entry ?: TocEntry(if (from == to) "Страница ${from + 1}" else "Страницы ${from + 1}–${to + 1}", href)
+                }
             }
 
-            val toc = mutableListOf<TocEntry>()
-            if (outline.isNotEmpty()) {
+            if (chapterLevel == 0 || (outline.isNotEmpty() && chapterLevel < 0)) {
+                toc.clear()
                 val stack = ArrayDeque<Pair<Int, TocEntry>>()
                 outline.forEach { e ->
                     val p = e.page.coerceIn(0, count - 1)
@@ -186,12 +386,10 @@ object PdfTextConverter {
                     if (stack.isEmpty()) toc += entry else stack.last().second.children += entry
                     stack.addLast(e.depth to entry)
                 }
-            } else if (count > 24) {
-                parts.forEach { toc += TocEntry("Страницы ${it.from + 1}–${it.to + 1}", it.href.removePrefix("OEBPS/")) }
             }
             book.toc += toc
             book.write(target)
-            return PdfTextResult(PdfPageMap(count, parts), metaTitle, metaAuthor)
+            return PdfTextResult(PdfPageMap(count, parts, VERSION), metaTitle, metaAuthor)
         } finally {
             runCatching { doc.close() }
         }
@@ -213,34 +411,13 @@ object PdfTextConverter {
         return out
     }
 
-    private fun parseParas(text: String): MutableList<Para> {
-        val blocks = mutableListOf<List<String>>()
-        text.split(PARA_START).forEach { chunk ->
-            chunk.split(PARA_END).forEach { part ->
-                val lines = part.split('\n').map { it.trim() }.filter { it.isNotEmpty() }
-                if (lines.isNotEmpty()) blocks += lines
-            }
-        }
-        val all = blocks.flatten()
-        if (all.isEmpty()) return mutableListOf()
-        val lengths = all.map { it.length }.sorted()
-        val p90 = lengths[((lengths.size - 1) * 0.9).toInt()].coerceAtLeast(1)
-        val pageVerse = p90 < 46 && all.size >= 4
-        return blocks.map { lines ->
-            val inner = lines.dropLast(1)
-            val shortShare = if (inner.isEmpty()) 0.0 else inner.count { it.length < p90 * 0.72 }.toDouble() / inner.size
-            val verse = lines.size > 1 && (pageVerse || shortShare > 0.5)
-            Para(lines, verse)
-        }.toMutableList()
-    }
-
-    private fun stripRunningLines(pages: List<MutableList<Para>>) {
+    private fun stripRunningLines(pages: List<MutableList<MutableList<Line>>>) {
         fun norm(s: String) = s.replace(Regex("\\d+"), "#").lowercase().trim()
         val firsts = HashMap<String, Int>()
         val lasts = HashMap<String, Int>()
-        pages.forEach { paras ->
-            paras.firstOrNull()?.lines?.firstOrNull()?.let { firsts.merge(norm(it), 1, Int::plus) }
-            paras.lastOrNull()?.lines?.lastOrNull()?.let { lasts.merge(norm(it), 1, Int::plus) }
+        pages.forEach { blocks ->
+            blocks.firstOrNull()?.firstOrNull()?.let { firsts.merge(norm(it.text), 1, Int::plus) }
+            blocks.lastOrNull()?.lastOrNull()?.let { lasts.merge(norm(it.text), 1, Int::plus) }
         }
         val limit = (pages.size * 0.3).toInt().coerceAtLeast(3)
         fun running(line: String, counts: Map<String, Int>): Boolean {
@@ -248,17 +425,17 @@ object PdfTextConverter {
             if (Regex("^(стр\\.?|page|с\\.)\\s*\\d+$", RegexOption.IGNORE_CASE).matches(line)) return true
             return line.length < 90 && (counts[norm(line)] ?: 0) >= limit
         }
-        pages.forEach { paras ->
-            paras.firstOrNull()?.let { first ->
-                if (running(first.lines.first(), firsts)) {
-                    val rest = first.lines.drop(1)
-                    if (rest.isEmpty()) paras.removeAt(0) else paras[0] = Para(rest, first.verse)
+        pages.forEach { blocks ->
+            blocks.firstOrNull()?.let { first ->
+                if (running(first.first().text, firsts)) {
+                    first.removeAt(0)
+                    if (first.isEmpty()) blocks.removeAt(0)
                 }
             }
-            paras.lastOrNull()?.let { last ->
-                if (running(last.lines.last(), lasts)) {
-                    val rest = last.lines.dropLast(1)
-                    if (rest.isEmpty()) paras.removeAt(paras.lastIndex) else paras[paras.lastIndex] = Para(rest, last.verse)
+            blocks.lastOrNull()?.let { last ->
+                if (running(last.last().text, lasts)) {
+                    last.removeAt(last.lastIndex)
+                    if (last.isEmpty()) blocks.removeAt(blocks.lastIndex)
                 }
             }
         }

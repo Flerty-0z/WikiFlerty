@@ -100,13 +100,13 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     private fun openPdf(book: Book, startAt: Locator?) {
         viewModelScope.launch {
             var b = book
-            if (!b.pdf) {
+            if (app.library.needsPdfText(b)) {
                 _busy.value = "Готовлю PDF…"
                 b = app.library.ensurePdfText(b)
                 _busy.value = null
             }
             val map = if (b.pdfText) com.flerty.wikiflerty.data.convert.PdfPageMap.load(app, b.id) else null
-            val original = !b.pdfText || com.flerty.wikiflerty.reader.PdfLocators.original(app, b.id)
+            val original = !b.pdfText
             if (original) {
                 if (!app.library.pdfFile(b).exists()) {
                     _messages.emit("Файл книги не найден")

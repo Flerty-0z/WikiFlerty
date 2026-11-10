@@ -173,7 +173,7 @@ class LibraryRepository(
             val text = buildPdfText(id, file, meta.title ?: fileTitle ?: "Без названия", fingerprint.take(24))
             val title = text?.title ?: meta.title ?: fileTitle ?: "Без названия"
             val author = text?.author ?: meta.author.orEmpty()
-            val coverName = PdfSupport.cover(file, 600)?.let { bitmap ->
+            val coverName = PdfSupport.cover(file, 600)?.takeUnless { PdfSupport.isBlank(it) }?.let { bitmap ->
                 val name = "$id.jpg"
                 File(coversDir, name).outputStream().use { out -> bitmap.compress(Bitmap.CompressFormat.JPEG, 88, out) }
                 bitmap.recycle()
@@ -205,12 +205,40 @@ class LibraryRepository(
         }
     }
 
+    fun needsPdfText(book: Book): Boolean = when {
+        !book.isPdf -> false
+        !book.pdf -> true
+        book.pdfText -> (com.flerty.wikiflerty.data.convert.PdfPageMap.load(context, book.id)?.version ?: 0) < com.flerty.wikiflerty.data.convert.PdfTextConverter.VERSION
+        else -> false
+    }
+
     suspend fun ensurePdfText(book: Book): Book = withContext(Dispatchers.IO) {
-        if (book.pdf || !book.isPdf) return@withContext book
+        if (!needsPdfText(book)) return@withContext book
         val pdf = pdfFile(book)
         if (!pdf.exists()) return@withContext book
+        val oldMap = com.flerty.wikiflerty.data.convert.PdfPageMap.load(context, book.id)
+        val oldPage = book.locatorJson?.let { runCatching { Locator.fromJSON(JSONObject(it)) }.getOrNull() }
+            ?.let { com.flerty.wikiflerty.reader.PdfLocators.pageOf(it, oldMap, oldMap?.pages ?: book.positions) }
         val text = buildPdfText(book.id, pdf, book.title, (book.fingerprint ?: book.id).take(24))
-        update { list -> list.map { if (it.id == book.id) it.copy(pdf = true, fileName = if (text != null) "${book.id}.epub" else it.fileName) else it } }
+        val total = text?.map?.pages ?: book.positions
+        val blankCover = book.coverFileName == "${book.id}.jpg" && runCatching {
+            android.graphics.BitmapFactory.decodeFile(File(coversDir, "${book.id}.jpg").path)?.let { PdfSupport.isBlank(it) }
+        }.getOrNull() == true
+        if (blankCover) File(coversDir, "${book.id}.jpg").delete()
+        update { list ->
+            list.map {
+                if (it.id != book.id) {
+                    it
+                } else {
+                    it.copy(
+                        pdf = true,
+                        fileName = if (text != null) "${book.id}.epub" else it.fileName,
+                        coverFileName = if (blankCover) null else it.coverFileName,
+                        locatorJson = oldPage?.let { p -> com.flerty.wikiflerty.reader.PdfLocators.pageLocator(p, total).toJSON().toString() } ?: it.locatorJson,
+                    )
+                }
+            }
+        }
         _books.value.firstOrNull { it.id == book.id } ?: book
     }
 

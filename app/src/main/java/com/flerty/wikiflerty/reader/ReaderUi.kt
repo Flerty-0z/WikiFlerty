@@ -1321,13 +1321,8 @@ private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
         Tile(ReaderSheet.AiChapter, "Пересказ, тест", AppIcons.Book, 0xFF7DD3FC, 0xFF3B82C4),
         Tile(ReaderSheet.AiSetup, "Нейросети, модели", AppIcons.Sparkle, 0xFF8AB4F8, 0xFF7653E0),
     )
-    val pdf = LocalPdfOriginal.current
-    val tiles = base.map { OptionTile(it.target.title, it.hint, it.icon, it.from, it.to, it.dark) { onOpen(it.target) } } +
-        listOfNotNull(pdf?.let { OptionTile("Оригинал PDF", "Страницы как в файле", AppIcons.Pages, 0xFFB4BCC8, 0xFF6B7686, onClick = it) })
-    OptionTiles(tiles)
+    OptionTiles(base.map { OptionTile(it.target.title, it.hint, it.icon, it.from, it.to, it.dark) { onOpen(it.target) } })
 }
-
-internal val LocalPdfOriginal = androidx.compose.runtime.staticCompositionLocalOf<(() -> Unit)?> { null }
 
 internal class OptionTile(val title: String, val hint: String, val icon: ImageVector, val from: Long, val to: Long, val dark: Boolean = false, val onClick: () -> Unit)
 

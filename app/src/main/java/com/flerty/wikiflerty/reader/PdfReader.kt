@@ -639,7 +639,6 @@ class PdfReaderActivity : ComponentActivity() {
     internal fun openText() {
         val m = map ?: return
         flushProgress()
-        PdfLocators.setOriginal(this, bookId, false)
         val current = app.library.books.value.firstOrNull { it.id == bookId } ?: return
         val loc = PdfLocators.textLocator(m, state.page)
         lifecycleScope.launch {

@@ -19,6 +19,23 @@ object PdfSupport {
         return Meta(info?.get("Title"), info?.get("Author"), pages)
     }
 
+    fun isBlank(bitmap: Bitmap): Boolean {
+        val w = bitmap.width
+        val h = bitmap.height
+        if (w < 4 || h < 4) return true
+        var dark = 0
+        var total = 0
+        for (y in 0 until 48) {
+            for (x in 0 until 32) {
+                val c = bitmap.getPixel(x * (w - 1) / 31, y * (h - 1) / 47)
+                val l = (Color.red(c) * 299 + Color.green(c) * 587 + Color.blue(c) * 114) / 1000
+                if (l < 225) dark++
+                total++
+            }
+        }
+        return dark * 100 < total * 3
+    }
+
     fun cover(file: File, width: Int): Bitmap? = runCatching {
         ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
             val renderer = PdfRenderer(fd)

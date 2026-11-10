@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -77,11 +78,10 @@ fun BookEditSheet(book: Book, onDismiss: () -> Unit) {
                     else GeneratedCover(title, author, Modifier.fillMaxWidth().fillMaxHeight())
                 }
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Обложка", color = AppColors.Muted, fontSize = 13.sp)
-                CoverButton(AppIcons.Image, "Из галереи") { pick.launch("image/*") }
-                CoverButton(AppIcons.Camera, "Сфотографировать", onClick = camera)
-                CoverButton(AppIcons.Search, "Найти в интернете") { searching = true }
+            Column(Modifier.weight(1f).height(126.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                CoverButton(AppIcons.Image, "Из галереи", Modifier.weight(1f)) { pick.launch("image/*") }
+                CoverButton(AppIcons.Camera, "Сфотографировать", Modifier.weight(1f), onClick = camera)
+                CoverButton(AppIcons.Search, "Найти в интернете", Modifier.weight(1f)) { searching = true }
             }
         }
         PaperField(title, "Название", AppIcons.Book) { editing = 0 }

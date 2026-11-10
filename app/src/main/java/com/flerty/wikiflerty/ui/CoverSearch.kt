@@ -52,14 +52,19 @@ import org.json.JSONObject
 object CoverSearch {
     data class Candidate(val image: String, val title: String, val author: String, val description: String?)
 
-    private fun get(url: String): String? {
+    class Outcome(val items: List<Candidate>, val offline: Boolean)
+
+    private fun get(url: String): String {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 8_000
-            readTimeout = 12_000
-            setRequestProperty("User-Agent", "WikiFlerty/1.0 (Android reader)")
+            connectTimeout = 9_000
+            readTimeout = 14_000
+            setRequestProperty("User-Agent", "WikiFlerty/1.0 (Android reader; contact: wikiflerty@app)")
+            setRequestProperty("Accept", "application/json")
         }
         return try {
-            if (conn.responseCode !in 200..299) null else conn.inputStream.bufferedReader().use { it.readText() }
+            val code = conn.responseCode
+            if (code !in 200..299) throw java.io.IOException("HTTP $code")
+            conn.inputStream.bufferedReader().use { it.readText() }
         } finally {
             conn.disconnect()
         }
@@ -67,13 +72,10 @@ object CoverSearch {
 
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
 
-    private fun google(title: String, author: String): List<Candidate> {
-        val q = buildString {
-            append("intitle:").append(title.trim())
-            if (author.isNotBlank()) append(" inauthor:").append(author.trim().split(' ').last())
-        }
-        val body = get("https://www.googleapis.com/books/v1/volumes?maxResults=12&printType=books&q=" + enc(q))
-            ?: return emptyList()
+    private fun lastName(author: String) = author.split(',').first().trim().split(' ').lastOrNull().orEmpty()
+
+    private fun google(query: String): List<Candidate> {
+        val body = get("https://www.googleapis.com/books/v1/volumes?maxResults=20&printType=books&country=US&q=" + enc(query))
         val items = JSONObject(body).optJSONArray("items") ?: return emptyList()
         return (0 until items.length()).mapNotNull { i ->
             val info = items.optJSONObject(i)?.optJSONObject("volumeInfo") ?: return@mapNotNull null
@@ -86,11 +88,8 @@ object CoverSearch {
     }
 
     private fun openLibrary(title: String, author: String): List<Candidate> {
-        val url = buildString {
-            append("https://openlibrary.org/search.json?limit=12&fields=title,author_name,cover_i&title=").append(enc(title.trim()))
-            if (author.isNotBlank()) append("&author=").append(enc(author.trim()))
-        }
-        val body = get(url) ?: return emptyList()
+        val q = (title.trim() + " " + lastName(author)).trim()
+        val body = get("https://openlibrary.org/search.json?limit=15&fields=title,author_name,cover_i&q=" + enc(q))
         val docs = JSONObject(body).optJSONArray("docs") ?: return emptyList()
         return (0 until docs.length()).mapNotNull { i ->
             val d = docs.optJSONObject(i) ?: return@mapNotNull null
@@ -100,19 +99,40 @@ object CoverSearch {
         }
     }
 
+    private fun wikipedia(lang: String, title: String, author: String): List<Candidate> {
+        val q = (title.trim() + " " + lastName(author)).trim()
+        val url = "https://$lang.wikipedia.org/w/api.php?action=query&format=json&formatversion=2&generator=search&gsrlimit=6" +
+            "&prop=pageimages%7Cextracts&piprop=thumbnail&pithumbsize=600&exintro=1&explaintext=1&exlimit=6&gsrsearch=" + enc(q)
+        val body = get(url)
+        val pages = JSONObject(body).optJSONObject("query")?.optJSONArray("pages") ?: return emptyList()
+        return (0 until pages.length()).mapNotNull { i -> pages.optJSONObject(i) }
+            .sortedBy { it.optInt("index", 99) }
+            .mapNotNull { p ->
+                val image = p.optJSONObject("thumbnail")?.optString("source")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                if (image.endsWith(".svg.png", true)) return@mapNotNull null
+                Candidate(image, p.optString("title"), "", p.optString("extract").trim().takeIf { it.length > 40 })
+            }
+    }
+
     private fun stripHtml(s: String) = android.text.Html.fromHtml(s, android.text.Html.FROM_HTML_MODE_COMPACT).toString().trim()
 
-    suspend fun find(title: String, author: String): List<Candidate> = coroutineScope {
-        val a = async(Dispatchers.IO) { runCatching { google(title, author) }.getOrDefault(emptyList()) }
-        val b = async(Dispatchers.IO) { runCatching { openLibrary(title, author) }.getOrDefault(emptyList()) }
-        val (g, o) = awaitAll(a, b)
+    suspend fun find(title: String, author: String): Outcome = coroutineScope {
+        val last = lastName(author)
+        val cyr = Regex("[а-яё]", RegexOption.IGNORE_CASE).containsMatchIn(title)
+        val jobs = listOf(
+            async(Dispatchers.IO) { runCatching { google("intitle:" + title.trim() + if (last.isNotBlank()) " inauthor:$last" else "") } },
+            async(Dispatchers.IO) { runCatching { google((title.trim() + " " + author.trim()).trim()) } },
+            async(Dispatchers.IO) { runCatching { wikipedia(if (cyr) "ru" else "en", title, author) } },
+            async(Dispatchers.IO) { runCatching { openLibrary(title, author) } },
+            async(Dispatchers.IO) { runCatching { if (cyr) wikipedia("en", title, author) else emptyList() } },
+        )
+        val results = jobs.awaitAll()
+        val lists = results.map { it.getOrDefault(emptyList()) }
+        val offline = results.all { it.isFailure || it.getOrNull().isNullOrEmpty() } && results.count { it.isFailure } >= 3
         val merged = mutableListOf<Candidate>()
-        val max = maxOf(g.size, o.size)
-        for (i in 0 until max) {
-            g.getOrNull(i)?.let(merged::add)
-            o.getOrNull(i)?.let(merged::add)
-        }
-        merged.distinctBy { it.image }.take(18)
+        val max = lists.maxOf { it.size }
+        for (i in 0 until max) lists.forEach { l -> l.getOrNull(i)?.let(merged::add) }
+        Outcome(merged.distinctBy { it.image.substringBefore("&fife") }.take(24), offline)
     }
 
     suspend fun bitmap(url: String, sample: Int): android.graphics.Bitmap? = withContext(Dispatchers.IO) {
@@ -121,6 +141,7 @@ object CoverSearch {
                 connectTimeout = 8_000
                 readTimeout = 15_000
                 instanceFollowRedirects = true
+                setRequestProperty("User-Agent", "WikiFlerty/1.0 (Android reader; contact: wikiflerty@app)")
             }
             try {
                 if (conn.responseCode !in 200..299) return@runCatching null
@@ -147,9 +168,10 @@ fun CoverSearchSheet(title: String, author: String, onDismiss: () -> Unit, onPic
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf<String?>(null) }
-    val results by produceState<List<CoverSearch.Candidate>?>(null, title, author) {
-        value = runCatching { CoverSearch.find(title, author) }.getOrDefault(emptyList())
+    val outcome by produceState<CoverSearch.Outcome?>(null, title, author) {
+        value = runCatching { CoverSearch.find(title, author) }.getOrDefault(CoverSearch.Outcome(emptyList(), true))
     }
+    val results = outcome?.items
     AppSheet(onDismiss, title = "Найти обложку") {
         val close = sheetClose(onDismiss)
         AnimatedContent(
@@ -161,7 +183,8 @@ fun CoverSearchSheet(title: String, author: String, onDismiss: () -> Unit, onPic
                 0 -> Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) { KitSpinner(Modifier.size(34.dp)) }
                 1 -> Column(Modifier.fillMaxWidth().padding(vertical = 30.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Icon(AppIcons.Search, null, tint = AppColors.Faint, modifier = Modifier.size(30.dp))
-                    Text("Ничего не нашлось", color = AppColors.Muted, fontSize = 15.sp)
+                    Text(if (outcome?.offline == true) "Сервисы обложек недоступны" else "Ничего не нашлось", color = AppColors.Muted, fontSize = 15.sp)
+                    if (outcome?.offline == true) Text("Проверь интернет или VPN", color = AppColors.Faint, fontSize = 13.sp)
                 }
                 else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     results.orEmpty().chunked(3).forEach { row ->

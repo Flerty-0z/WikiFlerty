@@ -1,6 +1,5 @@
 package com.flerty.wikiflerty.reader
 
-import android.content.Context
 import com.flerty.wikiflerty.data.convert.PdfPageMap
 import kotlin.math.roundToInt
 import org.readium.r2.shared.publication.Locator
@@ -35,17 +34,18 @@ object PdfLocators {
         )
     }
 
+    fun pageLocator(page: Int, total: Int): Locator {
+        val progression = if (total > 1) page.toDouble() / (total - 1) else 0.0
+        return Locator(
+            href = Url("page")!!,
+            mediaType = MediaType.PDF,
+            locations = Locator.Locations(position = page + 1, progression = progression, totalProgression = progression),
+        )
+    }
+
     fun toText(loc: Locator?, map: PdfPageMap?): Locator? {
         if (loc == null || !isPage(loc)) return loc
         val page = loc.locations.position?.minus(1) ?: return null
         return map?.let { textLocator(it, page) }
-    }
-
-    private fun prefs(context: Context) = context.getSharedPreferences("pdf", Context.MODE_PRIVATE)
-
-    fun original(context: Context, bookId: String): Boolean = prefs(context).getBoolean("orig_$bookId", false)
-
-    fun setOriginal(context: Context, bookId: String, value: Boolean) {
-        prefs(context).edit().putBoolean("orig_$bookId", value).apply()
     }
 }
