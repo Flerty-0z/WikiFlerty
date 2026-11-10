@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import com.flerty.wikiflerty.reader.ReadiumServices
 import com.flerty.wikiflerty.data.convert.BookConverter
+import com.flerty.wikiflerty.data.convert.PdfSupport
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
@@ -66,12 +67,12 @@ class LibraryRepository(
                     }
                 }
                 BookConverter.Kind.Pdf -> {
-                    source.delete()
-                    return@withContext Result.failure(Exception("PDF пока не поддерживается. Подойдут EPUB, FB2 и TXT"))
+                    file.delete()
+                    return@withContext importPdf(id, source, uri)
                 }
                 BookConverter.Kind.Unknown -> {
                     source.delete()
-                    return@withContext Result.failure(Exception("Этот формат не поддерживается. Подойдут EPUB, FB2 и TXT"))
+                    return@withContext Result.failure(Exception("Этот формат не поддерживается. Подойдут EPUB, FB2, TXT и PDF"))
                 }
             }
             val fingerprint = fingerprintOf(file)
@@ -124,6 +125,60 @@ class LibraryRepository(
             source.delete()
             if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(if (e is OutOfMemoryError) Exception("Книга слишком большая для памяти телефона") else e)
+        }
+    }
+
+    private suspend fun importPdf(id: String, source: File, uri: Uri): Result<Book> {
+        val file = File(booksDir, "$id.pdf")
+        try {
+            if (!source.renameTo(file)) {
+                source.copyTo(file, overwrite = true)
+                source.delete()
+            }
+            val meta = runCatching { PdfSupport.inspect(file) }.getOrElse { e ->
+                file.delete()
+                val locked = e is SecurityException || e.message?.contains("password", true) == true
+                return Result.failure(Exception(if (locked) "PDF защищён паролем" else "Не удалось открыть PDF: файл повреждён"))
+            }
+            if (meta.pages <= 0) {
+                file.delete()
+                return Result.failure(Exception("В PDF нет страниц"))
+            }
+            val fingerprint = fingerprintOf(file)
+            val fileTitle = displayName(uri)?.substringBeforeLast('.')?.replace('_', ' ')?.trim()?.takeIf { it.isNotBlank() }
+            val title = meta.title ?: fileTitle ?: "Без названия"
+            val author = meta.author.orEmpty()
+            _books.value.firstOrNull { it.fingerprint == fingerprint }?.let { existing ->
+                file.delete()
+                return Result.success(existing)
+            }
+            val coverName = PdfSupport.cover(file, 600)?.let { bitmap ->
+                val name = "$id.jpg"
+                File(coversDir, name).outputStream().use { out -> bitmap.compress(Bitmap.CompressFormat.JPEG, 88, out) }
+                bitmap.recycle()
+                name
+            }
+            val book = Book(
+                id = id,
+                title = title,
+                author = author,
+                fileName = file.name,
+                coverFileName = coverName,
+                addedAt = System.currentTimeMillis(),
+                lastReadAt = null,
+                progress = 0.0,
+                locatorJson = null,
+                fingerprint = fingerprint,
+                positions = meta.pages,
+            )
+            update { it + book }
+            onBookAdded?.invoke(book)
+            return Result.success(_books.value.firstOrNull { it.id == book.id } ?: book)
+        } catch (e: Throwable) {
+            file.delete()
+            source.delete()
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            return Result.failure(if (e is OutOfMemoryError) Exception("Книга слишком большая для памяти телефона") else Exception("Не удалось открыть PDF"))
         }
     }
 
@@ -249,7 +304,7 @@ class LibraryRepository(
     private val infoDir = File(context.filesDir, "bookinfo").apply { mkdirs() }
 
     suspend fun info(book: Book): BookInfo = withContext(Dispatchers.IO) {
-        if (book.paper) return@withContext BookInfo()
+        if (book.paper || book.isPdf) return@withContext BookInfo()
         val cache = File(infoDir, "${book.id}.json")
         runCatching { if (cache.exists()) return@withContext BookInfo.fromJson(org.json.JSONObject(cache.readText())) }
         val info = runCatching {

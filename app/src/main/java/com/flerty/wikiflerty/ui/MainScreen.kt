@@ -128,6 +128,11 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
         }
     }
     LaunchedEffect(Unit) {
+        libraryViewModel.openPdf.collect { id ->
+            context.startActivity(Intent(context, com.flerty.wikiflerty.reader.PdfReaderActivity::class.java).putExtra(com.flerty.wikiflerty.reader.PdfReaderActivity.EXTRA_BOOK, id))
+        }
+    }
+    LaunchedEffect(Unit) {
         libraryViewModel.messages.collect { snackbar.showSnackbar(it) }
     }
 

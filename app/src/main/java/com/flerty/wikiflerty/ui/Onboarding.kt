@@ -101,6 +101,7 @@ enum class NewsTarget { None, Stats, Custom, Library }
 class NewsItem(val since: Int, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None)
 
 val WhatsNewItems = listOf(
+    NewsItem(225, AppIcons.Pages, "PDF", "Листание или лента, масштаб, ночной режим и сетка страниц"),
     NewsItem(224, AppIcons.Calendar, "Итоги года", "Твой год в книгах — истории и карточка, которой можно поделиться", NewsTarget.Stats),
     NewsItem(224, AppIcons.Help, "Подсказки", "Все функции и где их найти: Настройки → Подсказки"),
     NewsItem(224, AppIcons.Grid, "Виджеты под шаблон", "И новый виджет «Слово дня» из твоего словаря"),
@@ -441,7 +442,7 @@ val GuideGroups = listOf(
     GuideGroup(
         "Библиотека", AppIcons.Book,
         listOf(
-            GuideEntry(AppIcons.Plus, "Добавить книги", "«+» внизу → Файл, Папка или Бумажная книга. Поддерживаются EPUB, FB2, TXT", "импорт загрузить открыть файл"),
+            GuideEntry(AppIcons.Plus, "Добавить книги", "«+» внизу → Файл, Папка или Бумажная книга. Поддерживаются EPUB, FB2, TXT, PDF", "импорт загрузить открыть файл"),
             GuideEntry(AppIcons.Image, "Обложка и описание", "Карточка книги → карандаш на обложке → Из галереи, Сфотографировать или Найти в интернете", "обложка картинка фото название автор"),
             GuideEntry(AppIcons.Fire, "Живые предметы", "Предметы на полках растут от серии чтения и прочитанных книг. Иней — когда действует заморозка", "полка декор растение"),
             GuideEntry(AppIcons.Bell, "Напоминание", "Колокольчик в шапке библиотеки", "уведомление время"),

@@ -44,7 +44,7 @@ import kotlinx.coroutines.withContext
 data class FoundBook(val uri: Uri, val name: String, val folder: String, val size: Long, val known: Boolean)
 
 object BookScanner {
-    private val extensions = listOf(".epub", ".fb2", ".fb2.zip", ".txt")
+    private val extensions = listOf(".epub", ".fb2", ".fb2.zip", ".txt", ".pdf")
     private const val MIN_TXT = 10 * 1024L
     private const val MAX_DEPTH = 8
 
@@ -137,7 +137,7 @@ fun FolderScanSheet(onDismiss: () -> Unit, onImport: (List<Uri>) -> Unit) {
         when (val s = stage) {
             ScanStage.Pick -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "Выбери папку — например, «Download» или «Books». Найдём EPUB, FB2 и TXT во всех вложенных папках.",
+                    "Выбери папку — например, «Download» или «Books». Найдём EPUB, FB2, TXT и PDF во всех вложенных папках.",
                     color = AppColors.Muted,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
@@ -244,6 +244,7 @@ private fun formatLabel(name: String): String {
     return when {
         lower.endsWith(".epub") -> "EPUB"
         lower.endsWith(".fb2.zip") || lower.endsWith(".fb2") -> "FB2"
+        lower.endsWith(".pdf") -> "PDF"
         else -> "TXT"
     }
 }

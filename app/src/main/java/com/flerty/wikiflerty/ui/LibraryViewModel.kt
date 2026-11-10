@@ -35,6 +35,8 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     private val _openReader = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val openReader = _openReader.asSharedFlow()
+    private val _openPdf = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val openPdf = _openPdf.asSharedFlow()
 
     fun coverFile(book: Book): File? = app.library.coverFile(book)
 
@@ -80,6 +82,14 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     fun open(book: Book, startAt: Locator? = null) {
         if (book.paper) {
             _messages.tryEmit("Это бумажная книга — отмечай чтение в её карточке")
+            return
+        }
+        if (book.isPdf) {
+            if (!app.library.bookFile(book).exists()) {
+                _messages.tryEmit("Файл книги не найден")
+                return
+            }
+            _openPdf.tryEmit(book.id)
             return
         }
         viewModelScope.launch {

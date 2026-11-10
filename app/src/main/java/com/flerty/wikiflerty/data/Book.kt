@@ -40,6 +40,8 @@ data class Book(
 ) {
     val statsKey: String get() = fingerprint ?: id
 
+    val isPdf: Boolean get() = fileName.endsWith(".pdf")
+
     fun metaJson(): JSONObject = JSONObject().apply {
         put("status", status.id)
         put("favorite", favorite)

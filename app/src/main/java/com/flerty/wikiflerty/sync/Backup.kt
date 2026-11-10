@@ -301,7 +301,7 @@ object Backup {
                 app.library.books.value.forEach { book ->
                     val file = app.library.bookFile(book)
                     if (!file.exists()) return@forEach
-                    zip.putNextEntry(ZipEntry("books/${book.fingerprint ?: book.id}.epub"))
+                    zip.putNextEntry(ZipEntry("books/${book.fingerprint ?: book.id}.${if (book.isPdf) "pdf" else "epub"}"))
                     file.inputStream().use { it.copyTo(zip) }
                     zip.closeEntry()
                 }
@@ -329,7 +329,7 @@ object Backup {
                                 val parts = entry.name.removePrefix("heroes/").removeSuffix(".jpg").split('/')
                                 if (parts.size == 2) avatars[parts[0] to parts[1]] = zip.readBytes()
                             }
-                            entry.name.startsWith("books/") && entry.name.endsWith(".epub") -> {
+                            entry.name.startsWith("books/") && (entry.name.endsWith(".epub") || entry.name.endsWith(".pdf")) -> {
                                 val file = File(tempDir, File(entry.name).name)
                                 file.outputStream().use { zip.copyTo(it) }
                             }

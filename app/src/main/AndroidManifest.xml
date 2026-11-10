@@ -47,6 +47,7 @@
                 <data android:mimeType="text/fb2+xml" />
                 <data android:mimeType="application/x-zip-compressed-fb2" />
                 <data android:mimeType="text/plain" />
+                <data android:mimeType="application/pdf" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
@@ -58,6 +59,7 @@
                 <data android:mimeType="text/fb2+xml" />
                 <data android:mimeType="application/x-zip-compressed-fb2" />
                 <data android:mimeType="text/plain" />
+                <data android:mimeType="application/pdf" />
             </intent-filter>
         </activity>
 
@@ -177,6 +179,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
+
+        <activity
+            android:name=".reader.PdfReaderActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
+            android:theme="@style/Theme.WikiFlerty.Reader" />
 
         <activity
             android:name=".reader.ReaderActivity"
