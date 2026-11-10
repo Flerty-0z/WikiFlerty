@@ -299,7 +299,7 @@ object Backup {
             }
             if (includeBooks) {
                 app.library.books.value.forEach { book ->
-                    val file = app.library.bookFile(book)
+                    val file = if (book.isPdf) app.library.pdfFile(book) else app.library.bookFile(book)
                     if (!file.exists()) return@forEach
                     zip.putNextEntry(ZipEntry("books/${book.fingerprint ?: book.id}.${if (book.isPdf) "pdf" else "epub"}"))
                     file.inputStream().use { it.copyTo(zip) }

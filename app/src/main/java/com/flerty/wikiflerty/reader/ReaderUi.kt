@@ -789,7 +789,7 @@ private fun ProgressFlag(chapter: String?, progress: String, modifier: Modifier)
 }
 
 @Composable
-private fun TopPanel(
+internal fun TopPanel(
     title: String,
     cover: ImageBitmap?,
     progression: Double,
@@ -960,7 +960,7 @@ private fun SeekBar(
 }
 
 @Composable
-private fun BottomPanel(
+internal fun BottomPanel(
     buttons: List<QuickButton>,
     onButton: (QuickButton) -> Unit,
     onOptions: () -> Unit,
@@ -1307,7 +1307,7 @@ private fun SheetContent(
 @Composable
 private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
     data class Tile(val target: ReaderSheet, val hint: String, val icon: ImageVector, val from: Long, val to: Long, val dark: Boolean = false)
-    val tiles = listOf(
+    val base = listOf(
         Tile(ReaderSheet.Text, "Шрифт, размер", AppIcons.TextSize, 0xFF6E8EFF, 0xFF4C63D9),
         Tile(ReaderSheet.Scroll, "Режим, анимация", AppIcons.Pages, 0xFFA78BFA, 0xFF7653E0),
         Tile(ReaderSheet.Theme, "Фон страницы", AppIcons.Theme, 0xFFF6C770, 0xFFD9922B, dark = true),
@@ -1321,6 +1321,18 @@ private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
         Tile(ReaderSheet.AiChapter, "Пересказ, тест", AppIcons.Book, 0xFF7DD3FC, 0xFF3B82C4),
         Tile(ReaderSheet.AiSetup, "Нейросети, модели", AppIcons.Sparkle, 0xFF8AB4F8, 0xFF7653E0),
     )
+    val pdf = LocalPdfOriginal.current
+    val tiles = base.map { OptionTile(it.target.title, it.hint, it.icon, it.from, it.to, it.dark) { onOpen(it.target) } } +
+        listOfNotNull(pdf?.let { OptionTile("Оригинал PDF", "Страницы как в файле", AppIcons.Pages, 0xFFB4BCC8, 0xFF6B7686, onClick = it) })
+    OptionTiles(tiles)
+}
+
+internal val LocalPdfOriginal = androidx.compose.runtime.staticCompositionLocalOf<(() -> Unit)?> { null }
+
+internal class OptionTile(val title: String, val hint: String, val icon: ImageVector, val from: Long, val to: Long, val dark: Boolean = false, val onClick: () -> Unit)
+
+@Composable
+internal fun OptionTiles(tiles: List<OptionTile>) {
     Column(
         Modifier.fillMaxWidth().sheetReveal().fieldSurface(appCorner(22)).padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -1333,7 +1345,7 @@ private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = 96.dp)
-                            .liveClick(shape, sound = FeedbackSound.Open) { onOpen(tile.target) }
+                            .liveClick(shape, sound = FeedbackSound.Open, onClick = tile.onClick)
                             .fieldSurface(shape)
                             .padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -1349,7 +1361,7 @@ private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
                         }
                         Column {
                             Text(
-                                tile.target.title,
+                                tile.title,
                                 color = AppColors.Text,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
@@ -1785,7 +1797,7 @@ private fun QuickButtonList(buttons: List<QuickButton>, settings: ReaderSettings
 }
 
 @Composable
-private fun GestureOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit) {
+internal fun GestureOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit) {
     SwitchRow("Тап по краям листает", settings.edgeTaps, icon = AppIcons.Gesture) { v -> onSettingsChange { it.copy(edgeTaps = v) } }
     StepSlider(
         label = "Ширина зон у краёв",
@@ -1804,7 +1816,7 @@ private fun GestureOptions(settings: ReaderSettings, onSettingsChange: ((ReaderS
 }
 
 @Composable
-private fun ScreenOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit) {
+internal fun ScreenOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit) {
     val system = settings.brightness < 0
     SwitchRow("Яркость как в системе", system, icon = AppIcons.Screen) { v ->
         onSettingsChange { it.copy(brightness = if (v) -1.0 else 0.6) }
@@ -1847,7 +1859,7 @@ private fun ScreenOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSe
 }
 
 @Composable
-private fun SoundOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit) {
+internal fun SoundOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit) {
     val feedback = LocalFeedback.current
     val view = LocalView.current
     SwitchRow("Звуки кнопок", settings.sounds, icon = AppIcons.Sound) { v -> onSettingsChange { it.copy(sounds = v) } }

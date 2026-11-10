@@ -144,7 +144,15 @@ import com.flerty.wikiflerty.data.Bookmark
 import com.flerty.wikiflerty.data.Note
 import com.flerty.wikiflerty.data.ReadStatus
 import com.flerty.wikiflerty.data.convert.PdfOutline
-import com.flerty.wikiflerty.ui.AppBackground
+import com.flerty.wikiflerty.data.convert.PdfPageMap
+import com.flerty.wikiflerty.ui.LocalRevealViewport
+import com.flerty.wikiflerty.ui.PickerOption
+import com.flerty.wikiflerty.ui.PickerRow
+import com.flerty.wikiflerty.ui.RevealViewport
+import com.flerty.wikiflerty.ui.revealScroll
+import com.flerty.wikiflerty.ui.revealViewport
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.runtime.produceState
 import com.flerty.wikiflerty.ui.AppButton
 import com.flerty.wikiflerty.ui.AppColors
 import com.flerty.wikiflerty.ui.AppIcons
@@ -361,7 +369,7 @@ data class PdfSel(val page: Int, val start: Point, val stop: Point, val text: St
 
 class PdfMark(val note: Note, val rects: List<RectF>)
 
-class PdfUiState(context: Context, val title: String, val author: String, start: Int, val finished: Boolean) {
+class PdfUiState(context: Context, val title: String, val author: String, start: Int, val finished: Boolean, dark: Boolean) {
     private val prefs = context.getSharedPreferences("pdf", Context.MODE_PRIVATE)
     var doc by mutableStateOf<PdfDoc?>(null)
     var error by mutableStateOf<String?>(null)
@@ -382,7 +390,7 @@ class PdfUiState(context: Context, val title: String, val author: String, start:
     val search = SearchState()
     var paged by mutableStateOf(prefs.getBoolean("paged", false))
         private set
-    var filter by mutableStateOf(PdfFilter.entries.getOrElse(prefs.getInt("filter", 0)) { PdfFilter.Day })
+    var filter by mutableStateOf(PdfFilter.entries.getOrElse(prefs.getInt("filter", if (dark) 1 else 0)) { PdfFilter.Day })
         private set
 
     fun togglePaged() {
@@ -390,9 +398,15 @@ class PdfUiState(context: Context, val title: String, val author: String, start:
         prefs.edit().putBoolean("paged", paged).apply()
     }
 
-    fun nextFilter() {
-        filter = PdfFilter.entries[(filter.ordinal + 1) % PdfFilter.entries.size]
-        prefs.edit().putInt("filter", filter.ordinal).apply()
+    fun nextFilter() = pickFilter(PdfFilter.entries[(filter.ordinal + 1) % PdfFilter.entries.size])
+
+    fun pickFilter(value: PdfFilter) {
+        filter = value
+        prefs.edit().putInt("filter", value.ordinal).apply()
+    }
+
+    fun pickPaged(value: Boolean) {
+        if (paged != value) togglePaged()
     }
 
     fun chapterAt(page: Int): String? {
@@ -513,6 +527,7 @@ class PdfReaderActivity : ComponentActivity() {
     private var translateJob: Job? = null
     private var translateLocator: Locator? = null
     private var pendingQuoteSave: Triple<QuoteDraft, QuoteLook, QuoteFormat>? = null
+    internal var map: PdfPageMap? = null
 
     private val storagePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         val pending = pendingQuoteSave
@@ -535,10 +550,12 @@ class PdfReaderActivity : ComponentActivity() {
         if (settings.brightness >= 0) {
             window.attributes = window.attributes.apply { screenBrightness = settings.brightness.toFloat().coerceIn(0.01f, 1f) }
         }
+        if (found.pdfText) map = PdfPageMap.load(this, found.id)
         val requested = intent.getIntExtra(EXTRA_PAGE, -1)
         val start = if (requested >= 0) requested else startPage(found)
         lastPage = start
-        state = PdfUiState(this, found.title, found.author, start, found.status == ReadStatus.Finished)
+        state = PdfUiState(this, found.title, found.author, start, found.status == ReadStatus.Finished, !settings.pageTheme.isLight)
+        lifecycleScope.launch { app.readerSettings.settings.collect { applySettings(it) } }
         app.appScope.launch { app.library.markOpened(found.id) }
         val file = app.library.bookFile(found)
         val meta = File(filesDir, "pdfmeta")
@@ -551,7 +568,7 @@ class PdfReaderActivity : ComponentActivity() {
                     }
                     if (requested >= doc.count) state.page = doc.count - 1
                     state.doc = doc
-                    if (found.positions != doc.count) app.library.setPositions(found.id, doc.count)
+                    if (!found.pdfText && found.positions != doc.count) app.library.setPositions(found.id, doc.count)
                 }
                 .onFailure { state.error = if (it is SecurityException) "PDF защищён паролем" else "Не удалось открыть PDF" }
         }
@@ -588,22 +605,58 @@ class PdfReaderActivity : ComponentActivity() {
     }
 
     private fun startPage(book: Book): Int {
-        val fromLocator = book.locatorJson?.let { runCatching { Locator.fromJSON(JSONObject(it))?.locations?.position }.getOrNull() }
-        if (fromLocator != null && fromLocator > 0) return fromLocator - 1
-        val total = book.positions
+        val saved = book.locatorJson?.let { runCatching { Locator.fromJSON(JSONObject(it)) }.getOrNull() }
+        val total = map?.pages ?: book.positions
+        saved?.let { PdfLocators.pageOf(it, map, total) }?.let { return it }
         return if (total > 1) (book.progress * (total - 1)).roundToInt().coerceIn(0, total - 1) else 0
     }
 
-    internal fun applyBars(show: Boolean) {
+    private fun applySettings(s: ReaderSettings) {
+        if (s.keepScreenOn) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.attributes = window.attributes.apply {
+            screenBrightness = if (s.brightness < 0) WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE else s.brightness.toFloat().coerceIn(0.01f, 1f)
+        }
+        val orientation = when (ScreenOrientation.of(s.orientation)) {
+            ScreenOrientation.Auto -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            ScreenOrientation.Portrait -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+            ScreenOrientation.Landscape -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+        if (requestedOrientation != orientation) requestedOrientation = orientation
         WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = AppStyle.light
-            isAppearanceLightNavigationBars = AppStyle.light
-            if (show) {
-                show(WindowInsetsCompat.Type.systemBars())
-            } else {
+            isAppearanceLightStatusBars = s.pageTheme.isLight
+            isAppearanceLightNavigationBars = s.pageTheme.isLight
+            if (s.fullscreen) {
                 systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 hide(WindowInsetsCompat.Type.systemBars())
+            } else {
+                show(WindowInsetsCompat.Type.systemBars())
             }
+        }
+    }
+
+    internal fun pageOf(loc: Locator?): Int? = loc?.let { PdfLocators.pageOf(it, map, state.doc?.count ?: map?.pages ?: 0) }
+
+    internal fun openText() {
+        val m = map ?: return
+        flushProgress()
+        PdfLocators.setOriginal(this, bookId, false)
+        val current = app.library.books.value.firstOrNull { it.id == bookId } ?: return
+        val loc = PdfLocators.textLocator(m, state.page)
+        lifecycleScope.launch {
+            app.prepareReader(current.copy(locatorJson = null), loc)
+                .onSuccess {
+                    startActivity(Intent(this@PdfReaderActivity, ReaderActivity::class.java))
+                    finish()
+                }
+                .onFailure { Toast.makeText(this@PdfReaderActivity, "Не удалось открыть текст", Toast.LENGTH_SHORT).show() }
+        }
+    }
+
+    internal fun searchUnavailable() {
+        val text = if (map != null) "Поиск по тексту — в виде «Текст»" else "В этом PDF нет текстового слоя"
+        Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
+        if (map != null) {
+            state.sheet = ReaderSheet.Theme
         }
     }
 
@@ -671,11 +724,9 @@ class PdfReaderActivity : ComponentActivity() {
         lastActivity = now
     }
 
-    internal fun isBookmarked(marks: List<Bookmark>, page: Int) = marks.any { it.locator?.locations?.position == page + 1 }
-
     internal fun toggleBookmark(marks: List<Bookmark>) {
         val page = state.page
-        val existing = marks.filter { it.locator?.locations?.position == page + 1 }
+        val existing = marks.filter { pageOf(it.locator) == page }
         lifecycleScope.launch {
             if (existing.isNotEmpty()) {
                 app.bookmarks.delete(existing.map { it.id })
@@ -691,7 +742,7 @@ class PdfReaderActivity : ComponentActivity() {
             onToggle = { },
             onOpen = { mark ->
                 state.sheet = null
-                mark.locator?.locations?.position?.let { state.jump = (it - 1).coerceAtLeast(0) }
+                pageOf(mark.locator)?.let { state.jump = it }
             },
             onDelete = { mark -> lifecycleScope.launch { app.bookmarks.delete(listOf(mark.id)) } },
         )
@@ -775,7 +826,7 @@ class PdfReaderActivity : ComponentActivity() {
             },
             onGoTo = { note ->
                 state.sheet = null
-                note.locator?.locations?.position?.let { state.jump = (it - 1).coerceAtLeast(0) }
+                pageOf(note.locator)?.let { state.jump = it }
             },
             onSelectionNote = {
                 state.selection?.let { sel ->
@@ -1133,6 +1184,41 @@ class PdfReaderActivity : ComponentActivity() {
 }
 
 private val PdfNav = listOf(ReaderSheet.Toc, ReaderSheet.Notes, ReaderSheet.Bookmarks)
+private val PdfOptionPages = listOf(ReaderSheet.Theme, ReaderSheet.Screen, ReaderSheet.Sound, ReaderSheet.Atmosphere)
+
+@Composable
+private fun PdfViewOptions(host: PdfReaderActivity, state: PdfUiState) {
+    if (host.map != null) {
+        PickerRow(
+            label = "Вид",
+            icon = AppIcons.Book,
+            options = listOf(
+                PickerOption("text", "Текст", "Как обычная книга: шрифты, темы, озвучка", icon = AppIcons.TextSize),
+                PickerOption("pages", "Оригинал", "Страницы как в файле", icon = AppIcons.Pages),
+            ),
+            selectedId = "pages",
+        ) { id -> if (id == "text") host.openText() }
+    }
+    PickerRow(
+        label = "Прокрутка",
+        icon = AppIcons.Scroll,
+        options = listOf(
+            PickerOption("scroll", "Лента", "Страницы идут сплошной лентой", icon = AppIcons.Scroll),
+            PickerOption("pages", "Листание", "По одной странице", icon = AppIcons.Pages),
+        ),
+        selectedId = if (state.paged) "pages" else "scroll",
+    ) { id -> state.pickPaged(id == "pages") }
+    PickerRow(
+        label = "Цвет страниц",
+        icon = AppIcons.Theme,
+        options = listOf(
+            PickerOption(PdfFilter.Day.name, "Как в файле", "Белые страницы", icon = AppIcons.Sun, swatch = Color.White),
+            PickerOption(PdfFilter.Sepia.name, "Сепия", "Тёплая бумага", icon = AppIcons.Drop, swatch = PdfFilter.Sepia.paper),
+            PickerOption(PdfFilter.Night.name, "Ночь", "Светлый текст на тёмном", icon = AppIcons.Moon, swatch = PdfFilter.Night.paper),
+        ),
+        selectedId = state.filter.name,
+    ) { id -> PdfFilter.entries.firstOrNull { it.name == id }?.let(state::pickFilter) }
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -1144,13 +1230,28 @@ private fun PdfReaderScreen(host: PdfReaderActivity, state: PdfUiState) {
     val bookId = host.intent.getStringExtra(PdfReaderActivity.EXTRA_BOOK).orEmpty()
     val notes = remember(allNotes, bookId) { allNotes.filter { it.bookId == bookId }.sortedBy { it.progression } }
     val marks = remember(allMarks, bookId) { allMarks.filter { it.bookId == bookId }.sortedBy { it.progression } }
-    val marksByPage = remember(notes) {
-        notes.groupBy { (it.locator?.locations?.position ?: 0) - 1 }
-            .mapValues { (_, list) -> list.map { PdfMark(it, decodeRects(it.locator?.locations?.otherLocations?.get(PDF_RECTS))) } }
+    val docReady = state.doc != null
+    val marksByPage = remember(notes, docReady) {
+        notes.mapNotNull { n -> host.pageOf(n.locator)?.let { it to n } }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, list) ->
+                list.map { n ->
+                    val loc = n.locator
+                    PdfMark(n, if (loc != null && PdfLocators.isPage(loc)) decodeRects(loc.locations.otherLocations[PDF_RECTS]) else emptyList())
+                }
+            }
     }
-    val bookmarkedPages = remember(marks) { marks.mapNotNull { it.locator?.locations?.position?.minus(1) }.toSet() }
-
-    LaunchedEffect(state.ui) { host.applyBars(state.ui) }
+    val bookmarkedPages = remember(marks, docReady) { marks.mapNotNull { host.pageOf(it.locator) }.toSet() }
+    val cover by produceState<ImageBitmap?>(null) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                val book = app.library.books.value.firstOrNull { it.id == bookId }
+                val file = book?.let { app.library.coverFile(it) }?.takeIf { it.exists() }
+                file?.let { android.graphics.BitmapFactory.decodeFile(it.path, android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 })?.asImageBitmap() }
+            }.getOrNull()
+        }
+    }
+    val feedback = LocalFeedback.current
     LaunchedEffect(state) { snapshotFlow { state.page }.collect { host.onPage(it) } }
     BackHandler(enabled = state.sheet != null || state.selection != null || state.translate != null || state.ui) {
         when {
@@ -1165,8 +1266,7 @@ private fun PdfReaderScreen(host: PdfReaderActivity, state: PdfUiState) {
     val top = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
     val bottom = WindowInsets.navigationBarsIgnoringVisibility.asPaddingValues().calculateBottomPadding()
 
-    Box(Modifier.fillMaxSize().background(AppColors.Background)) {
-        AppBackground()
+    Box(Modifier.fillMaxSize().background(Color(settings.pageTheme.background))) {
         val doc = state.doc
         Crossfade(
             targetState = when {
@@ -1188,27 +1288,62 @@ private fun PdfReaderScreen(host: PdfReaderActivity, state: PdfUiState) {
                     Text(state.error.orEmpty(), color = AppColors.Text, fontSize = 16.sp)
                     AppButton("Назад", primary = true) { host.finish() }
                 }
-                else -> state.doc?.let { PdfContent(host, it, state, marksByPage, bookmarkedPages) }
+                else -> state.doc?.let { PdfContent(host, it, state, marksByPage, bookmarkedPages, settings) }
             }
         }
 
         val count = doc?.count ?: 0
 
-        AnimatedVisibility(
-            visible = state.ui && doc != null && state.sheet == null,
-            enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(260)) { -it / 2 },
-            exit = fadeOut(Motion.fade(160)) + slideOutVertically(Motion.tween(220)) { -it / 2 },
-            modifier = Modifier.align(Alignment.TopCenter),
-        ) {
-            PdfTopPanel(host, state, top, bookmarked = state.page in bookmarkedPages, onBookmark = { host.toggleBookmark(marks) })
-        }
-        AnimatedVisibility(
-            visible = state.ui && doc != null && state.sheet == null,
-            enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(260)) { it / 2 },
-            exit = fadeOut(Motion.fade(160)) + slideOutVertically(Motion.tween(220)) { it / 2 },
-            modifier = Modifier.align(Alignment.BottomCenter),
-        ) {
-            PdfBottomPanel(host, state, count, bottom)
+        Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)) {
+            AnimatedVisibility(
+                visible = state.ui && doc != null,
+                enter = fadeIn(Motion.fade(220)) + slideInVertically(Motion.tween(260)) { -it / 2 },
+                exit = fadeOut(Motion.fade(180)) + slideOutVertically(Motion.tween(220)) { -it / 2 },
+                modifier = Modifier.align(Alignment.TopCenter),
+            ) {
+                TopPanel(
+                    title = state.title,
+                    cover = cover,
+                    progression = if (count > 1) state.page.toDouble() / (count - 1) else 0.0,
+                    progressText = "${state.page + 1}/$count",
+                    totalPositions = count,
+                    onBack = { host.finish() },
+                    onListen = { },
+                    onSearch = { if (doc?.textSupported == true) state.sheet = ReaderSheet.Search else host.searchUnavailable() },
+                    onSeek = { f -> state.jump = (f * (count - 1)).roundToInt().coerceIn(0, (count - 1).coerceAtLeast(0)) },
+                    bookmarked = state.page in bookmarkedPages,
+                    onBookmark = { host.toggleBookmark(marks) },
+                    onJump = { state.goTo = true },
+                )
+            }
+            AnimatedVisibility(
+                visible = state.ui && doc != null && state.sheet == null,
+                enter = fadeIn(Motion.fade(220)) + slideInVertically(Motion.tween(260)) { it / 2 },
+                exit = fadeOut(Motion.fade(180)) + slideOutVertically(Motion.tween(220)) { it / 2 },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            ) {
+                val supported = listOf(QuickButton.Toc, QuickButton.Theme, QuickButton.Scroll, QuickButton.Screen, QuickButton.Notes, QuickButton.Bookmarks, QuickButton.Search)
+                val buttons = remember(settings.quickButtons) {
+                    val chosen = settings.quickButtons.mapNotNull { QuickButton.of(it) }.filter { it in supported }
+                    (chosen + listOf(QuickButton.Toc, QuickButton.Notes, QuickButton.Bookmarks, QuickButton.Theme).filter { it !in chosen }).take(maxOf(4, chosen.size))
+                }
+                BottomPanel(
+                    buttons = buttons,
+                    onButton = { button ->
+                        when (button) {
+                            QuickButton.Toc -> state.sheet = ReaderSheet.Toc
+                            QuickButton.Notes -> state.sheet = ReaderSheet.Notes
+                            QuickButton.Bookmarks -> state.sheet = ReaderSheet.Bookmarks
+                            QuickButton.Theme -> state.sheet = ReaderSheet.Theme
+                            QuickButton.Screen -> state.sheet = ReaderSheet.Screen
+                            QuickButton.Scroll -> state.togglePaged()
+                            QuickButton.Search -> if (doc?.textSupported == true) state.sheet = ReaderSheet.Search else host.searchUnavailable()
+                            else -> Unit
+                        }
+                    },
+                    onOptions = { state.sheet = ReaderSheet.Options },
+                )
+            }
         }
 
         var chip by remember { mutableStateOf(false) }
@@ -1369,9 +1504,13 @@ private fun PdfSheet(
                 .background(AppColors.Line),
         )
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            val back = sheet == ReaderSheet.NoteEditor && state.editor?.fromList == true
-            if (back) {
-                RoundIconButton(AppIcons.Back, "Назад", sound = FeedbackSound.Close) { state.sheet = ReaderSheet.Notes }
+            val back = when {
+                sheet == ReaderSheet.NoteEditor && state.editor?.fromList == true -> ReaderSheet.Notes
+                sheet in PdfOptionPages -> ReaderSheet.Options
+                else -> null
+            }
+            if (back != null) {
+                RoundIconButton(AppIcons.Back, "Назад", sound = FeedbackSound.Close) { state.sheet = back }
             } else if (sheet !in PdfNav) {
                 Spacer(Modifier.size(44.dp))
             }
@@ -1379,7 +1518,13 @@ private fun PdfSheet(
                 NavTabs(sheet, onSelect = { state.sheet = it }, modifier = Modifier.weight(1f).padding(end = 6.dp), sheets = PdfNav)
             } else {
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    HeaderLabel(if (sheet == ReaderSheet.NoteEditor && state.editor?.id == null) "Новая заметка" else sheet.title)
+                    HeaderLabel(
+                        when {
+                            sheet == ReaderSheet.NoteEditor && state.editor?.id == null -> "Новая заметка"
+                            sheet == ReaderSheet.Theme -> "Вид"
+                            else -> sheet.title
+                        },
+                    )
                 }
             }
             RoundIconButton(AppIcons.Close, "Закрыть", filled = true, sound = FeedbackSound.Close) { state.sheet = null }
@@ -1414,6 +1559,35 @@ private fun PdfSheet(
                         onDelete = host.noteActions.onDelete,
                         onCancel = { state.sheet = if (draft.fromList) ReaderSheet.Notes else null },
                     )
+                }
+                ReaderSheet.Options, ReaderSheet.Theme, ReaderSheet.Screen, ReaderSheet.Sound, ReaderSheet.Atmosphere -> {
+                    val viewport = remember(tab) { RevealViewport() }
+                    CompositionLocalProvider(LocalRevealViewport provides viewport) {
+                        Column(
+                            Modifier.revealViewport(viewport).revealScroll(),
+                            verticalArrangement = Arrangement.spacedBy(18.dp),
+                        ) {
+                            val change: ((ReaderSettings) -> ReaderSettings) -> Unit = { t -> app.readerSettings.update(t) }
+                            when (tab) {
+                                ReaderSheet.Options -> OptionTiles(
+                                    listOf(
+                                        OptionTile("Вид", "Текст, лента, цвет", AppIcons.Pages, 0xFFA78BFA, 0xFF7653E0) { state.sheet = ReaderSheet.Theme },
+                                        OptionTile("Экран", "Яркость, поворот", AppIcons.Screen, 0xFFF7D774, 0xFFD9A92B, dark = true) { state.sheet = ReaderSheet.Screen },
+                                        OptionTile("Звук", "Кнопки, вибрация", AppIcons.Sound, 0xFFF6A26B, 0xFFD9692B) { state.sheet = ReaderSheet.Sound },
+                                        OptionTile("Атмосфера", "Дождь, камин", AppIcons.Fire, 0xFFFCA5A5, 0xFFB45309) { state.sheet = ReaderSheet.Atmosphere },
+                                        OptionTile("Страницы", "Сетка всех страниц", AppIcons.Grid, 0xFF5EEAD4, 0xFF1FA392, dark = true) {
+                                            state.sheet = null
+                                            state.grid = true
+                                        },
+                                    ),
+                                )
+                                ReaderSheet.Theme -> OptionFrame { PdfViewOptions(host, state) }
+                                ReaderSheet.Screen -> OptionFrame { ScreenOptions(settings, change) }
+                                ReaderSheet.Sound -> OptionFrame { SoundOptions(settings, change) }
+                                else -> AmbienceOptions(title = "Звуки фона")
+                            }
+                        }
+                    }
                 }
                 else -> PdfToc(state)
             }
@@ -1485,8 +1659,11 @@ private fun PdfContent(
     state: PdfUiState,
     marksByPage: Map<Int, List<PdfMark>>,
     bookmarkedPages: Set<Int>,
+    settings: ReaderSettings,
 ) {
     val zoom = remember { ZoomState() }
+    val feedback = LocalFeedback.current
+    val current by rememberUpdatedState(settings)
     val registry = remember { PageRegistry() }
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
@@ -1551,10 +1728,22 @@ private fun PdfContent(
                             }
                         }
                         val w = size.width
+                        val s = current
+                        val zone = if (s.edgeTaps) s.edgeZone.toFloat() else 0f
+                        val edge = when {
+                            state.ui || zoom.zoomed || zone <= 0f -> 0
+                            pos.x < w * zone -> if (s.leftTapForward) 1 else -1
+                            pos.x > w * (1 - zone) -> 1
+                            else -> 0
+                        }
                         when {
-                            paged && !zoom.zoomed && pos.x < w * 0.28f && !state.ui -> state.jump = (state.page - 1).coerceAtLeast(0)
-                            paged && !zoom.zoomed && pos.x > w * 0.72f && !state.ui -> state.jump = (state.page + 1).coerceAtMost(doc.count - 1)
-                            else -> state.ui = !state.ui
+                            edge != 0 && paged -> state.jump = (state.page + edge).coerceIn(0, doc.count - 1)
+                            edge != 0 -> listState?.let { ls -> scope.launch { ls.animateScrollBy(edge * size.height * 0.85f, tween(Motion.ms(320).coerceAtLeast(1))) } }
+                            state.ui -> state.ui = false
+                            else -> {
+                                state.ui = true
+                                feedback?.play(FeedbackSound.Open)
+                            }
                         }
                     },
                 )
@@ -1883,103 +2072,6 @@ private fun SelectionHandle(anchor: Offset, start: Boolean, onMove: (Offset) -> 
             .clip(shape)
             .background(AppColors.Accent),
     )
-}
-
-@Composable
-private fun PdfTopPanel(host: PdfReaderActivity, state: PdfUiState, top: Dp, bookmarked: Boolean, onBookmark: () -> Unit) {
-    val doc = state.doc
-    Row(
-        Modifier
-            .padding(start = 12.dp, end = 12.dp, top = top + 8.dp)
-            .widthIn(max = PanelMaxWidth)
-            .fillMaxWidth()
-            .height(64.dp)
-            .panelSurface(appCorner(22))
-            .pointerInput(Unit) { detectTapGestures { } }
-            .padding(horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RoundIconButton(AppIcons.Back, "Назад", sound = FeedbackSound.Close) { host.finish() }
-        Column(Modifier.weight(1f).padding(horizontal = 6.dp)) {
-            MarqueeText(state.title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            val chapter = state.chapterAt(state.page)
-            Text(
-                chapter ?: "PDF · ${doc?.count ?: 0} стр.",
-                color = AppColors.Muted,
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        BookmarkButton(bookmarked, onBookmark)
-        if (doc?.textSupported == true) {
-            RoundIconButton(AppIcons.Search, "Поиск по книге", sound = FeedbackSound.Open) { state.sheet = ReaderSheet.Search }
-        } else {
-            RoundIconButton(AppIcons.Note, "Заметка к странице", sound = FeedbackSound.Open) { host.noteForPage(state.page) }
-        }
-    }
-}
-
-@Composable
-private fun PdfBottomPanel(host: PdfReaderActivity, state: PdfUiState, count: Int, bottom: Dp) {
-    var drag by remember { mutableStateOf<Float?>(null) }
-    val shown = drag?.roundToInt() ?: state.page
-    Column(
-        Modifier
-            .padding(start = 12.dp, end = 12.dp, bottom = bottom + 10.dp)
-            .widthIn(max = PanelMaxWidth)
-            .fillMaxWidth()
-            .panelSurface(appCorner(22))
-            .pointerInput(Unit) { detectTapGestures { } },
-    ) {
-        Row(
-            Modifier.fillMaxWidth().height(56.dp).padding(start = 16.dp, end = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            if (count > 1) {
-                KitSlider(
-                    value = drag ?: state.page.toFloat(),
-                    onValueChange = { drag = it },
-                    onValueChangeFinished = {
-                        drag?.let { state.jump = it.roundToInt().coerceIn(0, count - 1) }
-                        drag = null
-                    },
-                    valueRange = 0f..(count - 1).toFloat(),
-                    modifier = Modifier.weight(1f),
-                )
-            } else {
-                Box(Modifier.weight(1f))
-            }
-            Text(
-                "${shown + 1} / $count",
-                color = if (drag != null) AppColors.Accent else AppColors.Text,
-                fontSize = 13.sp,
-                fontWeight = if (drag != null) FontWeight.SemiBold else FontWeight.Normal,
-                maxLines = 1,
-                modifier = Modifier
-                    .widthIn(min = 64.dp)
-                    .liveClick(appCorner(10), sound = FeedbackSound.Open, pressedScale = 0.9f) { state.goTo = true }
-                    .padding(horizontal = 8.dp, vertical = 10.dp),
-            )
-        }
-        ListDivider(Modifier.padding(horizontal = 14.dp))
-        Row(
-            Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            RoundIconButton(AppIcons.Toc, "Оглавление", sound = FeedbackSound.Open) { state.sheet = ReaderSheet.Toc }
-            RoundIconButton(AppIcons.Star, "Заметки", sound = FeedbackSound.Open) { state.sheet = ReaderSheet.Notes }
-            RoundIconButton(AppIcons.Grid, "Страницы", sound = FeedbackSound.Open) { state.grid = true }
-            Crossfade(state.paged, animationSpec = Motion.fade(180), label = "pdf-mode") { p ->
-                RoundIconButton(if (p) AppIcons.Pages else AppIcons.Scroll, if (p) "Листание" else "Лента", sound = FeedbackSound.Toggle) { state.togglePaged() }
-            }
-            Crossfade(state.filter, animationSpec = Motion.fade(180), label = "pdf-filter") { f ->
-                RoundIconButton(f.icon, "Цвет страниц", sound = FeedbackSound.Toggle) { state.nextFilter() }
-            }
-        }
-    }
 }
 
 @Composable

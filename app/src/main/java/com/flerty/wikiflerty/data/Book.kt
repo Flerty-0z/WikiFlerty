@@ -37,10 +37,13 @@ data class Book(
     val paper: Boolean = false,
     val edited: Boolean = false,
     val customDescription: String? = null,
+    val pdf: Boolean = false,
 ) {
     val statsKey: String get() = fingerprint ?: id
 
-    val isPdf: Boolean get() = fileName.endsWith(".pdf")
+    val isPdf: Boolean get() = pdf || fileName.endsWith(".pdf")
+
+    val pdfText: Boolean get() = pdf && fileName.endsWith(".epub")
 
     fun metaJson(): JSONObject = JSONObject().apply {
         put("status", status.id)
@@ -92,6 +95,7 @@ data class Book(
         put("progress", progress)
         put("locator", locatorJson)
         put("fingerprint", fingerprint)
+        if (pdf) put("pdf", true)
     }
 
     companion object {
@@ -109,6 +113,7 @@ data class Book(
                 locatorJson = json.optStringOrNull("locator"),
                 fingerprint = json.optStringOrNull("fingerprint"),
                 status = if (progress > 0.0) ReadStatus.Reading else ReadStatus.New,
+                pdf = json.optBoolean("pdf", false),
             )
             return if (json.has("status")) base.withMeta(json) else base
         }

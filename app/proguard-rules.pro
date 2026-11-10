@@ -22,3 +22,7 @@
 -dontwarn com.github.luben.zstd.**
 -dontwarn org.brotli.**
 -dontwarn org.objectweb.asm.**
+
+-dontwarn com.gemalto.jp2.**
+-dontwarn org.bouncycastle.**
+-keep class com.tom_roush.pdfbox.pdmodel.font.** { *; }

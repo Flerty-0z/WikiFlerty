@@ -115,6 +115,21 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private var selectionJob: Job? = null
     private var actionMode: ActionMode? = null
     private var bookId: String = ""
+    private var pdfMap: com.flerty.wikiflerty.data.convert.PdfPageMap? = null
+    private var pdfBook = false
+
+    private fun openPdfOriginal() {
+        val loc = runCatching { navigator.currentLocator.value }.getOrNull()
+        val page = loc?.let { PdfLocators.pageOf(it, pdfMap, pdfMap?.pages ?: 0) } ?: -1
+        flushProgress()
+        PdfLocators.setOriginal(this, bookId, true)
+        startActivity(
+            Intent(this, PdfReaderActivity::class.java)
+                .putExtra(PdfReaderActivity.EXTRA_BOOK, bookId)
+                .putExtra(PdfReaderActivity.EXTRA_PAGE, page),
+        )
+        finish()
+    }
     private var pendingLocator: org.readium.r2.shared.publication.Locator? = null
     private var saveTimer: Job? = null
     private var lastSave: Job? = null
@@ -145,7 +160,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             onToggle = ::toggleBookmark,
             onOpen = { mark ->
                 ui.hideAll()
-                mark.locator?.let { navigator.go(it, animated = false) }
+                PdfLocators.toText(mark.locator, pdfMap)?.let { navigator.go(it, animated = false) }
                 resyncListening()
             },
             onDelete = { mark -> lifecycleScope.launch { app.bookmarks.delete(listOf(mark.id)) } },
@@ -868,7 +883,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             },
             onGoTo = { note ->
                 ui.hideAll()
-                note.locator?.let { navigator.go(it, animated = false) }
+                PdfLocators.toText(note.locator, pdfMap)?.let { navigator.go(it, animated = false) }
             },
             onSelectionNote = {
                 val selection = ui.selection
@@ -1245,6 +1260,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         fonts = FontCatalog.available(this)
         publication = session.publication
         bookId = session.bookId
+        if (app.library.books.value.firstOrNull { it.id == bookId }?.pdfText == true) {
+            pdfMap = com.flerty.wikiflerty.data.convert.PdfPageMap.load(this, bookId)
+            pdfBook = true
+        }
         bookAuthor = session.publication.metadata.authors.joinToString(", ") { it.name }
         loadHeroes(session.bookId)
         val initial = settings
@@ -1358,7 +1377,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
         if (!com.flerty.wikiflerty.ui.Tips.readerCoachDone(this)) ui.coach = true
         findViewById<ComposeView>(R.id.reader_overlay).setContent {
-            CompositionLocalProvider(LocalFeedback provides app.feedback) {
+            CompositionLocalProvider(LocalFeedback provides app.feedback, LocalPdfOriginal provides (if (pdfBook) ::openPdfOriginal else null)) {
                 WikiFlertyTheme {
                     val current by app.readerSettings.settings.collectAsState()
                     val notes by bookNotes.collectAsState(initial = emptyList())
@@ -1586,7 +1605,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private suspend fun showHighlights(notes: List<Note>) {
         val decorations = notes.mapNotNull { note ->
-            val locator = note.locator ?: return@mapNotNull null
+            val locator = note.locator?.takeUnless { PdfLocators.isPage(it) } ?: return@mapNotNull null
             Decoration(
                 id = note.id,
                 locator = locator,

@@ -128,6 +128,26 @@ class LibraryRepository(
         }
     }
 
+    fun pdfFile(book: Book): File = File(booksDir, "${book.id}.pdf")
+
+    private fun buildPdfText(id: String, pdf: File, fallbackTitle: String, identifier: String): com.flerty.wikiflerty.data.convert.PdfTextResult? {
+        val epub = File(booksDir, "$id.epub")
+        return try {
+            com.flerty.wikiflerty.data.convert.PdfTextConverter.convert(context, pdf, epub, fallbackTitle, identifier)?.also { result ->
+                val mapFile = com.flerty.wikiflerty.data.convert.PdfPageMap.file(context, id)
+                mapFile.parentFile?.mkdirs()
+                mapFile.writeText(result.map.toJson().toString())
+            } ?: run {
+                epub.delete()
+                null
+            }
+        } catch (e: Throwable) {
+            epub.delete()
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            null
+        }
+    }
+
     private suspend fun importPdf(id: String, source: File, uri: Uri): Result<Book> {
         val file = File(booksDir, "$id.pdf")
         try {
@@ -146,12 +166,13 @@ class LibraryRepository(
             }
             val fingerprint = fingerprintOf(file)
             val fileTitle = displayName(uri)?.substringBeforeLast('.')?.replace('_', ' ')?.trim()?.takeIf { it.isNotBlank() }
-            val title = meta.title ?: fileTitle ?: "Без названия"
-            val author = meta.author.orEmpty()
             _books.value.firstOrNull { it.fingerprint == fingerprint }?.let { existing ->
                 file.delete()
                 return Result.success(existing)
             }
+            val text = buildPdfText(id, file, meta.title ?: fileTitle ?: "Без названия", fingerprint.take(24))
+            val title = text?.title ?: meta.title ?: fileTitle ?: "Без названия"
+            val author = text?.author ?: meta.author.orEmpty()
             val coverName = PdfSupport.cover(file, 600)?.let { bitmap ->
                 val name = "$id.jpg"
                 File(coversDir, name).outputStream().use { out -> bitmap.compress(Bitmap.CompressFormat.JPEG, 88, out) }
@@ -162,24 +183,35 @@ class LibraryRepository(
                 id = id,
                 title = title,
                 author = author,
-                fileName = file.name,
+                fileName = if (text != null) "$id.epub" else file.name,
                 coverFileName = coverName,
                 addedAt = System.currentTimeMillis(),
                 lastReadAt = null,
                 progress = 0.0,
                 locatorJson = null,
                 fingerprint = fingerprint,
-                positions = meta.pages,
+                positions = if (text != null) 0 else meta.pages,
+                pdf = true,
             )
             update { it + book }
             onBookAdded?.invoke(book)
             return Result.success(_books.value.firstOrNull { it.id == book.id } ?: book)
         } catch (e: Throwable) {
             file.delete()
+            File(booksDir, "$id.epub").delete()
             source.delete()
             if (e is kotlinx.coroutines.CancellationException) throw e
             return Result.failure(if (e is OutOfMemoryError) Exception("Книга слишком большая для памяти телефона") else Exception("Не удалось открыть PDF"))
         }
+    }
+
+    suspend fun ensurePdfText(book: Book): Book = withContext(Dispatchers.IO) {
+        if (book.pdf || !book.isPdf) return@withContext book
+        val pdf = pdfFile(book)
+        if (!pdf.exists()) return@withContext book
+        val text = buildPdfText(book.id, pdf, book.title, (book.fingerprint ?: book.id).take(24))
+        update { list -> list.map { if (it.id == book.id) it.copy(pdf = true, fileName = if (text != null) "${book.id}.epub" else it.fileName) else it } }
+        _books.value.firstOrNull { it.id == book.id } ?: book
     }
 
     suspend fun addPaper(title: String, author: String, pages: Int, cover: Uri?): Book = withContext(Dispatchers.IO) {
@@ -304,7 +336,7 @@ class LibraryRepository(
     private val infoDir = File(context.filesDir, "bookinfo").apply { mkdirs() }
 
     suspend fun info(book: Book): BookInfo = withContext(Dispatchers.IO) {
-        if (book.paper || book.isPdf) return@withContext BookInfo()
+        if (book.paper || (book.isPdf && !book.pdfText)) return@withContext BookInfo()
         val cache = File(infoDir, "${book.id}.json")
         runCatching { if (cache.exists()) return@withContext BookInfo.fromJson(org.json.JSONObject(cache.readText())) }
         val info = runCatching {
@@ -373,6 +405,10 @@ class LibraryRepository(
         update { list -> list.filterNot { it.id == book.id } }
         bookFile(book).delete()
         coverFile(book)?.delete()
+        if (book.isPdf) {
+            pdfFile(book).delete()
+            File(context.filesDir, "pdfmeta").listFiles()?.filter { it.name.startsWith(book.id) }?.forEach { it.delete() }
+        }
     }
 
     suspend fun markOpened(bookId: String) {

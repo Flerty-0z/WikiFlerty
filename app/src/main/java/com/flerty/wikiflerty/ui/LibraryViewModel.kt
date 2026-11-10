@@ -85,16 +85,41 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             return
         }
         if (book.isPdf) {
-            if (!app.library.bookFile(book).exists()) {
-                _messages.tryEmit("Файл книги не найден")
-                return
-            }
-            _openPdf.tryEmit(book.id to ((startAt?.locations?.position ?: 0) - 1))
+            openPdf(book, startAt)
             return
         }
         viewModelScope.launch {
             _busy.value = "Открываю…"
             app.prepareReader(book, startAt)
+                .onSuccess { _openReader.emit(Unit) }
+                .onFailure { _messages.emit(it.message ?: "Не удалось открыть книгу") }
+            _busy.value = null
+        }
+    }
+
+    private fun openPdf(book: Book, startAt: Locator?) {
+        viewModelScope.launch {
+            var b = book
+            if (!b.pdf) {
+                _busy.value = "Готовлю PDF…"
+                b = app.library.ensurePdfText(b)
+                _busy.value = null
+            }
+            val map = if (b.pdfText) com.flerty.wikiflerty.data.convert.PdfPageMap.load(app, b.id) else null
+            val original = !b.pdfText || com.flerty.wikiflerty.reader.PdfLocators.original(app, b.id)
+            if (original) {
+                if (!app.library.pdfFile(b).exists()) {
+                    _messages.emit("Файл книги не найден")
+                    return@launch
+                }
+                val page = startAt?.let { com.flerty.wikiflerty.reader.PdfLocators.pageOf(it, map, map?.pages ?: b.positions) } ?: -1
+                _openPdf.emit(b.id to page)
+                return@launch
+            }
+            val saved = b.locatorJson?.let { runCatching { Locator.fromJSON(org.json.JSONObject(it)) }.getOrNull() }
+            val start = com.flerty.wikiflerty.reader.PdfLocators.toText(startAt ?: saved, map)
+            _busy.value = "Открываю…"
+            app.prepareReader(b.copy(locatorJson = null), start)
                 .onSuccess { _openReader.emit(Unit) }
                 .onFailure { _messages.emit(it.message ?: "Не удалось открыть книгу") }
             _busy.value = null
