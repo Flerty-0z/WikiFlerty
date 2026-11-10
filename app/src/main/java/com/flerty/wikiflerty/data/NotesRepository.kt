@@ -127,8 +127,10 @@ class NotesRepository(context: Context) {
 
     suspend fun replaceAll(notes: List<Note>) = update { notes }
 
-    suspend fun remapBook(from: String, to: String) =
+    suspend fun remapBook(from: String, to: String) {
+        if (_notes.value.none { it.bookId == from }) return
         update { list -> list.map { if (it.bookId == from) it.copy(bookId = to) else it } }
+    }
 
     private suspend fun update(transform: (List<Note>) -> List<Note>) = withContext(Dispatchers.IO) {
         mutex.withLock {

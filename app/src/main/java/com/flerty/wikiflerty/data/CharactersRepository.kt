@@ -73,8 +73,10 @@ class CharactersRepository(context: Context) {
 
     suspend fun replaceAll(characters: List<BookCharacter>) = update { characters }
 
-    suspend fun remapBook(from: String, to: String) =
+    suspend fun remapBook(from: String, to: String) {
+        if (_characters.value.none { it.bookId == from }) return
         update { list -> list.map { if (it.bookId == from) it.copy(bookId = to) else it } }
+    }
 
     private suspend fun update(transform: (List<BookCharacter>) -> List<BookCharacter>) = withContext(Dispatchers.IO) {
         mutex.withLock {

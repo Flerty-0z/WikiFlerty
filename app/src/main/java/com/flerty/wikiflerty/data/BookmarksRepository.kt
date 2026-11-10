@@ -84,8 +84,10 @@ class BookmarksRepository(context: Context) {
 
     suspend fun replaceAll(bookmarks: List<Bookmark>) = update { bookmarks }
 
-    suspend fun remapBook(from: String, to: String) =
+    suspend fun remapBook(from: String, to: String) {
+        if (_bookmarks.value.none { it.bookId == from }) return
         update { list -> list.map { if (it.bookId == from) it.copy(bookId = to) else it } }
+    }
 
     private suspend fun update(transform: (List<Bookmark>) -> List<Bookmark>) = withContext(Dispatchers.IO) {
         mutex.withLock {

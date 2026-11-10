@@ -60,10 +60,11 @@ fun BookCover(bookId: String?, width: Dp, modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center,
     ) {
         val image = cover
-        if (image != null) {
-            Image(image, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        } else {
-            Icon(AppIcons.Book, null, tint = AppColors.Accent, modifier = Modifier.size(width * 0.5f))
+        when {
+            image != null -> Image(image, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            book != null && androidx.compose.runtime.remember(file) { file == null || !file.exists() } -> GeneratedCover(book.title, book.author, Modifier.fillMaxSize())
+            book != null -> Unit
+            else -> Icon(AppIcons.Book, null, tint = AppColors.Accent, modifier = Modifier.size(width * 0.5f))
         }
     }
 }

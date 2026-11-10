@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -397,9 +398,34 @@ class LibraryRepository(
         mutex.withLock {
             val updated = transform(_books.value)
             _books.value = updated
-            save(updated)
+            scheduleSave()
         }
     }
+
+    private val writer = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+    private val saveLock = Any()
+    private var pendingSave: kotlinx.coroutines.Job? = null
+    private val jsonCache = HashMap<String, Pair<Book, String>>()
+
+    private fun scheduleSave() {
+        synchronized(saveLock) {
+            pendingSave?.cancel()
+            pendingSave = writer.launch {
+                kotlinx.coroutines.delay(400)
+                persist()
+            }
+        }
+    }
+
+    fun flush() {
+        synchronized(saveLock) {
+            pendingSave?.cancel()
+            pendingSave = null
+        }
+        persist()
+    }
+
+    private fun persist() = synchronized(jsonCache) { runCatching { save(_books.value) } }
 
     private fun load(): List<Book> = try {
         if (!libraryFile.exists()) {
@@ -415,14 +441,23 @@ class LibraryRepository(
     }
 
     private fun save(books: List<Book>) {
-        val json = JSONObject().apply {
-            put("version", 1)
-            put("books", JSONArray().apply { books.forEach { put(it.toJson()) } })
+        val alive = HashSet<String>(books.size * 2)
+        val text = StringBuilder(books.size * 600 + 64)
+        text.append("{\"version\":1,\"books\":[")
+        books.forEachIndexed { i, book ->
+            alive += book.id
+            val cached = jsonCache[book.id]
+            val json = if (cached != null && cached.first === book) cached.second else book.toJson().toString().also { jsonCache[book.id] = book to it }
+            if (i > 0) text.append(',')
+            text.append(json)
         }
+        text.append("]}")
+        jsonCache.keys.retainAll(alive)
+        val out = text.toString()
         val tmp = File(libraryFile.parentFile, "library.json.tmp")
-        tmp.writeText(json.toString())
+        tmp.writeText(out)
         if (!tmp.renameTo(libraryFile)) {
-            libraryFile.writeText(json.toString())
+            libraryFile.writeText(out)
             tmp.delete()
         }
     }

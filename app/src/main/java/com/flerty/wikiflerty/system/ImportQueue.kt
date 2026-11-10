@@ -118,6 +118,7 @@ class ImportQueue(private val app: App) {
             val final = stats
             synchronized(pending) { save() }
             _progress.value = null
+            app.library.flush()
             ImportService.stop(app)
             onFinished?.invoke(final)
         }

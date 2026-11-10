@@ -558,16 +558,8 @@ private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean
     Box(modifier.background(AppColors.Field), contentAlignment = Alignment.Center) {
         if (cover != null) {
             Image(cover, book.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        } else {
-            Text(
-                book.title,
-                color = AppColors.Muted,
-                fontSize = if (small) 11.sp else 13.sp,
-                textAlign = TextAlign.Center,
-                maxLines = 5,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(8.dp),
-            )
+        } else if (androidx.compose.runtime.remember(file) { file == null || !file.exists() }) {
+            GeneratedCover(book.title, book.author, Modifier.fillMaxSize())
         }
         val rating = book.rating?.takeIf { it > 0f }
         val chipBg = Color(0xD9100D0B)

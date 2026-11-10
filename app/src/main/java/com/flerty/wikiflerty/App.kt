@@ -166,6 +166,7 @@ class App : Application() {
                 started = (started - 1).coerceAtLeast(0)
                 if (started == 0) {
                     ticker?.cancel()
+                    appScope.launch(kotlinx.coroutines.Dispatchers.IO) { library.flush() }
                     cloud.request(0)
                 }
             }

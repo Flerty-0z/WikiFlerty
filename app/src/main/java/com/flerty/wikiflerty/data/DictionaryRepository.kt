@@ -97,8 +97,10 @@ class DictionaryRepository(context: Context) {
 
     suspend fun replaceAll(entries: List<DictionaryEntry>) = update { entries }
 
-    suspend fun remapBook(from: String, to: String) =
+    suspend fun remapBook(from: String, to: String) {
+        if (_entries.value.none { it.bookId == from }) return
         update { list -> list.map { if (it.bookId == from) it.copy(bookId = to) else it } }
+    }
 
     private suspend fun update(transform: (List<DictionaryEntry>) -> List<DictionaryEntry>) = withContext(Dispatchers.IO) {
         mutex.withLock {
