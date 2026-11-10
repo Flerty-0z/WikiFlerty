@@ -211,10 +211,11 @@ fun SettingSegmented(label: String?, options: List<String>, selected: Int, onSel
                     Text(
                         option,
                         color = if (isSelected) AppColors.Text else AppColors.Muted,
-                        fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false,
+                        autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 14.sp, stepSize = 0.5.sp),
+                        modifier = Modifier.padding(horizontal = 4.dp),
                     )
                 }
             }

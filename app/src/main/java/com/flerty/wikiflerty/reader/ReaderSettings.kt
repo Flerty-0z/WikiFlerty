@@ -131,6 +131,16 @@ data class ReaderSettings(
     val orientation: String = ScreenOrientation.Auto.id,
     val fullscreen: Boolean = true,
     val showFlag: Boolean = true,
+    val flagChapter: Boolean = true,
+    val flagChapterPages: Boolean = true,
+    val flagBookPages: Boolean = false,
+    val flagPercent: Boolean = true,
+    val flagTimeLeft: Boolean = false,
+    val flagClock: Boolean = false,
+    val flagBattery: Boolean = false,
+    val flagAlign: String = "center",
+    val flagSize: Double = 1.0,
+    val flagBackground: Boolean = true,
     val progressInPages: Boolean = false,
     val quickButtons: List<String> = QuickButton.defaults.map { it.id },
     val selectionButtons: List<String> = SelectionButton.defaults.map { it.id },
@@ -215,6 +225,16 @@ data class ReaderSettings(
         put("orientation", orientation)
         put("fullscreen", fullscreen)
         put("showFlag", showFlag)
+        put("flagChapter", flagChapter)
+        put("flagChapterPages", flagChapterPages)
+        put("flagBookPages", flagBookPages)
+        put("flagPercent", flagPercent)
+        put("flagTimeLeft", flagTimeLeft)
+        put("flagClock", flagClock)
+        put("flagBattery", flagBattery)
+        put("flagAlign", flagAlign)
+        put("flagSize", flagSize)
+        put("flagBackground", flagBackground)
         put("progressInPages", progressInPages)
         put("quickButtons", JSONArray(quickButtons))
         put("selectionButtons", JSONArray(selectionButtons))
@@ -275,6 +295,16 @@ data class ReaderSettings(
                 orientation = json.optString("orientation", d.orientation),
                 fullscreen = json.optBoolean("fullscreen", d.fullscreen),
                 showFlag = json.optBoolean("showFlag", d.showFlag),
+                flagChapter = json.optBoolean("flagChapter", d.flagChapter),
+                flagChapterPages = json.optBoolean("flagChapterPages", d.flagChapterPages),
+                flagBookPages = json.optBoolean("flagBookPages", d.flagBookPages),
+                flagPercent = json.optBoolean("flagPercent", d.flagPercent),
+                flagTimeLeft = json.optBoolean("flagTimeLeft", d.flagTimeLeft),
+                flagClock = json.optBoolean("flagClock", d.flagClock),
+                flagBattery = json.optBoolean("flagBattery", d.flagBattery),
+                flagAlign = json.optString("flagAlign", d.flagAlign).ifBlank { d.flagAlign },
+                flagSize = json.optDouble("flagSize", d.flagSize).takeUnless { it.isNaN() }?.coerceIn(0.8, 1.4) ?: d.flagSize,
+                flagBackground = json.optBoolean("flagBackground", d.flagBackground),
                 progressInPages = json.optBoolean("progressInPages", d.progressInPages),
                 quickButtons = quick,
                 selectionButtons = json.optJSONArray("selectionButtons")?.let { arr ->

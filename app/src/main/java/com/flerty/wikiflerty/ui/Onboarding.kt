@@ -305,7 +305,7 @@ private fun KitPicker() {
         }
     }
     val modes = ThemeMode.entries
-    Box(Modifier.fillMaxWidth().fieldSurface(appCorner(16)).padding(horizontal = 12.dp, vertical = 4.dp)) {
+    Box(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
         SettingSegmented(null, listOf("☀ Светлая", "☾ Тёмная", "◐ Система"), modes.indexOf(ThemeMode.of(style.mode))) { idx ->
             app.style.update { it.copy(mode = modes[idx].id) }
         }

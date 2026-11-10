@@ -74,6 +74,8 @@ class BookmarkActions(
     val onToggle: () -> Unit,
     val onOpen: (Bookmark) -> Unit,
     val onDelete: (Bookmark) -> Unit,
+    val onRename: (Bookmark) -> Unit = {},
+    val onName: (String, String) -> Unit = { _, _ -> },
 )
 
 internal val NavSheets = listOf(ReaderSheet.Toc, ReaderSheet.Notes, ReaderSheet.Bookmarks, ReaderSheet.People)
@@ -159,6 +161,7 @@ internal fun BookmarkList(bookmarks: List<Bookmark>, actions: BookmarkActions, m
                     onOpen = { actions.onOpen(mark) },
                     onDelete = { actions.onDelete(mark) },
                     modifier = motionItem(),
+                    onRename = { actions.onRename(mark) },
                 )
             }
         }
@@ -168,7 +171,7 @@ internal fun BookmarkList(bookmarks: List<Bookmark>, actions: BookmarkActions, m
 private val DeleteColor get() = AppColors.Bad
 
 @Composable
-private fun BookmarkRow(bookmark: Bookmark, onOpen: () -> Unit, onDelete: () -> Unit, modifier: Modifier) {
+private fun BookmarkRow(bookmark: Bookmark, onOpen: () -> Unit, onDelete: () -> Unit, modifier: Modifier, onRename: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val offset = remember(bookmark.id) { Animatable(0f) }
     var width by remember { mutableIntStateOf(1) }
@@ -228,13 +231,22 @@ private fun BookmarkRow(bookmark: Bookmark, onOpen: () -> Unit, onDelete: () -> 
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    bookmark.chapter ?: "Закладка",
+                    bookmark.label.ifBlank { bookmark.chapter ?: "Закладка" },
                     color = AppColors.Text,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (bookmark.label.isNotBlank() && !bookmark.chapter.isNullOrBlank()) {
+                    Text(
+                        bookmark.chapter,
+                        color = AppColors.Accent,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 if (bookmark.snippet.isNotBlank()) {
                     Text(
                         bookmark.snippet,
@@ -250,6 +262,15 @@ private fun BookmarkRow(bookmark: Bookmark, onOpen: () -> Unit, onDelete: () -> 
                     fontSize = 12.sp,
                     maxLines = 1,
                 )
+            }
+            Box(
+                Modifier
+                    .size(40.dp)
+                    .liveClick(CircleShape, sound = FeedbackSound.Open, onClick = onRename)
+                    .semantics { contentDescription = "Переименовать закладку" },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(AppIcons.Pencil, null, tint = AppColors.Muted, modifier = Modifier.size(17.dp))
             }
             Box(
                 Modifier

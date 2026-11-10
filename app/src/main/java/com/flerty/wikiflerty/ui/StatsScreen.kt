@@ -348,13 +348,18 @@ fun StatTile(label: String, value: String, modifier: Modifier = Modifier, hint: 
 }
 
 @Composable
-fun SmallCover(file: File?, modifier: Modifier, maxWidth: Int = 160) {
+fun SmallCover(file: File?, modifier: Modifier, maxWidth: Int = 160, title: String? = null, author: String = "") {
     val cover by produceState(CoverCache.peek(file, maxWidth), file) {
         value = file?.let { withContext(Dispatchers.IO) { CoverCache.load(it, maxWidth) } }
     }
+    val missing = androidx.compose.runtime.remember(file) { file == null || !file.exists() }
     val shape = appCorner(6)
     Box(modifier.clip(shape).background(AppColors.Field)) {
-        cover?.let { Image(it, null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize()) }
+        val image = cover
+        when {
+            image != null -> Image(image, null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+            title != null && missing -> GeneratedCover(title, author, Modifier.matchParentSize())
+        }
     }
 }
 

@@ -115,6 +115,57 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private var selectionJob: Job? = null
     private var actionMode: ActionMode? = null
     private var bookId: String = ""
+    private var screensPerPosition = -1.0
+    private val pageIntervals = ArrayDeque<Long>()
+    private var lastPageKey = ""
+    private var lastPageAt = 0L
+    private var pageCountJob: Job? = null
+
+    private fun updatePageCount(locator: org.readium.r2.shared.publication.Locator) {
+        pageCountJob?.cancel()
+        pageCountJob = lifecycleScope.launch {
+            delay(60)
+            val raw = runCatching { navigator.evaluateJavascript(PAGE_COUNT_JS) }.getOrNull() ?: return@launch
+            val parts = raw.trim('"').split('|')
+            val cur = parts.getOrNull(0)?.toIntOrNull() ?: return@launch
+            val count = parts.getOrNull(1)?.toIntOrNull() ?: return@launch
+            if (count <= 0) return@launch
+            ui.chapterPage = cur.coerceIn(1, count)
+            ui.chapterPages = count
+            val inResource = positions.count { it.href == locator.href }
+            if (inResource > 0) {
+                val r = count.toDouble() / inResource
+                screensPerPosition = if (screensPerPosition <= 0) r else screensPerPosition * 0.75 + r * 0.25
+                getSharedPreferences("reader_pages", MODE_PRIVATE).edit().putFloat(bookId, screensPerPosition.toFloat()).apply()
+            }
+            if (screensPerPosition > 0 && positions.isNotEmpty()) {
+                val total = (positions.size * screensPerPosition).roundToInt().coerceAtLeast(count)
+                val p = locator.locations.totalProgression ?: ui.progression
+                ui.bookPages = total
+                ui.bookPage = ((p * (total - 1)).roundToInt() + 1).coerceIn(1, total)
+            }
+            val key = "${locator.href}#$cur"
+            val now = SystemClock.elapsedRealtime()
+            if (key != lastPageKey) {
+                if (lastPageAt > 0) {
+                    val dt = now - lastPageAt
+                    if (dt in 3_000L..180_000L) {
+                        pageIntervals.addLast(dt)
+                        while (pageIntervals.size > 20) pageIntervals.removeFirst()
+                    }
+                }
+                lastPageKey = key
+                lastPageAt = now
+            }
+            ui.minutesLeft = if (pageIntervals.size >= 3) {
+                val sorted = pageIntervals.sorted()
+                val median = sorted[sorted.size / 2]
+                ((count - ui.chapterPage) * median / 60_000.0).let { kotlin.math.ceil(it).toInt() }
+            } else {
+                null
+            }
+        }
+    }
     private var pdfMap: com.flerty.wikiflerty.data.convert.PdfPageMap? = null
     private var pendingLocator: org.readium.r2.shared.publication.Locator? = null
     private var saveTimer: Job? = null
@@ -150,6 +201,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 resyncListening()
             },
             onDelete = { mark -> lifecycleScope.launch { app.bookmarks.delete(listOf(mark.id)) } },
+            onRename = { mark -> ui.nameMark = mark },
+            onName = { id, label -> app.appScope.launch { app.bookmarks.rename(id, label) } },
         )
     }
 
@@ -1249,6 +1302,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         if (app.library.books.value.firstOrNull { it.id == bookId }?.pdfText == true) {
             pdfMap = com.flerty.wikiflerty.data.convert.PdfPageMap.load(this, bookId)
         }
+        screensPerPosition = getSharedPreferences("reader_pages", MODE_PRIVATE).getFloat(bookId, -1f).toDouble()
         bookAuthor = session.publication.metadata.authors.joinToString(", ") { it.name }
         loadHeroes(session.bookId)
         val initial = settings
@@ -1458,6 +1512,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                             ui.position = locator.locations.position
                         }
                         ui.chapter = locator.title
+                        ui.currentHref = href
+                        updatePageCount(locator)
                         val position = locator.locations.position
                         val previous = lastPosition
                         if (position != null && previous != null && position > previous && position - previous <= 3) {
@@ -1873,7 +1929,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 ui.bookmarked = true
                 val first = runCatching { navigator.firstVisibleElementLocator() }.getOrNull()
                 val snippet = first?.text?.let { it.highlight ?: it.after }.orEmpty()
-                app.bookmarks.create(bookId, locator, ui.chapter ?: locator.title, snippet)
+                val created = app.bookmarks.create(bookId, locator, ui.chapter ?: locator.title, snippet)
+                ui.nameMark = created
             }
         }
     }
@@ -2701,7 +2758,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val density = resources.displayMetrics.density
         val params = bookArea.layoutParams as ViewGroup.MarginLayoutParams
         val top = systemBars.top + (20 * density).toInt()
-        val bottom = systemBars.bottom + ((if (s.showFlag) 46 else 18) * density).toInt()
+        val bottom = systemBars.bottom + ((if (s.showFlag) 22 + 24 * s.flagSize.coerceIn(0.8, 1.4) else 18.0) * density).toInt()
         if (params.topMargin != top || params.bottomMargin != bottom) {
             params.topMargin = top
             params.bottomMargin = bottom
@@ -2921,6 +2978,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private companion object {
+        private const val PAGE_COUNT_JS = "(function(){var e=document.scrollingElement;if(!e)return '';var w=window.innerWidth,h=window.innerHeight;if(e.scrollWidth>w+4){var n=Math.max(1,Math.round(e.scrollWidth/w));var c=Math.min(n,Math.round(Math.abs(e.scrollLeft)/w)+1);return c+'|'+n;}var n2=Math.max(1,Math.ceil((e.scrollHeight-4)/h));var c2=Math.min(n2,Math.floor((e.scrollTop+4)/h)+1);return c2+'|'+n2;})()"
+
         const val NAVIGATOR_TAG = "navigator"
         const val NOTES_GROUP = "notes"
         const val TTS_GROUP = "tts"

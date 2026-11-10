@@ -387,6 +387,7 @@ class PdfUiState(context: Context, val title: String, val author: String, start:
     var editor by mutableStateOf<NoteDraft?>(null)
     var translate by mutableStateOf<TranslateInfo?>(null)
     var quote by mutableStateOf<QuoteDraft?>(null)
+    var nameMark by mutableStateOf<Bookmark?>(null)
     val search = SearchState()
     var paged by mutableStateOf(prefs.getBoolean("paged", false))
         private set
@@ -731,7 +732,7 @@ class PdfReaderActivity : ComponentActivity() {
                 app.bookmarks.delete(existing.map { it.id })
             } else {
                 val snippet = state.doc?.text(page)?.replace(Regex("\\s+"), " ")?.trim()?.take(140)?.takeIf { it.isNotBlank() } ?: "Страница ${page + 1}"
-                app.bookmarks.create(bookId, locator(page), state.chapterAt(page) ?: "Страница ${page + 1}", snippet)
+                state.nameMark = app.bookmarks.create(bookId, locator(page), state.chapterAt(page) ?: "Страница ${page + 1}", snippet)
             }
         }
     }
@@ -744,6 +745,8 @@ class PdfReaderActivity : ComponentActivity() {
                 pageOf(mark.locator)?.let { state.jump = it }
             },
             onDelete = { mark -> lifecycleScope.launch { app.bookmarks.delete(listOf(mark.id)) } },
+            onRename = { mark -> state.nameMark = mark },
+            onName = { id, label -> app.appScope.launch { app.bookmarks.rename(id, label) } },
         )
     }
 
@@ -1467,6 +1470,18 @@ private fun PdfReaderScreen(host: PdfReaderActivity, state: PdfUiState) {
 
     val doc = state.doc
     if (state.grid && doc != null) PdfGridSheet(doc, state, bookmarkedPages, marksByPage.keys)
+    state.nameMark?.let { mark ->
+        key(mark.id) {
+            TextInputSheet(
+                "Закладка",
+                mark.label,
+                "Название, например «Важный момент»",
+                onDismiss = { state.nameMark = null },
+                icon = AppIcons.Bookmark,
+                maxLength = 80,
+            ) { text -> host.bookmarkActions.onName(mark.id, text.trim()) }
+        }
+    }
     if (state.goTo && doc != null) {
         TextInputSheet(
             "Страница",

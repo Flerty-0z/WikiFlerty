@@ -168,7 +168,18 @@ enum class ReaderSheet(val title: String, val depth: Int) {
     Heroes("Герои книги", 1),
     HeroChat("Герой", 1),
     AiHistory("История", 1),
+    Flag("Флажок", 2),
 }
+
+data class FlagInfo(
+    val chapter: String? = null,
+    val chapterPage: Int = 0,
+    val chapterPages: Int = 0,
+    val bookPage: Int = 0,
+    val bookPages: Int = 0,
+    val progression: Double = 0.0,
+    val minutesLeft: Int? = null,
+)
 
 class ReaderUiState {
     var panelsVisible by mutableStateOf(false)
@@ -206,6 +217,15 @@ class ReaderUiState {
     var returnTo by mutableStateOf<org.readium.r2.shared.publication.Locator?>(null)
     var feedPull by mutableStateOf<FeedPull?>(null)
     var coach by mutableStateOf(false)
+    var chapterPage by mutableIntStateOf(0)
+    var chapterPages by mutableIntStateOf(0)
+    var bookPage by mutableIntStateOf(0)
+    var bookPages by mutableIntStateOf(0)
+    var minutesLeft by mutableStateOf<Int?>(null)
+    var currentHref by mutableStateOf<String?>(null)
+    var nameMark by mutableStateOf<com.flerty.wikiflerty.data.Bookmark?>(null)
+
+    fun flagInfo() = FlagInfo(chapter, chapterPage, chapterPages, bookPage, bookPages, progression, minutesLeft)
     var topPanelBottom = 0f
     var bottomPanelTop = Float.MAX_VALUE
 
@@ -365,11 +385,26 @@ fun ReaderOverlay(
 
         if (settings.showFlag) {
             val flagAlpha by animateFloatAsState(if (state.feedPull?.dir == 1) 0f else 1f, Motion.tween(160), label = "flag-hide")
-            ProgressFlag(
-                chapter = state.chapter,
-                progress = progressText,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = FlagBottom).graphicsLayer { alpha = flagAlpha },
-            )
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
+                    .graphicsLayer { alpha = flagAlpha },
+            ) {
+                ProgressFlag(
+                    info = state.flagInfo(),
+                    settings = settings,
+                    onClick = { state.sheet = ReaderSheet.Flag },
+                    modifier = Modifier.align(
+                        when (settings.flagAlign) {
+                            "left" -> Alignment.CenterStart
+                            "right" -> Alignment.CenterEnd
+                            else -> Alignment.Center
+                        },
+                    ),
+                )
+            }
         }
 
         val lastPull = remember { arrayOf(FeedPull(1, 0f, true)) }
@@ -532,6 +567,9 @@ fun ReaderOverlay(
                         search = search,
                         auto = auto,
                         jump = JumpInfo(state.progression, state.position, state.totalPositions, onSeek),
+                        flag = state.flagInfo(),
+                        currentHref = state.currentHref,
+                        chapter = state.chapter,
                         sheet = sheet,
                         settings = settings,
                         fonts = fonts,
@@ -676,6 +714,19 @@ fun ReaderOverlay(
         }
     }
 
+    state.nameMark?.let { mark ->
+        androidx.compose.runtime.key(mark.id) {
+            com.flerty.wikiflerty.ui.TextInputSheet(
+                "Закладка",
+                mark.label,
+                "Название, например «Важный момент»",
+                onDismiss = { state.nameMark = null },
+                icon = AppIcons.Bookmark,
+                maxLength = 80,
+            ) { text -> bookmarkActions.onName(mark.id, text.trim()) }
+        }
+    }
+
     val draft = state.personDraft
     if (draft != null && peopleActions != null) {
         androidx.compose.runtime.key(draft) {
@@ -755,6 +806,7 @@ private fun ReturnPill(onReturn: () -> Unit, onDismiss: () -> Unit) {
 
 private fun progressText(state: ReaderUiState, settings: ReaderSettings): String {
     val position = state.position
+    if (settings.progressInPages && state.bookPages > 0) return "${state.bookPage}/${state.bookPages}"
     return if (settings.progressInPages && position != null && state.totalPositions > 0) {
         "$position/${state.totalPositions}"
     } else {
@@ -763,29 +815,150 @@ private fun progressText(state: ReaderUiState, settings: ReaderSettings): String
 }
 
 @Composable
-private fun ProgressFlag(chapter: String?, progress: String, modifier: Modifier) {
+internal fun ProgressFlag(info: FlagInfo, settings: ReaderSettings, onClick: (() -> Unit)?, modifier: Modifier) {
+    val k = settings.flagSize.toFloat().coerceIn(0.8f, 1.4f)
     val shape = appCorner(12)
+    val bg = settings.flagBackground
+    val shadow = if (bg) null else androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.45f), androidx.compose.ui.geometry.Offset(0f, 1f), 3f)
+    val style = androidx.compose.ui.text.TextStyle(fontSize = (12 * k).sp, shadow = shadow)
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var clock by remember { mutableStateOf("") }
+    if (settings.flagClock) {
+        LaunchedEffect(Unit) {
+            val fmt = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+            while (true) {
+                clock = java.time.LocalTime.now().format(fmt)
+                delay(60_000L - System.currentTimeMillis() % 60_000L)
+            }
+        }
+    }
+    var battery by remember { mutableIntStateOf(-1) }
+    if (settings.flagBattery) {
+        androidx.compose.runtime.DisposableEffect(Unit) {
+            val receiver = object : android.content.BroadcastReceiver() {
+                override fun onReceive(c: android.content.Context?, intent: android.content.Intent?) {
+                    val level = intent?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
+                    val scale = intent?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100) ?: 100
+                    if (level >= 0 && scale > 0) battery = level * 100 / scale
+                }
+            }
+            val sticky = context.registerReceiver(receiver, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+            receiver.onReceive(context, sticky)
+            onDispose { runCatching { context.unregisterReceiver(receiver) } }
+        }
+    }
+    val items = buildList {
+        val book = settings.flagBookPages && info.bookPages > 0
+        val chap = settings.flagChapterPages && info.chapterPages > 0
+        when {
+            book && chap -> add("${info.bookPage}/${info.bookPages} (${info.chapterPage}/${info.chapterPages})")
+            book -> add("${info.bookPage}/${info.bookPages}")
+            chap -> add("${info.chapterPage}/${info.chapterPages}")
+        }
+        if (settings.flagPercent) add("${(info.progression * 100).roundToInt().coerceIn(0, 100)}%")
+        if (settings.flagTimeLeft) info.minutesLeft?.let { add(if (it < 1) "<1 мин" else "≈$it мин") }
+        if (settings.flagClock && clock.isNotEmpty()) add(clock)
+    }
+    val showChapter = settings.flagChapter && !info.chapter.isNullOrBlank()
+    val showBattery = settings.flagBattery && battery >= 0
+    if (!showChapter && items.isEmpty() && !showBattery) return
     Row(
         modifier = modifier
-            .height(FlagHeight.dp)
+            .height((24 * k).dp)
             .clip(shape)
-            .background(FlagBackground)
-            .border(1.dp, AppColors.PanelBorder, shape)
-            .padding(horizontal = 12.dp),
+            .then(if (bg) Modifier.background(FlagBackground).border(1.dp, AppColors.PanelBorder, shape) else Modifier)
+            .then(if (onClick != null) Modifier.liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.94f, onClick = onClick) else Modifier)
+            .padding(horizontal = (10 * k).dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy((7 * k).dp),
     ) {
-        if (!chapter.isNullOrBlank()) {
-            MarqueeText(
-                chapter,
+        val dot = @Composable { Box(Modifier.size((3 * k).dp).clip(CircleShape).background(AppColors.Faint)) }
+        if (showChapter) {
+            Text(
+                info.chapter.orEmpty(),
                 color = AppColors.Muted,
-                fontSize = 12.sp,
-                modifier = Modifier.widthIn(max = 200.dp),
+                style = style,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
             )
-            Box(Modifier.size(3.dp).clip(CircleShape).background(AppColors.Faint))
         }
-        Text(progress, color = AppColors.Text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        items.forEachIndexed { i, text ->
+            if (i > 0 || showChapter) dot()
+            Text(text, color = AppColors.Text, style = style, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+        }
+        if (showBattery) {
+            if (showChapter || items.isNotEmpty()) dot()
+            val tint = AppColors.Text
+            val low = AppColors.Bad
+            Canvas(Modifier.size(width = (16 * k).dp, height = (9 * k).dp)) {
+                val sw = 1.2f * density
+                val bodyW = size.width - 2.5f * density
+                drawRoundRect(tint, size = androidx.compose.ui.geometry.Size(bodyW, size.height), cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f * density), style = androidx.compose.ui.graphics.drawscope.Stroke(sw))
+                drawRect(tint, topLeft = androidx.compose.ui.geometry.Offset(bodyW + 0.5f * density, size.height * 0.3f), size = androidx.compose.ui.geometry.Size(1.8f * density, size.height * 0.4f))
+                val fillW = (bodyW - 2 * sw - 2f) * (battery / 100f)
+                drawRect(if (battery <= 15) low else tint, topLeft = androidx.compose.ui.geometry.Offset(sw + 1f, sw + 1f), size = androidx.compose.ui.geometry.Size(fillW.coerceAtLeast(0f), size.height - 2 * sw - 2f))
+            }
+            Text("$battery%", color = AppColors.Text, style = style, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+        }
     }
+}
+
+@Composable
+private fun FlagOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit, info: FlagInfo) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(appCorner(16))
+            .background(AppColors.Background)
+            .border(1.dp, AppColors.PanelBorder, appCorner(16))
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+        contentAlignment = when (settings.flagAlign) {
+            "left" -> Alignment.CenterStart
+            "right" -> Alignment.CenterEnd
+            else -> Alignment.Center
+        },
+    ) {
+        if (settings.showFlag) {
+            ProgressFlag(info, settings, onClick = null, modifier = Modifier)
+        } else {
+            Text("Флажок скрыт", color = AppColors.Faint, fontSize = 13.sp)
+        }
+    }
+    SwitchRow("Флажок внизу", settings.showFlag, icon = AppIcons.Flag) { v -> onSettingsChange { it.copy(showFlag = v) } }
+    Group("Что показывать", icon = AppIcons.Sliders) {
+        Column(Modifier.clip(appCorner(16)).background(AppColors.Field).padding(horizontal = 14.dp)) {
+            val on = settings.showFlag
+            SwitchRow("Название главы", settings.flagChapter, enabled = on, icon = AppIcons.Toc) { v -> onSettingsChange { it.copy(flagChapter = v) } }
+            SwitchRow("Страница в главе", settings.flagChapterPages, enabled = on, icon = AppIcons.Pages) { v -> onSettingsChange { it.copy(flagChapterPages = v) } }
+            SwitchRow("Страница в книге", settings.flagBookPages, enabled = on, icon = AppIcons.Book) { v -> onSettingsChange { it.copy(flagBookPages = v) } }
+            SwitchRow("Проценты", settings.flagPercent, enabled = on, icon = AppIcons.Percent) { v -> onSettingsChange { it.copy(flagPercent = v) } }
+            SwitchRow("Время до конца главы", settings.flagTimeLeft, enabled = on, icon = AppIcons.Target) { v -> onSettingsChange { it.copy(flagTimeLeft = v) } }
+            SwitchRow("Часы", settings.flagClock, enabled = on, icon = AppIcons.Clock) { v -> onSettingsChange { it.copy(flagClock = v) } }
+            SwitchRow("Заряд", settings.flagBattery, enabled = on, icon = AppIcons.Bulb) { v -> onSettingsChange { it.copy(flagBattery = v) } }
+        }
+    }
+    Segmented(
+        "Положение",
+        listOf("Слева", "Центр", "Справа"),
+        when (settings.flagAlign) {
+            "left" -> 0
+            "right" -> 2
+            else -> 1
+        },
+        icon = AppIcons.Margins,
+    ) { i -> onSettingsChange { it.copy(flagAlign = listOf("left", "center", "right")[i]) } }
+    StepSlider(
+        label = "Размер",
+        icon = AppIcons.TextSize,
+        value = settings.flagSize,
+        range = 0.8..1.4,
+        step = 0.1,
+        enabled = settings.showFlag,
+        format = { "${(it * 100).roundToInt()}%" },
+        onCommit = { v -> onSettingsChange { it.copy(flagSize = v) } },
+    )
+    SwitchRow("Подложка", settings.flagBackground, enabled = settings.showFlag, icon = AppIcons.Panel) { v -> onSettingsChange { it.copy(flagBackground = v) } }
 }
 
 @Composable
@@ -1159,6 +1332,9 @@ private fun SheetContent(
     search: SearchActions,
     auto: AutoActions,
     jump: JumpInfo,
+    flag: FlagInfo = FlagInfo(),
+    currentHref: String? = null,
+    chapter: String? = null,
 ) {
     Column(
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
@@ -1174,6 +1350,7 @@ private fun SheetContent(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             val parent = when {
                 sheet == ReaderSheet.Fonts -> ReaderSheet.Text
+                sheet == ReaderSheet.Flag -> ReaderSheet.Panel
                 sheet == ReaderSheet.NoteEditor -> if (editor?.fromList == true) ReaderSheet.Notes else null
                 sheet == ReaderSheet.AiSetup -> if (aiSetupFromMenu) ReaderSheet.AiMenu else ReaderSheet.Options
                 sheet == ReaderSheet.Heroes -> ReaderSheet.AiChapter
@@ -1232,7 +1409,7 @@ private fun SheetContent(
                         onAdd = { onPerson(PersonDraft(null, "", "")) },
                         onEdit = { onPerson(PersonDraft(it.id, it.name, it.note)) },
                     )
-                    else -> TocList(toc, onTocSelect, Modifier)
+                    else -> TocList(toc, onTocSelect, Modifier, currentHref, chapter)
                 }
             }
             ReaderSheet.Quote -> if (quote != null) {
@@ -1288,7 +1465,8 @@ private fun SheetContent(
                     ReaderSheet.Text -> OptionFrame { TextOptions(settings, fonts, onSettingsChange, onOpen) }
                     ReaderSheet.Scroll -> OptionFrame { ScrollOptions(settings, onSettingsChange, auto.onStart) }
                     ReaderSheet.Theme -> OptionFrame { ThemeOptions(settings, onSettingsChange) }
-                    ReaderSheet.Panel -> OptionFrame { PanelOptions(settings, onSettingsChange) }
+                    ReaderSheet.Panel -> OptionFrame { PanelOptions(settings, onSettingsChange, onOpen) }
+                    ReaderSheet.Flag -> OptionFrame { FlagOptions(settings, onSettingsChange, flag) }
                     ReaderSheet.Gestures -> OptionFrame { GestureOptions(settings, onSettingsChange) }
                     ReaderSheet.Screen -> OptionFrame { ScreenOptions(settings, onSettingsChange) }
                     ReaderSheet.Sound -> OptionFrame { SoundOptions(settings, onSettingsChange) }
@@ -1664,18 +1842,28 @@ private fun ThemeOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
 }
 
 @Composable
-private fun PanelOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit) {
+private fun PanelOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit, onOpen: (ReaderSheet) -> Unit) {
     Segmented("Прогресс", listOf("Проценты", "Страницы"), if (settings.progressInPages) 1 else 0, icon = AppIcons.Percent) { i ->
         onSettingsChange { it.copy(progressInPages = i == 1) }
     }
-    SwitchRow("Флажок внизу", settings.showFlag, icon = AppIcons.Flag) { v -> onSettingsChange { it.copy(showFlag = v) } }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 52.dp)
+            .liveClick(appCorner(14), sound = FeedbackSound.Open, pressedScale = 0.98f) { onOpen(ReaderSheet.Flag) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        com.flerty.wikiflerty.ui.SettingIcon(AppIcons.Flag, 30.dp)
+        Spacer(Modifier.width(12.dp))
+        Text("Флажок внизу", color = AppColors.Text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+        Text(if (settings.showFlag) "Вкл" else "Выкл", color = AppColors.Muted, fontSize = 13.sp)
+        Icon(AppIcons.Chevron, null, tint = AppColors.Faint, modifier = Modifier.padding(start = 6.dp).size(16.dp))
+    }
     Group("Кнопки панели") {
         QuickButtonList(QuickButton.entries.filter { !it.ai }, settings, onSettingsChange)
-        Hint("До пяти кнопок вместе с ИИ, в порядке выбора.")
     }
     Group("ИИ в панели", icon = AppIcons.Sparkle) {
         QuickButtonList(QuickButton.entries.filter { it.ai }, settings, onSettingsChange)
-        Hint("Быстрый доступ к функциям «ИИ по главе».")
     }
 }
 
@@ -1878,29 +2066,57 @@ internal fun SoundOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSe
 }
 
 @Composable
-private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: Modifier) {
+private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: Modifier, currentHref: String? = null, chapter: String? = null) {
     if (toc.isEmpty()) {
         Text("В этой книге нет оглавления", color = AppColors.Muted, fontSize = 15.sp, modifier = Modifier.padding(vertical = 12.dp))
         return
     }
-    LazyColumn(modifier) {
+    val current = remember(toc, currentHref, chapter) {
+        val res = currentHref?.substringBefore('#')?.trimStart('/')
+        val byHref = if (res == null) -1 else toc.indexOfLast { it.link.href.toString().substringBefore('#').trimStart('/') == res }
+        val byTitle = if (chapter.isNullOrBlank()) -1 else toc.indexOfLast { it.title == chapter.trim() }
+        when {
+            byTitle >= 0 && (byHref < 0 || toc[byTitle].link.href.toString().substringBefore('#').trimStart('/') == res) -> byTitle
+            byHref >= 0 -> byHref
+            else -> byTitle
+        }
+    }
+    val list = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = (current - 2).coerceAtLeast(0))
+    LazyColumn(modifier, state = list) {
         itemsIndexed(toc) { index, item ->
             Column {
             if (index > 0) com.flerty.wikiflerty.ui.ListDivider()
             Reveal {
                 val shape = appCorner(12)
-                Text(
-                    item.title,
-                    color = if (item.depth == 0) AppColors.Text else AppColors.Muted,
-                    fontSize = if (item.depth == 0) 15.sp else 14.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
+                val active = index == current
+                Row(
+                    Modifier
                         .fillMaxWidth()
                         .heightIn(min = 48.dp)
+                        .padding(vertical = 3.dp)
+                        .clip(shape)
+                        .background(if (active) AppColors.AccentTint else Color.Transparent)
                         .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) { onSelect(item) }
-                        .padding(start = (8 + item.depth * 16).dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
-                )
+                        .padding(start = (8 + item.depth * 16).dp, end = 8.dp, top = 9.dp, bottom = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (active) {
+                        Box(Modifier.padding(end = 10.dp).size(width = 3.dp, height = 18.dp).clip(appCorner(2)).background(AppColors.Accent))
+                    }
+                    Text(
+                        item.title,
+                        color = when {
+                            active -> AppColors.Accent
+                            item.depth == 0 -> AppColors.Text
+                            else -> AppColors.Muted
+                        },
+                        fontSize = if (item.depth == 0) 15.sp else 14.sp,
+                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
             }
         }

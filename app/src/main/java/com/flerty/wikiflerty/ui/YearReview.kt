@@ -351,7 +351,16 @@ private fun IntroPage(data: YearData) {
             val y = animatedCount(data.year)
             Text("$y", color = AppColors.Accent, fontSize = 104.sp, lineHeight = 108.sp, fontWeight = FontWeight.Black)
         }
-        Rise(450) { Caption(if (data.empty) "Год только начинается. Почитай ещё — и здесь появится твоя история." else "год в книгах", 20) }
+        val emptyText = remember(data.year) {
+            val now = java.time.LocalDate.now()
+            when {
+                now.year != data.year -> "В этом году книг не было."
+                now.monthValue <= 2 -> "Год только начинается. Почитай — и здесь появится твоя история."
+                now.monthValue >= 11 -> "До конца года ещё есть время. Открой книгу — и здесь появится твоя история."
+                else -> "Пока здесь пусто. Почитай — и здесь появится твоя история."
+            }
+        }
+        Rise(450) { Caption(if (data.empty) emptyText else "год в книгах", 20) }
     }
 }
 

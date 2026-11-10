@@ -294,7 +294,7 @@ fun BookSheet(
         val close = sheetClose(onDismiss)
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Box(Modifier.size(width = 84.dp, height = 126.dp)) {
-                SmallCover(coverFile, Modifier.matchParentSize())
+                SmallCover(coverFile, Modifier.matchParentSize(), title = book.title, author = book.author)
                 Box(
                     Modifier
                         .align(Alignment.BottomEnd)
