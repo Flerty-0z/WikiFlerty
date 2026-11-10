@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
@@ -276,7 +277,7 @@ private fun Modifier.shelfDraggable(book: Book, plank: String): Modifier {
         .onGloballyPositioned { coords = it }
         .graphicsLayer { alpha = if (dragging) 0.25f else 1f }
         .pointerInput(book.id, plank) {
-            androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress(
+            detectDragGesturesAfterLongPress(
                 onDragStart = { offset ->
                     val c = coords ?: return@detectDragGesturesAfterLongPress
                     drag.grab = offset
