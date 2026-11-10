@@ -828,7 +828,7 @@ internal fun ProgressFlag(info: FlagInfo, settings: ReaderSettings, onClick: (()
             val fmt = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
             while (true) {
                 clock = java.time.LocalTime.now().format(fmt)
-                delay(60_000L - System.currentTimeMillis() % 60_000L)
+                kotlinx.coroutines.delay(60_000L - System.currentTimeMillis() % 60_000L)
             }
         }
     }
@@ -891,7 +891,7 @@ internal fun ProgressFlag(info: FlagInfo, settings: ReaderSettings, onClick: (()
             if (showChapter || items.isNotEmpty()) dot()
             val tint = AppColors.Text
             val low = AppColors.Bad
-            Canvas(Modifier.size(width = (16 * k).dp, height = (9 * k).dp)) {
+            androidx.compose.foundation.Canvas(Modifier.size(width = (16 * k).dp, height = (9 * k).dp)) {
                 val sw = 1.2f * density
                 val bodyW = size.width - 2.5f * density
                 drawRoundRect(tint, size = androidx.compose.ui.geometry.Size(bodyW, size.height), cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f * density), style = androidx.compose.ui.graphics.drawscope.Stroke(sw))
