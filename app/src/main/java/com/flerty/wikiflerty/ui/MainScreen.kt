@@ -279,14 +279,23 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
             OnboardingHost(
                 libraryEmpty = libraryBooks.isEmpty(),
                 onAddBook = { addMenu = true },
-            ) { target ->
-                when (target) {
+            ) { item ->
+                when (item.target) {
                     NewsTarget.Stats -> section = Section.Stats
                     NewsTarget.Custom -> {
                         SettingsNav.open = "Custom"
                         section = Section.Settings
                     }
                     NewsTarget.Library -> section = Section.Library
+                    NewsTarget.LibraryView -> {
+                        section = Section.Library
+                        libraryControls.showViewSheet = true
+                    }
+                    NewsTarget.Guide -> {
+                        SettingsNav.guideQuery = item.query
+                        SettingsNav.open = "Guide"
+                        section = Section.Settings
+                    }
                     NewsTarget.None -> Unit
                 }
             }

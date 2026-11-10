@@ -76,6 +76,7 @@ import kotlinx.coroutines.launch
 
 object SettingsNav {
     var open by mutableStateOf<String?>(null)
+    var guideQuery by mutableStateOf("")
 }
 
 object Tips {
@@ -90,33 +91,44 @@ object Tips {
     fun seenVersion(context: Context) = prefs(context).getInt("seen_version", -1)
     fun markVersion(context: Context, code: Int) = prefs(context).edit().putInt("seen_version", code).apply()
 
+    fun seenRelease(context: Context) = prefs(context).getInt("seen_release", 0)
+    fun markRelease(context: Context, code: Int) = prefs(context).edit().putInt("seen_release", code).apply()
+
     fun versionCode(context: Context): Int = runCatching {
         val info = context.packageManager.getPackageInfo(context.packageName, 0)
         if (android.os.Build.VERSION.SDK_INT >= 28) info.longVersionCode.toInt() else @Suppress("DEPRECATION") info.versionCode
     }.getOrDefault(0)
 }
 
-enum class NewsTarget { None, Stats, Custom, Library }
+enum class NewsTarget { None, Stats, Custom, Library, LibraryView, Guide }
 
-class NewsItem(val since: Int, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None)
+class NewsItem(val group: String, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None, val query: String = "")
+
+const val NewsRelease = 235
 
 val WhatsNewItems = listOf(
-    NewsItem(233, AppIcons.Shelf, "Книги между полками", "Зажми книгу и перетащи её на другую полку", NewsTarget.Library),
-    NewsItem(230, AppIcons.Pages, "PDF", "Открывается как обычная книга: главы, оформление шаблона и все функции чтения"),
-    NewsItem(224, AppIcons.Calendar, "Итоги года", "Твой год в книгах — истории и карточка, которой можно поделиться", NewsTarget.Stats),
-    NewsItem(224, AppIcons.Help, "Подсказки", "Все функции и где их найти: Настройки → Подсказки"),
-    NewsItem(224, AppIcons.Grid, "Виджеты под шаблон", "И новый виджет «Слово дня» из твоего словаря"),
-    NewsItem(224, AppIcons.Image, "Обложки", "Книги без обложки подписаны названием, а обложку можно найти в интернете"),
-    NewsItem(218, AppIcons.Sun, "Время суток и сезоны", "Снег, листья, светлячки и ночное небо в каждом шаблоне", NewsTarget.Custom),
-    NewsItem(216, AppIcons.Palette, "Шаблон в книге", "Буквица, орнамент главы и фактура страницы"),
-    NewsItem(216, AppIcons.Theme, "Свои элементы", "Переключатели, ползунки и загрузка в стиле шаблона", NewsTarget.Custom),
-    NewsItem(215, AppIcons.Book, "Живые полки", "Предметы растут вместе с серией и прочитанными книгами", NewsTarget.Library),
-    NewsItem(214, AppIcons.Eye, "Бионическое чтение", "Опции → Текст"),
-    NewsItem(212, AppIcons.Scroll, "Лента без границ глав", "Потяни в конце главы — откроется следующая"),
+    NewsItem("Библиотека", AppIcons.Shelf, "Книги между полками", "Зажми книгу и перетащи её на другую полку", NewsTarget.Guide, "перетащ"),
+    NewsItem("Библиотека", AppIcons.Book, "Три вида полок", "Обычная, с декором или живая — в «Вид и сортировка»", NewsTarget.LibraryView),
+    NewsItem("Библиотека", AppIcons.Fire, "Живые предметы", "Растут, когда читаешь каждый день, и радуются прочитанным книгам", NewsTarget.Guide, "живые"),
+    NewsItem("Библиотека", AppIcons.Pages, "PDF", "Открывается как обычная книга: главы, оформление и все функции чтения", NewsTarget.Guide, "PDF"),
+    NewsItem("Библиотека", AppIcons.Image, "Обложки", "Обложка в стиле шаблона для книг без неё и поиск обложки в интернете", NewsTarget.Guide, "облож"),
+    NewsItem("Библиотека", AppIcons.Download, "Большие библиотеки", "Тысячи книг добавляются в фоне, без зависаний"),
+    NewsItem("Чтение", AppIcons.Flag, "Флажок внизу", "Страницы главы и книги, время до конца главы, часы и заряд. Нажми на флажок, чтобы настроить", NewsTarget.Guide, "флажок"),
+    NewsItem("Чтение", AppIcons.Bookmark, "Закладки с названиями", "Назови закладку сразу или позже карандашом в списке", NewsTarget.Guide, "заклад"),
+    NewsItem("Чтение", AppIcons.Toc, "Оглавление", "Открывается на текущей главе и подсвечивает её", NewsTarget.Guide, "оглавлен"),
+    NewsItem("Чтение", AppIcons.Palette, "Шаблон в книге", "Буквица, орнамент главы, фактура страницы и заставка с названием главы", NewsTarget.Guide, "буквица"),
+    NewsItem("Чтение", AppIcons.Scroll, "Лента без границ глав", "Потяни в конце главы — откроется следующая", NewsTarget.Guide, "лента"),
+    NewsItem("Чтение", AppIcons.Eye, "Бионическое чтение", "Опции → Текст", NewsTarget.Guide, "бионич"),
+    NewsItem("Оформление", AppIcons.Sun, "Время суток и сезоны", "Снег, листья, светлячки и ночное небо в каждом шаблоне", NewsTarget.Custom),
+    NewsItem("Оформление", AppIcons.Theme, "Элементы шаблона", "Переключатели, ползунки и загрузка в стиле шаблона", NewsTarget.Custom),
+    NewsItem("Оформление", AppIcons.Grid, "Виджеты", "В стиле шаблона и новый виджет «Слово дня»", NewsTarget.Guide, "виджет"),
+    NewsItem("Ещё", AppIcons.Calendar, "Итоги года", "Твой год в книгах и карточка, которой можно поделиться", NewsTarget.Stats),
+    NewsItem("Ещё", AppIcons.Help, "Подсказки", "Все функции и где их найти, с поиском", NewsTarget.Guide),
+    NewsItem("Ещё", AppIcons.Check, "Исправления", "Кастомизация без подвисаний, быстрее сохранение библиотеки и много мелких правок"),
 )
 
 @Composable
-fun OnboardingHost(libraryEmpty: Boolean, onAddBook: () -> Unit, onTarget: (NewsTarget) -> Unit) {
+fun OnboardingHost(libraryEmpty: Boolean, onAddBook: () -> Unit, onTarget: (NewsItem) -> Unit) {
     val context = LocalContext.current
     var tour by remember { mutableStateOf(false) }
     var news by remember { mutableStateOf<List<NewsItem>>(emptyList()) }
@@ -125,11 +137,11 @@ fun OnboardingHost(libraryEmpty: Boolean, onAddBook: () -> Unit, onTarget: (News
         val seen = Tips.seenVersion(context)
         when {
             !Tips.tourDone(context) && libraryEmpty && seen < 0 -> tour = true
-            seen in 1 until code -> news = WhatsNewItems.filter { it.since > seen }
-            seen < 0 && !libraryEmpty -> news = WhatsNewItems.filter { it.since > 210 }
+            Tips.seenRelease(context) < NewsRelease -> news = WhatsNewItems
         }
         if (!libraryEmpty) Tips.markTour(context)
         Tips.markVersion(context, code)
+        Tips.markRelease(context, NewsRelease)
     }
     if (tour) {
         WelcomeTour(
@@ -141,35 +153,44 @@ fun OnboardingHost(libraryEmpty: Boolean, onAddBook: () -> Unit, onTarget: (News
         )
     }
     if (news.isNotEmpty()) {
-        WhatsNewSheet(news, onDismiss = { news = emptyList() }) { target ->
+        WhatsNewSheet(news, onDismiss = { news = emptyList() }) { item ->
             news = emptyList()
-            onTarget(target)
+            onTarget(item)
         }
     }
 }
 
 @Composable
-fun WhatsNewSheet(items: List<NewsItem>, onDismiss: () -> Unit, onTarget: (NewsTarget) -> Unit) {
+fun WhatsNewSheet(items: List<NewsItem>, onDismiss: () -> Unit, onTarget: (NewsItem) -> Unit) {
     AppSheet(onDismiss, title = "Что нового") {
         val close = sheetClose(onDismiss)
-        Column(Modifier.fillMaxWidth().fieldSurface(appCorner(18))) {
-            items.forEachIndexed { i, item ->
-                if (i > 0) ListDivider(Modifier.padding(horizontal = 14.dp))
-                val shape = appCorner(18)
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .then(if (item.target != NewsTarget.None) Modifier.liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) { onTarget(item.target) } else Modifier)
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Reveal { SettingIcon(item.icon, 36.dp) }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(item.title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Text(item.text, color = AppColors.Muted, fontSize = 13.sp, lineHeight = 17.sp)
+        items.groupBy { it.group }.forEach { (group, list) ->
+            val groupIcon = when (group) {
+                "Библиотека" -> AppIcons.Shelf
+                "Чтение" -> AppIcons.Book
+                "Оформление" -> AppIcons.Palette
+                else -> AppIcons.Sparkle
+            }
+            TabbedFrame(group, icon = groupIcon, inset = false) {
+                list.forEachIndexed { i, item ->
+                    if (i > 0) ListDivider(Modifier.padding(horizontal = 14.dp))
+                    val shape = appCorner(18)
+                    val active = item.target != NewsTarget.None
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .then(if (active) Modifier.liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) { onTarget(item) } else Modifier)
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        SettingIcon(item.icon, 34.dp)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(item.title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            Text(item.text, color = AppColors.Muted, fontSize = 13.sp, lineHeight = 17.sp)
+                        }
+                        if (active) Icon(AppIcons.Chevron, null, tint = AppColors.Faint, modifier = Modifier.size(14.dp))
                     }
-                    if (item.target != NewsTarget.None) Icon(AppIcons.Chevron, null, tint = AppColors.Faint, modifier = Modifier.size(14.dp))
                 }
             }
         }
@@ -463,6 +484,9 @@ val GuideGroups = listOf(
             GuideEntry(AppIcons.Image, "Обложка и описание", "Карточка книги → карандаш на обложке → Из галереи, Сфотографировать или Найти в интернете", "обложка картинка фото название автор"),
             GuideEntry(AppIcons.Fire, "Живые предметы", "Предметы на полках растут от серии чтения и прочитанных книг. Иней — когда действует заморозка", "полка декор растение"),
             GuideEntry(AppIcons.Bell, "Напоминание", "Колокольчик в шапке библиотеки", "уведомление время"),
+            GuideEntry(AppIcons.Shelf, "Перетащить книгу на другую полку", "Зажми книгу на полке и перетащи на нужную. На «Без полки» — убрать с полки", "перетащить перенести полка зажать"),
+            GuideEntry(AppIcons.Sort, "Вид полки", "Вид и сортировка → Полка: обычная, с декором или живая", "декор живые украшения"),
+            GuideEntry(AppIcons.Pages, "PDF", "Добавь PDF как обычную книгу — он откроется в читалке со всеми функциями. Сканы без текста показываются страницами", "pdf скан документ"),
         ),
     ),
     GuideGroup(
@@ -475,6 +499,9 @@ val GuideGroups = listOf(
             GuideEntry(AppIcons.Palette, "Тема страницы и стиль шаблона", "Опции → Тема: фон, ночь по расписанию, буквица и орнамент", "ночь тёмная буквица"),
             GuideEntry(AppIcons.Fire, "Атмосфера", "Опции → Атмосфера: дождь, камин и другие звуки", "звуки фон дождь"),
             GuideEntry(AppIcons.Panel, "Кнопки внизу", "Опции → Панель: до пяти кнопок, например Авто, Поиск, Слушать", "автопрокрутка поиск"),
+            GuideEntry(AppIcons.Flag, "Флажок внизу", "Нажми на флажок: страница главы и книги, проценты, время до конца главы, часы, заряд, положение и размер", "флажок страницы прогресс время часы батарея"),
+            GuideEntry(AppIcons.Bookmark, "Закладки", "Значок закладки в верхней панели. После добавления можно назвать, переименовать — карандаш в списке", "закладка название"),
+            GuideEntry(AppIcons.Toc, "Оглавление", "Меню чтения → Главы. Открывается на текущей главе", "главы содержание оглавление"),
             GuideEntry(AppIcons.Note, "Сноски", "Нажми на сноску — откроется окно. «Открыть в книге» — потом кнопка «К тексту» вернёт назад", "примечание ссылка"),
         ),
     ),
@@ -522,7 +549,7 @@ private fun markQuery(text: String, q: String, accent: Color): androidx.compose.
 
 @Composable
 fun GuideContent(onTour: () -> Unit) {
-    var query by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf(SettingsNav.guideQuery.also { SettingsNav.guideQuery = "" }) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SearchField(query, { query = it }, Modifier.fillMaxWidth(), placeholder = "Что ищешь? Например, «перевод»")
         val q = query.trim().lowercase()
