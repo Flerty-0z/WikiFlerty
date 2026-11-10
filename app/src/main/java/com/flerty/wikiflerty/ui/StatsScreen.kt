@@ -217,6 +217,8 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
     val best = remember(perDay, frozen) { StatsCalc.streaks(perDay, today, frozen = frozen).second }
     val total = remember(perDay) { perDay.values.fold(DayEntry()) { a, b -> a + b } }
     val readingDays = remember(perDay) { perDay.values.count { it.ms >= 60_000 } }
+    var yearOpen by remember { mutableStateOf(false) }
+    if (yearOpen) YearReviewDialog { yearOpen = false }
 
     LazyColumn(
         modifier,
@@ -234,6 +236,7 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
                 )
             }
         }
+        if (perDay.keys.any { it.year == today.year }) revealItem(key = "year") { YearBanner { yearOpen = true } }
         revealItem(key = "goals") {
             Column(Modifier.fillMaxWidth().fieldSurface(appCorner(18))) {
                 GoalCard(prefs.dailyGoalMinutes, prefs.dailyGoalPages, perDay, framed = false) { v, pages -> app.libraryPrefs.update { it.copy(dailyGoalMinutes = v, dailyGoalPages = pages) } }
