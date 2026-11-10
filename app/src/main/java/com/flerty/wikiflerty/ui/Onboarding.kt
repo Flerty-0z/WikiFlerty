@@ -77,6 +77,7 @@ import kotlinx.coroutines.launch
 object SettingsNav {
     var open by mutableStateOf<String?>(null)
     var guideQuery by mutableStateOf("")
+    var news by mutableStateOf(false)
 }
 
 object Tips {
@@ -151,6 +152,12 @@ fun OnboardingHost(libraryEmpty: Boolean, onAddBook: () -> Unit, onTarget: (News
                 if (add) onAddBook()
             },
         )
+    }
+    LaunchedEffect(SettingsNav.news) {
+        if (SettingsNav.news) {
+            news = WhatsNewItems
+            SettingsNav.news = false
+        }
     }
     if (news.isNotEmpty()) {
         WhatsNewSheet(news, onDismiss = { news = emptyList() }) { item ->

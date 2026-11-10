@@ -139,6 +139,7 @@ fun SettingsScreen(modifier: Modifier = Modifier, onAbout: (() -> Unit)? = null)
 @Composable
 private fun SettingsHome(onAbout: (() -> Unit)?, onOpen: (SettingsPage) -> Unit) {
     val rows = listOfNotNull<Triple<androidx.compose.ui.graphics.vector.ImageVector, Pair<String, String>, () -> Unit>>(
+        Triple(AppIcons.Sparkle, "Что нового?" to "Всё новое в этой версии") { SettingsNav.news = true },
         Triple(AppIcons.Help, "Подсказки" to "Все функции и где их найти") { onOpen(SettingsPage.Guide) },
         Triple(AppIcons.Sparkle, "ИИ-помощник" to "Ключи, модели, перевод") { onOpen(SettingsPage.Ai) },
         Triple(AppIcons.Theme, "Кастомизация" to "Цвета, форма, фон") { onOpen(SettingsPage.Custom) },
