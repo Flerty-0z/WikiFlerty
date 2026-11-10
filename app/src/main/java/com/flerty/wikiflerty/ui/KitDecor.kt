@@ -43,7 +43,7 @@ private fun specks(seed: Int, n: Int): List<Speck> {
 @Composable
 private fun clock(animated: Boolean): State<Float> = throttledClock(animated, 3600)
 
-private fun DrawScope.kitStatic(decor: Decor, base: UiBase, accent: Color, fibers: List<Speck>, measurer: androidx.compose.ui.text.TextMeasurer) {
+private fun DrawScope.kitStatic(decor: Decor, base: UiBase, accent: Color, fibers: List<Speck>, measurer: androidx.compose.ui.text.TextMeasurer, season: Season? = null) {
     val light = base.light
     drawRect(Color(base.background))
     when (decor) {
@@ -58,7 +58,7 @@ private fun DrawScope.kitStatic(decor: Decor, base: UiBase, accent: Color, fiber
                 val len = (6f + f.size * 18f) * density
                 drawLine(Color(base.text).copy(alpha = 0.035f), Offset(x, y), Offset(x + len, y + len * 0.15f), 0.8f * density)
             }
-            zenExtras(light)
+            zenExtras(light, season)
         }
         Decor.Comic -> {
             comicStatic(light, Color(base.text), accent)
@@ -107,7 +107,7 @@ fun rememberKitThumb(kit: Kit, light: Boolean, width: androidx.compose.ui.unit.D
 }
 
 @Composable
-fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = Modifier, animated: Boolean = true, staticLayer: Boolean = true) {
+fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = Modifier, animated: Boolean = true, staticLayer: Boolean = true, season: Season? = null) {
     val time = clock(animated && decor != Decor.None)
     val petals = remember { specks(23, 14) }
     val fibers = remember { specks(41, 70) }
@@ -117,7 +117,7 @@ fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = 
     val light = base.light
     Box(modifier) {
         if (staticLayer) {
-            Canvas(Modifier.fillMaxSize().graphicsLayer()) { kitStatic(decor, base, accent, fibers, measurer) }
+            Canvas(Modifier.fillMaxSize().graphicsLayer()) { kitStatic(decor, base, accent, fibers, measurer, season) }
         }
         if (decor != Decor.None) {
             Canvas(Modifier.fillMaxSize().graphicsLayer()) {
@@ -128,12 +128,12 @@ fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = 
                         glow(Color(0xFFF2A764), flicker * if (light) 0.6f else 1f, Offset(size.width * 0.86f, size.height * 0.13f), size.width * 0.55f)
                         dust(t, light, columns)
                     }
-                    Decor.Zen -> petals.forEach { p ->
+                    Decor.Zen -> if (season != Season.Winter) petals.forEach { p ->
                         val span = size.height + 60f * density
                         val y = ((p.y * span + t * 18f * density * p.speed) % span) - 30f * density
                         val x = p.x * size.width + sin(t * 0.6f * p.speed + p.phase) * 28f * density
                         rotate(t * 30f * p.speed + p.phase * 57f, Offset(x, y)) {
-                            drawOval(Color(0xFFF4B6C2).copy(alpha = if (light) 0.75f else 0.5f), Offset(x - 5f * density, y - 3.5f * density), Size(10f * density, 7f * density))
+                            drawOval(zenPetal(season).copy(alpha = if (light) 0.75f else 0.5f), Offset(x - 5f * density, y - 3.5f * density), Size(10f * density, 7f * density))
                         }
                     }
                     Decor.Comic -> {
@@ -358,7 +358,14 @@ private fun DrawScope.dust(t: Float, light: Boolean, motes: List<Speck>) {
     }
 }
 
-private fun DrawScope.zenExtras(light: Boolean) {
+private fun zenPetal(season: Season?): Color = when (season) {
+    Season.Summer -> Color(0xFF9CC06A)
+    Season.Autumn -> Color(0xFFD9603A)
+    Season.Winter -> Color(0xFFFFFFFF)
+    else -> Color(0xFFF4B6C2)
+}
+
+private fun DrawScope.zenExtras(light: Boolean, season: Season? = null) {
     val d = density
     val w = size.width
     val h = size.height
@@ -388,8 +395,17 @@ private fun DrawScope.zenExtras(light: Boolean) {
     }
     drawPath(branch, bark, style = androidx.compose.ui.graphics.drawscope.Stroke(3.5f * d, cap = StrokeCap.Round))
     listOf(0.66f to 0.255f, 0.71f to 0.14f, 0.75f to 0.22f, 0.8f to 0.18f, 0.9f to 0.175f, 0.76f to 0.15f, 0.69f to 0.24f).forEach { (fx, fy) ->
-        drawOval(Color(0xFFF4B6C2), Offset(w * fx - 5.5f * d, h * fy - 4 * d), Size(11 * d, 8 * d))
-        drawCircle(Color(0xFFE98AA0), 1.8f * d, Offset(w * fx, h * fy))
+        drawOval(zenPetal(season), Offset(w * fx - 5.5f * d, h * fy - 4 * d), Size(11 * d, 8 * d))
+        drawCircle(
+            when (season) {
+                Season.Summer -> Color(0xFF6E9A48)
+                Season.Autumn -> Color(0xFFA8401E)
+                Season.Winter -> Color(0xFFCFE0F2)
+                else -> Color(0xFFE98AA0)
+            },
+            1.8f * d,
+            Offset(w * fx, h * fy),
+        )
     }
 }
 

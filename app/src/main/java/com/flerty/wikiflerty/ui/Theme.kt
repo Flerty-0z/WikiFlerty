@@ -247,6 +247,7 @@ data class UiStyle(
     val navigation: String = "drawer",
     val kit: String = Kit.Library.id,
     val mode: String = ThemeMode.Dark.id,
+    val living: Boolean = true,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("version", 3)
@@ -271,6 +272,7 @@ data class UiStyle(
         put("navigation", navigation)
         put("kit", kit)
         put("mode", mode)
+        put("living", living)
     }
 
     companion object {
@@ -311,6 +313,7 @@ data class UiStyle(
                 navigation = json.optString("navigation", d.navigation),
                 kit = json.optString("kit", d.kit),
                 mode = json.optString("mode", d.mode),
+                living = json.optBoolean("living", d.living),
                 press = json.optString(
                     "press",
                     if (json.has("pressEffect") && !json.optBoolean("pressEffect", true)) PressStrength.Off.id else d.press,

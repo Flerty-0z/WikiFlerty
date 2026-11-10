@@ -248,6 +248,12 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
                 store.update { it.copy(mode = modes[idx].id) }
             }
         }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.PanelBorder))
+        Box(Modifier.padding(horizontal = 14.dp)) {
+            SettingSwitch("Время суток и сезоны", style.living, hint = null, icon = AppIcons.Sun) { v ->
+                store.update { it.copy(living = v) }
+            }
+        }
     }
     }
 

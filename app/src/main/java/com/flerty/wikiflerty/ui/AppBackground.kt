@@ -40,7 +40,9 @@ fun AppBackground() {
     if (kind == BackgroundKind.None) {
         val decor = AppStyle.decor
         if (decor != Decor.None) {
-            KitBackdrop(decor, AppStyle.base, AppColors.Accent, Modifier.fillMaxSize())
+            val moment = rememberKitMoment()
+            KitBackdrop(decor, AppStyle.base, AppColors.Accent, Modifier.fillMaxSize(), season = moment?.season)
+            if (moment != null) KitSeasonLayer(decor, AppStyle.light, moment, Modifier.fillMaxSize())
             return
         }
         AppStyle.base.ambience?.let { AmbienceBackground(AppStyle.base, it, Modifier.fillMaxSize().graphicsLayer()) }

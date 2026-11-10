@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -138,7 +139,8 @@ fun BookcaseView(
         val seen = remember(animationKey, live) { mutableSetOf<Any>() }
         androidx.compose.runtime.key(animationKey, live) {
         val shelfState = if (live) rememberShelfState() else LocalShelfState.current
-        androidx.compose.runtime.CompositionLocalProvider(LocalShelfSeen provides seen, LocalShelfState provides shelfState) {
+        val kitMoment = if (live) rememberKitMoment() else null
+        androidx.compose.runtime.CompositionLocalProvider(LocalShelfSeen provides seen, LocalShelfState provides shelfState, LocalKitMoment provides kitMoment) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp),
@@ -461,6 +463,14 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
                             },
                         ),
                 )
+            }
+        }
+        val moment = LocalKitMoment.current
+        if (moment != null && decor != Decor.None && moment.season != Season.Summer) {
+            val seed = remember(name) { (name ?: "shelf").hashCode() }
+            androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().padding(horizontal = 10.dp).height(0.dp)) {
+                val ph = 20.dp.toPx()
+                translate(0f, -ph) { plankSeason(decor, moment.season, light, seed, ph) }
             }
         }
         if (decor == Decor.None || decor == Decor.Library || decor == Decor.Zen || decor == Decor.Comic) {
