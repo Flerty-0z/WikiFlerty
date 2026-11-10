@@ -141,7 +141,7 @@ internal object TextSelection {
               if (++seen > 5) return null;
               if (p.closest(SKIP)) continue;
               var t = (p.textContent || "").replace(/^\s+/, "");
-              if (t.length < 140) continue;
+              if (t.length < 60) continue;
               if (!/^[«"„“']?\p{L}/u.test(t)) return null;
               var al = getComputedStyle(p).textAlign;
               if (al === "center" || al === "right") continue;
