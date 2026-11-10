@@ -267,6 +267,20 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
             }
             if (paperSheet) PaperBookSheet(null) { paperSheet = false }
             if (reminderSheet) ReminderSheet { reminderSheet = false }
+            OnboardingHost(
+                libraryEmpty = libraryBooks.isEmpty(),
+                onAddBook = { addMenu = true },
+            ) { target ->
+                when (target) {
+                    NewsTarget.Stats -> section = Section.Stats
+                    NewsTarget.Custom -> {
+                        SettingsNav.open = "Custom"
+                        section = Section.Settings
+                    }
+                    NewsTarget.Library -> section = Section.Library
+                    NewsTarget.None -> Unit
+                }
+            }
             StartupPrompts()
             StreakRescue()
             AchievementToast()

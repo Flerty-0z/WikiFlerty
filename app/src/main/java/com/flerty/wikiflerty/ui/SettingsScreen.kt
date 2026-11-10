@@ -47,6 +47,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -79,12 +80,22 @@ private enum class SettingsPage(val title: String) {
     Sound("Звук и отклик"),
     Backup("Резервная копия"),
     Sync("Синхронизация"),
+    Guide("Подсказки"),
 }
 
 @Composable
 fun SettingsScreen(modifier: Modifier = Modifier, onAbout: (() -> Unit)? = null) {
     var page by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
     BackHandler(enabled = page != null) { page = null }
+    var tour by remember { mutableStateOf(false) }
+    if (tour) WelcomeTour { tour = false }
+    val pending = SettingsNav.open
+    LaunchedEffect(pending) {
+        if (pending != null) {
+            page = SettingsPage.entries.firstOrNull { it.name == pending }
+            SettingsNav.open = null
+        }
+    }
 
     AnimatedContent(
         targetState = page,
@@ -118,6 +129,7 @@ fun SettingsScreen(modifier: Modifier = Modifier, onAbout: (() -> Unit)? = null)
                     SettingsPage.Sound -> SoundContent()
                     SettingsPage.Backup -> BackupContent()
                     SettingsPage.Sync -> SyncContent()
+                    SettingsPage.Guide -> GuideContent { tour = true }
                 }
             }
         }
@@ -127,6 +139,7 @@ fun SettingsScreen(modifier: Modifier = Modifier, onAbout: (() -> Unit)? = null)
 @Composable
 private fun SettingsHome(onAbout: (() -> Unit)?, onOpen: (SettingsPage) -> Unit) {
     val rows = listOfNotNull<Triple<androidx.compose.ui.graphics.vector.ImageVector, Pair<String, String>, () -> Unit>>(
+        Triple(AppIcons.Help, "Подсказки" to "Все функции и где их найти") { onOpen(SettingsPage.Guide) },
         Triple(AppIcons.Sparkle, "ИИ-помощник" to "Ключи, модели, перевод") { onOpen(SettingsPage.Ai) },
         Triple(AppIcons.Theme, "Кастомизация" to "Цвета, форма, фон") { onOpen(SettingsPage.Custom) },
         Triple(AppIcons.Sound, "Звук и отклик" to "Звуки и вибрация") { onOpen(SettingsPage.Sound) },

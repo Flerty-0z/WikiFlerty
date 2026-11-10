@@ -1356,6 +1356,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val toc = flattenToc(session.publication.tableOfContents)
         var cover by mutableStateOf<ImageBitmap?>(null)
 
+        if (!com.flerty.wikiflerty.ui.Tips.readerCoachDone(this)) ui.coach = true
         findViewById<ComposeView>(R.id.reader_overlay).setContent {
             CompositionLocalProvider(LocalFeedback provides app.feedback) {
                 WikiFlertyTheme {
@@ -1399,6 +1400,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         peopleActions = peopleActions,
                         translateActions = translateActions,
                         onReturn = ::goReturn,
+                        onCoachDone = {
+                            ui.coach = false
+                            com.flerty.wikiflerty.ui.Tips.markReaderCoach(this@ReaderActivity)
+                        },
                         onFootnoteGo = { url ->
                             rememberReturn()
                             lifecycleScope.launch {

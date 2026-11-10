@@ -67,6 +67,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.key
@@ -203,6 +205,7 @@ class ReaderUiState {
     var translate by mutableStateOf<TranslateInfo?>(null)
     var returnTo by mutableStateOf<org.readium.r2.shared.publication.Locator?>(null)
     var feedPull by mutableStateOf<FeedPull?>(null)
+    var coach by mutableStateOf(false)
     var topPanelBottom = 0f
     var bottomPanelTop = Float.MAX_VALUE
 
@@ -305,6 +308,7 @@ fun ReaderOverlay(
     peopleActions: PeopleActions? = null,
     translateActions: TranslateActions? = null,
     onReturn: () -> Unit = {},
+    onCoachDone: () -> Unit = {},
 ) {
     val progressText = progressText(state, settings)
     val feedback = LocalFeedback.current
@@ -713,6 +717,14 @@ fun ReaderOverlay(
             )
         }
     }
+    }
+
+    AnimatedVisibility(
+        visible = state.coach,
+        enter = fadeIn(Motion.fade(300)),
+        exit = fadeOut(Motion.fade(220)),
+    ) {
+        ReaderCoach(settings.scroll, settings.leftTapForward) { onCoachDone() }
     }
 }
 
@@ -2349,5 +2361,82 @@ private fun AiChapterButton(icon: ImageVector, title: String, hint: String, onCl
             )
         }
         Icon(AppIcons.Forward, null, tint = AppColors.Faint, modifier = Modifier.size(18.dp))
+    }
+}
+
+
+@Composable
+private fun ReaderCoach(scroll: Boolean, leftForward: Boolean, onDone: () -> Unit) {
+    val loop = androidx.compose.animation.core.rememberInfiniteTransition(label = "coach")
+    val pulse by loop.animateFloat(
+        0f,
+        1f,
+        androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1400), androidx.compose.animation.core.RepeatMode.Restart),
+        label = "coach-pulse",
+    )
+    val accent = AppColors.Accent
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.74f))
+            .pointerInput(Unit) { detectTapGestures { onDone() } },
+    ) {
+        if (!scroll) {
+            Row(Modifier.fillMaxSize()) {
+                listOf(
+                    (if (leftForward) "Вперёд" else "Назад") to AppIcons.Back,
+                    "Меню" to AppIcons.Options,
+                    "Вперёд" to AppIcons.Chevron,
+                ).forEachIndexed { i, (label, icon) ->
+                    Box(
+                        Modifier
+                            .weight(if (i == 1) 1.2f else 1f)
+                            .fillMaxHeight()
+                            .then(if (i == 1) Modifier.background(Color.White.copy(alpha = 0.04f)) else Modifier)
+                            .drawBehind {
+                                if (i > 0) drawLine(Color.White.copy(alpha = 0.22f), Offset(0f, size.height * 0.2f), Offset(0f, size.height * 0.8f), 1.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8f, 8f)))
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Box(Modifier.size(56.dp).graphicsLayer { scaleX = 1f + pulse * 0.5f; scaleY = 1f + pulse * 0.5f; alpha = 1f - pulse }.clip(CircleShape).background(accent.copy(alpha = 0.5f)))
+                                Box(Modifier.size(48.dp).clip(CircleShape).background(accent), contentAlignment = Alignment.Center) {
+                                    Icon(icon, null, tint = AppColors.OnAccent, modifier = Modifier.size(22.dp))
+                                }
+                            }
+                            Text("Тап", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                            Text(label, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        } else {
+            Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(56.dp).graphicsLayer { scaleX = 1f + pulse * 0.5f; scaleY = 1f + pulse * 0.5f; alpha = 1f - pulse }.clip(CircleShape).background(accent.copy(alpha = 0.5f)))
+                    Box(Modifier.size(48.dp).clip(CircleShape).background(accent), contentAlignment = Alignment.Center) {
+                        Icon(AppIcons.Options, null, tint = AppColors.OnAccent, modifier = Modifier.size(22.dp))
+                    }
+                }
+                Text("Тап — меню", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("Листай пальцем вверх. В конце главы потяни дальше — откроется следующая", color = Color.White.copy(alpha = 0.75f), fontSize = 13.sp, lineHeight = 18.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 40.dp))
+            }
+        }
+        Column(
+            Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.systemBars).padding(start = 24.dp, end = 24.dp, bottom = 36.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(
+                Modifier.clip(appCorner(16)).background(Color.White.copy(alpha = 0.1f)).border(1.dp, Color.White.copy(alpha = 0.18f), appCorner(16)).padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(AppIcons.Select, null, tint = accent, modifier = Modifier.size(22.dp))
+                Text("Зажми слово — заметка, перевод, словарь, персонаж", color = Color.White, fontSize = 13.sp, lineHeight = 18.sp)
+            }
+            Text("Нажми, чтобы начать", color = Color.White.copy(alpha = 0.55f), fontSize = 12.sp)
+        }
     }
 }
