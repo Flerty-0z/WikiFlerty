@@ -644,8 +644,16 @@ fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
                 app.libraryPrefs.update { it.copy(view = LibraryView.entries[i]) }
             }
             Appear(prefs.view == LibraryView.Shelves) {
-                SettingSegmented("Полка", listOf("Обычная", "Живая"), if (prefs.liveShelf) 1 else 0) { i ->
-                    app.libraryPrefs.update { it.copy(liveShelf = i == 1) }
+                SettingSegmented(
+                    "Полка",
+                    listOf("Обычная", "С декором", "Живая"),
+                    when {
+                        !prefs.liveShelf -> 0
+                        !prefs.shelfBehavior -> 1
+                        else -> 2
+                    },
+                ) { i ->
+                    app.libraryPrefs.update { it.copy(liveShelf = i > 0, shelfBehavior = i == 2) }
                 }
             }
             Appear(prefs.view == LibraryView.Grid) {

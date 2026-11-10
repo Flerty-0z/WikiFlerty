@@ -41,6 +41,9 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -69,9 +72,25 @@ class PlankSpec(val key: String, val name: String?, val books: List<Book>, val o
 
 private class PlankRow(val key: String, val name: String?, val units: List<ShelfUnit>, val onEdit: (() -> Unit)?, val scroll: Boolean)
 
-private fun arrange(books: List<Book>, onAdd: (() -> Unit)?, live: Boolean, decor: Decor = Decor.None, seed: String = ""): List<ShelfUnit> {
+private fun arrange(books: List<Book>, onAdd: (() -> Unit)?, live: Boolean, decor: Decor = Decor.None, seed: String = "", behave: Boolean = true): List<ShelfUnit> {
     if (!live) {
         val units = books.map<Book, ShelfUnit> { ShelfUnit.Standing(it, lean = false) }.toMutableList()
+        if (onAdd != null) units += ShelfUnit.Add(onAdd)
+        return units
+    }
+    if (!behave) {
+        val units = mutableListOf<ShelfUnit>()
+        val props = propCount(decor) > 0
+        val base = seed.hashCode() and 0x7FFFFFFF
+        var placed = 0
+        books.forEachIndexed { i, b ->
+            units += ShelfUnit.Standing(b, lean = false)
+            if (props && (i % 2 == 1 || books.size == 1)) {
+                units += ShelfUnit.Prop(base + placed * 7, "p:$seed:$placed")
+                placed++
+            }
+        }
+        if (props && placed == 0) units += ShelfUnit.Prop(base, "p:$seed:0")
         if (onAdd != null) units += ShelfUnit.Add(onAdd)
         return units
     }
@@ -106,8 +125,8 @@ private fun unitWidth(u: ShelfUnit): Float = when (u) {
     is ShelfUnit.Prop -> 65f
 }
 
-private fun rows(planks: List<PlankSpec>, width: Float, live: Boolean, decor: Decor): List<PlankRow> = planks.flatMap { p ->
-    val units = arrange(p.books, p.onAdd, live, decor, p.key)
+private fun rows(planks: List<PlankSpec>, width: Float, live: Boolean, decor: Decor, behave: Boolean): List<PlankRow> = planks.flatMap { p ->
+    val units = arrange(p.books, p.onAdd, live, decor, p.key, behave)
     if (!p.wrap) return@flatMap listOf(PlankRow(p.key, p.name, units, p.onEdit, scroll = true))
     val out = mutableListOf<MutableList<ShelfUnit>>(mutableListOf())
     var used = 0f
@@ -130,30 +149,162 @@ fun BookcaseView(
     modifier: Modifier = Modifier,
     animationKey: Any? = null,
     live: Boolean = true,
+    behave: Boolean = true,
+    onMove: ((Book, String, String) -> Unit)? = null,
     footer: (@Composable () -> Unit)? = null,
 ) {
     androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxSize().bookcaseWall()) {
         val width = maxWidth.value - 44f
         val decor = AppStyle.kit.decor
-        val list = remember(planks, width, live, decor) { rows(planks, width, live, decor) }
+        val list = remember(planks, width, live, decor, behave) { rows(planks, width, live, decor, behave) }
         val seen = remember(animationKey, live) { mutableSetOf<Any>() }
+        val listState = rememberLazyListState()
+        val drag = remember { ShelfDrag() }
+        val move by androidx.compose.runtime.rememberUpdatedState(onMove)
+        drag.enabled = onMove != null && planks.size > 1
+        drag.onDrop = { book, from, to -> move?.invoke(book, from, to) }
+        androidx.compose.runtime.LaunchedEffect(drag, listState) {
+            while (true) {
+                androidx.compose.runtime.withFrameMillis { }
+                val p = drag.pointer
+                val r = drag.root
+                if (drag.book != null && p != null && r != null && r.isAttached) {
+                    val local = r.windowToLocal(p)
+                    val edge = 90f * r.size.height / 1000f + 60f
+                    val dy = when {
+                        local.y < edge -> -(edge - local.y) / edge * 22f
+                        local.y > r.size.height - edge -> (local.y - (r.size.height - edge)) / edge * 22f
+                        else -> 0f
+                    }
+                    if (dy != 0f) listState.dispatchRawDelta(dy)
+                }
+            }
+        }
         androidx.compose.runtime.key(animationKey, live) {
         val shelfState = if (live) rememberShelfState() else LocalShelfState.current
         val kitMoment = if (live) rememberKitMoment() else null
-        androidx.compose.runtime.CompositionLocalProvider(LocalShelfSeen provides seen, LocalShelfState provides shelfState, LocalKitMoment provides kitMoment) {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp),
-                verticalArrangement = Arrangement.spacedBy(28.dp),
-            ) {
-                itemsIndexed(list, key = { _, r -> r.key }) { index, row ->
-                    Shelf(row, index, onBook)
+        androidx.compose.runtime.CompositionLocalProvider(LocalShelfSeen provides seen, LocalShelfState provides shelfState, LocalKitMoment provides kitMoment, LocalShelfDrag provides drag) {
+            Box(Modifier.fillMaxSize().onGloballyPositioned { drag.root = it }) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp),
+                    verticalArrangement = Arrangement.spacedBy(28.dp),
+                ) {
+                    itemsIndexed(list, key = { _, r -> r.key }) { index, row ->
+                        Shelf(row, index, onBook)
+                    }
+                    if (footer != null) item(key = "footer") { footer() }
                 }
-                if (footer != null) item(key = "footer") { footer() }
+                DragGhost(drag)
             }
         }
         }
     }
+}
+
+private class ShelfDrag {
+    var enabled = false
+    var book by mutableStateOf<Book?>(null)
+    var from: String = ""
+    var pointer by mutableStateOf<Offset?>(null)
+    var grab: Offset = Offset.Zero
+    var root: androidx.compose.ui.layout.LayoutCoordinates? = null
+    var onDrop: (Book, String, String) -> Unit = { _, _, _ -> }
+    val planks = HashMap<String, androidx.compose.ui.geometry.Rect>()
+
+    fun target(): String? {
+        val p = pointer ?: return null
+        var best: String? = null
+        var dist = Float.MAX_VALUE
+        planks.forEach { (key, r) ->
+            val d = when {
+                p.y < r.top -> r.top - p.y
+                p.y > r.bottom -> p.y - r.bottom
+                else -> 0f
+            }
+            if (d < dist) {
+                dist = d
+                best = key
+            }
+        }
+        return if (dist < 60f) best else null
+    }
+}
+
+private val LocalShelfDrag = androidx.compose.runtime.staticCompositionLocalOf<ShelfDrag?> { null }
+
+@Composable
+private fun DragGhost(drag: ShelfDrag) {
+    val book = drag.book
+    val pointer = drag.pointer
+    val root = drag.root
+    val visible = book != null && pointer != null
+    val last = remember { arrayOf<Book?>(null) }
+    if (book != null) last[0] = book
+    val lift by androidx.compose.animation.core.animateFloatAsState(if (visible) 1f else 0f, Motion.tween(180), label = "ghost")
+    val shown = last[0] ?: return
+    if (lift <= 0.01f) return
+    val local = if (pointer != null && root != null && root.isAttached) root.windowToLocal(pointer) - drag.grab else Offset.Zero
+    Box(
+        Modifier
+            .graphicsLayer {
+                translationX = local.x
+                translationY = local.y
+                alpha = lift
+                scaleX = 0.9f + 0.15f * lift
+                scaleY = 0.9f + 0.15f * lift
+                rotationZ = -5f * lift
+                shadowElevation = 18.dp.toPx() * lift
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
+                clip = true
+            },
+    ) {
+        BookCover(shown.id, BookWidth)
+    }
+}
+
+@Composable
+private fun Modifier.shelfDraggable(book: Book, plank: String): Modifier {
+    val drag = LocalShelfDrag.current ?: return this
+    if (!drag.enabled) return this
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val feedback = LocalFeedback.current
+    var coords by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
+    val dragging = drag.book?.id == book.id
+    return this
+        .onGloballyPositioned { coords = it }
+        .graphicsLayer { alpha = if (dragging) 0.25f else 1f }
+        .pointerInput(book.id, plank) {
+            androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress(
+                onDragStart = { offset ->
+                    val c = coords ?: return@detectDragGesturesAfterLongPress
+                    drag.grab = offset
+                    drag.from = plank
+                    drag.pointer = c.localToWindow(offset)
+                    drag.book = book
+                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    feedback?.play(FeedbackSound.Toggle)
+                },
+                onDragEnd = {
+                    val target = drag.target()
+                    val b = drag.book
+                    drag.book = null
+                    drag.pointer = null
+                    if (b != null && target != null && target != drag.from) {
+                        feedback?.play(FeedbackSound.Success)
+                        drag.onDrop(b, drag.from, target)
+                    }
+                },
+                onDragCancel = {
+                    drag.book = null
+                    drag.pointer = null
+                },
+            ) { change, amount ->
+                change.consume()
+                drag.pointer = (drag.pointer ?: Offset.Zero) + amount
+            }
+        }
 }
 
 private val LocalShelfSeen = androidx.compose.runtime.staticCompositionLocalOf<MutableSet<Any>> { mutableSetOf() }
@@ -194,11 +345,39 @@ private fun Modifier.bookcaseWall(): Modifier = this.drawBehind {
 
 @Composable
 private fun Shelf(row: PlankRow, index: Int, onBook: (Book) -> Unit) {
-    Column(Modifier.fillMaxWidth().scrollReveal()) {
+    val drag = LocalShelfDrag.current
+    val plank = row.key.substringBefore('#')
+    val target = drag?.book != null && drag.target() == plank && drag.from != plank
+    val glow by androidx.compose.animation.core.animateFloatAsState(if (target) 1f else 0f, Motion.tween(180), label = "plank-target")
+    if (drag != null) androidx.compose.runtime.DisposableEffect(plank) { onDispose { drag.planks.remove(plank) } }
+    val accent = AppColors.Accent
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .scrollReveal()
+            .onGloballyPositioned { c -> if (drag != null) drag.planks[plank] = c.boundsInWindow() }
+            .drawBehind {
+                if (glow > 0f) {
+                    drawRoundRect(
+                        accent.copy(alpha = 0.14f * glow),
+                        topLeft = Offset(8.dp.toPx(), 0f),
+                        size = androidx.compose.ui.geometry.Size(size.width - 16.dp.toPx(), size.height),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(14.dp.toPx()),
+                    )
+                    drawRoundRect(
+                        accent.copy(alpha = 0.6f * glow),
+                        topLeft = Offset(8.dp.toPx(), 0f),
+                        size = androidx.compose.ui.geometry.Size(size.width - 16.dp.toPx(), size.height),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(14.dp.toPx()),
+                        style = Stroke(1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))),
+                    )
+                }
+            },
+    ) {
         val content: @Composable (Int, ShelfUnit) -> Unit = { i, unit ->
             when (unit) {
-                is ShelfUnit.Standing -> StandingBook(unit.book, unit.lean, Modifier.dropIn(index, i, unit.key)) { onBook(unit.book) }
-                is ShelfUnit.Stack -> BookStack(unit.books, Modifier.dropIn(index, i, unit.key), onBook)
+                is ShelfUnit.Standing -> StandingBook(unit.book, unit.lean, Modifier.dropIn(index, i, unit.key).shelfDraggable(unit.book, plank)) { onBook(unit.book) }
+                is ShelfUnit.Stack -> BookStack(unit.books, Modifier.dropIn(index, i, unit.key), plank, onBook)
                 is ShelfUnit.Add -> Box(Modifier.dropIn(index, i, unit.key)) { AddSlot(unit.onAdd) }
                 is ShelfUnit.Prop -> ShelfProp(AppStyle.kit.decor, unit.index, Modifier.dropIn(index, i, unit.key))
             }
@@ -221,7 +400,7 @@ private fun Shelf(row: PlankRow, index: Int, onBook: (Book) -> Unit) {
                 row.units.forEachIndexed { i, unit -> androidx.compose.runtime.key(unit.key) { content(i, unit) } }
             }
         }
-        Box(Modifier.plankIn(index, "plank:" + row.key)) { Plank(row.name, false, row.onEdit) }
+        Box(Modifier.plankIn(index, "plank:" + row.key)) { Plank(row.name, target, row.onEdit) }
     }
 }
 
@@ -266,14 +445,14 @@ private fun StandingBook(book: Book, lean: Boolean, modifier: Modifier = Modifie
                     rotationZ = -7f
                 }
             }
-            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.96f, onLongClick = onClick, onClick = onClick),
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.96f, onLongClick = if (LocalShelfDrag.current?.enabled == true) null else onClick, onClick = onClick),
     ) {
         BookCover(book.id, BookWidth)
     }
 }
 
 @Composable
-private fun BookStack(books: List<Book>, modifier: Modifier = Modifier, onBook: (Book) -> Unit) {
+private fun BookStack(books: List<Book>, modifier: Modifier = Modifier, plank: String = "", onBook: (Book) -> Unit) {
     Column(modifier.padding(start = 6.dp, end = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         val order = books.reversed()
         order.forEachIndexed { i, b ->
@@ -281,7 +460,7 @@ private fun BookStack(books: List<Book>, modifier: Modifier = Modifier, onBook: 
             val width = 114.dp + (h % 26).dp
             val shift = (((h shr 5) and 0x0F) - 7).dp
             val pages = i > 0 && (h shr 9) % 3 == 0
-            LyingBook(b, width, top = i == 0, pagesOut = pages, modifier = Modifier.offset(x = shift)) { onBook(b) }
+            LyingBook(b, width, top = i == 0, pagesOut = pages, modifier = Modifier.offset(x = shift).shelfDraggable(b, plank)) { onBook(b) }
         }
     }
 }
@@ -292,7 +471,7 @@ private fun LyingBook(book: Book, width: Dp, top: Boolean, pagesOut: Boolean, mo
     val main = tones[tones.size / 2]
     val shape = appCorner(3)
     val board = 4.dp
-    Column(modifier.width(width).liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onLongClick = onClick, onClick = onClick)) {
+    Column(modifier.width(width).liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onLongClick = if (LocalShelfDrag.current?.enabled == true) null else onClick, onClick = onClick)) {
         if (top) {
             Box(
                 Modifier.fillMaxWidth().height(board).drawBehind {

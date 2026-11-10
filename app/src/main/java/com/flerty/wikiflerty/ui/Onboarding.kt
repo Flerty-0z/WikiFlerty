@@ -101,6 +101,7 @@ enum class NewsTarget { None, Stats, Custom, Library }
 class NewsItem(val since: Int, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None)
 
 val WhatsNewItems = listOf(
+    NewsItem(233, AppIcons.Shelf, "Книги между полками", "Зажми книгу и перетащи её на другую полку", NewsTarget.Library),
     NewsItem(230, AppIcons.Pages, "PDF", "Открывается как обычная книга: главы, оформление шаблона и все функции чтения"),
     NewsItem(224, AppIcons.Calendar, "Итоги года", "Твой год в книгах — истории и карточка, которой можно поделиться", NewsTarget.Stats),
     NewsItem(224, AppIcons.Help, "Подсказки", "Все функции и где их найти: Настройки → Подсказки"),

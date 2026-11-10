@@ -82,6 +82,7 @@ import com.flerty.wikiflerty.data.ReadStatus
 import java.io.File
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -254,6 +255,13 @@ fun LibraryScreen(
                     modifier = Modifier.fillMaxSize(),
                     animationKey = active.id + "|" + q,
                     live = prefs.liveShelf,
+                    behave = prefs.shelfBehavior,
+                    onMove = if (active.id == "all" && q.isEmpty() && shelves.isNotEmpty()) { book, from, to ->
+                        val src = from.removePrefix("shelf:").takeIf { from.startsWith("shelf:") }
+                        val dst = to.removePrefix("shelf:").takeIf { to.startsWith("shelf:") }
+                        val next = (book.shelves.filter { it != src } + listOfNotNull(dst)).distinct()
+                        app.appScope.launch { app.library.setShelves(book.id, next) }
+                    } else null,
                     footer = {
                         if (shown.isEmpty() && q.isNotEmpty()) {
                             Text("Ничего не нашлось", color = AppColors.Muted, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
