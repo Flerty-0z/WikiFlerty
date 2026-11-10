@@ -371,6 +371,42 @@ private fun Modifier.shelfDraggable(book: Book, plank: String): Modifier {
         }
 }
 
+private val LocalShelfSeen = androidx.compose.runtime.staticCompositionLocalOf<MutableSet<Any>> { mutableSetOf() }
+
+@Composable
+fun NewShelfButton(onClick: () -> Unit) {
+    Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
+        val shape = appCorner(16)
+        Row(
+            Modifier
+                .liveClick(shape, sound = FeedbackSound.Open, onClick = onClick)
+                .border(1.dp, AppColors.Accent.copy(alpha = 0.4f), shape)
+                .padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(AppIcons.ShelfAdd, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
+            Text("Новая полка", color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+private fun Modifier.bookcaseWall(): Modifier = this.drawBehind {
+    val decor = AppStyle.kit.decor
+    if (decor != Decor.None && decor != Decor.Library) return@drawBehind
+    val light = AppStyle.light
+    val top = if (light) Color(0xFFE6D7C3) else if (decor == Decor.Library) Color(0xFF241509) else Color(0xFF1D1611)
+    val bottom = if (light) Color(0xFFD8C5AC) else if (decor == Decor.Library) Color(0xFF150B05) else Color(0xFF110D0A)
+    drawRect(Brush.verticalGradient(listOf(top, bottom)))
+    val step = 86.dp.toPx()
+    var x = step / 2
+    val seam = if (light) Color(0x14000000) else Color(0x12FFE0B0)
+    while (x < size.width) {
+        drawLine(seam, Offset(x, 0f), Offset(x, size.height), 1.dp.toPx())
+        x += step
+    }
+}
+
 @Composable
 private fun Shelf(row: PlankRow, index: Int, onBook: (Book) -> Unit) {
     val drag = LocalShelfDrag.current
