@@ -723,8 +723,10 @@ private fun PdfContent(doc: PdfDoc, state: PdfUiState) {
                 }
             },
     ) {
-        zoom.w = constraints.maxWidth.toFloat()
-        zoom.h = constraints.maxHeight.toFloat()
+        val maxW = constraints.maxWidth
+        val maxH = constraints.maxHeight
+        zoom.w = maxW.toFloat()
+        zoom.h = maxH.toFloat()
         val gap = 8.dp
         val gapPx = with(density) { gap.toPx() }
         Box(
@@ -741,7 +743,7 @@ private fun PdfContent(doc: PdfDoc, state: PdfUiState) {
                 if (!paged) {
                     val ls = rememberLazyListState(initialFirstVisibleItemIndex = state.page)
                     LaunchedEffect(ls) { listState = ls }
-                    val pageW = (constraints.maxWidth - 2 * gapPx).roundToInt().coerceAtLeast(1)
+                    val pageW = (maxW - 2 * gapPx).roundToInt().coerceAtLeast(1)
                     val renderW = renderWidth(pageW, hi)
                     LaunchedEffect(ls) {
                         snapshotFlow {
@@ -785,8 +787,8 @@ private fun PdfContent(doc: PdfDoc, state: PdfUiState) {
                             }
                         }
                     }
-                    val availW = constraints.maxWidth - 2 * gapPx
-                    val availH = constraints.maxHeight - with(density) { (top + bottom + 24.dp).toPx() }
+                    val availW = maxW - 2 * gapPx
+                    val availH = maxH - with(density) { (top + bottom + 24.dp).toPx() }
                     HorizontalPager(
                         state = pager,
                         modifier = Modifier.fillMaxSize(),
