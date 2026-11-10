@@ -86,6 +86,7 @@ fun rememberKitThumb(kit: Kit, light: Boolean, width: androidx.compose.ui.unit.D
     val h = with(density) { height.roundToPx() }.coerceAtLeast(1)
     val key = "${kit.id}|$light|$w|$h"
     return androidx.compose.runtime.produceState(KitThumbs[key], key) {
+        value = KitThumbs[key]
         if (value == null) {
             value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                 runCatching {

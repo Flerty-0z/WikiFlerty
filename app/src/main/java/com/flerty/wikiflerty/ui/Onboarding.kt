@@ -101,7 +101,7 @@ enum class NewsTarget { None, Stats, Custom, Library }
 class NewsItem(val since: Int, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None)
 
 val WhatsNewItems = listOf(
-    NewsItem(227, AppIcons.Pages, "PDF", "Оглавление, закладки, заметки и маркер, поиск, перевод и цитаты. Листание или лента, масштаб, ночной режим"),
+    NewsItem(229, AppIcons.Pages, "PDF", "Открывается как обычная книга со всеми функциями. Оригинал страниц — в Опциях"),
     NewsItem(224, AppIcons.Calendar, "Итоги года", "Твой год в книгах — истории и карточка, которой можно поделиться", NewsTarget.Stats),
     NewsItem(224, AppIcons.Help, "Подсказки", "Все функции и где их найти: Настройки → Подсказки"),
     NewsItem(224, AppIcons.Grid, "Виджеты под шаблон", "И новый виджет «Слово дня» из твоего словаря"),
@@ -262,6 +262,7 @@ private fun KitPicker() {
     val style = AppStyle.current
     val current = Kit.of(style.kit)
     val light = AppStyle.light
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp)) {
         items(Kit.entries.size) { i ->
             val kit = Kit.entries[i]
@@ -302,6 +303,13 @@ private fun KitPicker() {
                 }
             }
         }
+    }
+    val modes = ThemeMode.entries
+    Box(Modifier.fillMaxWidth().fieldSurface(appCorner(16)).padding(horizontal = 12.dp, vertical = 4.dp)) {
+        SettingSegmented(null, listOf("☀ Светлая", "☾ Тёмная", "◐ Система"), modes.indexOf(ThemeMode.of(style.mode))) { idx ->
+            app.style.update { it.copy(mode = modes[idx].id) }
+        }
+    }
     }
 }
 
@@ -426,7 +434,15 @@ private fun PowerScene() {
                     ) {
                         SettingIcon(icon, 44.dp)
                         Spacer(Modifier.height(8.dp))
-                        Text(label, color = AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            label,
+                            color = AppColors.Text,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false,
+                            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 12.sp, stepSize = 0.5.sp),
+                            modifier = Modifier.padding(horizontal = 8.dp),
+                        )
                     }
                 }
             }
@@ -492,6 +508,17 @@ val GuideGroups = listOf(
     ),
 )
 
+private fun markQuery(text: String, q: String, accent: Color): androidx.compose.ui.text.AnnotatedString = androidx.compose.ui.text.buildAnnotatedString {
+    append(text)
+    if (q.isEmpty()) return@buildAnnotatedString
+    val lower = text.lowercase()
+    var at = lower.indexOf(q)
+    while (at >= 0) {
+        addStyle(androidx.compose.ui.text.SpanStyle(color = accent, background = accent.copy(alpha = 0.18f), fontWeight = FontWeight.Bold), at, at + q.length)
+        at = lower.indexOf(q, at + q.length)
+    }
+}
+
 @Composable
 fun GuideContent(onTour: () -> Unit) {
     var query by remember { mutableStateOf("") }
@@ -507,8 +534,14 @@ fun GuideContent(onTour: () -> Unit) {
                         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             SettingIcon(e.icon, 32.dp)
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(e.title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                                Text(e.how, color = AppColors.Muted, fontSize = 13.sp, lineHeight = 18.sp)
+                                val mark = AppColors.Accent
+                                Text(markQuery(e.title, q, mark), color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                                Text(markQuery(e.how, q, mark), color = AppColors.Muted, fontSize = 13.sp, lineHeight = 18.sp)
+                                if (q.isNotEmpty() && !e.title.lowercase().contains(q) && !e.how.lowercase().contains(q)) {
+                                    e.keys.split(' ').firstOrNull { it.lowercase().contains(q) }?.let { key ->
+                                        Text(markQuery(key, q, mark), color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                                    }
+                                }
                             }
                         }
                     }

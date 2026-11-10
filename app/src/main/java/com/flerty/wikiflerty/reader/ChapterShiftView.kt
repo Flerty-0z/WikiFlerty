@@ -151,7 +151,7 @@ class ChapterShiftView @JvmOverloads constructor(context: Context, attrs: Attrib
 
     private fun scheduleEnter() {
         val waited = SystemClock.uptimeMillis() - exitEndAt
-        val hold = max(0L, Motion.ms(holdMs()).toLong() - waited)
+        val hold = max(0L, HOLD_MS - waited)
         removeCallbacks(enterRunnable)
         postDelayed(enterRunnable, hold)
     }
@@ -233,20 +233,39 @@ class ChapterShiftView @JvmOverloads constructor(context: Context, attrs: Attrib
         Kind.Clay -> 560
     }
 
-    private fun holdMs() = when (kind) {
-        Kind.Zen -> 420
-        Kind.Sea -> 320
-        Kind.Comic -> 240
-        else -> 280
-    }
+    private val HOLD_MS = 5000L
 
     private fun tick() {
         if (!active) return
-        if (kind == Kind.Sea || kind == Kind.Zen) invalidate()
+        if (kind == Kind.Sea || kind == Kind.Zen || (exitDone && !entering)) invalidate()
         postOnAnimation { tick() }
     }
 
-    override fun onTouchEvent(event: MotionEvent): Boolean = active
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (!active) return false
+        if (event.actionMasked == MotionEvent.ACTION_UP && exitDone && revealAsked && !entering) {
+            removeCallbacks(enterRunnable)
+            runEnter()
+        }
+        return true
+    }
+
+    private fun drawHold(canvas: Canvas, w: Float, h: Float) {
+        if (!exitDone || !revealAsked) return
+        val p = if (entering) 1f else ((SystemClock.uptimeMillis() - exitEndAt).toFloat() / HOLD_MS).coerceIn(0f, 1f)
+        val fade = if (entering) (1f - enter * 2f).coerceIn(0f, 1f) else 1f
+        if (fade <= 0f) return
+        val textH = layoutText?.height?.toFloat() ?: 0f
+        val y = h / 2f + textH / 2f + 64 * d
+        val half = 34 * d
+        stroke.strokeCap = Paint.Cap.ROUND
+        stroke.strokeWidth = 2.5f * d
+        stroke.color = Color.argb((60 * fade).toInt(), Color.red(fg), Color.green(fg), Color.blue(fg))
+        canvas.drawLine(w / 2f - half, y, w / 2f + half, y, stroke)
+        stroke.color = Color.argb((255 * fade).toInt(), Color.red(accent), Color.green(accent), Color.blue(accent))
+        canvas.drawLine(w / 2f - half, y, w / 2f - half + 2 * half * p, y, stroke)
+        stroke.strokeCap = Paint.Cap.BUTT
+    }
 
     private fun clock(): Float = (SystemClock.uptimeMillis() - startAt) / 1000f
 
@@ -319,6 +338,7 @@ class ChapterShiftView @JvmOverloads constructor(context: Context, attrs: Attrib
             Kind.Sea -> drawSea(canvas, w, h)
             Kind.Clay -> drawClay(canvas, w, h)
         }
+        drawHold(canvas, w, h)
     }
 
     private fun drawSnapshot(canvas: Canvas, w: Float, h: Float) {

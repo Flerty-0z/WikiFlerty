@@ -557,7 +557,7 @@ class PdfReaderActivity : ComponentActivity() {
         state = PdfUiState(this, found.title, found.author, start, found.status == ReadStatus.Finished, !settings.pageTheme.isLight)
         lifecycleScope.launch { app.readerSettings.settings.collect { applySettings(it) } }
         app.appScope.launch { app.library.markOpened(found.id) }
-        val file = app.library.bookFile(found)
+        val file = app.library.pdfFile(found)
         val meta = File(filesDir, "pdfmeta")
         lifecycleScope.launch {
             runCatching { PdfDoc.open(file, File(meta, "${found.id}.json")) }
@@ -1286,7 +1286,8 @@ private fun PdfReaderScreen(host: PdfReaderActivity, state: PdfUiState) {
                 ) {
                     Icon(AppIcons.Alert, null, tint = AppColors.Muted, modifier = Modifier.size(34.dp))
                     Text(state.error.orEmpty(), color = AppColors.Text, fontSize = 16.sp)
-                    AppButton("Назад", primary = true) { host.finish() }
+                    if (host.map != null) AppButton("Открыть как текст", primary = true) { host.openText() }
+                    AppButton("Назад", primary = host.map == null) { host.finish() }
                 }
                 else -> state.doc?.let { PdfContent(host, it, state, marksByPage, bookmarkedPages, settings) }
             }
