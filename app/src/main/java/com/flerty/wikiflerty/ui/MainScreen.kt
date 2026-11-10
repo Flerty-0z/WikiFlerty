@@ -128,8 +128,12 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
         }
     }
     LaunchedEffect(Unit) {
-        libraryViewModel.openPdf.collect { id ->
-            context.startActivity(Intent(context, com.flerty.wikiflerty.reader.PdfReaderActivity::class.java).putExtra(com.flerty.wikiflerty.reader.PdfReaderActivity.EXTRA_BOOK, id))
+        libraryViewModel.openPdf.collect { (id, page) ->
+            context.startActivity(
+                Intent(context, com.flerty.wikiflerty.reader.PdfReaderActivity::class.java)
+                    .putExtra(com.flerty.wikiflerty.reader.PdfReaderActivity.EXTRA_BOOK, id)
+                    .putExtra(com.flerty.wikiflerty.reader.PdfReaderActivity.EXTRA_PAGE, page),
+            )
         }
     }
     LaunchedEffect(Unit) {

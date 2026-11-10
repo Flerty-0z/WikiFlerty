@@ -1110,7 +1110,7 @@ private fun BrightnessHint(percent: Int) {
 }
 
 @Composable
-private fun SheetFrame(content: @Composable () -> Unit) {
+internal fun SheetFrame(content: @Composable () -> Unit) {
     Box(
         modifier = Modifier
             .padding(start = 12.dp, end = 12.dp, bottom = PanelGap)

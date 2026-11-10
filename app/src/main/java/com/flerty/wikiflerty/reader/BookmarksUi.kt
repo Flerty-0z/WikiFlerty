@@ -79,7 +79,7 @@ class BookmarkActions(
 internal val NavSheets = listOf(ReaderSheet.Toc, ReaderSheet.Notes, ReaderSheet.Bookmarks, ReaderSheet.People)
 
 @Composable
-internal fun NavTabs(current: ReaderSheet, onSelect: (ReaderSheet) -> Unit, modifier: Modifier = Modifier) {
+internal fun NavTabs(current: ReaderSheet, onSelect: (ReaderSheet) -> Unit, modifier: Modifier = Modifier, sheets: List<ReaderSheet> = NavSheets) {
     val outer = appCorner(14)
     val inner = appCorner(10)
     BoxWithConstraints(
@@ -90,8 +90,8 @@ internal fun NavTabs(current: ReaderSheet, onSelect: (ReaderSheet) -> Unit, modi
             .border(1.dp, AppColors.PanelBorder, outer)
             .padding(4.dp),
     ) {
-        val index = NavSheets.indexOf(current).coerceAtLeast(0)
-        val slot = maxWidth / NavSheets.size
+        val index = sheets.indexOf(current).coerceAtLeast(0)
+        val slot = maxWidth / sheets.size
         val offset by animateDpAsState(slot * index, Motion.tween(280), label = "tab")
         Box(
             Modifier
@@ -103,7 +103,7 @@ internal fun NavTabs(current: ReaderSheet, onSelect: (ReaderSheet) -> Unit, modi
                 .border(1.dp, AppColors.Accent.copy(alpha = 0.3f), inner),
         )
         Row(Modifier.fillMaxSize()) {
-            NavSheets.forEach { sheet ->
+            sheets.forEach { sheet ->
                 val selected = sheet == current
                 val color by animateColorAsState(if (selected) AppColors.Text else AppColors.Muted, label = "tabText")
                 Box(

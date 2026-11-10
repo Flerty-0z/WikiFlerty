@@ -1,18 +1,28 @@
 package com.flerty.wikiflerty.reader
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.pdf.PdfRenderer
+import android.graphics.Point
+import android.graphics.RectF
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
-import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.util.LruCache
 import android.view.KeyEvent
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.AnimationState
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateDecay
@@ -22,9 +32,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,6 +46,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,31 +55,41 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -74,13 +98,17 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
@@ -89,14 +117,21 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
@@ -104,7 +139,11 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.flerty.wikiflerty.App
+import com.flerty.wikiflerty.data.Book
+import com.flerty.wikiflerty.data.Bookmark
+import com.flerty.wikiflerty.data.Note
 import com.flerty.wikiflerty.data.ReadStatus
+import com.flerty.wikiflerty.data.convert.PdfOutline
 import com.flerty.wikiflerty.ui.AppBackground
 import com.flerty.wikiflerty.ui.AppButton
 import com.flerty.wikiflerty.ui.AppColors
@@ -112,10 +151,14 @@ import com.flerty.wikiflerty.ui.AppIcons
 import com.flerty.wikiflerty.ui.AppSheet
 import com.flerty.wikiflerty.ui.AppStyle
 import com.flerty.wikiflerty.ui.FeedbackSound
+import com.flerty.wikiflerty.ui.HeaderLabel
 import com.flerty.wikiflerty.ui.KitSlider
 import com.flerty.wikiflerty.ui.KitSpinner
+import com.flerty.wikiflerty.ui.ListDivider
 import com.flerty.wikiflerty.ui.LocalFeedback
 import com.flerty.wikiflerty.ui.Motion
+import com.flerty.wikiflerty.ui.Reveal
+import com.flerty.wikiflerty.ui.SheetDivider
 import com.flerty.wikiflerty.ui.TextInputSheet
 import com.flerty.wikiflerty.ui.WikiFlertyTheme
 import com.flerty.wikiflerty.ui.appCorner
@@ -123,13 +166,19 @@ import com.flerty.wikiflerty.ui.liveClick
 import com.flerty.wikiflerty.ui.panelSurface
 import com.flerty.wikiflerty.ui.sheetClose
 import java.io.File
+import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -139,18 +188,22 @@ import org.readium.r2.shared.util.Url
 import org.readium.r2.shared.util.mediatype.MediaType
 
 class PdfDoc private constructor(
-    private val fd: ParcelFileDescriptor,
-    private val renderer: PdfRenderer,
+    private val engine: PdfEngine,
     private val widths: IntArray,
     private val heights: IntArray,
 ) {
     private val executor = Executors.newSingleThreadExecutor()
     private val thread = executor.asCoroutineDispatcher()
     @Volatile private var closed = false
+    private val texts = ConcurrentHashMap<Int, String>()
+    private val linkCache = ConcurrentHashMap<Int, List<PdfLink>>()
 
     val count: Int get() = widths.size
+    val textSupported: Boolean get() = engine.textSupported
 
     fun aspect(i: Int): Float = widths[i].toFloat() / heights[i].coerceAtLeast(1)
+    fun pageWidth(i: Int): Int = widths[i]
+    fun pageHeight(i: Int): Int = heights[i]
 
     private val cache = object : LruCache<Long, ImageBitmap>(((Runtime.getRuntime().maxMemory() / 1024) / 5).toInt().coerceAtLeast(16 * 1024)) {
         override fun sizeOf(key: Long, value: ImageBitmap): Int = (value.width * value.height * 4 / 1024).coerceAtLeast(1)
@@ -160,34 +213,61 @@ class PdfDoc private constructor(
 
     fun cached(i: Int, w: Int): ImageBitmap? = cache.get(key(i, w))
 
-    suspend fun render(i: Int, w: Int): ImageBitmap? {
-        cached(i, w)?.let { return it }
+    private suspend fun <T> onPage(i: Int, block: (PdfPageApi) -> T): T? {
         if (closed || i !in 0 until count) return null
-        return runCatching {
+        return try {
             withContext(thread) {
                 if (closed) return@withContext null
-                cached(i, w) ?: run {
-                    val page = renderer.openPage(i)
-                    try {
-                        val h = (w.toLong() * page.height / page.width.coerceAtLeast(1)).toInt().coerceIn(1, w * 4)
-                        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-                        bmp.eraseColor(android.graphics.Color.WHITE)
-                        page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                        bmp.asImageBitmap().also { cache.put(key(i, w), it) }
-                    } finally {
-                        page.close()
-                    }
+                val page = engine.page(i)
+                try {
+                    block(page)
+                } finally {
+                    page.close()
                 }
             }
-        }.getOrNull()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            null
+        }
     }
+
+    suspend fun render(i: Int, w: Int): ImageBitmap? {
+        cached(i, w)?.let { return it }
+        return onPage(i) { page ->
+            cached(i, w) ?: run {
+                val h = (w.toLong() * page.height / page.width.coerceAtLeast(1)).toInt().coerceIn(1, w * 4)
+                val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                bmp.eraseColor(android.graphics.Color.WHITE)
+                page.render(bmp)
+                bmp.asImageBitmap().also { cache.put(key(i, w), it) }
+            }
+        }
+    }
+
+    suspend fun text(i: Int): String? {
+        if (!textSupported) return null
+        texts[i]?.let { return it }
+        return onPage(i) { it.text().orEmpty() }?.also { texts[i] = it }
+    }
+
+    fun cachedLinks(i: Int): List<PdfLink>? = linkCache[i]
+
+    suspend fun links(i: Int): List<PdfLink> {
+        if (!textSupported) return emptyList()
+        linkCache[i]?.let { return it }
+        return (onPage(i) { it.links() } ?: emptyList()).also { linkCache[i] = it }
+    }
+
+    suspend fun select(i: Int, start: Point, stop: Point): PdfSelectionResult? = onPage(i) { it.select(start, stop) }
+
+    suspend fun search(i: Int, query: String): List<List<RectF>> = onPage(i) { it.search(query) } ?: emptyList()
 
     fun close() {
         if (closed) return
         closed = true
         executor.execute {
-            runCatching { renderer.close() }
-            runCatching { fd.close() }
+            runCatching { engine.close() }
             cache.evictAll()
         }
         executor.shutdown()
@@ -195,36 +275,44 @@ class PdfDoc private constructor(
 
     companion object {
         suspend fun open(file: File, sizesFile: File): PdfDoc = withContext(Dispatchers.IO) {
-            val fd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
-            val renderer = try {
-                PdfRenderer(fd)
+            val engine = PdfEngine.open(file)
+            try {
+                val n = engine.count
+                val stored = runCatching {
+                    val j = JSONObject(sizesFile.readText())
+                    val w = j.getJSONArray("w")
+                    val h = j.getJSONArray("h")
+                    if (w.length() != n || h.length() != n) null else IntArray(n) { w.getInt(it) } to IntArray(n) { h.getInt(it) }
+                }.getOrNull()
+                val (widths, heights) = stored ?: run {
+                    val w = IntArray(n)
+                    val h = IntArray(n)
+                    for (i in 0 until n) {
+                        runCatching {
+                            val p = engine.page(i)
+                            try {
+                                w[i] = p.width.coerceAtLeast(1)
+                                h[i] = p.height.coerceAtLeast(1)
+                            } finally {
+                                p.close()
+                            }
+                        }
+                        if (w[i] <= 0) {
+                            w[i] = if (i > 0) w[i - 1] else 612
+                            h[i] = if (i > 0) h[i - 1] else 792
+                        }
+                    }
+                    runCatching {
+                        sizesFile.parentFile?.mkdirs()
+                        sizesFile.writeText(JSONObject().put("w", JSONArray(w.toList())).put("h", JSONArray(h.toList())).toString())
+                    }
+                    w to h
+                }
+                PdfDoc(engine, widths, heights)
             } catch (e: Throwable) {
-                runCatching { fd.close() }
+                engine.close()
                 throw e
             }
-            val n = renderer.pageCount
-            val stored = runCatching {
-                val j = JSONObject(sizesFile.readText())
-                val w = j.getJSONArray("w")
-                val h = j.getJSONArray("h")
-                if (w.length() != n || h.length() != n) null else IntArray(n) { w.getInt(it) } to IntArray(n) { h.getInt(it) }
-            }.getOrNull()
-            val (widths, heights) = stored ?: run {
-                val w = IntArray(n)
-                val h = IntArray(n)
-                for (i in 0 until n) {
-                    val p = renderer.openPage(i)
-                    w[i] = p.width.coerceAtLeast(1)
-                    h[i] = p.height.coerceAtLeast(1)
-                    p.close()
-                }
-                runCatching {
-                    sizesFile.parentFile?.mkdirs()
-                    sizesFile.writeText(JSONObject().put("w", JSONArray(w.toList())).put("h", JSONArray(h.toList())).toString())
-                }
-                w to h
-            }
-            PdfDoc(fd, renderer, widths, heights)
         }
     }
 }
@@ -256,7 +344,24 @@ private fun nightMatrix(): ColorMatrix {
     ))
 }
 
-class PdfUiState(context: Context, val title: String, start: Int, val finished: Boolean) {
+internal const val PDF_RECTS = "pdfRects"
+
+internal fun encodeRects(rects: List<RectF>): String =
+    rects.joinToString(";") { String.format(Locale.US, "%.1f,%.1f,%.1f,%.1f", it.left, it.top, it.right, it.bottom) }
+
+internal fun decodeRects(raw: Any?): List<RectF> {
+    val s = raw as? String ?: return emptyList()
+    return s.split(';').mapNotNull { part ->
+        val v = part.split(',').mapNotNull { it.toFloatOrNull() }
+        if (v.size == 4) RectF(v[0], v[1], v[2], v[3]) else null
+    }
+}
+
+data class PdfSel(val page: Int, val start: Point, val stop: Point, val text: String, val rects: List<RectF>)
+
+class PdfMark(val note: Note, val rects: List<RectF>)
+
+class PdfUiState(context: Context, val title: String, val author: String, start: Int, val finished: Boolean) {
     private val prefs = context.getSharedPreferences("pdf", Context.MODE_PRIVATE)
     var doc by mutableStateOf<PdfDoc?>(null)
     var error by mutableStateOf<String?>(null)
@@ -267,6 +372,14 @@ class PdfUiState(context: Context, val title: String, start: Int, val finished: 
     var goTo by mutableStateOf(false)
     var askFinish by mutableStateOf(false)
     var asked = finished
+    var outline by mutableStateOf<List<PdfOutline.Entry>>(emptyList())
+    var sheet by mutableStateOf<ReaderSheet?>(null)
+    var selection by mutableStateOf<PdfSel?>(null)
+    var selectionBounds by mutableStateOf<Pair<Float, Float>?>(null)
+    var editor by mutableStateOf<NoteDraft?>(null)
+    var translate by mutableStateOf<TranslateInfo?>(null)
+    var quote by mutableStateOf<QuoteDraft?>(null)
+    val search = SearchState()
     var paged by mutableStateOf(prefs.getBoolean("paged", false))
         private set
     var filter by mutableStateOf(PdfFilter.entries.getOrElse(prefs.getInt("filter", 0)) { PdfFilter.Day })
@@ -280,6 +393,12 @@ class PdfUiState(context: Context, val title: String, start: Int, val finished: 
     fun nextFilter() {
         filter = PdfFilter.entries[(filter.ordinal + 1) % PdfFilter.entries.size]
         prefs.edit().putInt("filter", filter.ordinal).apply()
+    }
+
+    fun chapterAt(page: Int): String? {
+        var best: PdfOutline.Entry? = null
+        for (e in outline) if (e.page <= page && (best == null || e.page >= best.page)) best = e
+        return best?.title
     }
 }
 
@@ -342,74 +461,140 @@ private class ZoomState {
     }
 }
 
+private class PageHit(val page: Int, val x: Float, val y: Float)
+
+private class PageRegistry {
+    val pages = HashMap<Int, LayoutCoordinates>()
+    var root: LayoutCoordinates? = null
+
+    fun hit(doc: PdfDoc, pos: Offset): PageHit? {
+        val r = root?.takeIf { it.isAttached } ?: return null
+        val win = r.localToWindow(pos)
+        for ((i, c) in pages) {
+            if (!c.isAttached) continue
+            val local = c.windowToLocal(win)
+            val w = c.size.width.toFloat()
+            val h = c.size.height.toFloat()
+            if (local.x in 0f..w && local.y in 0f..h && w > 0 && h > 0) {
+                return PageHit(i, local.x / w * doc.pageWidth(i), local.y / h * doc.pageHeight(i))
+            }
+        }
+        return null
+    }
+
+    fun windowRect(doc: PdfDoc, page: Int, rect: RectF): Pair<Float, Float>? {
+        val c = pages[page]?.takeIf { it.isAttached } ?: return null
+        val sx = c.size.width.toFloat() / doc.pageWidth(page)
+        val sy = c.size.height.toFloat() / doc.pageHeight(page)
+        val top = c.localToWindow(Offset(rect.left * sx, rect.top * sy)).y
+        val bottom = c.localToWindow(Offset(rect.left * sx, rect.bottom * sy)).y
+        return top to bottom
+    }
+}
+
 class PdfReaderActivity : ComponentActivity() {
     companion object {
         const val EXTRA_BOOK = "book"
+        const val EXTRA_PAGE = "page"
     }
 
     private val app get() = application as App
     private lateinit var bookId: String
-    private lateinit var state: PdfUiState
+    private lateinit var book: Book
+    internal lateinit var state: PdfUiState
     private var visible = false
     private var lastActivity = 0L
     private var pagesSinceTrack = 0
     private var lastPage = -1
     private var saveJob: Job? = null
     private var pendingPage = -1
+    private var searchJob: Job? = null
+    private var selectJob: Job? = null
+    private var translateJob: Job? = null
+    private var translateLocator: Locator? = null
+    private var pendingQuoteSave: Triple<QuoteDraft, QuoteLook, QuoteFormat>? = null
+
+    private val storagePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val pending = pendingQuoteSave
+        pendingQuoteSave = null
+        if (granted && pending != null) saveQuote(pending.first, pending.second, pending.third)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val book = intent.getStringExtra(EXTRA_BOOK)?.let { id -> app.library.books.value.firstOrNull { it.id == id } }
-        if (book == null) {
+        val found = intent.getStringExtra(EXTRA_BOOK)?.let { id -> app.library.books.value.firstOrNull { it.id == id } }
+        if (found == null) {
             finish()
             return
         }
-        bookId = book.id
+        book = found
+        bookId = found.id
         WindowCompat.setDecorFitsSystemWindows(window, false)
         val settings = app.readerSettings.settings.value
         if (settings.keepScreenOn) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (settings.brightness >= 0) {
             window.attributes = window.attributes.apply { screenBrightness = settings.brightness.toFloat().coerceIn(0.01f, 1f) }
         }
-        val start = startPage(book)
+        val requested = intent.getIntExtra(EXTRA_PAGE, -1)
+        val start = if (requested >= 0) requested else startPage(found)
         lastPage = start
-        state = PdfUiState(this, book.title, start, book.status == ReadStatus.Finished)
-        app.appScope.launch { app.library.markOpened(book.id) }
-        val file = app.library.bookFile(book)
+        state = PdfUiState(this, found.title, found.author, start, found.status == ReadStatus.Finished)
+        app.appScope.launch { app.library.markOpened(found.id) }
+        val file = app.library.bookFile(found)
+        val meta = File(filesDir, "pdfmeta")
         lifecycleScope.launch {
-            runCatching { PdfDoc.open(file, File(File(filesDir, "pdfmeta"), "${book.id}.json")) }
+            runCatching { PdfDoc.open(file, File(meta, "${found.id}.json")) }
                 .onSuccess { doc ->
-                    if (isDestroyed) doc.close() else state.doc = doc
-                    if (book.positions != doc.count) app.library.setPositions(book.id, doc.count)
+                    if (isDestroyed) {
+                        doc.close()
+                        return@onSuccess
+                    }
+                    if (requested >= doc.count) state.page = doc.count - 1
+                    state.doc = doc
+                    if (found.positions != doc.count) app.library.setPositions(found.id, doc.count)
                 }
                 .onFailure { state.error = if (it is SecurityException) "PDF защищён паролем" else "Не удалось открыть PDF" }
+        }
+        lifecycleScope.launch {
+            state.outline = withContext(Dispatchers.IO) { loadOutline(file, File(meta, "${found.id}.toc.json")) }
         }
         setContent {
             CompositionLocalProvider(LocalFeedback provides app.feedback) {
                 WikiFlertyTheme {
-                    PdfReaderScreen(
-                        state = state,
-                        onBack = { finish() },
-                        onPage = ::onPage,
-                        onBars = ::applyBars,
-                        onFinished = {
-                            state.askFinish = false
-                            app.appScope.launch { app.library.setStatus(bookId, ReadStatus.Finished) }
-                        },
-                    )
+                    PdfReaderScreen(this@PdfReaderActivity, state)
                 }
             }
         }
     }
 
-    private fun startPage(book: com.flerty.wikiflerty.data.Book): Int {
+    private fun loadOutline(file: File, cacheFile: File): List<PdfOutline.Entry> {
+        runCatching {
+            if (cacheFile.exists()) {
+                val arr = JSONArray(cacheFile.readText())
+                return (0 until arr.length()).map { i ->
+                    val o = arr.getJSONObject(i)
+                    PdfOutline.Entry(o.getString("t"), o.getInt("d"), o.getInt("p"))
+                }
+            }
+        }
+        val list = PdfOutline.read(file)
+        runCatching {
+            cacheFile.parentFile?.mkdirs()
+            val arr = JSONArray()
+            list.forEach { arr.put(JSONObject().put("t", it.title).put("d", it.depth).put("p", it.page)) }
+            cacheFile.writeText(arr.toString())
+        }
+        return list
+    }
+
+    private fun startPage(book: Book): Int {
         val fromLocator = book.locatorJson?.let { runCatching { Locator.fromJSON(JSONObject(it))?.locations?.position }.getOrNull() }
         if (fromLocator != null && fromLocator > 0) return fromLocator - 1
         val total = book.positions
         return if (total > 1) (book.progress * (total - 1)).roundToInt().coerceIn(0, total - 1) else 0
     }
 
-    private fun applyBars(show: Boolean) {
+    internal fun applyBars(show: Boolean) {
         WindowCompat.getInsetsController(window, window.decorView).apply {
             isAppearanceLightStatusBars = AppStyle.light
             isAppearanceLightNavigationBars = AppStyle.light
@@ -422,7 +607,24 @@ class PdfReaderActivity : ComponentActivity() {
         }
     }
 
-    private fun onPage(page: Int) {
+    internal fun locator(page: Int, rects: List<RectF> = emptyList(), text: String? = null): Locator {
+        val total = state.doc?.count ?: book.positions.coerceAtLeast(1)
+        val progression = if (total <= 1) 1.0 else page.toDouble() / (total - 1)
+        return Locator(
+            href = Url("page")!!,
+            mediaType = MediaType.PDF,
+            title = state.chapterAt(page) ?: state.title,
+            locations = Locator.Locations(
+                position = page + 1,
+                progression = progression,
+                totalProgression = progression,
+                otherLocations = if (rects.isEmpty()) emptyMap() else mapOf(PDF_RECTS to encodeRects(rects)),
+            ),
+            text = Locator.Text(highlight = text),
+        )
+    }
+
+    internal fun onPage(page: Int) {
         if (page == lastPage) return
         pagesSinceTrack += abs(page - lastPage).coerceAtMost(3)
         lastPage = page
@@ -440,23 +642,21 @@ class PdfReaderActivity : ComponentActivity() {
         }
     }
 
+    internal fun markFinished() {
+        state.askFinish = false
+        app.appScope.launch { app.library.setStatus(bookId, ReadStatus.Finished) }
+    }
+
     private fun flushProgress() {
         saveJob?.cancel()
         saveJob = null
         val page = pendingPage
         if (page < 0) return
         pendingPage = -1
-        val total = state.doc?.count ?: return
-        val progression = if (total <= 1) 1.0 else page.toDouble() / (total - 1)
-        val href = Url("page") ?: return
-        val locator = Locator(
-            href = href,
-            mediaType = MediaType.PDF,
-            title = state.title,
-            locations = Locator.Locations(position = page + 1, progression = progression, totalProgression = progression),
-        )
+        if (state.doc == null) return
+        val loc = locator(page)
         val id = bookId
-        app.appScope.launch { app.library.saveProgress(id, locator) }
+        app.appScope.launch { app.library.saveProgress(id, loc) }
     }
 
     private fun trackReading() {
@@ -471,9 +671,431 @@ class PdfReaderActivity : ComponentActivity() {
         lastActivity = now
     }
 
+    internal fun isBookmarked(marks: List<Bookmark>, page: Int) = marks.any { it.locator?.locations?.position == page + 1 }
+
+    internal fun toggleBookmark(marks: List<Bookmark>) {
+        val page = state.page
+        val existing = marks.filter { it.locator?.locations?.position == page + 1 }
+        lifecycleScope.launch {
+            if (existing.isNotEmpty()) {
+                app.bookmarks.delete(existing.map { it.id })
+            } else {
+                val snippet = state.doc?.text(page)?.replace(Regex("\\s+"), " ")?.trim()?.take(140)?.takeIf { it.isNotBlank() } ?: "Страница ${page + 1}"
+                app.bookmarks.create(bookId, locator(page), state.chapterAt(page) ?: "Страница ${page + 1}", snippet)
+            }
+        }
+    }
+
+    internal val bookmarkActions by lazy {
+        BookmarkActions(
+            onToggle = { },
+            onOpen = { mark ->
+                state.sheet = null
+                mark.locator?.locations?.position?.let { state.jump = (it - 1).coerceAtLeast(0) }
+            },
+            onDelete = { mark -> lifecycleScope.launch { app.bookmarks.delete(listOf(mark.id)) } },
+        )
+    }
+
+    internal fun beginSelection(page: Int, x: Float, y: Float): Boolean {
+        val doc = state.doc ?: return false
+        if (!doc.textSupported) {
+            state.editor = NoteDraft(null, locator(page), "Страница ${page + 1}", "", app.readerSettings.settings.value.markerColor, fromList = false)
+            state.sheet = ReaderSheet.NoteEditor
+            state.ui = false
+            return true
+        }
+        val p = Point(x.roundToInt(), y.roundToInt())
+        selectJob?.cancel()
+        selectJob = lifecycleScope.launch {
+            val r = doc.select(page, p, p) ?: return@launch
+            val first = r.rects.firstOrNull() ?: return@launch
+            val last = r.rects.last()
+            state.translate = null
+            state.ui = false
+            state.selection = PdfSel(
+                page,
+                Point((first.left + 0.5f).roundToInt(), first.centerY().roundToInt()),
+                Point((last.right - 0.5f).roundToInt(), last.centerY().roundToInt()),
+                r.text,
+                r.rects,
+            )
+        }
+        return true
+    }
+
+    internal fun moveHandle(start: Boolean, x: Float, y: Float) {
+        val doc = state.doc ?: return
+        val sel = state.selection ?: return
+        val p = Point(x.roundToInt(), y.roundToInt())
+        val a = if (start) p else sel.start
+        val b = if (start) sel.stop else p
+        selectJob?.cancel()
+        selectJob = lifecycleScope.launch {
+            val r = doc.select(sel.page, a, b) ?: return@launch
+            if (r.rects.isEmpty()) return@launch
+            state.selection = state.selection?.copy(start = a, stop = b, text = r.text, rects = r.rects)
+        }
+    }
+
+    internal fun endSelection() {
+        selectJob?.cancel()
+        state.selection = null
+        state.selectionBounds = null
+    }
+
+    private fun selectionLocator(sel: PdfSel) = locator(sel.page, sel.rects, sel.text.take(500))
+
+    private fun cleanText(text: String) = text.replace(Regex("-\\s*\\n\\s*"), "").replace(Regex("\\s+"), " ").trim()
+
+    internal val noteActions by lazy {
+        NoteActions(
+            onSave = { draft ->
+                lifecycleScope.launch {
+                    val id = draft.id
+                    if (id == null) {
+                        val loc = draft.locator ?: return@launch
+                        val page = (loc.locations.position ?: 1) - 1
+                        app.notes.create(bookId, loc, draft.text, draft.note, draft.color, state.chapterAt(page))
+                    } else {
+                        app.notes.edit(id, draft.note, draft.color)
+                    }
+                    app.readerSettings.update { it.copy(markerColor = draft.color) }
+                    state.sheet = if (draft.fromList) ReaderSheet.Notes else null
+                    state.editor = null
+                }
+            },
+            onDelete = { id ->
+                lifecycleScope.launch {
+                    app.notes.delete(id)
+                    state.sheet = if (state.editor?.fromList == true) ReaderSheet.Notes else null
+                    state.editor = null
+                    Toast.makeText(this@PdfReaderActivity, "Заметка удалена", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onGoTo = { note ->
+                state.sheet = null
+                note.locator?.locations?.position?.let { state.jump = (it - 1).coerceAtLeast(0) }
+            },
+            onSelectionNote = {
+                state.selection?.let { sel ->
+                    state.editor = NoteDraft(null, selectionLocator(sel), cleanText(sel.text), "", app.readerSettings.settings.value.markerColor, fromList = false)
+                    endSelection()
+                    state.sheet = ReaderSheet.NoteEditor
+                }
+            },
+            onSelectionMarker = {
+                state.selection?.let { sel ->
+                    val loc = selectionLocator(sel)
+                    val color = app.readerSettings.settings.value.markerColor
+                    endSelection()
+                    lifecycleScope.launch { app.notes.create(bookId, loc, cleanText(sel.text), "", color, state.chapterAt(sel.page)) }
+                    app.feedback.play(FeedbackSound.Toggle)
+                }
+            },
+            onSelectionCopy = {
+                state.selection?.let { sel ->
+                    getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("WikiFlerty", cleanText(sel.text)))
+                    Toast.makeText(this, "Скопировано", Toast.LENGTH_SHORT).show()
+                }
+                endSelection()
+            },
+            onSelectionAi = { },
+            onSelectionClose = { endSelection() },
+            onSelectionQuote = {
+                state.selection?.let { sel ->
+                    state.quote = QuoteDraft(cleanText(sel.text), book.title, book.author, app.library.coverFile(book)?.takeIf { it.exists() }?.path, android.graphics.Typeface.SERIF)
+                    endSelection()
+                    state.sheet = ReaderSheet.Quote
+                }
+            },
+            onSelectionTranslate = {
+                state.selection?.let { sel ->
+                    endSelection()
+                    startTranslate(cleanText(sel.text), selectionLocator(sel), word = false)
+                }
+            },
+            onSelectionDictionary = {
+                state.selection?.let { sel ->
+                    endSelection()
+                    startTranslate(cleanText(sel.text), selectionLocator(sel), word = true)
+                }
+            },
+        )
+    }
+
+    private fun cleanWord(text: String): String =
+        text.replace(Regex("\\s+"), " ").trim().trim('.', ',', '!', '?', ':', ';', '«', '»', '"', '“', '”', '(', ')', '—', '-', '…')
+
+    private fun startTranslate(text: String, loc: Locator?, word: Boolean, target: String = app.readerSettings.settings.value.translateTo) {
+        val clean = if (word) cleanWord(text).take(120) else text.trim()
+        if (clean.isBlank()) return
+        translateJob?.cancel()
+        translateLocator = loc
+        state.ui = false
+        val known = word && app.dictionary.entries.value.any { it.word.equals(clean, ignoreCase = true) }
+        state.translate = TranslateInfo(clean, target, word, saved = known)
+        translateJob = lifecycleScope.launch {
+            val result = runCatching { if (word) Translator.define(clean, target) else Translator.translate(clean, target) }
+            val current = state.translate?.takeIf { it.text == clean && it.target == target } ?: return@launch
+            result.onSuccess { r ->
+                state.translate = current.copy(loading = false, result = r, error = null)
+            }.onFailure { e ->
+                if (e is CancellationException) throw e
+                state.translate = current.copy(loading = false, error = "Нет связи с переводчиком")
+            }
+        }
+    }
+
+    private suspend fun contextAround(loc: Locator?): String {
+        val page = (loc?.locations?.position ?: return "") - 1
+        val text = state.doc?.text(page)?.replace(Regex("\\s+"), " ") ?: return ""
+        val needle = loc.text.highlight?.replace(Regex("\\s+"), " ")?.trim().orEmpty()
+        val at = if (needle.isEmpty()) -1 else text.indexOf(needle)
+        if (at < 0) return ""
+        return text.substring(max(0, at - 160), min(text.length, at + needle.length + 160)).trim()
+    }
+
+    internal val translateActions by lazy {
+        TranslateActions(
+            onTarget = { code ->
+                val info = state.translate
+                app.readerSettings.update { it.copy(translateTo = code) }
+                if (info != null) startTranslate(info.text, translateLocator, info.word, code)
+            },
+            onSave = {
+                val info = state.translate
+                val result = info?.result
+                if (info != null && result != null && !info.saved && !(info.word && result.empty)) {
+                    state.translate = info.copy(saved = true)
+                    val loc = translateLocator
+                    val word = if (info.word) info.text else info.text.take(300)
+                    app.appScope.launch {
+                        app.dictionary.add(word, result.card(), contextAround(loc).take(400), bookId, book.title, loc)
+                    }
+                    app.feedback.play(FeedbackSound.Toggle)
+                }
+            },
+            onRetry = { state.translate?.let { startTranslate(it.text, translateLocator, it.word, it.target) } },
+            onCopy = {
+                state.translate?.result?.let { r ->
+                    getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("WikiFlerty", r.text))
+                    Toast.makeText(this, "Скопировано", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onClose = {
+                translateJob?.cancel()
+                state.translate = null
+            },
+        )
+    }
+
+    internal val searchActions by lazy {
+        SearchActions(
+            state = state.search,
+            onSearch = { q -> runSearch(q) },
+            onOpen = { index ->
+                val hit = state.search.results.getOrNull(index)
+                if (hit != null) {
+                    state.search.current = index
+                    state.sheet = null
+                    state.ui = false
+                    hit.locator.locations.position?.let { state.jump = it - 1 }
+                }
+            },
+            onClear = {
+                searchJob?.cancel()
+                state.search.results.clear()
+                state.search.current = -1
+                state.search.query = ""
+                state.search.searched = false
+                state.search.running = false
+                state.search.limited = false
+            },
+        )
+    }
+
+    private fun runSearch(query: String) {
+        val doc = state.doc ?: return
+        val s = state.search
+        searchJob?.cancel()
+        s.results.clear()
+        s.current = -1
+        s.error = null
+        s.limited = false
+        s.searched = false
+        s.running = true
+        val q = query.trim()
+        if (q.isEmpty()) {
+            s.running = false
+            return
+        }
+        val needle = q.lowercase()
+        searchJob = lifecycleScope.launch {
+            try {
+                outer@ for (i in 0 until doc.count) {
+                    ensureActive()
+                    val text = doc.text(i) ?: continue
+                    val lower = text.lowercase()
+                    var at = lower.indexOf(needle)
+                    if (at < 0) continue
+                    val bounds = doc.search(i, q)
+                    var k = 0
+                    while (at >= 0) {
+                        val end = min(text.length, at + needle.length)
+                        val before = text.substring(max(0, at - 50), at).replace(Regex("\\s+"), " ").trimStart()
+                        val after = text.substring(end, min(text.length, end + 80)).replace(Regex("\\s+"), " ").trimEnd()
+                        s.results += SearchHit(
+                            locator(i, bounds.getOrNull(k).orEmpty(), text.substring(at, end)),
+                            state.chapterAt(i) ?: "Страница ${i + 1}",
+                            before,
+                            text.substring(at, end),
+                            after,
+                        )
+                        k++
+                        if (s.results.size >= 400) {
+                            s.limited = true
+                            break@outer
+                        }
+                        at = lower.indexOf(needle, end)
+                    }
+                }
+            } finally {
+                s.running = false
+                s.searched = true
+            }
+        }
+    }
+
+    internal val quoteActions by lazy {
+        QuoteActions(
+            onShare = { draft, look, format -> shareQuote(draft, look, format) },
+            onSave = { draft, look, format ->
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+                    checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                ) {
+                    pendingQuoteSave = Triple(draft, look, format)
+                    storagePermission.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                } else {
+                    saveQuote(draft, look, format)
+                }
+            },
+        )
+    }
+
+    private suspend fun renderQuote(draft: QuoteDraft, look: QuoteLook, format: QuoteFormat): Bitmap {
+        val theme = QuoteTheme(AppStyle.base, AppStyle.current.accent.toInt())
+        return withContext(Dispatchers.Default) {
+            QuoteCard.render(draft, look, format, theme, QuoteCard.loadCover(draft.coverPath, maxWidth = 480))
+        }
+    }
+
+    private fun shareQuote(draft: QuoteDraft, look: QuoteLook, format: QuoteFormat) {
+        if (quoteActions.busy) return
+        quoteActions.busy = true
+        lifecycleScope.launch {
+            try {
+                val bitmap = renderQuote(draft, look, format)
+                val uri = withContext(Dispatchers.IO) {
+                    val dir = File(cacheDir, "share").apply { mkdirs() }
+                    val file = File(dir, "quote.png")
+                    file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                    androidx.core.content.FileProvider.getUriForFile(this@PdfReaderActivity, "$packageName.files", file)
+                }
+                val intent = Intent(Intent.ACTION_SEND)
+                    .setType("image/png")
+                    .putExtra(Intent.EXTRA_STREAM, uri)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                intent.clipData = ClipData.newRawUri("quote", uri)
+                startActivity(Intent.createChooser(intent, "Поделиться цитатой"))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Toast.makeText(this@PdfReaderActivity, "Не удалось поделиться", Toast.LENGTH_SHORT).show()
+            } finally {
+                quoteActions.busy = false
+            }
+        }
+    }
+
+    private fun saveQuote(draft: QuoteDraft, look: QuoteLook, format: QuoteFormat) {
+        if (quoteActions.busy) return
+        quoteActions.busy = true
+        lifecycleScope.launch {
+            val saved = try {
+                val bitmap = renderQuote(draft, look, format)
+                withContext(Dispatchers.IO) { writeToGallery(bitmap) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                false
+            } finally {
+                quoteActions.busy = false
+            }
+            Toast.makeText(this@PdfReaderActivity, if (saved) "Сохранено в галерею" else "Не удалось сохранить", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun writeToGallery(bitmap: Bitmap): Boolean {
+        val name = "WikiFlerty_${System.currentTimeMillis()}.png"
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val resolver = contentResolver
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name)
+                put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
+                put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/WikiFlerty")
+                put(android.provider.MediaStore.Images.Media.IS_PENDING, 1)
+            }
+            val uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return false
+            val written = runCatching {
+                resolver.openOutputStream(uri)?.use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } ?: false
+            }.getOrDefault(false)
+            if (!written) {
+                resolver.delete(uri, null, null)
+                return false
+            }
+            values.clear()
+            values.put(android.provider.MediaStore.Images.Media.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
+            true
+        } else {
+            @Suppress("DEPRECATION")
+            val dir = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES), "WikiFlerty")
+            dir.mkdirs()
+            val file = File(dir, name)
+            file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            android.media.MediaScannerConnection.scanFile(this, arrayOf(file.path), arrayOf("image/png"), null)
+            true
+        }
+    }
+
+    internal fun openLink(link: PdfLink) {
+        val page = link.page
+        if (page != null) {
+            state.jump = page.coerceIn(0, (state.doc?.count ?: 1) - 1)
+            return
+        }
+        val uri = link.uri ?: return
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri))) }
+            .onFailure { Toast.makeText(this, "Не удалось открыть ссылку", Toast.LENGTH_SHORT).show() }
+    }
+
+    internal fun editNote(note: Note, fromList: Boolean) {
+        state.editor = NoteDraft(note.id, note.locator, note.text, note.note, note.color, fromList = fromList)
+        state.sheet = ReaderSheet.NoteEditor
+        state.ui = false
+    }
+
+    internal fun noteForPage(page: Int) {
+        if (state.doc == null) return
+        state.editor = NoteDraft(null, locator(page), "Страница ${page + 1}", "", app.readerSettings.settings.value.markerColor, fromList = false)
+        state.sheet = ReaderSheet.NoteEditor
+        state.ui = false
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val volume = event.keyCode == KeyEvent.KEYCODE_VOLUME_UP || event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN
-        if (volume && app.readerSettings.settings.value.volumeKeys && ::state.isInitialized && state.doc != null) {
+        if (volume && app.readerSettings.settings.value.volumeKeys && ::state.isInitialized && state.doc != null && state.sheet == null) {
             if (event.action == KeyEvent.ACTION_DOWN) {
                 val delta = if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) 1 else -1
                 val count = state.doc?.count ?: 0
@@ -510,17 +1132,39 @@ class PdfReaderActivity : ComponentActivity() {
     }
 }
 
+private val PdfNav = listOf(ReaderSheet.Toc, ReaderSheet.Notes, ReaderSheet.Bookmarks)
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun PdfReaderScreen(
-    state: PdfUiState,
-    onBack: () -> Unit,
-    onPage: (Int) -> Unit,
-    onBars: (Boolean) -> Unit,
-    onFinished: () -> Unit,
-) {
-    LaunchedEffect(state.ui) { onBars(state.ui) }
-    LaunchedEffect(state) { snapshotFlow { state.page }.collect { onPage(it) } }
+private fun PdfReaderScreen(host: PdfReaderActivity, state: PdfUiState) {
+    val app = host.application as App
+    val settings by app.readerSettings.settings.collectAsState()
+    val allNotes by app.notes.notes.collectAsState()
+    val allMarks by app.bookmarks.bookmarks.collectAsState()
+    val bookId = host.intent.getStringExtra(PdfReaderActivity.EXTRA_BOOK).orEmpty()
+    val notes = remember(allNotes, bookId) { allNotes.filter { it.bookId == bookId }.sortedBy { it.progression } }
+    val marks = remember(allMarks, bookId) { allMarks.filter { it.bookId == bookId }.sortedBy { it.progression } }
+    val marksByPage = remember(notes) {
+        notes.groupBy { (it.locator?.locations?.position ?: 0) - 1 }
+            .mapValues { (_, list) -> list.map { PdfMark(it, decodeRects(it.locator?.locations?.otherLocations?.get(PDF_RECTS))) } }
+    }
+    val bookmarkedPages = remember(marks) { marks.mapNotNull { it.locator?.locations?.position?.minus(1) }.toSet() }
+
+    LaunchedEffect(state.ui) { host.applyBars(state.ui) }
+    LaunchedEffect(state) { snapshotFlow { state.page }.collect { host.onPage(it) } }
+    BackHandler(enabled = state.sheet != null || state.selection != null || state.translate != null || state.ui) {
+        when {
+            state.sheet == ReaderSheet.NoteEditor && state.editor?.fromList == true -> state.sheet = ReaderSheet.Notes
+            state.sheet != null -> state.sheet = null
+            state.selection != null -> host.endSelection()
+            state.translate != null -> host.translateActions.onClose()
+            else -> state.ui = false
+        }
+    }
+
+    val top = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
+    val bottom = WindowInsets.navigationBarsIgnoringVisibility.asPaddingValues().calculateBottomPadding()
+
     Box(Modifier.fillMaxSize().background(AppColors.Background)) {
         AppBackground()
         val doc = state.doc
@@ -542,31 +1186,29 @@ fun PdfReaderScreen(
                 ) {
                     Icon(AppIcons.Alert, null, tint = AppColors.Muted, modifier = Modifier.size(34.dp))
                     Text(state.error.orEmpty(), color = AppColors.Text, fontSize = 16.sp)
-                    AppButton("Назад", primary = true, onClick = onBack)
+                    AppButton("Назад", primary = true) { host.finish() }
                 }
-                else -> state.doc?.let { PdfContent(it, state) }
+                else -> state.doc?.let { PdfContent(host, it, state, marksByPage, bookmarkedPages) }
             }
         }
 
-        val top = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
-        val bottom = WindowInsets.navigationBarsIgnoringVisibility.asPaddingValues().calculateBottomPadding()
         val count = doc?.count ?: 0
 
         AnimatedVisibility(
-            visible = state.ui && doc != null,
+            visible = state.ui && doc != null && state.sheet == null,
             enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(260)) { -it / 2 },
             exit = fadeOut(Motion.fade(160)) + slideOutVertically(Motion.tween(220)) { -it / 2 },
             modifier = Modifier.align(Alignment.TopCenter),
         ) {
-            PdfTopPanel(state, count, top, onBack)
+            PdfTopPanel(host, state, top, bookmarked = state.page in bookmarkedPages, onBookmark = { host.toggleBookmark(marks) })
         }
         AnimatedVisibility(
-            visible = state.ui && doc != null,
+            visible = state.ui && doc != null && state.sheet == null,
             enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(260)) { it / 2 },
             exit = fadeOut(Motion.fade(160)) + slideOutVertically(Motion.tween(220)) { it / 2 },
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            PdfBottomPanel(state, count, bottom)
+            PdfBottomPanel(host, state, count, bottom)
         }
 
         var chip by remember { mutableStateOf(false) }
@@ -580,7 +1222,7 @@ fun PdfReaderScreen(
             chip = false
         }
         AnimatedVisibility(
-            visible = chip,
+            visible = chip && state.sheet == null && state.selection == null && state.translate == null && state.search.current < 0,
             enter = fadeIn(Motion.fade(160)),
             exit = fadeOut(Motion.fade(400)),
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottom + 14.dp),
@@ -594,10 +1236,19 @@ fun PdfReaderScreen(
         }
 
         AnimatedVisibility(
-            visible = state.askFinish,
+            visible = state.search.current >= 0 && state.search.results.isNotEmpty() && state.sheet == null && state.selection == null && !state.ui,
+            enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(240)) { it / 2 },
+            exit = fadeOut(Motion.fade(160)),
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottom + 16.dp),
+        ) {
+            SearchNavBar(host.searchActions, onReopen = { state.sheet = ReaderSheet.Search }, modifier = Modifier)
+        }
+
+        AnimatedVisibility(
+            visible = state.askFinish && state.sheet == null,
             enter = fadeIn(Motion.fade(220)) + scaleIn(Motion.tween(280), initialScale = 0.9f),
             exit = fadeOut(Motion.fade(180)) + scaleOut(Motion.tween(200), targetScale = 0.9f),
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottom + if (state.ui) 110.dp else 48.dp),
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottom + if (state.ui) 150.dp else 48.dp),
         ) {
             Row(
                 Modifier
@@ -611,14 +1262,76 @@ fun PdfReaderScreen(
             ) {
                 Icon(AppIcons.Flag, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp))
                 Text("Книга прочитана?", color = AppColors.Text, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                RoundIconButton(AppIcons.Check, "Прочитано", filled = true, sound = FeedbackSound.Success, onClick = onFinished)
+                RoundIconButton(AppIcons.Check, "Прочитано", filled = true, sound = FeedbackSound.Success) { host.markFinished() }
                 RoundIconButton(AppIcons.Close, "Позже", sound = FeedbackSound.Close) { state.askFinish = false }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = state.translate != null && state.sheet == null,
+            enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(260)) { it / 3 },
+            exit = fadeOut(Motion.fade(160)) + slideOutVertically(Motion.tween(200)) { it / 3 },
+            modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.systemBars).padding(bottom = 16.dp),
+        ) {
+            val last = remember { arrayOf<TranslateInfo?>(null) }
+            state.translate?.let { last[0] = it }
+            last[0]?.let { TranslatePopup(it, host.translateActions, Modifier.pointerInput(Unit) { detectTapGestures { } }) }
+        }
+
+        AnimatedVisibility(
+            visible = state.selection != null && state.selectionBounds != null && state.sheet == null,
+            enter = fadeIn(Motion.fade(220)),
+            exit = fadeOut(Motion.fade(160)),
+        ) {
+            val last = remember { arrayOf<Pair<Float, Float>?>(null) }
+            state.selectionBounds?.let { last[0] = it }
+            val bounds = last[0] ?: return@AnimatedVisibility
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val density = LocalDensity.current
+                val menuHeight = with(density) { 58.dp.toPx() }
+                val gap = with(density) { 14.dp.toPx() }
+                val minY = with(density) { (top + 12.dp).toPx() }
+                val maxY = with(density) { maxHeight.toPx() } - menuHeight - with(density) { (bottom + 24.dp).toPx() }
+                val above = bounds.first - menuHeight - gap
+                val below = bounds.second + gap + with(density) { 22.dp.toPx() }
+                val y = when {
+                    above >= minY -> above
+                    below <= maxY -> below
+                    else -> maxY
+                }.coerceIn(minY, max(minY, maxY))
+                val supported = setOf(SelectionButton.Note, SelectionButton.Marker, SelectionButton.Translate, SelectionButton.Dictionary, SelectionButton.Quote, SelectionButton.Copy)
+                val layout = remember(settings.selectionButtons, settings.selectionMore) {
+                    val (m, o) = settings.selectionLayout()
+                    val main = m.filter { it in supported }
+                    val more = (o.filter { it in supported } + supported.filter { it !in m && it !in o }).distinct()
+                    main to more
+                }
+                SelectionMenu(
+                    markerColor = settings.markerColor,
+                    actions = host.noteActions,
+                    main = layout.first,
+                    more = layout.second,
+                    modifier = Modifier.fillMaxWidth().offset { IntOffset(0, y.roundToInt()) },
+                )
+            }
+        }
+
+        AnimatedVisibility(
+            visible = state.sheet != null && doc != null,
+            enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(280)) { it / 3 },
+            exit = fadeOut(Motion.fade(160)) + slideOutVertically(Motion.tween(220)) { it / 3 },
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottom),
+        ) {
+            val last = remember { arrayOf(ReaderSheet.Toc) }
+            state.sheet?.let { last[0] = it }
+            SheetFrame {
+                PdfSheet(host, state, last[0], notes, marks, settings)
             }
         }
     }
 
     val doc = state.doc
-    if (state.grid && doc != null) PdfGridSheet(doc, state)
+    if (state.grid && doc != null) PdfGridSheet(doc, state, bookmarkedPages, marksByPage.keys)
     if (state.goTo && doc != null) {
         TextInputSheet(
             "Страница",
@@ -634,28 +1347,209 @@ fun PdfReaderScreen(
     }
 }
 
+@Composable
+private fun PdfSheet(
+    host: PdfReaderActivity,
+    state: PdfUiState,
+    sheet: ReaderSheet,
+    notes: List<Note>,
+    marks: List<Bookmark>,
+    settings: ReaderSettings,
+) {
+    val app = host.application as App
+    Column(
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            Modifier
+                .align(Alignment.CenterHorizontally)
+                .size(width = 36.dp, height = 4.dp)
+                .clip(appCorner(2))
+                .background(AppColors.Line),
+        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            val back = sheet == ReaderSheet.NoteEditor && state.editor?.fromList == true
+            if (back) {
+                RoundIconButton(AppIcons.Back, "Назад", sound = FeedbackSound.Close) { state.sheet = ReaderSheet.Notes }
+            } else if (sheet !in PdfNav) {
+                Spacer(Modifier.size(44.dp))
+            }
+            if (sheet in PdfNav) {
+                NavTabs(sheet, onSelect = { state.sheet = it }, modifier = Modifier.weight(1f).padding(end = 6.dp), sheets = PdfNav)
+            } else {
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    HeaderLabel(if (sheet == ReaderSheet.NoteEditor && state.editor?.id == null) "Новая заметка" else sheet.title)
+                }
+            }
+            RoundIconButton(AppIcons.Close, "Закрыть", filled = true, sound = FeedbackSound.Close) { state.sheet = null }
+        }
+        SheetDivider()
+        AnimatedContent(
+            targetState = sheet,
+            transitionSpec = {
+                val dir = if (PdfNav.indexOf(targetState) >= PdfNav.indexOf(initialState)) 1 else -1
+                (slideInHorizontally(Motion.tween(280)) { dir * it / 4 } + fadeIn(Motion.fade(220)))
+                    .togetherWith(slideOutHorizontally(Motion.tween(240)) { -dir * it / 4 } + fadeOut(Motion.fade(160)))
+                    .using(SizeTransform(clip = true))
+            },
+            modifier = Modifier.weight(1f, fill = false),
+            label = "pdf-sheet",
+        ) { tab ->
+            when (tab) {
+                ReaderSheet.Notes -> BookNotesList(
+                    notes = notes,
+                    onOpen = host.noteActions.onGoTo,
+                    onEdit = { host.editNote(it, fromList = true) },
+                )
+                ReaderSheet.Bookmarks -> BookmarkList(marks, host.bookmarkActions)
+                ReaderSheet.Search -> SearchContent(host.searchActions, Modifier)
+                ReaderSheet.Quote -> state.quote?.let { QuoteContent(it, host.quoteActions) }
+                ReaderSheet.NoteEditor -> state.editor?.let { draft ->
+                    NoteEditor(
+                        draft = draft,
+                        palette = settings.noteColors,
+                        onPaletteChange = { colors -> app.readerSettings.update { it.copy(noteColors = colors) } },
+                        onSave = host.noteActions.onSave,
+                        onDelete = host.noteActions.onDelete,
+                        onCancel = { state.sheet = if (draft.fromList) ReaderSheet.Notes else null },
+                    )
+                }
+                else -> PdfToc(state)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PdfToc(state: PdfUiState) {
+    val outline = state.outline
+    if (outline.isEmpty()) {
+        Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("В этом PDF нет оглавления", color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text("Перейти можно по сетке страниц или номеру страницы.", color = AppColors.Muted, fontSize = 14.sp, lineHeight = 20.sp)
+        }
+        return
+    }
+    val current = remember(outline, state.page) {
+        var best = -1
+        outline.forEachIndexed { i, e -> if (e.page <= state.page && (best < 0 || e.page >= outline[best].page)) best = i }
+        best
+    }
+    val list = rememberLazyListState(initialFirstVisibleItemIndex = (current - 2).coerceAtLeast(0))
+    LazyColumn(state = list) {
+        itemsIndexed(outline) { index, item ->
+            Column {
+                if (index > 0) ListDivider()
+                Reveal {
+                    val shape = appCorner(12)
+                    val active = index == current
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) {
+                                state.sheet = null
+                                state.jump = item.page
+                            }
+                            .padding(start = (8 + item.depth.coerceAtMost(5) * 16).dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(
+                            item.title,
+                            color = when {
+                                active -> AppColors.Accent
+                                item.depth == 0 -> AppColors.Text
+                                else -> AppColors.Muted
+                            },
+                            fontSize = if (item.depth == 0) 15.sp else 14.sp,
+                            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text("${item.page + 1}", color = AppColors.Faint, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PdfContent(doc: PdfDoc, state: PdfUiState) {
+private fun PdfContent(
+    host: PdfReaderActivity,
+    doc: PdfDoc,
+    state: PdfUiState,
+    marksByPage: Map<Int, List<PdfMark>>,
+    bookmarkedPages: Set<Int>,
+) {
     val zoom = remember { ZoomState() }
+    val registry = remember { PageRegistry() }
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
+    val haptic = LocalHapticFeedback.current
     val top = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
     val bottom = WindowInsets.navigationBarsIgnoringVisibility.asPaddingValues().calculateBottomPadding()
     val paged = state.paged
+    val marks by rememberUpdatedState(marksByPage)
     LaunchedEffect(paged) { zoom.reset() }
     var listState by remember { mutableStateOf<LazyListState?>(null) }
     var fling by remember { mutableStateOf<Job?>(null) }
     val hi by remember { derivedStateOf { zoom.scale >= 1.6f } }
     val zoomed by remember { derivedStateOf { zoom.zoomed } }
+    val searchHit = state.search.results.getOrNull(state.search.current)
+    val searchPage = searchHit?.locator?.locations?.position?.minus(1)
+    val searchRects = remember(searchHit) { decodeRects(searchHit?.locator?.locations?.otherLocations?.get(PDF_RECTS)) }
+
+    LaunchedEffect(Unit) {
+        snapshotFlow { Triple(state.selection, zoom.scale, zoom.ox + zoom.oy * 7f) }.collect { (sel, _, _) ->
+            if (sel == null || sel.rects.isEmpty()) {
+                state.selectionBounds = null
+            } else {
+                withFrameMillis { }
+                val union = RectF(sel.rects[0])
+                sel.rects.forEach { union.union(it) }
+                state.selectionBounds = registry.windowRect(doc, sel.page, union)
+            }
+        }
+    }
 
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
+            .onGloballyPositioned { registry.root = it }
             .pointerInput(paged) {
                 detectTapGestures(
                     onDoubleTap = { pos -> scope.launch { zoom.animateTo(if (zoom.zoomed) 1f else 2.5f, pos) } },
+                    onLongPress = { pos ->
+                        val hit = registry.hit(doc, pos) ?: return@detectTapGestures
+                        if (host.beginSelection(hit.page, hit.x, hit.y)) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    },
                     onTap = { pos ->
+                        if (state.selection != null) {
+                            host.endSelection()
+                            return@detectTapGestures
+                        }
+                        if (state.translate != null) {
+                            host.translateActions.onClose()
+                            return@detectTapGestures
+                        }
+                        val hit = registry.hit(doc, pos)
+                        if (hit != null) {
+                            val note = marks[hit.page]?.firstOrNull { m -> m.rects.any { it.contains(hit.x, hit.y) } }
+                            if (note != null) {
+                                host.editNote(note.note, fromList = false)
+                                return@detectTapGestures
+                            }
+                            val link = doc.cachedLinks(hit.page)?.firstOrNull { l -> l.rects.any { it.contains(hit.x, hit.y) } }
+                            if (link != null && !state.ui) {
+                                host.openLink(link)
+                                return@detectTapGestures
+                            }
+                        }
                         val w = size.width
                         when {
                             paged && !zoom.zoomed && pos.x < w * 0.28f && !state.ui -> state.jump = (state.page - 1).coerceAtLeast(0)
@@ -685,7 +1579,7 @@ private fun PdfContent(doc: PdfDoc, state: PdfUiState) {
                             event.changes.forEach { it.consume() }
                             panning = false
                             acc = Offset(Float.MAX_VALUE, 0f)
-                        } else if (pressed == 1 && zoom.zoomed) {
+                        } else if (pressed == 1 && zoom.zoomed && state.selection == null) {
                             val ch = event.changes.first { it.pressed }
                             val d = ch.positionChange()
                             if (!panning) {
@@ -729,6 +1623,24 @@ private fun PdfContent(doc: PdfDoc, state: PdfUiState) {
         zoom.h = maxH.toFloat()
         val gap = 8.dp
         val gapPx = with(density) { gap.toPx() }
+
+        @Composable
+        fun page(i: Int, width: Int, modifier: Modifier) {
+            PdfPageView(
+                host = host,
+                doc = doc,
+                index = i,
+                width = width,
+                filter = state.filter,
+                marks = marks[i].orEmpty(),
+                bookmarked = i in bookmarkedPages,
+                search = if (i == searchPage) searchRects else emptyList(),
+                selection = state.selection?.takeIf { it.page == i },
+                registry = registry,
+                modifier = modifier,
+            )
+        }
+
         Box(
             Modifier
                 .fillMaxSize()
@@ -753,6 +1665,9 @@ private fun PdfContent(doc: PdfDoc, state: PdfUiState) {
                         }.collect { state.page = it }
                     }
                     LaunchedEffect(ls) {
+                        snapshotFlow { ls.isScrollInProgress }.collect { if (it && state.selection != null) host.endSelection() }
+                    }
+                    LaunchedEffect(ls) {
                         snapshotFlow { state.jump }.collect { target ->
                             if (target != null) {
                                 state.jump = null
@@ -767,7 +1682,7 @@ private fun PdfContent(doc: PdfDoc, state: PdfUiState) {
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         items(doc.count, key = { it }) { i ->
-                            PdfPageView(doc, i, renderW, state.filter, Modifier.fillMaxWidth().aspectRatio(doc.aspect(i)))
+                            page(i, renderW, Modifier.fillMaxWidth().aspectRatio(doc.aspect(i)))
                         }
                     }
                 } else {
@@ -778,6 +1693,9 @@ private fun PdfContent(doc: PdfDoc, state: PdfUiState) {
                             state.page = it
                             if (zoom.zoomed) zoom.reset()
                         }
+                    }
+                    LaunchedEffect(pager) {
+                        snapshotFlow { pager.isScrollInProgress }.collect { if (it && state.selection != null) host.endSelection() }
                     }
                     LaunchedEffect(pager) {
                         snapshotFlow { state.jump }.collect { target ->
@@ -792,7 +1710,7 @@ private fun PdfContent(doc: PdfDoc, state: PdfUiState) {
                     HorizontalPager(
                         state = pager,
                         modifier = Modifier.fillMaxSize(),
-                        userScrollEnabled = !zoomed,
+                        userScrollEnabled = !zoomed && state.selection == null,
                         beyondViewportPageCount = 1,
                         key = { it },
                     ) { i ->
@@ -800,11 +1718,9 @@ private fun PdfContent(doc: PdfDoc, state: PdfUiState) {
                         val fitW = if (availW / availH.coerceAtLeast(1f) > a) availH * a else availW
                         val fitH = fitW / a
                         Box(Modifier.fillMaxSize().padding(top = top + 12.dp, bottom = bottom + 12.dp), contentAlignment = Alignment.Center) {
-                            PdfPageView(
-                                doc,
+                            page(
                                 i,
                                 renderWidth(fitW.roundToInt().coerceAtLeast(1), hi && i == pager.currentPage),
-                                state.filter,
                                 Modifier.size(with(density) { fitW.toDp() }, with(density) { fitH.toDp() }),
                             )
                         }
@@ -821,13 +1737,32 @@ private fun renderWidth(px: Int, hi: Boolean): Int {
 }
 
 @Composable
-private fun PdfPageView(doc: PdfDoc, index: Int, width: Int, filter: PdfFilter, modifier: Modifier) {
+private fun PdfPageView(
+    host: PdfReaderActivity,
+    doc: PdfDoc,
+    index: Int,
+    width: Int,
+    filter: PdfFilter,
+    marks: List<PdfMark>,
+    bookmarked: Boolean,
+    search: List<RectF>,
+    selection: PdfSel?,
+    registry: PageRegistry,
+    modifier: Modifier,
+) {
     var shown by remember(index) { mutableStateOf(doc.cached(index, width)) }
     LaunchedEffect(index, width) {
         doc.render(index, width)?.let { shown = it }
+        doc.links(index)
     }
+    DisposableEffect(index) {
+        onDispose { registry.pages.remove(index) }
+    }
+    val accent = AppColors.Accent
+    val night = filter == PdfFilter.Night
     Box(
         modifier
+            .onGloballyPositioned { registry.pages[index] = it }
             .shadow(3.dp, RectangleShape, clip = false)
             .background(filter.paper)
             .border(0.5.dp, AppColors.PanelBorder),
@@ -840,11 +1775,119 @@ private fun PdfPageView(doc: PdfDoc, index: Int, width: Int, filter: PdfFilter, 
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { KitSpinner(Modifier.size(22.dp), AppColors.Faint) }
             }
         }
+        val pw = doc.pageWidth(index).toFloat()
+        val ph = doc.pageHeight(index).toFloat()
+        val highlighted = marks.filter { it.rects.isNotEmpty() }
+        if (highlighted.isNotEmpty() || search.isNotEmpty() || selection != null) {
+            Canvas(Modifier.fillMaxSize()) {
+                val sx = size.width / pw
+                val sy = size.height / ph
+                fun box(r: RectF, color: Color, blend: BlendMode) {
+                    drawRect(color, Offset(r.left * sx, r.top * sy), Size((r.right - r.left) * sx, (r.bottom - r.top) * sy), blendMode = blend)
+                }
+                val blend = if (night) BlendMode.Screen else BlendMode.Multiply
+                highlighted.forEach { m ->
+                    val c = Color(m.note.color)
+                    m.rects.forEach { box(it, c.copy(alpha = if (night) 0.45f else 0.55f), blend) }
+                    if (m.note.note.isNotBlank()) {
+                        val last = m.rects.last()
+                        drawCircle(c, radius = 3.5f * density, center = Offset(last.right * sx + 4f * density, last.top * sy))
+                    }
+                }
+                search.forEach { box(it, accent.copy(alpha = 0.45f), blend) }
+                selection?.rects?.forEach { box(it, accent.copy(alpha = 0.35f), BlendMode.SrcOver) }
+            }
+        }
+        val pageNotes = marks.filter { it.rects.isEmpty() }
+        if (pageNotes.isNotEmpty()) {
+            Row(
+                Modifier.align(Alignment.TopStart).padding(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                pageNotes.take(4).forEach { m ->
+                    Box(
+                        Modifier
+                            .size(26.dp)
+                            .liveClick(appCorner(8), sound = FeedbackSound.Open, pressedScale = 0.88f) { host.editNote(m.note, fromList = false) }
+                            .clip(appCorner(8))
+                            .background(Color(m.note.color))
+                            .border(1.dp, Color(0x33000000), appCorner(8)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(AppIcons.Note, null, tint = Color(0xCC1A1A1A), modifier = Modifier.size(15.dp))
+                    }
+                }
+            }
+        }
+        AnimatedVisibility(
+            visible = bookmarked,
+            enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(260)) { -it },
+            exit = fadeOut(Motion.fade(160)) + slideOutVertically(Motion.tween(200)) { -it },
+            modifier = Modifier.align(Alignment.TopEnd).padding(end = 14.dp),
+        ) {
+            PageRibbon()
+        }
+        if (selection != null && selection.rects.isNotEmpty()) {
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val wpx = constraints.maxWidth.toFloat()
+                val hpx = constraints.maxHeight.toFloat()
+                val sx = wpx / pw
+                val sy = hpx / ph
+                val first = selection.rects.first()
+                val last = selection.rects.last()
+                SelectionHandle(
+                    anchor = Offset(first.left * sx, first.bottom * sy),
+                    start = true,
+                    onMove = { p -> host.moveHandle(true, p.x / sx, (p.y / sy - first.height() / 2f).coerceAtLeast(0f)) },
+                )
+                SelectionHandle(
+                    anchor = Offset(last.right * sx, last.bottom * sy),
+                    start = false,
+                    onMove = { p -> host.moveHandle(false, p.x / sx, (p.y / sy - last.height() / 2f).coerceAtLeast(0f)) },
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun PdfTopPanel(state: PdfUiState, count: Int, top: androidx.compose.ui.unit.Dp, onBack: () -> Unit) {
+private fun SelectionHandle(anchor: Offset, start: Boolean, onMove: (Offset) -> Unit) {
+    val size = 22.dp
+    val px = with(LocalDensity.current) { size.toPx() }
+    val current by rememberUpdatedState(anchor)
+    val move by rememberUpdatedState(onMove)
+    var drag by remember { mutableStateOf<Offset?>(null) }
+    val shown = drag ?: anchor
+    val shape = if (start) {
+        RoundedCornerShape(50, 0, 50, 50)
+    } else {
+        RoundedCornerShape(0, 50, 50, 50)
+    }
+    Box(
+        Modifier
+            .offset { IntOffset((shown.x - if (start) px else 0f).roundToInt(), shown.y.roundToInt()) }
+            .size(size)
+            .pointerInput(start) {
+                detectDragGestures(
+                    onDragStart = { drag = current },
+                    onDragEnd = { drag = null },
+                    onDragCancel = { drag = null },
+                ) { change, amount ->
+                    change.consume()
+                    val next = (drag ?: current) + amount
+                    drag = next
+                    move(next)
+                }
+            }
+            .shadow(3.dp, shape)
+            .clip(shape)
+            .background(AppColors.Accent),
+    )
+}
+
+@Composable
+private fun PdfTopPanel(host: PdfReaderActivity, state: PdfUiState, top: Dp, bookmarked: Boolean, onBookmark: () -> Unit) {
+    val doc = state.doc
     Row(
         Modifier
             .padding(start = 12.dp, end = 12.dp, top = top + 8.dp)
@@ -856,67 +1899,91 @@ private fun PdfTopPanel(state: PdfUiState, count: Int, top: androidx.compose.ui.
             .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RoundIconButton(AppIcons.Back, "Назад", sound = FeedbackSound.Close, onClick = onBack)
+        RoundIconButton(AppIcons.Back, "Назад", sound = FeedbackSound.Close) { host.finish() }
         Column(Modifier.weight(1f).padding(horizontal = 6.dp)) {
             MarqueeText(state.title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Text("PDF · $count стр.", color = AppColors.Muted, fontSize = 12.sp, maxLines = 1)
+            val chapter = state.chapterAt(state.page)
+            Text(
+                chapter ?: "PDF · ${doc?.count ?: 0} стр.",
+                color = AppColors.Muted,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
-        Crossfade(state.paged, animationSpec = Motion.fade(180), label = "pdf-mode") { p ->
-            RoundIconButton(if (p) AppIcons.Pages else AppIcons.Scroll, if (p) "Листание" else "Лента", sound = FeedbackSound.Toggle) { state.togglePaged() }
+        BookmarkButton(bookmarked, onBookmark)
+        if (doc?.textSupported == true) {
+            RoundIconButton(AppIcons.Search, "Поиск по книге", sound = FeedbackSound.Open) { state.sheet = ReaderSheet.Search }
+        } else {
+            RoundIconButton(AppIcons.Note, "Заметка к странице", sound = FeedbackSound.Open) { host.noteForPage(state.page) }
         }
-        Crossfade(state.filter, animationSpec = Motion.fade(180), label = "pdf-filter") { f ->
-            RoundIconButton(f.icon, "Цвет страниц", sound = FeedbackSound.Toggle) { state.nextFilter() }
-        }
-        RoundIconButton(AppIcons.Grid, "Страницы", sound = FeedbackSound.Open) { state.grid = true }
     }
 }
 
 @Composable
-private fun PdfBottomPanel(state: PdfUiState, count: Int, bottom: androidx.compose.ui.unit.Dp) {
+private fun PdfBottomPanel(host: PdfReaderActivity, state: PdfUiState, count: Int, bottom: Dp) {
     var drag by remember { mutableStateOf<Float?>(null) }
     val shown = drag?.roundToInt() ?: state.page
-    Row(
+    Column(
         Modifier
             .padding(start = 12.dp, end = 12.dp, bottom = bottom + 10.dp)
             .widthIn(max = PanelMaxWidth)
             .fillMaxWidth()
-            .height(60.dp)
             .panelSurface(appCorner(22))
-            .pointerInput(Unit) { detectTapGestures { } }
-            .padding(start = 16.dp, end = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+            .pointerInput(Unit) { detectTapGestures { } },
     ) {
-        if (count > 1) {
-            KitSlider(
-                value = drag ?: state.page.toFloat(),
-                onValueChange = { drag = it },
-                onValueChangeFinished = {
-                    drag?.let { state.jump = it.roundToInt().coerceIn(0, count - 1) }
-                    drag = null
-                },
-                valueRange = 0f..(count - 1).toFloat(),
-                modifier = Modifier.weight(1f),
+        Row(
+            Modifier.fillMaxWidth().height(56.dp).padding(start = 16.dp, end = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (count > 1) {
+                KitSlider(
+                    value = drag ?: state.page.toFloat(),
+                    onValueChange = { drag = it },
+                    onValueChangeFinished = {
+                        drag?.let { state.jump = it.roundToInt().coerceIn(0, count - 1) }
+                        drag = null
+                    },
+                    valueRange = 0f..(count - 1).toFloat(),
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                Box(Modifier.weight(1f))
+            }
+            Text(
+                "${shown + 1} / $count",
+                color = if (drag != null) AppColors.Accent else AppColors.Text,
+                fontSize = 13.sp,
+                fontWeight = if (drag != null) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1,
+                modifier = Modifier
+                    .widthIn(min = 64.dp)
+                    .liveClick(appCorner(10), sound = FeedbackSound.Open, pressedScale = 0.9f) { state.goTo = true }
+                    .padding(horizontal = 8.dp, vertical = 10.dp),
             )
-        } else {
-            Box(Modifier.weight(1f))
         }
-        Text(
-            "${shown + 1} / $count",
-            color = if (drag != null) AppColors.Accent else AppColors.Text,
-            fontSize = 13.sp,
-            fontWeight = if (drag != null) FontWeight.SemiBold else FontWeight.Normal,
-            maxLines = 1,
-            modifier = Modifier
-                .widthIn(min = 64.dp)
-                .liveClick(appCorner(10), sound = FeedbackSound.Open, pressedScale = 0.9f) { state.goTo = true }
-                .padding(horizontal = 8.dp, vertical = 10.dp),
-        )
+        ListDivider(Modifier.padding(horizontal = 14.dp))
+        Row(
+            Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            RoundIconButton(AppIcons.Toc, "Оглавление", sound = FeedbackSound.Open) { state.sheet = ReaderSheet.Toc }
+            RoundIconButton(AppIcons.Star, "Заметки", sound = FeedbackSound.Open) { state.sheet = ReaderSheet.Notes }
+            RoundIconButton(AppIcons.Grid, "Страницы", sound = FeedbackSound.Open) { state.grid = true }
+            Crossfade(state.paged, animationSpec = Motion.fade(180), label = "pdf-mode") { p ->
+                RoundIconButton(if (p) AppIcons.Pages else AppIcons.Scroll, if (p) "Листание" else "Лента", sound = FeedbackSound.Toggle) { state.togglePaged() }
+            }
+            Crossfade(state.filter, animationSpec = Motion.fade(180), label = "pdf-filter") { f ->
+                RoundIconButton(f.icon, "Цвет страниц", sound = FeedbackSound.Toggle) { state.nextFilter() }
+            }
+        }
     }
 }
 
 @Composable
-private fun PdfGridSheet(doc: PdfDoc, state: PdfUiState) {
+private fun PdfGridSheet(doc: PdfDoc, state: PdfUiState, bookmarked: Set<Int>, noted: Set<Int>) {
     AppSheet(onDismiss = { state.grid = false }, title = "Страницы") {
         val close = sheetClose { state.grid = false }
         val height = (LocalConfiguration.current.screenHeightDp * 0.72f).dp
@@ -948,10 +2015,31 @@ private fun PdfGridSheet(doc: PdfDoc, state: PdfUiState) {
                         contentAlignment = Alignment.Center,
                     ) {
                         val a = doc.aspect(i)
-                        PdfPageView(doc, i, thumbW, state.filter, Modifier.aspectRatio(a, matchHeightConstraintsFirst = a < 0.72f))
+                        PdfThumb(doc, i, thumbW, state.filter, Modifier.aspectRatio(a, matchHeightConstraintsFirst = a < 0.72f))
+                        if (i in bookmarked) PageRibbon(Modifier.align(Alignment.TopEnd).padding(end = 4.dp).size(10.dp, 18.dp))
+                        if (i in noted) {
+                            Box(
+                                Modifier.align(Alignment.TopStart).size(8.dp).clip(RoundedCornerShape(50)).background(AppColors.Accent),
+                            )
+                        }
                     }
                     Text("${i + 1}", color = if (current) AppColors.Accent else AppColors.Muted, fontSize = 11.sp, fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PdfThumb(doc: PdfDoc, index: Int, width: Int, filter: PdfFilter, modifier: Modifier) {
+    var shown by remember(index) { mutableStateOf(doc.cached(index, width)) }
+    LaunchedEffect(index, width) { doc.render(index, width)?.let { shown = it } }
+    Box(modifier.background(filter.paper)) {
+        Crossfade(shown, animationSpec = Motion.fade(200), label = "pdf-thumb") { bmp ->
+            if (bmp != null) {
+                Image(bmp, null, contentScale = ContentScale.FillBounds, colorFilter = filter.filter, modifier = Modifier.fillMaxSize())
+            } else {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { KitSpinner(Modifier.size(16.dp), AppColors.Faint) }
             }
         }
     }

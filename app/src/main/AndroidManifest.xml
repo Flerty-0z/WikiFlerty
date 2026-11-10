@@ -184,7 +184,8 @@
             android:name=".reader.PdfReaderActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
-            android:theme="@style/Theme.WikiFlerty.Reader" />
+            android:theme="@style/Theme.WikiFlerty.Reader"
+            android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".reader.ReaderActivity"

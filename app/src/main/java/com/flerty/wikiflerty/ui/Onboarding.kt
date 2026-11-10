@@ -101,7 +101,7 @@ enum class NewsTarget { None, Stats, Custom, Library }
 class NewsItem(val since: Int, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None)
 
 val WhatsNewItems = listOf(
-    NewsItem(225, AppIcons.Pages, "PDF", "Листание или лента, масштаб, ночной режим и сетка страниц"),
+    NewsItem(227, AppIcons.Pages, "PDF", "Оглавление, закладки, заметки и маркер, поиск, перевод и цитаты. Листание или лента, масштаб, ночной режим"),
     NewsItem(224, AppIcons.Calendar, "Итоги года", "Твой год в книгах — истории и карточка, которой можно поделиться", NewsTarget.Stats),
     NewsItem(224, AppIcons.Help, "Подсказки", "Все функции и где их найти: Настройки → Подсказки"),
     NewsItem(224, AppIcons.Grid, "Виджеты под шаблон", "И новый виджет «Слово дня» из твоего словаря"),

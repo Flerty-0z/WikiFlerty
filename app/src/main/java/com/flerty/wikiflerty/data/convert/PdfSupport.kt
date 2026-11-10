@@ -75,7 +75,7 @@ object PdfSupport {
             val end = text.indexOf('>', i).takeIf { it > 0 } ?: return null
             val hex = text.substring(i, end).filter { it.isLetterOrDigit() }
             val bytes = ByteArray(hex.length / 2) { k -> hex.substring(k * 2, k * 2 + 2).toInt(16).toByte() }
-            return decode(bytes)
+            return decodeText(bytes)
         }
         val buf = java.io.ByteArrayOutputStream()
         var depth = 1
@@ -115,10 +115,10 @@ object PdfSupport {
             buf.write(c.code and 0xFF)
             i++
         }
-        return decode(buf.toByteArray())
+        return decodeText(buf.toByteArray())
     }
 
-    private fun decode(bytes: ByteArray): String = when {
+    fun decodeText(bytes: ByteArray): String = when {
         bytes.size >= 2 && bytes[0] == 0xFE.toByte() && bytes[1] == 0xFF.toByte() -> String(bytes, 2, bytes.size - 2, Charsets.UTF_16BE)
         bytes.size >= 3 && bytes[0] == 0xEF.toByte() && bytes[1] == 0xBB.toByte() && bytes[2] == 0xBF.toByte() -> String(bytes, 3, bytes.size - 3, Charsets.UTF_8)
         else -> {

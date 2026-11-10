@@ -34,7 +34,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
@@ -337,21 +336,7 @@ private fun LyingBook(book: Book, width: Dp, top: Boolean, pagesOut: Boolean, mo
                         }
                     }
                 },
-            contentAlignment = Alignment.Center,
-        ) {
-            if (!pagesOut) {
-                Text(
-                    book.title,
-                    color = if (main.luminance() > 0.55f) Color(0xE6141210) else Color(0xF2F7EEDC),
-                    fontSize = 9.sp,
-                    lineHeight = 10.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(horizontal = 17.dp),
-                )
-            }
-        }
+        )
     }
 }
 
