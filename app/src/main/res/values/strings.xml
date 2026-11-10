@@ -7,5 +7,9 @@
     <string name="widget_quote_open">Открыть</string>
     <string name="widget_quote_next">Другая цитата</string>
     <string name="widget_quote_description">Цитата дня из твоих заметок</string>
+    <string name="widget_word_title">Слово дня</string>
+    <string name="widget_word_next">Другое слово</string>
+    <string name="widget_word_hint">Нажми, чтобы перевернуть</string>
+    <string name="widget_word_description">Слово дня из твоего словаря</string>
     <string name="widget_quote_small_description">Цитата дня — маленький</string>
 </resources>

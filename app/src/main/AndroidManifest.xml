@@ -229,6 +229,17 @@
         </receiver>
 
         <receiver
+            android:name=".widget.WordWidget"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_word_info" />
+        </receiver>
+
+        <receiver
             android:name=".system.ReminderReceiver"
             android:exported="true">
             <intent-filter>

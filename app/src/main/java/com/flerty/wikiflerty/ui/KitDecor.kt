@@ -22,6 +22,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.graphics.StrokeCap
@@ -521,4 +523,72 @@ private fun DrawScope.clayExtras(light: Boolean, accent: Color) {
         }
     }
     drawPath(rope, accent.copy(alpha = if (light) 0.45f else 0.35f), style = androidx.compose.ui.graphics.drawscope.Stroke(7 * d, cap = StrokeCap.Round))
+}
+
+fun renderKitPanel(context: android.content.Context, kit: Kit, light: Boolean, widthPx: Int, heightPx: Int, density: Float, season: Season? = null): android.graphics.Bitmap {
+    val bitmap = android.graphics.Bitmap.createBitmap(widthPx.coerceAtLeast(1), heightPx.coerceAtLeast(1), android.graphics.Bitmap.Config.ARGB_8888)
+    val base = if (light) kit.light else kit.dark
+    val accent = Color(if (light) kit.accentLight else kit.accent)
+    val dens = Density(density, 1f)
+    val measurer = androidx.compose.ui.text.TextMeasurer(androidx.compose.ui.text.font.createFontFamilyResolver(context), dens, androidx.compose.ui.unit.LayoutDirection.Ltr)
+    val w = widthPx.toFloat()
+    val h = heightPx.toFloat()
+    val radius = when (kit.decor) {
+        Decor.News -> 3f * density
+        else -> (16f + 10f * kit.corners).coerceAtMost(34f) * density
+    }
+    androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(
+        dens,
+        androidx.compose.ui.unit.LayoutDirection.Ltr,
+        androidx.compose.ui.graphics.Canvas(bitmap.asImageBitmap()),
+        Size(w, h),
+    ) {
+        val clip = Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(0f, 0f, w, h, androidx.compose.ui.geometry.CornerRadius(radius))) }
+        clipPath(clip) {
+            kitStatic(kit.decor, base, accent, specks(41, 70), measurer, season)
+            drawRect(Color(base.panel).copy(alpha = if (light) 0.5f else 0.58f))
+        }
+        val d = density
+        val ink = Color(0xFF141210)
+        when (kit.decor) {
+            Decor.Library -> {
+                val gold = Color(0xFFD8B46A)
+                drawRoundRect(gold.copy(alpha = 0.9f), Offset(4 * d, 4 * d), Size(w - 8 * d, h - 8 * d), androidx.compose.ui.geometry.CornerRadius(radius - 4 * d), style = androidx.compose.ui.graphics.drawscope.Stroke(1.4f * d))
+                drawRoundRect(gold.copy(alpha = 0.45f), Offset(7.5f * d, 7.5f * d), Size(w - 15 * d, h - 15 * d), androidx.compose.ui.geometry.CornerRadius((radius - 7.5f * d).coerceAtLeast(0f)), style = androidx.compose.ui.graphics.drawscope.Stroke(0.7f * d))
+            }
+            Decor.Zen -> {
+                drawRoundRect(Color(base.text).copy(alpha = 0.25f), Offset(0.5f * d, 0.5f * d), Size(w - d, h - d), androidx.compose.ui.geometry.CornerRadius(radius), style = androidx.compose.ui.graphics.drawscope.Stroke(1 * d))
+                drawRect(accent, Offset(w - 22 * d, h - 22 * d), Size(10 * d, 10 * d))
+                drawRect(Color.White.copy(alpha = 0.55f), Offset(w - 20 * d, h - 20 * d), Size(6 * d, 6 * d), style = androidx.compose.ui.graphics.drawscope.Stroke(0.8f * d))
+            }
+            Decor.Comic -> {
+                drawRoundRect(ink, Offset(1.5f * d, 1.5f * d), Size(w - 3 * d, h - 3 * d), androidx.compose.ui.geometry.CornerRadius(radius), style = androidx.compose.ui.graphics.drawscope.Stroke(3 * d))
+                val c = Offset(w - 16 * d, 16 * d)
+                val burst = Path()
+                for (k in 0 until 16) {
+                    val a = 2f * PI.toFloat() * k / 16f
+                    val r = (if (k % 2 == 0) 9f else 5f) * d
+                    if (k == 0) burst.moveTo(c.x + cos(a) * r, c.y + sin(a) * r) else burst.lineTo(c.x + cos(a) * r, c.y + sin(a) * r)
+                }
+                burst.close()
+                drawPath(burst, accent.copy(alpha = 0.7f))
+            }
+            Decor.News -> {
+                val text = Color(base.text)
+                drawRect(text, Offset(10 * d, 6 * d), Size(w - 20 * d, 2.5f * d))
+                drawRect(text, Offset(10 * d, 10 * d), Size(w - 20 * d, 0.8f * d))
+                drawRect(text.copy(alpha = 0.6f), Offset(10 * d, h - 7 * d), Size(w - 20 * d, 0.8f * d))
+                drawRect(text.copy(alpha = 0.3f), Offset(0f, 0f), Size(w, h), style = androidx.compose.ui.graphics.drawscope.Stroke(1 * d))
+            }
+            Decor.Sea -> {
+                drawRoundRect(Color.White.copy(alpha = if (light) 0.6f else 0.22f), Offset(0.5f * d, 0.5f * d), Size(w - d, h - d), androidx.compose.ui.geometry.CornerRadius(radius), style = androidx.compose.ui.graphics.drawscope.Stroke(1.2f * d))
+                drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.16f), Color.Transparent), endY = h * 0.35f), Offset.Zero, Size(w, h * 0.35f), androidx.compose.ui.geometry.CornerRadius(radius))
+            }
+            Decor.Clay -> {
+                drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.45f), Color.Transparent, Color.Black.copy(alpha = 0.16f))), Offset.Zero, Size(w, h), androidx.compose.ui.geometry.CornerRadius(radius), style = androidx.compose.ui.graphics.drawscope.Stroke(4 * d))
+            }
+            Decor.None -> drawRoundRect(Color(base.border), Offset(0.5f * d, 0.5f * d), Size(w - d, h - d), androidx.compose.ui.geometry.CornerRadius(radius), style = androidx.compose.ui.graphics.drawscope.Stroke(1 * d))
+        }
+    }
+    return bitmap
 }

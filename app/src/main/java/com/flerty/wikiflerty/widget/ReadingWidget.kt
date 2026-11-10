@@ -19,6 +19,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class ReadingWidget : AppWidgetProvider() {
+    override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: android.os.Bundle) {
+        onUpdate(context, manager, intArrayOf(id))
+    }
+
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         val pending = goAsync()
         val app = context.applicationContext as App
@@ -50,54 +54,68 @@ class ReadingWidget : AppWidgetProvider() {
             val book = app.library.books.value
                 .filter { it.lastReadAt != null && !it.paper }
                 .maxByOrNull { it.lastReadAt ?: 0L }
-            val views = RemoteViews(context.packageName, R.layout.widget_reading)
-
-            val intent = Intent(context, MainActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            if (book != null) intent.setAction(ACTION_OPEN_BOOK).putExtra(EXTRA_BOOK_ID, book.id)
-            val pending = PendingIntent.getActivity(
-                context,
-                7,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-            views.setOnClickPendingIntent(R.id.widget_root, pending)
-
-            val todayMs = app.stats.days.value[LocalDate.now().toString()].orEmpty().values.sumOf { it.ms }
-            val goal = app.libraryPrefs.prefs.value.dailyGoalMinutes
-            val minutes = todayMs / 60_000
-            val pagesToday = app.stats.days.value[LocalDate.now().toString()].orEmpty().values.sumOf { it.pages }
-            val today = when {
-                goal > 0 && app.libraryPrefs.prefs.value.dailyGoalPages -> "Сегодня $pagesToday/$goal стр."
-                goal > 0 -> "Сегодня $minutes/$goal мин"
-                else -> "Сегодня $minutes мин"
-            }
-
-            if (book == null) {
-                views.setTextViewText(R.id.widget_label, "WikiFlerty")
-                views.setTextViewText(R.id.widget_title, "Открой книгу, чтобы она появилась здесь")
-                views.setTextViewText(R.id.widget_author, "")
-                views.setViewVisibility(R.id.widget_cover, View.GONE)
-                views.setViewVisibility(R.id.widget_progress, View.GONE)
-                views.setTextViewText(R.id.widget_info, today)
-            } else {
-                val percent = (book.progress * 100).roundToInt().coerceIn(0, 100)
-                views.setTextViewText(R.id.widget_label, "Продолжить чтение")
-                views.setTextViewText(R.id.widget_title, book.title)
-                views.setTextViewText(R.id.widget_author, book.author)
-                views.setViewVisibility(R.id.widget_author, if (book.author.isBlank()) View.GONE else View.VISIBLE)
-                views.setViewVisibility(R.id.widget_progress, View.VISIBLE)
-                views.setProgressBar(R.id.widget_progress, 1000, (book.progress * 1000).roundToInt().coerceIn(0, 1000), false)
-                views.setTextViewText(R.id.widget_info, "$percent% · $today")
-                val cover = app.library.coverFile(book)?.takeIf { it.exists() }?.let { loadCover(it.path) }
-                if (cover != null) {
-                    views.setViewVisibility(R.id.widget_cover, View.VISIBLE)
-                    views.setImageViewBitmap(R.id.widget_cover, cover)
-                } else {
-                    views.setViewVisibility(R.id.widget_cover, View.GONE)
+            val skin = WidgetSkin.current(context)
+            val coverFile = book?.let { app.library.coverFile(it) }?.takeIf { it.exists() }
+            val cover = coverFile?.let { loadCover(it.path) }
+                ?: book?.let { skin.placeholderCover(it.title, it.author, 56, 82) }
+            ids.forEach { id ->
+                val (wDp, hDp) = WidgetSkin.size(manager, id, 250, 110)
+                val views = RemoteViews(context.packageName, R.layout.widget_reading)
+                skin.panel(context, wDp, hDp)?.let {
+                    views.setImageViewBitmap(R.id.widget_bg, it)
+                    views.setInt(R.id.widget_root, "setBackgroundColor", 0)
                 }
+                skin.tint(views, R.id.widget_label, skin.accent)
+                skin.tint(views, R.id.widget_title, skin.text)
+                skin.tint(views, R.id.widget_author, skin.muted)
+                skin.tint(views, R.id.widget_info, skin.faint)
+
+                val intent = Intent(context, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                if (book != null) intent.setAction(ACTION_OPEN_BOOK).putExtra(EXTRA_BOOK_ID, book.id)
+                val pending = PendingIntent.getActivity(
+                    context,
+                    7,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+                views.setOnClickPendingIntent(R.id.widget_root, pending)
+
+                val todayMs = app.stats.days.value[LocalDate.now().toString()].orEmpty().values.sumOf { it.ms }
+                val goal = app.libraryPrefs.prefs.value.dailyGoalMinutes
+                val minutes = todayMs / 60_000
+                val pagesToday = app.stats.days.value[LocalDate.now().toString()].orEmpty().values.sumOf { it.pages }
+                val today = when {
+                    goal > 0 && app.libraryPrefs.prefs.value.dailyGoalPages -> "Сегодня $pagesToday/$goal стр."
+                    goal > 0 -> "Сегодня $minutes/$goal мин"
+                    else -> "Сегодня $minutes мин"
+                }
+
+                if (book == null) {
+                    views.setTextViewText(R.id.widget_label, "WikiFlerty")
+                    views.setTextViewText(R.id.widget_title, "Открой книгу, чтобы она появилась здесь")
+                    views.setTextViewText(R.id.widget_author, "")
+                    views.setViewVisibility(R.id.widget_cover, View.GONE)
+                    views.setViewVisibility(R.id.widget_progress, View.GONE)
+                    views.setTextViewText(R.id.widget_info, today)
+                } else {
+                    val percent = (book.progress * 100).roundToInt().coerceIn(0, 100)
+                    views.setTextViewText(R.id.widget_label, "Продолжить чтение")
+                    views.setTextViewText(R.id.widget_title, book.title)
+                    views.setTextViewText(R.id.widget_author, book.author)
+                    views.setViewVisibility(R.id.widget_author, if (book.author.isBlank()) View.GONE else View.VISIBLE)
+                    views.setViewVisibility(R.id.widget_progress, View.VISIBLE)
+                    views.setImageViewBitmap(R.id.widget_progress, skin.progress((wDp - 32 - 68).coerceAtLeast(60), book.progress.toFloat()))
+                    views.setTextViewText(R.id.widget_info, "$percent% · $today")
+                    if (cover != null) {
+                        views.setViewVisibility(R.id.widget_cover, View.VISIBLE)
+                        views.setImageViewBitmap(R.id.widget_cover, cover)
+                    } else {
+                        views.setViewVisibility(R.id.widget_cover, View.GONE)
+                    }
+                }
+                manager.updateAppWidget(id, views)
             }
-            ids.forEach { manager.updateAppWidget(it, views) }
         }
 
         private fun loadCover(path: String): Bitmap? = runCatching {

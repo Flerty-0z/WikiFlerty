@@ -22,6 +22,10 @@ import kotlinx.coroutines.launch
 open class QuoteWidget : AppWidgetProvider() {
     open val small: Boolean = false
 
+    override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: android.os.Bundle) {
+        onUpdate(context, manager, intArrayOf(id))
+    }
+
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         val pending = goAsync()
         val app = context.applicationContext as App
@@ -69,13 +73,14 @@ open class QuoteWidget : AppWidgetProvider() {
             val little = manager.getAppWidgetIds(ComponentName(context, QuoteWidgetSmall::class.java))
             if (big.isEmpty() && little.isEmpty()) return
             val note = pick(context)
-            if (big.isNotEmpty()) {
-                val views = build(context, note, small = false)
-                big.forEach { manager.updateAppWidget(it, views) }
+            val skin = WidgetSkin.current(context)
+            big.forEach { id ->
+                val (w, h) = WidgetSkin.size(manager, id, 250, 120)
+                manager.updateAppWidget(id, build(context, note, small = false, skin, w, h))
             }
-            if (little.isNotEmpty()) {
-                val views = build(context, note, small = true)
-                little.forEach { manager.updateAppWidget(it, views) }
+            little.forEach { id ->
+                val (w, h) = WidgetSkin.size(manager, id, 140, 140)
+                manager.updateAppWidget(id, build(context, note, small = true, skin, w, h))
             }
         }
 
@@ -88,9 +93,24 @@ open class QuoteWidget : AppWidgetProvider() {
             return notes[index]
         }
 
-        private fun build(context: Context, note: Note?, small: Boolean): RemoteViews {
+        private fun build(context: Context, note: Note?, small: Boolean, skin: WidgetSkin, wDp: Int, hDp: Int): RemoteViews {
             val app = context.applicationContext as App
             val views = RemoteViews(context.packageName, if (small) R.layout.widget_quote_small else R.layout.widget_quote)
+            skin.panel(context, wDp, hDp)?.let {
+                views.setImageViewBitmap(R.id.quote_bg, it)
+                views.setInt(R.id.quote_root, "setBackgroundColor", 0)
+            }
+            skin.tint(views, R.id.quote_mark, skin.accent)
+            skin.tint(views, R.id.quote_text, skin.text)
+            if (small) {
+                skin.tint(views, R.id.quote_book, skin.faint)
+            } else {
+                skin.tint(views, R.id.quote_label, skin.accent)
+                skin.tint(views, R.id.quote_book, skin.text)
+                skin.tint(views, R.id.quote_meta, skin.faint)
+                skin.tint(views, R.id.quote_open, skin.accent)
+                skin.icon(views, R.id.quote_next, skin.muted)
+            }
             val open = Intent(context, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             if (note != null) open.setAction(ACTION_OPEN_NOTE).putExtra(EXTRA_NOTE_ID, note.id)
@@ -134,6 +154,7 @@ open class QuoteWidget : AppWidgetProvider() {
                     PendingIntent.getBroadcast(context, 42, next, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE),
                 )
                 val cover = book?.let { app.library.coverFile(it) }?.takeIf { it.exists() }?.let { loadCover(it.path) }
+                    ?: book?.let { skin.placeholderCover(it.title, it.author, 26, 38) }
                 views.setViewVisibility(R.id.quote_cover, View.VISIBLE)
                 if (cover != null) views.setImageViewBitmap(R.id.quote_cover, cover) else views.setImageViewBitmap(R.id.quote_cover, null)
             }

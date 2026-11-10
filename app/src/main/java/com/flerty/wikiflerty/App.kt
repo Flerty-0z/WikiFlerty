@@ -114,7 +114,13 @@ class App : Application() {
         bookmarks.onDeleted = { sync.bookmarkDeleted(it) }
         characters.onDeleted = { sync.characterDeleted(it) }
         readerSettings.onChanged = { sync.settingsChanged() }
-        style.onChanged = { sync.settingsChanged() }
+        style.onChanged = {
+            sync.settingsChanged()
+            appScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                kotlinx.coroutines.delay(600)
+                runCatching { com.flerty.wikiflerty.widget.WidgetSkin.refreshAll(this@App) }
+            }
+        }
         ai.store.onChanged = { sync.settingsChanged() }
         library.onBookAdded = { book ->
             Backup.onBookAdded(this, book)
