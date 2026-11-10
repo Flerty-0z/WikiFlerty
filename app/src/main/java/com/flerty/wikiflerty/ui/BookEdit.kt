@@ -48,6 +48,7 @@ fun BookEditSheet(book: Book, onDismiss: () -> Unit) {
     var description by remember { mutableStateOf(book.customDescription) }
     var cover by remember { mutableStateOf<Uri?>(null) }
     var editing by remember { mutableIntStateOf(-1) }
+    var searching by remember { mutableStateOf(false) }
     val original by produceState("", book.id) { value = app.library.info(book).description }
     val shownDescription = description ?: original
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) cover = uri }
@@ -72,13 +73,15 @@ fun BookEditSheet(book: Book, onDismiss: () -> Unit) {
                 val img = preview
                 androidx.compose.animation.Crossfade(img, animationSpec = Motion.fade(220), label = "edit-cover") { bmp ->
                     if (bmp != null) Image(bmp, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().fillMaxHeight())
-                    else SmallCover(app.library.coverFile(book), Modifier.fillMaxWidth().fillMaxHeight())
+                    else if (app.library.coverFile(book)?.exists() == true) SmallCover(app.library.coverFile(book), Modifier.fillMaxWidth().fillMaxHeight())
+                    else GeneratedCover(title, author, Modifier.fillMaxWidth().fillMaxHeight())
                 }
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Обложка", color = AppColors.Muted, fontSize = 13.sp)
                 CoverButton(AppIcons.Image, "Из галереи") { pick.launch("image/*") }
                 CoverButton(AppIcons.Camera, "Сфотографировать", onClick = camera)
+                CoverButton(AppIcons.Search, "Найти в интернете") { searching = true }
             }
         }
         PaperField(title, "Название", AppIcons.Book) { editing = 0 }
@@ -93,6 +96,12 @@ fun BookEditSheet(book: Book, onDismiss: () -> Unit) {
                 if (pickedCover != null) app.library.setCover(book.id, pickedCover)
             }
             close()
+        }
+    }
+    if (searching) {
+        CoverSearchSheet(title, author, onDismiss = { searching = false }) { uri, found ->
+            cover = uri
+            if (found != null && shownDescription.isBlank()) description = found
         }
     }
     when (editing) {
