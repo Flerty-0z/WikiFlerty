@@ -367,16 +367,61 @@ internal object TextSelection {
               run.text += n.nodeValue || "";
             }
             if (run) scan(run);
-            if (!hl || !hits.length) return;
+            if (!hl || !hits.length) { place(); return; }
             var st = document.getElementById("wf-hero-style");
             if (!st) {
               st = document.createElement("style");
               st.id = "wf-hero-style";
               (document.head || document.documentElement).appendChild(st);
             }
-            st.textContent = "::highlight(wf-hero){text-decoration-line:underline;text-decoration-style:dotted;text-decoration-color:__ACCENT__;text-decoration-thickness:2px}";
+            st.textContent = "::highlight(wf-hero){color:__ACCENT__;text-decoration:none}" +
+              "#wf-hero-dots i{position:absolute;display:block;border-radius:50%;background:__ACCENT__;margin:0;padding:0;border:0}" +
+              "#wf-hero-dots{position:absolute;left:0;top:0;width:0;height:0;margin:0;padding:0;border:0;pointer-events:none;-webkit-user-select:none;user-select:none;z-index:1;transition:opacity .25s ease;opacity:1}";
             CSS.highlights.set("wf-hero", new Highlight(...hits.map(function (h) { return h.r; })));
+            place();
           };
+          var layer = null, pending = 0, sizes = new Map();
+          function place() {
+            var host = document.documentElement;
+            if (!hits.length) { if (layer && layer.isConnected) layer.remove(); return; }
+            var fresh = !layer;
+            if (!layer) {
+              layer = document.createElement("div");
+              layer.id = "wf-hero-dots";
+              layer.setAttribute("aria-hidden", "true");
+            }
+            if (!layer.isConnected) host.appendChild(layer);
+            if (fresh) layer.style.opacity = "0";
+            var o = layer.getBoundingClientRect();
+            sizes = new Map();
+            var frag = document.createDocumentFragment();
+            for (var i = 0; i < hits.length; i++) {
+              var rs = hits[i].r.getClientRects(), b = null;
+              for (var j = 0; j < rs.length; j++) if (rs[j].width > 0) { b = rs[j]; break; }
+              if (!b) continue;
+              var el = hits[i].r.startContainer.parentElement;
+              var fs = sizes.get(el);
+              if (fs === undefined) { fs = el ? parseFloat(getComputedStyle(el).fontSize) || 16 : 16; sizes.set(el, fs); }
+              var d = Math.max(3, fs * 0.2);
+              var dot = document.createElement("i");
+              dot.style.left = (b.left - o.left - fs * 0.16 - d / 2) + "px";
+              dot.style.top = (b.top - o.top + b.height * 0.56 - d / 2) + "px";
+              dot.style.width = d + "px";
+              dot.style.height = d + "px";
+              frag.appendChild(dot);
+            }
+            while (layer.firstChild) layer.removeChild(layer.firstChild);
+            layer.appendChild(frag);
+            if (fresh) requestAnimationFrame(function () { if (layer) layer.style.opacity = "1"; });
+          }
+          function later() {
+            if (pending) clearTimeout(pending);
+            pending = setTimeout(function () { pending = 0; requestAnimationFrame(place); }, 140);
+          }
+          window.addEventListener("resize", later);
+          try { new MutationObserver(later).observe(document.documentElement, { attributes: true, attributeFilter: ["style", "class"] }); } catch (x) {}
+          try { if (window.ResizeObserver && document.body) new ResizeObserver(later).observe(document.body); } catch (x) {}
+          try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(later); } catch (x) {}
           window.addEventListener("click", function (e) {
             if (!hits.length || e.defaultPrevented) return;
             var sel = window.getSelection && window.getSelection();

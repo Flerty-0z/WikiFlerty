@@ -970,19 +970,33 @@ private fun ContinueStrip(book: Book, coverFile: File?, inPages: Boolean, modifi
                 Text(progressLabel(book, inPages), color = AppColors.Muted, fontSize = 11.sp, maxLines = 1)
             }
         }
-        Row(
-            Modifier
-                .height(34.dp)
-                .clip(CircleShape)
-                .liveClick(CircleShape, sound = FeedbackSound.Open, onClick = onClick)
-                .accentHighlight(CircleShape)
-                .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Icon(AppIcons.Play, null, tint = accentContent, modifier = Modifier.size(14.dp))
-            Text("Читать", color = accentContent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-        }
+        ContinueRing(book.progress.toFloat(), onClick)
+    }
+}
+
+@Composable
+private fun ContinueRing(progress: Float, onClick: () -> Unit) {
+    val anim = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(progress) { anim.animateTo(progress.coerceIn(0f, 1f), Motion.tween(900)) }
+    val accent = AppColors.Accent
+    val track = AppColors.Accent.copy(alpha = 0.2f)
+    Box(
+        Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .liveClick(CircleShape, sound = FeedbackSound.Open, onClick = onClick)
+            .drawBehind {
+                val stroke = 3.dp.toPx()
+                val inset = stroke / 2 + 1.dp.toPx()
+                val arc = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2)
+                val at = androidx.compose.ui.geometry.Offset(inset, inset)
+                drawArc(track, 0f, 360f, false, at, arc, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                val sweep = (anim.value * 360f).coerceAtLeast(10f)
+                drawArc(accent, -90f, sweep, false, at, arc, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(AppIcons.Play, "Читать", tint = accent, modifier = Modifier.padding(start = 2.dp).size(15.dp))
     }
 }
 
