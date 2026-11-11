@@ -105,11 +105,11 @@ enum class NewsTarget { None, Stats, Custom, Library, LibraryView, Guide, Ai }
 
 class NewsItem(val group: String, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None, val query: String = "")
 
-const val NewsRelease = 248
+const val NewsRelease = 249
 
 val WhatsNewItems = listOf(
     NewsItem("Библиотека", AppIcons.Play, "Продолжить чтение", "Последняя книга под фильтром полок. Нажми на кольцо прогресса — и сразу читать", NewsTarget.Library),
-    NewsItem("Чтение", AppIcons.Person, "Имена персонажей", "Перед именем — флажок с вопросом. Нажми на имя, чтобы открыть карточку", NewsTarget.Guide, "Персонажи"),
+    NewsItem("Чтение", AppIcons.Person, "Имена персонажей", "Перед именем — флажок с вопросом. Нажми на флажок, чтобы открыть карточку", NewsTarget.Guide, "Персонажи"),
     NewsItem("Чтение", AppIcons.Note, "Длинные заметки", "Сворачиваются в карточке, «Развернуть» показывает весь текст"),
     NewsItem("Оформление", AppIcons.Sun, "Листья на полках", "Слетают на полки в разные места и со временем исчезают", NewsTarget.Library),
     NewsItem("Оформление", AppIcons.Sparkle, "«Что нового» в настройках", "Карусель в стиле твоего шаблона — листай карточки вбок"),
@@ -510,7 +510,7 @@ val GuideGroups = listOf(
             GuideEntry(AppIcons.Select, "Меню выделения", "Зажми слово и потяни. Порядок кнопок — Опции → Выделение", "выделить зажать"),
             GuideEntry(AppIcons.Translate, "Перевод", "Выдели текст → Перевод. Язык — плашка в окне перевода", "переводчик язык"),
             GuideEntry(AppIcons.TextSize, "Толкование и карточки", "Выдели слово → Словарь → «В словарь». Повторяй в разделе Словарь", "значение слово флешкарты"),
-            GuideEntry(AppIcons.Person, "Персонажи", "Выдели имя → ⋯ → Персонаж. Перед именем в тексте появится флажок, нажми на имя — откроется карточка. Список — в меню чтения на вкладке с человечком", "герой имя"),
+            GuideEntry(AppIcons.Person, "Персонажи", "Выдели имя → ⋯ → Персонаж. Перед именем в тексте появится флажок, нажми на него — откроется карточка. Список — в меню чтения на вкладке с человечком", "герой имя"),
             GuideEntry(AppIcons.Quote, "Цитата-карточка", "Выдели текст → ⋯ → Цитата", "поделиться картинка"),
         ),
     ),

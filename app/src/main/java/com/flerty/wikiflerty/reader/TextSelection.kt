@@ -375,7 +375,7 @@ internal object TextSelection {
             st.textContent =
               "#wf-hero-flags,#wf-hero-flags i{margin:0!important;padding:0!important;border:0!important;background-color:transparent!important;pointer-events:none!important;-webkit-user-select:none;user-select:none}" +
               "#wf-hero-flags{position:absolute!important;left:0;top:0;width:0;height:0;z-index:2;transition:opacity .3s ease}" +
-              "#wf-hero-flags i{position:absolute!important;display:block!important;background-repeat:no-repeat!important;background-size:100% 100%!important;background-image:" + flag + "!important}";
+              "#wf-hero-flags i{position:absolute!important;display:block!important;background-repeat:no-repeat!important;background-size:100% 100%!important;background-image:" + flag + "!important;transform-origin:15% 95%;transition:transform .16s ease}";
             place();
           };
           var flag = 'url("data:image/svg+xml,' + encodeURIComponent(
@@ -412,6 +412,7 @@ internal object TextSelection {
               f.style.top = (b.top - o.top + b.height * 0.2 - h * 0.52) + "px";
               f.style.width = w + "px";
               f.style.height = h + "px";
+              hits[i].flag = f;
               frag.appendChild(f);
             }
             while (layer.firstChild) layer.removeChild(layer.firstChild);
@@ -431,23 +432,24 @@ internal object TextSelection {
             var sel = window.getSelection && window.getSelection();
             if (sel && !sel.isCollapsed) return;
             if (e.target && e.target.closest && e.target.closest("a[href]")) return;
-            var c = document.caretRangeFromPoint ? document.caretRangeFromPoint(e.clientX, e.clientY) : null;
-            if (!c) return;
+            var best = -1, bestD = 1e9;
             for (var i = 0; i < hits.length; i++) {
-              var r = hits[i].r;
-              try { if (r.comparePoint(c.startContainer, c.startOffset) !== 0) continue; } catch (x) { continue; }
-              var rects = r.getClientRects();
-              var inside = false;
-              for (var j = 0; j < rects.length; j++) {
-                var b = rects[j];
-                if (e.clientX >= b.left - 4 && e.clientX <= b.right + 4 && e.clientY >= b.top - 6 && e.clientY <= b.bottom + 6) { inside = true; break; }
-              }
-              if (!inside) continue;
-              e.preventDefault();
-              e.stopImmediatePropagation();
-              try { window.${BRIDGE}.onEvent("person:" + hits[i].id); } catch (x) {}
-              return;
+              var f = hits[i].flag;
+              if (!f || !f.isConnected) continue;
+              var b = f.getBoundingClientRect();
+              if (!b.width) continue;
+              var cx = b.left + b.width * 0.55, cy = b.top + b.height * 0.3;
+              var reach = Math.max(18, b.width * 0.9);
+              var dx = e.clientX - cx, dy = e.clientY - cy, dd = dx * dx + dy * dy;
+              if (Math.abs(dx) <= reach && Math.abs(dy) <= reach && dd < bestD) { best = i; bestD = dd; }
             }
+            if (best < 0) return;
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            var tapped = hits[best].flag;
+            tapped.style.transform = "scale(1.3)";
+            setTimeout(function () { tapped.style.transform = ""; }, 160);
+            try { window.${BRIDGE}.onEvent("person:" + hits[best].id); } catch (x) {}
           }, true);
         })();
     """.trimIndent()
