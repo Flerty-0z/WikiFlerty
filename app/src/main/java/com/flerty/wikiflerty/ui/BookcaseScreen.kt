@@ -173,7 +173,7 @@ fun BookcaseView(
             listStateHolder.requestScrollToItem(listStateHolder.firstVisibleItemIndex, listStateHolder.firstVisibleItemScrollOffset)
         }
         lastOrder[0] = plankOrder
-        val seen = remember(animationKey, live) { mutableSetOf<Any>() }
+        val seen = remember(animationKey, live) { ShelfSeenStore.of("$animationKey|$live") }
         val listState = listStateHolder
         val drag = remember { ShelfDrag() }
         val move by androidx.compose.runtime.rememberUpdatedState(onMove)
@@ -269,6 +269,11 @@ fun BookcaseView(
     }
 }
 
+private object ShelfSeenStore {
+    private val sets = HashMap<String, MutableSet<Any>>()
+    fun of(key: String): MutableSet<Any> = sets.getOrPut(key) { java.util.Collections.synchronizedSet(HashSet()) }
+}
+
 private class ShelfDrag {
     var enabled = false
     var book by mutableStateOf<Book?>(null)
@@ -330,8 +335,10 @@ private fun DragGhost(drag: ShelfDrag) {
     val phase = drag.phase
     val pointer = drag.pointer
     val held = remember(book.id) { arrayOf(Offset.Zero) }
+    val snapped = remember(book.id) { booleanArrayOf(false) }
     val dragPos = if (phase == 1 && pointer != null && root != null && root.isAttached) root.windowToLocal(pointer) - drag.grab else null
     if (dragPos != null) held[0] = dragPos
+    if (phase == 1) snapped[0] = false
     androidx.compose.runtime.LaunchedEffect(book.id, phase) {
         if (phase == 1) {
             fade.snapTo(1f)
@@ -339,6 +346,7 @@ private fun DragGhost(drag: ShelfDrag) {
         }
         if (phase == 2) {
             pos.snapTo(held[0])
+            snapped[0] = true
             val dest = kotlinx.coroutines.withTimeoutOrNull(520) {
                 androidx.compose.runtime.snapshotFlow { drag.dest }.first { it != null }
             }
@@ -373,7 +381,7 @@ private fun DragGhost(drag: ShelfDrag) {
     }
     Box(
         Modifier.graphicsLayer {
-            val at = if (phase == 1) dragPos ?: held[0] else pos.value
+            val at = if (phase == 1) dragPos ?: held[0] else if (snapped[0]) pos.value else held[0]
             translationX = at.x
             translationY = at.y
             alpha = fade.value
@@ -485,10 +493,13 @@ private fun Shelf(row: PlankRow, index: Int, onBook: (Book) -> Unit) {
     val glow by androidx.compose.animation.core.animateFloatAsState(if (target) 1f else 0f, Motion.tween(180), label = "plank-target")
     if (drag != null) androidx.compose.runtime.DisposableEffect(plank) { onDispose { drag.planks.remove(plank) } }
     val accent = AppColors.Accent
+    val seenRows = LocalShelfSeen.current
+    val freshRow = remember(row.key) { ("row:" + row.key) !in seenRows }
+    androidx.compose.runtime.LaunchedEffect(row.key) { seenRows += "row:" + row.key }
     Column(
         Modifier
             .fillMaxWidth()
-            .scrollReveal()
+            .then(if (freshRow) Modifier.scrollReveal() else Modifier)
             .onGloballyPositioned { c -> if (drag != null) drag.planks[plank] = c.boundsInWindow() }
             .drawBehind {
                 if (glow > 0f) {
@@ -596,6 +607,7 @@ private fun Modifier.dropIn(shelf: Int, item: Int, id: Any): Modifier {
     }
     return this.graphicsLayer {
         alpha = p.value.coerceIn(0f, 1f)
+        compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.ModulateAlpha
     }
 }
 
@@ -611,6 +623,7 @@ private fun Modifier.plankIn(shelf: Int, id: Any): Modifier {
     return this.graphicsLayer {
         val v = p.value
         alpha = v
+        compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.ModulateAlpha
     }
 }
 
