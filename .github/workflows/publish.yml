@@ -2,29 +2,21 @@ name: Publish for everyone
 
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Версия, например v0.1.195. Пусто — самая свежая тестовая"
-        required: false
-        default: ""
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - name: Make the test build public
+      - name: Build the next version for everyone
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          TAG: ${{ inputs.tag }}
         run: |
-          if [ -z "$TAG" ]; then
-            TAG=$(gh api "repos/$REPO/releases?per_page=30" -q '[.[] | select(.prerelease)][0].tag_name')
-          fi
-          [ -n "$TAG" ] || { echo "::error::Нет тестовых сборок"; exit 1; }
-          VERSION="${TAG#v}"
-          gh release edit "$TAG" --repo "$REPO" --prerelease=false --latest --title "WikiFlerty $VERSION"
-          echo "Опубликована $TAG"
+          LAST=$(gh api "repos/$REPO/releases/latest" -q .tag_name)
+          NEXT=$(( ${LAST##*.} + 1 ))
+          gh workflow run build.yml --repo "$REPO" --ref main -f public="$NEXT"
+          echo "Собирается v0.1.$NEXT для всех"

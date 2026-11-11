@@ -4,6 +4,7 @@ plugins {
 }
 
 val buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+val publicNumber = System.getenv("PUBLIC_VERSION")?.trim()?.toIntOrNull()
 
 android {
     namespace = "com.flerty.wikiflerty"
@@ -14,7 +15,7 @@ android {
         minSdk = 24
         targetSdk = 37
         versionCode = buildNumber
-        versionName = "0.1.$buildNumber"
+        versionName = "0.1.${publicNumber ?: buildNumber}"
     }
 
     val releaseKeystore = file("release.keystore")

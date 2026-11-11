@@ -42,7 +42,8 @@ class Updates(private val context: Context) {
 
     val currentCode: Int = runCatching {
         val info = context.packageManager.getPackageInfo(context.packageName, 0)
-        if (Build.VERSION.SDK_INT >= 28) info.longVersionCode.toInt() else @Suppress("DEPRECATION") info.versionCode
+        info.versionName?.substringAfterLast('.')?.toIntOrNull()
+            ?: if (Build.VERSION.SDK_INT >= 28) info.longVersionCode.toInt() else @Suppress("DEPRECATION") info.versionCode
     }.getOrDefault(0)
 
     fun setAuto(value: Boolean) {
