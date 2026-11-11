@@ -187,6 +187,7 @@ fun BookcaseView(
         val move by androidx.compose.runtime.rememberUpdatedState(onMove)
         drag.enabled = onMove != null && planks.size > 1
         val feedback = LocalFeedback.current
+        drag.scrolling = { listStateHolder.isScrollInProgress }
         drag.onDrop = { book, from, to ->
             feedback?.play(FeedbackSound.Success)
             move?.invoke(book, from, to)
@@ -304,6 +305,7 @@ private class ShelfDrag {
     var dest by mutableStateOf<Offset?>(null)
     var root: androidx.compose.ui.layout.LayoutCoordinates? = null
     var onDrop: (Book, String, String) -> Unit = { _, _, _ -> }
+    var scrolling: () -> Boolean = { false }
     val planks = HashMap<String, androidx.compose.ui.geometry.Rect>()
 
     fun target(): String? {
@@ -370,20 +372,31 @@ private fun DragGhost(drag: ShelfDrag) {
                 androidx.compose.runtime.snapshotFlow { drag.dest }.first { it != null }
             }
             val r = drag.root
-            if (dest != null && r != null && r.isAttached) {
+            if (dest != null && r != null && r.isAttached && !drag.scrolling()) {
                 val local = r.windowToLocal(dest)
                 kotlinx.coroutines.coroutineScope {
-                    launch {
-                        pos.animateTo(local, androidx.compose.animation.core.spring(dampingRatio = 0.86f, stiffness = 260f))
-                        var last = local
-                        while (true) {
-                            val now = drag.dest?.let { d -> drag.root?.takeIf { it.isAttached }?.windowToLocal(d) } ?: break
-                            if ((now - last).getDistance() < 0.5f) break
-                            last = now
-                            pos.animateTo(now, androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 900f))
+                    val flight = launch {
+                        kotlinx.coroutines.coroutineScope {
+                            launch {
+                                pos.animateTo(local, androidx.compose.animation.core.spring(dampingRatio = 0.86f, stiffness = 300f))
+                                var last = local
+                                while (true) {
+                                    val now = drag.dest?.let { d -> drag.root?.takeIf { it.isAttached }?.windowToLocal(d) } ?: break
+                                    if ((now - last).getDistance() < 0.5f) break
+                                    last = now
+                                    pos.snapTo(now)
+                                    androidx.compose.runtime.withFrameNanos { }
+                                }
+                            }
+                            launch { lift.animateTo(0f, Motion.tween(320, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
                         }
                     }
-                    launch { lift.animateTo(0f, Motion.tween(340, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
+                    val watch = launch {
+                        androidx.compose.runtime.snapshotFlow { drag.scrolling() }.first { it }
+                        flight.cancel()
+                    }
+                    flight.join()
+                    watch.cancel()
                 }
                 androidx.compose.runtime.withFrameNanos { }
             } else {

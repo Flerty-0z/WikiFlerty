@@ -263,7 +263,7 @@ private fun HandleDot(point: androidx.compose.ui.geometry.Offset, start: Boolean
     val dot = with(density) { 20.dp.toPx() }
     val pad = (box - dot) / 2f
     val screen = with(density) { androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp.toPx() }
-    val edge = with(density) { 4.dp.toPx() }
+    val edge = with(density) { 10.dp.toPx() }
     val left = (if (start) point.x - dot - pad else point.x - pad).coerceIn(edge - pad, screen - edge - pad - dot)
     val top = point.y - with(density) { 2.dp.toPx() }
     val coords = remember { arrayOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
@@ -298,6 +298,10 @@ private fun HandleDot(point: androidx.compose.ui.geometry.Offset, start: Boolean
 
 private val SelectedSegment get() = AppColors.AccentTintStrong
 private val FlagBackground get() = AppColors.Panel.copy(alpha = 0.94f)
+
+object ReaderReveal {
+    var run: ((Float, Float, () -> Unit) -> Unit)? = null
+}
 
 object TouchShields {
     private val rects = java.util.concurrent.ConcurrentHashMap<Any, androidx.compose.ui.geometry.Rect>()
@@ -1821,11 +1825,18 @@ private fun ThemeOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
                     row.forEach { theme ->
                         val selected = settings.dayTheme == theme
                         val shape = appCorner(16)
+                        val spot = remember { floatArrayOf(-1f, -1f) }
                         Column(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(86.dp)
-                                .liveClick(shape, sound = FeedbackSound.Toggle) { onSettingsChange { it.copy(theme = theme.id) } }
+                                .onGloballyPositioned { c -> c.positionInWindow().let { spot[0] = it.x + c.size.width / 2f; spot[1] = it.y + c.size.height / 2f } }
+                                .liveClick(shape, sound = FeedbackSound.Toggle) {
+                                    if (selected) return@liveClick
+                                    val change = { onSettingsChange { it.copy(theme = theme.id) } }
+                                    val reveal = ReaderReveal.run
+                                    if (reveal != null && !settings.isNightNow) reveal(spot[0], spot[1], change) else change()
+                                }
                                 .background(Color(theme.background))
                                 .border(if (selected) 2.dp else 1.dp, if (selected) AppColors.Accent else AppColors.Line, shape),
                             horizontalAlignment = Alignment.CenterHorizontally,

@@ -771,8 +771,13 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 ui.selection = null
                 ui.handles = null
             }
-            "sel-turn" -> {
+            "sel-turn:1", "sel-turn:-1" -> {
+                val forward = type.endsWith(":1")
                 navigator.publicationView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+                go(forward, animated = false)
+                navigator.publicationView.postDelayed({
+                    jsQueue.trySend(false to "window.__wfSel && window.__wfSel.turned && window.__wfSel.turned()")
+                }, 90)
             }
             "auto-end" -> onAutoEnd()
             "feed-next" -> {
@@ -1364,6 +1369,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         ui.handleColor = selectionAccent()
         ui.onHandleDrag = { phase, start, x, y -> onHandleDrag(phase, start, x, y) }
         startJsQueue()
+        ReaderReveal.run = { x, y, apply -> themeReveal(x, y, apply) }
         bookArea = findViewById(R.id.book_area)
         snapshot = findViewById(R.id.page_snapshot)
         curl = PageCurlView(this).also { v ->
@@ -2728,6 +2734,49 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
     }
 
+    private var revealing = false
+
+    private fun themeReveal(x: Float, y: Float, apply: () -> Unit) {
+        val decor = window.decorView as? android.view.ViewGroup
+        if (revealing || !com.flerty.wikiflerty.ui.Motion.enabled || decor == null || decor.width == 0 || decor.height == 0) {
+            apply()
+            return
+        }
+        revealing = true
+        val cx = if (x >= 0f) x else decor.width / 2f
+        val cy = if (y >= 0f) y else decor.height / 2f
+        val ring = selectionAccent()
+        fun show(bitmap: Bitmap?) {
+            if (bitmap == null) {
+                revealing = false
+                apply()
+                return
+            }
+            val cover = RevealCover(this, bitmap, cx, cy, ring)
+            decor.addView(cover, android.widget.FrameLayout.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT))
+            cover.post {
+                apply()
+                cover.postDelayed({
+                    cover.start {
+                        decor.removeView(cover)
+                        bitmap.recycle()
+                        revealing = false
+                    }
+                }, 260)
+            }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val bitmap = Bitmap.createBitmap(decor.width, decor.height, Bitmap.Config.ARGB_8888)
+            try {
+                PixelCopy.request(window, bitmap, { result -> show(if (result == PixelCopy.SUCCESS) bitmap else null) }, Handler(Looper.getMainLooper()))
+            } catch (e: IllegalArgumentException) {
+                show(null)
+            }
+        } else {
+            show(runCatching { decor.drawToBitmap() }.getOrNull())
+        }
+    }
+
     private fun capturePage(onReady: (Bitmap?) -> Unit) {
         val now = android.os.SystemClock.uptimeMillis()
         val settle = maxOf(0L, 90L - (now - lastGoAt))
@@ -2913,6 +2962,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     override fun onDestroy() {
+        if (ReaderReveal.run != null) ReaderReveal.run = null
         flushProgress()
         super.onDestroy()
         if (isFinishing) {
@@ -3057,5 +3107,64 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             "(function(){var e=document.scrollingElement||document.documentElement;" +
                 "var w=e.scrollWidth,h=e.scrollHeight,iw=window.innerWidth,ih=window.innerHeight;" +
                 "if(w>iw+4)return iw/w;if(h>ih+4)return ih/h;return 1;})()"
+    }
+}
+
+private class RevealCover(
+    context: android.content.Context,
+    private val bitmap: Bitmap,
+    private val cx: Float,
+    private val cy: Float,
+    private val ring: Int,
+) : View(context) {
+    private var progress = 0f
+    private val hole = android.graphics.Path()
+    private val stroke = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { style = android.graphics.Paint.Style.STROKE }
+
+    init {
+        isClickable = true
+        isFocusable = false
+    }
+
+    override fun onDraw(canvas: android.graphics.Canvas) {
+        val w = width.toFloat()
+        val h = height.toFloat()
+        val far = maxOf(maxOf(kotlin.math.hypot(cx, cy), kotlin.math.hypot(w - cx, cy)), maxOf(kotlin.math.hypot(cx, h - cy), kotlin.math.hypot(w - cx, h - cy)))
+        val r = far * progress
+        canvas.save()
+        if (r > 0f) {
+            hole.reset()
+            hole.addCircle(cx, cy, r, android.graphics.Path.Direction.CW)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) canvas.clipOutPath(hole)
+            else @Suppress("DEPRECATION") canvas.clipPath(hole, android.graphics.Region.Op.DIFFERENCE)
+        }
+        canvas.drawBitmap(bitmap, 0f, 0f, null)
+        canvas.restore()
+        if (progress > 0f && progress < 1f) {
+            val d = resources.displayMetrics.density
+            val fade = 1f - progress
+            stroke.color = ring
+            stroke.alpha = (140 * fade).toInt()
+            stroke.strokeWidth = 2.5f * d
+            canvas.drawCircle(cx, cy, r, stroke)
+            stroke.alpha = (46 * fade).toInt()
+            stroke.strokeWidth = 6f * d
+            canvas.drawCircle(cx, cy, r + 6f * d, stroke)
+        }
+    }
+
+    fun start(done: () -> Unit) {
+        android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = com.flerty.wikiflerty.ui.Motion.ms(640).toLong()
+            interpolator = android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f)
+            addUpdateListener {
+                progress = it.animatedValue as Float
+                invalidate()
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) = done()
+            })
+            start()
+        }
     }
 }

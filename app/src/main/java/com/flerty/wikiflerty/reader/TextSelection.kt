@@ -575,7 +575,7 @@ internal object TextSelection {
           var st = {
             anchor: null, word: null, mode: null, locked: null, timer: 0, edgeTimer: 0, pressing: false,
             startX: 0, startY: 0, lastX: 0, lastY: 0, grabX: 0, grabY: 0, programmatic: false,
-            swallow: false, turnX: 0, turnY: 0, afterTurn: false, scrollTimer: 0
+            swallow: false, turnX: 0, turnY: 0, afterTurn: false, scrollTimer: 0, turning: 0, turnTarget: 0
           };
           var css = document.createElement("style");
           css.textContent =
@@ -824,26 +824,34 @@ internal object TextSelection {
           }
           function turn(dir) {
             st.edgeTimer = 0;
-            if (!st.mode) return;
+            if (!st.mode || st.turning) return;
             if (scrollMode()) return;
             var w = window.innerWidth;
-            var target = (st.locked === null ? root.scrollLeft : st.locked) + dir * w;
-            if (target < 0 || target > root.scrollWidth - w + 1) return;
-            st.locked = target;
-            root.scrollLeft = target;
-            notify("sel-turn");
-            st.afterTurn = true;
-            st.turnX = st.lastX;
-            st.turnY = st.lastY;
+            var target = root.scrollLeft + dir * w;
+            if (target < -1 || target > root.scrollWidth - w + 1) return;
+            st.turning = dir;
+            st.turnTarget = target;
+            st.locked = null;
+            notify("sel-turn:" + dir);
+            setTimeout(function () { if (st.turning === dir) turned(); }, 700);
+          }
+          function turned() {
+            var dir = st.turning;
+            st.turning = 0;
+            if (Math.abs(root.scrollLeft - st.turnTarget) > 2) root.scrollLeft = st.turnTarget;
+            st.locked = st.turnTarget;
+            if (!st.mode) { place(); return; }
             var e = ends();
-            if (e) {
-              var probe = dir > 0 ? caretAt(24, 24) : caretAt(w - 24, window.innerHeight - 24);
-              if (probe) {
-                if (dir > 0) select(st.mode === "start" ? e.end : e.start, probe);
-                else select(probe, st.mode === "end" ? e.start : e.end);
-              }
+            var w = window.innerWidth, h = window.innerHeight;
+            var at = caretAt(st.lastX - st.grabX, st.lastY - st.grabY);
+            var probe = at || (dir > 0 ? caretAt(24, 24) : caretAt(w - 24, h - 24));
+            if (e && probe) {
+              if (dir > 0) select(st.mode === "start" ? e.end : e.start, probe);
+              else select(probe, st.mode === "end" ? e.start : e.end);
             }
+            st.afterTurn = false;
             place();
+            edges();
           }
           function autoScroll(dy) {
             clearInterval(st.scrollTimer);
@@ -1028,6 +1036,7 @@ internal object TextSelection {
             return (t * k) + "," + (b * k);
           }
           window.__wfSel = {
+            turned: turned,
             box: box,
             place: place,
             clear: clearSelection,

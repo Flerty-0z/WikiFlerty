@@ -1,5 +1,8 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import android.content.Context
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -109,11 +112,12 @@ const val NewsRelease = 250
 
 val WhatsNewItems = listOf(
     NewsItem("Чтение", AppIcons.Pages, "Выделение на две страницы", "Протяни каплю вниз за последнюю строку — выделение продолжится на следующей странице", NewsTarget.Guide, "Меню выделения"),
-    NewsItem("Оформление", AppIcons.Theme, "Смена шаблона", "Новый шаблон раскрывается кругом от выбранной карточки, без мигания", NewsTarget.Custom),
+    NewsItem("Оформление", AppIcons.Theme, "Смена шаблона", "Новый шаблон раскрывается кругом от выбранной карточки, без мигания — и в настройках, и в знакомстве", NewsTarget.Custom),
+    NewsItem("Чтение", AppIcons.Sun, "Фон страницы кругом", "В книге новый фон страницы раскрывается кругом от выбранной плитки"),
     NewsItem("Исправления", AppIcons.Person, "Флажки у края страницы", "Флажок персонажа нажимается и у самого края, страница больше не листается"),
     NewsItem("Исправления", AppIcons.Scroll, "Окна поверх книги", "Перевод, сноски и персонажи листаются и прокручиваются, не переворачивая страницу"),
     NewsItem("Исправления", AppIcons.Check, "Выделение у края", "Капля и меню выделения не уходят за экран в конце страницы"),
-    NewsItem("Исправления", AppIcons.Shelf, "Перетаскивание книг", "Обложка не вылетает за границы полок при прокрутке"),
+    NewsItem("Исправления", AppIcons.Shelf, "Перетаскивание книг", "Обложка не вылетает за границы полок и не зависает, если сразу прокрутить список"),
 )
 
 @Composable
@@ -199,7 +203,7 @@ fun WelcomeTour(onDone: (Boolean) -> Unit) {
     val scope = rememberCoroutineScope()
     Dialog({ onDone(false) }, DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false, dismissOnBackPress = false)) {
         KeepHostBars()
-        Box(Modifier.fillMaxSize().background(AppColors.Background)) {
+        ThemeSwapHost { Box(Modifier.fillMaxSize().background(AppColors.Background)) {
             KitBackdrop(AppStyle.decor, AppStyle.base, AppColors.Accent, Modifier.fillMaxSize())
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(AppColors.Background.copy(alpha = 0.2f), AppColors.Background.copy(alpha = 0.82f)))))
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)) {
@@ -261,7 +265,7 @@ fun WelcomeTour(onDone: (Boolean) -> Unit) {
                     }
                 }
             }
-        }
+        } }
     }
 }
 
@@ -288,15 +292,20 @@ private fun KitPicker() {
             val shape = appCorner(16)
             val base = if (light) kit.light else kit.dark
             val accent = Color(if (light) kit.accentLight else kit.accent)
+            val spot = remember { arrayOf<androidx.compose.ui.geometry.Offset?>(null) }
             Reveal {
                 Box(
                     Modifier
                         .size(110.dp, 160.dp)
+                        .onGloballyPositioned { c -> spot[0] = c.positionInWindow() + androidx.compose.ui.geometry.Offset(c.size.width / 2f, c.size.height / 2f) }
                         .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.94f) {
-                            app.style.update { st ->
-                                val mode = if (st.kit != kit.id && ThemeMode.of(st.mode) != ThemeMode.System) (if (kit.lightFirst) ThemeMode.Light else ThemeMode.Dark).id else st.mode
-                                val lightNow = when (ThemeMode.of(mode)) { ThemeMode.Light -> true; ThemeMode.Dark -> false; ThemeMode.System -> !AppStyle.systemDark }
-                                kit.applyTo(st, lightNow).copy(mode = mode)
+                            if (selected) return@liveClick
+                            ThemeSwap.run(spot[0]) {
+                                app.style.update { st ->
+                                    val mode = if (st.kit != kit.id && ThemeMode.of(st.mode) != ThemeMode.System) (if (kit.lightFirst) ThemeMode.Light else ThemeMode.Dark).id else st.mode
+                                    val lightNow = when (ThemeMode.of(mode)) { ThemeMode.Light -> true; ThemeMode.Dark -> false; ThemeMode.System -> !AppStyle.systemDark }
+                                    kit.applyTo(st, lightNow).copy(mode = mode)
+                                }
                             }
                         }
                         .clip(shape)
@@ -322,9 +331,15 @@ private fun KitPicker() {
         }
     }
     val modes = ThemeMode.entries
-    Box(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+    val modeBox = remember { arrayOf<androidx.compose.ui.geometry.Rect?>(null) }
+    Box(Modifier.fillMaxWidth().padding(horizontal = 4.dp).onGloballyPositioned { c -> modeBox[0] = c.boundsInWindow() }) {
         SettingSegmented(null, listOf("☀ Светлая", "☾ Тёмная", "◐ Система"), modes.indexOf(ThemeMode.of(style.mode))) { idx ->
-            app.style.update { it.copy(mode = modes[idx].id) }
+            if (modes[idx].id == style.mode) return@SettingSegmented
+            val b = modeBox[0]
+            val at = b?.let { androidx.compose.ui.geometry.Offset(it.left + it.width * (idx + 0.5f) / modes.size, it.center.y) }
+            val after = when (modes[idx]) { ThemeMode.Light -> true; ThemeMode.Dark -> false; ThemeMode.System -> !AppStyle.systemDark }
+            if (after == AppStyle.light) app.style.update { it.copy(mode = modes[idx].id) }
+            else ThemeSwap.run(at) { app.style.update { it.copy(mode = modes[idx].id) } }
         }
     }
     }

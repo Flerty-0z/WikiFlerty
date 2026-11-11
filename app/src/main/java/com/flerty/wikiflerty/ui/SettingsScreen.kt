@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.positionInRoot
@@ -350,7 +352,7 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
             items(Kit.entries.size) { i ->
                 val kit = Kit.entries[i]
                 val spot = androidx.compose.runtime.remember { arrayOf<Offset?>(null) }
-                Box(Modifier.onGloballyPositioned { c -> spot[0] = c.positionInRoot() + Offset(c.size.width / 2f, c.size.height / 2f) }) {
+                Box(Modifier.onGloballyPositioned { c -> spot[0] = c.positionInWindow() + Offset(c.size.width / 2f, c.size.height / 2f) }) {
                     KitCard(kit, selected = kit == current) {
                         if (kit == current) return@KitCard
                         ThemeSwap.run(spot[0]) {
@@ -366,7 +368,7 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.PanelBorder))
         val modeBox = androidx.compose.runtime.remember { arrayOf<androidx.compose.ui.geometry.Rect?>(null) }
-        Box(Modifier.padding(horizontal = 14.dp, vertical = 8.dp).onGloballyPositioned { c -> modeBox[0] = c.boundsInRoot() }) {
+        Box(Modifier.padding(horizontal = 14.dp, vertical = 8.dp).onGloballyPositioned { c -> modeBox[0] = c.boundsInWindow() }) {
             val modes = ThemeMode.entries
             SettingSegmented(null, listOf("☀ Светлая", "☾ Тёмная", "◐ Система"), modes.indexOf(ThemeMode.of(style.mode))) { idx ->
                 if (modes[idx].id == style.mode) return@SettingSegmented
