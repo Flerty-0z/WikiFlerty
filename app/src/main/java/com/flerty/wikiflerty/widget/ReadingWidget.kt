@@ -61,7 +61,7 @@ class ReadingWidget : AppWidgetProvider() {
             ids.forEach { id ->
                 val (wDp, hDp) = WidgetSkin.size(manager, id, 250, 110)
                 val views = RemoteViews(context.packageName, R.layout.widget_reading)
-                skin.panel(context, wDp, hDp)?.let {
+                skin.card(wDp, hDp)?.let {
                     views.setImageViewBitmap(R.id.widget_bg, it)
                     views.setInt(R.id.widget_root, "setBackgroundColor", 0)
                 }
@@ -97,15 +97,17 @@ class ReadingWidget : AppWidgetProvider() {
                     views.setTextViewText(R.id.widget_author, "")
                     views.setViewVisibility(R.id.widget_cover, View.GONE)
                     views.setViewVisibility(R.id.widget_progress, View.GONE)
+                    views.setViewVisibility(R.id.widget_ring, View.GONE)
                     views.setTextViewText(R.id.widget_info, today)
                 } else {
                     val percent = (book.progress * 100).roundToInt().coerceIn(0, 100)
-                    views.setTextViewText(R.id.widget_label, "Продолжить чтение")
+                    views.setTextViewText(R.id.widget_label, "ПРОДОЛЖИТЬ")
                     views.setTextViewText(R.id.widget_title, book.title)
                     views.setTextViewText(R.id.widget_author, book.author)
-                    views.setViewVisibility(R.id.widget_author, if (book.author.isBlank()) View.GONE else View.VISIBLE)
-                    views.setViewVisibility(R.id.widget_progress, View.VISIBLE)
-                    views.setImageViewBitmap(R.id.widget_progress, skin.progress((wDp - 32 - 68).coerceAtLeast(60), book.progress.toFloat()))
+                    views.setViewVisibility(R.id.widget_author, if (book.author.isBlank() || hDp < 130) View.GONE else View.VISIBLE)
+                    views.setViewVisibility(R.id.widget_progress, View.GONE)
+                    views.setViewVisibility(R.id.widget_ring, View.VISIBLE)
+                    views.setImageViewBitmap(R.id.widget_ring, skin.ring(58, book.progress.toFloat()))
                     views.setTextViewText(R.id.widget_info, "$percent% · $today")
                     if (cover != null) {
                         views.setViewVisibility(R.id.widget_cover, View.VISIBLE)

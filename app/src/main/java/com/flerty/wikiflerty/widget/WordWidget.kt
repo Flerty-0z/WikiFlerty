@@ -107,7 +107,7 @@ class WordWidget : AppWidgetProvider() {
 
         private fun build(context: Context, id: Int, entry: DictionaryEntry?, skin: WidgetSkin, wDp: Int, hDp: Int): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_word)
-            skin.panel(context, wDp, hDp)?.let {
+            skin.card(wDp, hDp)?.let {
                 views.setImageViewBitmap(R.id.word_bg, it)
                 views.setInt(R.id.word_root, "setBackgroundColor", 0)
             }

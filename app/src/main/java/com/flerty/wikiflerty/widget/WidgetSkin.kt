@@ -30,6 +30,7 @@ class WidgetSkin(
     val faint: Int,
     val accent: Int,
     val density: Float,
+    val bg: Int = Color.BLACK,
 ) {
     val decor: Decor get() = kit.decor
 
@@ -37,6 +38,69 @@ class WidgetSkin(
         val season = if (AppStyle.current.living) KitMoment.now().season else null
         renderKitPanel(context, kit, light, (wDp * density).toInt(), (hDp * density).toInt(), density, season)
     }.getOrNull()
+
+    fun card(wDp: Int, hDp: Int): Bitmap? = runCatching {
+        val d = density
+        val w = (wDp * d).toInt().coerceAtLeast(10)
+        val h = (hDp * d).toInt().coerceAtLeast(10)
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        val radius = when (decor) {
+            Decor.News -> 6 * d
+            Decor.Comic -> 18 * d
+            else -> 24 * d
+        }
+        val inset = if (decor == Decor.Comic) 1.5f * d else 0.5f * d
+        val r = RectF(inset, inset, w - inset, h - inset)
+        val fill = if (light) lighten(bg, 0.45f) else darken(bg, 0.62f)
+        p.color = withAlpha(fill, if (light) 0.96f else 0.9f)
+        c.drawRoundRect(r, radius, radius, p)
+        p.shader = LinearGradient(0f, 0f, 0f, h * 0.6f, withAlpha(Color.WHITE, if (light) 0.25f else 0.05f), withAlpha(Color.WHITE, 0f), Shader.TileMode.CLAMP)
+        c.drawRoundRect(r, radius, radius, p)
+        p.shader = null
+        p.style = Paint.Style.STROKE
+        if (decor == Decor.Comic) {
+            p.strokeWidth = 2.5f * d
+            p.color = 0xFF141210.toInt()
+        } else {
+            p.strokeWidth = 1 * d
+            p.color = withAlpha(accent, if (light) 0.28f else 0.2f)
+        }
+        c.drawRoundRect(r, radius, radius, p)
+        bmp
+    }.getOrNull()
+
+    fun ring(sizeDp: Int, value: Float): Bitmap {
+        val d = density
+        val s = (sizeDp * d).toInt().coerceAtLeast(10)
+        val bmp = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        val stroke = 4.5f * d
+        val half = s / 2f
+        val r = half - stroke / 2f - 1 * d
+        p.color = withAlpha(accent, if (light) 0.12f else 0.1f)
+        c.drawCircle(half, half, r - stroke / 2f, p)
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = stroke
+        p.color = withAlpha(text, if (light) 0.12f else 0.14f)
+        c.drawCircle(half, half, r, p)
+        p.color = accent
+        p.strokeCap = Paint.Cap.ROUND
+        val sweep = (value.coerceIn(0f, 1f) * 360f).coerceAtLeast(8f)
+        c.drawArc(RectF(half - r, half - r, half + r, half + r), -90f, sweep, false, p)
+        p.style = Paint.Style.FILL
+        val t = s * 0.15f
+        val tri = android.graphics.Path().apply {
+            moveTo(half - t * 0.55f, half - t * 0.75f)
+            lineTo(half + t * 0.85f, half)
+            lineTo(half - t * 0.55f, half + t * 0.75f)
+            close()
+        }
+        c.drawPath(tri, p)
+        return bmp
+    }
 
     fun progress(widthDp: Int, value: Float): Bitmap {
         val d = density
@@ -171,7 +235,7 @@ class WidgetSkin(
                 else -> raw
             }
             val density = context.resources.displayMetrics.density.coerceAtMost(2.6f)
-            return WidgetSkin(kit, light, base.text.toInt(), base.muted.toInt(), base.faint.toInt(), accent.toInt(), density)
+            return WidgetSkin(kit, light, base.text.toInt(), base.muted.toInt(), base.faint.toInt(), accent.toInt(), density, base.background.toInt())
         }
 
         fun size(manager: AppWidgetManager, id: Int, fallbackW: Int, fallbackH: Int): Pair<Int, Int> {
