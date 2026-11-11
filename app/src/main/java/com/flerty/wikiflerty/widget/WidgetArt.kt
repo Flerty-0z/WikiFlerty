@@ -15,7 +15,7 @@ import android.text.StaticLayout
 import android.text.TextPaint
 import android.text.TextUtils
 
-class WidgetArt(context: Context, private val skin: WidgetSkin) {
+class WidgetArt(private val context: Context, private val skin: WidgetSkin) {
     private val d = skin.density
     private val serif: Typeface = font(context, "Literata.ttf") ?: Typeface.SERIF
     private val mono: Typeface = font(context, "JetBrainsMono.ttf") ?: Typeface.MONOSPACE
@@ -23,7 +23,8 @@ class WidgetArt(context: Context, private val skin: WidgetSkin) {
     class Canvased(val bitmap: Bitmap, val canvas: Canvas, val w: Float, val h: Float)
 
     fun base(wDp: Int, hDp: Int): Canvased {
-        val card = skin.card(wDp, hDp) ?: Bitmap.createBitmap((wDp * d).toInt().coerceAtLeast(10), (hDp * d).toInt().coerceAtLeast(10), Bitmap.Config.ARGB_8888)
+        val veil = if (skin.light) 0.62f else 0.7f
+        val card = (if (skin.decor == com.flerty.wikiflerty.ui.Decor.None) null else skin.panel(context, wDp, hDp, veil)) ?: skin.card(wDp, hDp) ?: Bitmap.createBitmap((wDp * d).toInt().coerceAtLeast(10), (hDp * d).toInt().coerceAtLeast(10), Bitmap.Config.ARGB_8888)
         val bmp = if (card.isMutable) card else card.copy(Bitmap.Config.ARGB_8888, true)
         return Canvased(bmp, Canvas(bmp), bmp.width.toFloat(), bmp.height.toFloat())
     }

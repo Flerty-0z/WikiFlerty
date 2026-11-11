@@ -1,5 +1,6 @@
 package com.flerty.wikiflerty.reader
 
+import androidx.compose.ui.graphics.drawscope.translate
 import com.flerty.wikiflerty.ui.revealScroll
 import com.flerty.wikiflerty.ui.Reveal
 import androidx.compose.ui.draw.shadow
@@ -259,25 +260,16 @@ private fun SelectionHandleLayer(state: ReaderUiState) {
     val last = remember { arrayOf<androidx.compose.ui.geometry.Offset?>(null) }
     if (end != null && h.more) last[0] = end
     androidx.compose.animation.AnimatedVisibility(
-        visible = h.more && end != null && state.selection != null,
+        visible = h.more && end != null,
         enter = fadeIn(Motion.fade(180)) + scaleIn(Motion.tween(240), initialScale = 0.6f),
         exit = fadeOut(Motion.fade(140)) + scaleOut(Motion.tween(180), targetScale = 0.7f),
         modifier = Modifier.offset {
             val p = last[0] ?: androidx.compose.ui.geometry.Offset.Zero
-            val size = 40.dp.toPx()
-            androidx.compose.ui.unit.IntOffset((p.x - size - 30.dp.toPx()).roundToInt().coerceAtLeast(8.dp.roundToPx()), (p.y + 8.dp.toPx()).roundToInt())
+            val size = 52.dp.toPx()
+            androidx.compose.ui.unit.IntOffset((p.x - size - 24.dp.toPx()).roundToInt().coerceAtLeast(8.dp.roundToPx()), (p.y + 8.dp.toPx()).roundToInt())
         },
     ) {
-        Box(
-            Modifier
-                .size(40.dp)
-                .shadow(6.dp, CircleShape)
-                .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.88f) { state.onSelectionNext?.invoke() }
-                .background(color, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(AppIcons.Forward, "Продолжить на следующей странице", tint = Color.White, modifier = Modifier.size(20.dp))
-        }
+        SelectionNextButton(color) { state.onSelectionNext?.invoke() }
     }
 }
 
@@ -2738,6 +2730,113 @@ private fun ReaderCoach(scroll: Boolean, leftForward: Boolean, onDone: () -> Uni
                 Text("Зажми слово — заметка, перевод, словарь, персонаж", color = Color.White, fontSize = 13.sp, lineHeight = 18.sp)
             }
             Text("Нажми, чтобы начать", color = Color.White.copy(alpha = 0.55f), fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun SelectionNextButton(handle: Color, onClick: () -> Unit) {
+    val decor = com.flerty.wikiflerty.ui.AppStyle.kit.decor
+    val accent = com.flerty.wikiflerty.ui.AppColors.Accent
+    val text = com.flerty.wikiflerty.ui.AppColors.Text
+    val panel = com.flerty.wikiflerty.ui.AppColors.Panel
+    val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "next")
+    val nudge by pulse.animateFloat(
+        0f,
+        1f,
+        androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse),
+        label = "next-nudge",
+    )
+    val move = if (Motion.enabled) nudge else 0f
+    androidx.compose.foundation.Canvas(
+        Modifier
+            .size(52.dp)
+            .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.86f, onClick = onClick)
+            .semantics { contentDescription = "Продолжить выделение на следующей странице" },
+    ) {
+        val d = density
+        val c = center
+        val r = size.minDimension / 2f
+        val ink = Color(0xFF141210)
+        fun arrow(color: Color, width: Float, len: Float, cx: Float = c.x, cy: Float = c.y) {
+            val x0 = cx - len / 2f + move * 2.5f * d
+            val x1 = cx + len / 2f + move * 2.5f * d
+            val head = len * 0.42f
+            val path = androidx.compose.ui.graphics.Path().apply {
+                moveTo(x0, cy); lineTo(x1, cy)
+                moveTo(x1 - head, cy - head); lineTo(x1, cy); lineTo(x1 - head, cy + head)
+            }
+            drawPath(path, color, style = androidx.compose.ui.graphics.drawscope.Stroke(width, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        }
+        when (decor) {
+            com.flerty.wikiflerty.ui.Decor.Library -> {
+                val seal = androidx.compose.ui.graphics.Path()
+                for (k in 0 until 24) {
+                    val a = (2 * Math.PI * k / 24).toFloat()
+                    val rr = r * (if (k % 2 == 0) 0.86f else 0.8f)
+                    val x = c.x + kotlin.math.cos(a) * rr
+                    val y = c.y + kotlin.math.sin(a) * rr
+                    if (k == 0) seal.moveTo(x, y) else seal.lineTo(x, y)
+                }
+                seal.close()
+                drawPath(seal, Color(0xFF5E140C), alpha = 1f)
+                translate(0f, -1.5f * d) {
+                    drawPath(seal, androidx.compose.ui.graphics.Brush.radialGradient(listOf(Color(0xFFC94A38), Color(0xFF8B2216)), center = Offset(c.x - r * 0.25f, c.y - r * 0.3f), radius = r))
+                    drawCircle(Color(0xFFF2D48A).copy(alpha = 0.55f), r * 0.56f, c, style = androidx.compose.ui.graphics.drawscope.Stroke(1.2f * d))
+                    arrow(Color(0xFFF2D48A), 2.6f * d, r * 0.7f)
+                }
+            }
+            com.flerty.wikiflerty.ui.Decor.Zen -> {
+                drawCircle(panel.copy(alpha = 0.92f), r * 0.86f, c)
+                drawArc(text.copy(alpha = 0.85f), -70f, 300f, false, Offset(c.x - r * 0.72f, c.y - r * 0.72f), androidx.compose.ui.geometry.Size(r * 1.44f, r * 1.44f), style = androidx.compose.ui.graphics.drawscope.Stroke(4.5f * d, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                drawArc(text.copy(alpha = 0.35f), 230f, 30f, false, Offset(c.x - r * 0.72f, c.y - r * 0.72f), androidx.compose.ui.geometry.Size(r * 1.44f, r * 1.44f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f * d, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                arrow(accent, 2.6f * d, r * 0.62f)
+            }
+            com.flerty.wikiflerty.ui.Decor.Comic -> {
+                val burst = androidx.compose.ui.graphics.Path()
+                for (k in 0 until 20) {
+                    val a = (2 * Math.PI * k / 20).toFloat()
+                    val rr = r * (if (k % 2 == 0) 0.95f else 0.7f)
+                    val x = c.x + kotlin.math.cos(a) * rr
+                    val y = c.y + kotlin.math.sin(a) * rr
+                    if (k == 0) burst.moveTo(x, y) else burst.lineTo(x, y)
+                }
+                burst.close()
+                translate(2.5f * d, 2.5f * d) { drawPath(burst, ink) }
+                drawPath(burst, Color(0xFFFFD43B))
+                drawPath(burst, ink, style = androidx.compose.ui.graphics.drawscope.Stroke(2.4f * d, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                arrow(ink, 3.6f * d, r * 0.68f)
+            }
+            com.flerty.wikiflerty.ui.Decor.News -> {
+                val w = r * 1.7f
+                val h = r * 1.05f
+                val tl = Offset(c.x - w / 2f, c.y - h / 2f)
+                drawRect(ink.copy(alpha = 0.25f), tl + Offset(2 * d, 2 * d), androidx.compose.ui.geometry.Size(w, h))
+                drawRect(panel, tl, androidx.compose.ui.geometry.Size(w, h))
+                drawRect(text, tl, androidx.compose.ui.geometry.Size(w, h), style = androidx.compose.ui.graphics.drawscope.Stroke(1.6f * d))
+                drawRect(text, tl + Offset(3 * d, 3 * d), androidx.compose.ui.geometry.Size(w - 6 * d, h - 6 * d), style = androidx.compose.ui.graphics.drawscope.Stroke(0.7f * d))
+                arrow(text, 2.2f * d, w * 0.48f)
+            }
+            com.flerty.wikiflerty.ui.Decor.Sea -> {
+                drawCircle(androidx.compose.ui.graphics.Brush.radialGradient(listOf(accent.copy(alpha = 0.55f), accent.copy(alpha = 0.18f)), center = c, radius = r), r * 0.82f, c)
+                drawCircle(Color.White.copy(alpha = 0.55f), r * 0.82f, c, style = androidx.compose.ui.graphics.drawscope.Stroke(1.4f * d))
+                drawArc(Color.White.copy(alpha = 0.7f), 200f, 60f, false, Offset(c.x - r * 0.6f, c.y - r * 0.6f), androidx.compose.ui.geometry.Size(r * 1.2f, r * 1.2f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f * d, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                drawCircle(Color.White.copy(alpha = 0.5f), 2.6f * d, Offset(c.x + r * 0.78f, c.y - r * 0.72f - move * 3 * d))
+                drawCircle(Color.White.copy(alpha = 0.35f), 1.6f * d, Offset(c.x + r * 0.95f, c.y - r * 0.98f - move * 4 * d))
+                arrow(Color.White, 2.8f * d, r * 0.68f)
+            }
+            com.flerty.wikiflerty.ui.Decor.Clay -> {
+                drawCircle(Color.Black.copy(alpha = 0.18f), r * 0.82f, c + Offset(0f, 3 * d))
+                drawCircle(accent, r * 0.82f, c)
+                drawCircle(androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color.White.copy(alpha = 0.55f), Color.Transparent, Color.Black.copy(alpha = 0.15f)), start = Offset(c.x - r, c.y - r), end = Offset(c.x + r, c.y + r)), r * 0.82f, c)
+                drawCircle(Color.White.copy(alpha = 0.6f), r * 0.16f, Offset(c.x - r * 0.38f, c.y - r * 0.4f))
+                arrow(Color.White, 4.2f * d, r * 0.62f)
+            }
+            com.flerty.wikiflerty.ui.Decor.None -> {
+                drawCircle(Color.Black.copy(alpha = 0.2f), r * 0.8f, c + Offset(0f, 2 * d))
+                drawCircle(handle, r * 0.8f, c)
+                arrow(Color.White, 2.6f * d, r * 0.66f)
+            }
         }
     }
 }

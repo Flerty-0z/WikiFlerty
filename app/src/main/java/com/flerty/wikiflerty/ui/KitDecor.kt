@@ -543,7 +543,7 @@ private fun DrawScope.clayExtras(light: Boolean, accent: Color) {
     drawPath(rope, accent.copy(alpha = if (light) 0.45f else 0.35f), style = androidx.compose.ui.graphics.drawscope.Stroke(7 * d, cap = StrokeCap.Round))
 }
 
-fun renderKitPanel(context: android.content.Context, kit: Kit, light: Boolean, widthPx: Int, heightPx: Int, density: Float, season: Season? = null): android.graphics.Bitmap {
+fun renderKitPanel(context: android.content.Context, kit: Kit, light: Boolean, widthPx: Int, heightPx: Int, density: Float, season: Season? = null, veil: Float? = null): android.graphics.Bitmap {
     val bitmap = android.graphics.Bitmap.createBitmap(widthPx.coerceAtLeast(1), heightPx.coerceAtLeast(1), android.graphics.Bitmap.Config.ARGB_8888)
     val base = if (light) kit.light else kit.dark
     val accent = Color(if (light) kit.accentLight else kit.accent)
@@ -564,7 +564,7 @@ fun renderKitPanel(context: android.content.Context, kit: Kit, light: Boolean, w
         val clip = Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(0f, 0f, w, h, androidx.compose.ui.geometry.CornerRadius(radius))) }
         clipPath(clip) {
             kitStatic(kit.decor, base, accent, specks(41, 70), measurer, season)
-            drawRect(Color(base.panel).copy(alpha = if (light) 0.5f else 0.58f))
+            drawRect(Color(base.panel).copy(alpha = veil ?: if (light) 0.5f else 0.58f))
         }
         val d = density
         val ink = Color(0xFF141210)

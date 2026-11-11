@@ -96,7 +96,7 @@ class WordWidget : AppWidgetProvider() {
             val art = WidgetArt(context, skin)
             val shown = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_SHOWN, false)
             ids.forEach { id ->
-                val (w, h) = WidgetSkin.size(manager, id, 280, 150)
+                val (w, h) = WidgetSkin.size(manager, id, 280, 280)
                 manager.updateAppWidget(id, build(context, art, skin, entry, shown, w, h))
             }
         }
@@ -150,12 +150,12 @@ class WordWidget : AppWidgetProvider() {
             }
 
             val wordRoom = if (shown) c.h - top - pad - buttonsH - 12 * d else c.h - top - pad - 22 * d
-            val word = art.fit(entry.word.trim().replaceFirstChar { it.uppercase() }, art.serifFace, skin.text, textW, (wordRoom * 0.5f).coerceAtLeast(30 * d), 32f, 18f, weight = 600, spacing = 1.0f)
+            val word = art.fit(entry.word.trim().replaceFirstChar { it.uppercase() }, art.serifFace, skin.text, textW, (wordRoom * 0.5f).coerceAtLeast(30 * d), if (hDp >= 220) 40f else 32f, 18f, weight = 600, spacing = 1.0f)
             art.draw(c, word, pad, top)
             var y = top + word.height + 8 * d
             if (shown) {
                 val bottom = c.h - pad - buttonsH - 10 * d
-                val mean = art.fit(meaning(entry.definition), art.serifFace, skin.muted, textW, (bottom - y).coerceAtLeast(18 * d), 15f, 11.5f)
+                val mean = art.fit(meaning(entry.definition), art.serifFace, skin.muted, textW, (bottom - y).coerceAtLeast(18 * d), if (hDp >= 220) 18f else 15f, 11.5f)
                 art.draw(c, mean, pad, y)
                 val gap = 8 * d
                 val bw = (textW - gap) / 2f

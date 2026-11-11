@@ -71,7 +71,7 @@ class QuoteWidget : AppWidgetProvider() {
             val skin = WidgetSkin.current(context)
             val art = WidgetArt(context, skin)
             ids.forEach { id ->
-                val (w, h) = WidgetSkin.size(manager, id, 280, 140)
+                val (w, h) = WidgetSkin.size(manager, id, 280, 280)
                 manager.updateAppWidget(id, build(context, art, skin, w, h))
             }
         }
@@ -117,8 +117,8 @@ class QuoteWidget : AppWidgetProvider() {
                 return views
             }
             views.setViewVisibility(R.id.quote_next, if (list.size > 1) View.VISIBLE else View.GONE)
-            val quote = art.fit("«${clean(note)}»", art.serifFace, skin.text, textW, textH, 19f, 13.5f)
-            art.draw(c, quote, pad, top + ((textH - quote.height) / 2f).coerceAtLeast(0f) * 0.35f)
+            val quote = art.fit("«${clean(note)}»", art.serifFace, skin.text, textW, textH, if (hDp >= 220) 23f else 19f, 13.5f, spacing = 1.2f)
+            art.draw(c, quote, pad, top + ((textH - quote.height) / 2f).coerceAtLeast(0f))
             val book = app.library.books.value.firstOrNull { it.id == note.bookId }
             val title = book?.title ?: app.syncedTitle(note.bookId) ?: "Удалённая книга"
             val place = if (book != null && book.positions > 0) {

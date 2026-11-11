@@ -664,33 +664,39 @@ internal object TextSelection {
             while (n && !(n.nodeValue || "").length) n = back ? w.previousNode() : w.nextNode();
             return n;
           }
+          function charSide(n, o, back) {
+            var rs = back ? charRects(n, o - 1, o) : charRects(n, o, o + 1);
+            if (back) {
+              for (var i = rs.length - 1; i >= 0; i--) {
+                var b = rs[i];
+                if (b.width && onPage(b)) return { left: b.right, right: b.right, top: b.top, bottom: b.bottom, height: b.height };
+              }
+            } else {
+              for (var j = 0; j < rs.length; j++) {
+                var c = rs[j];
+                if (c.width && onPage(c)) return { left: c.left, right: c.left, top: c.top, bottom: c.bottom, height: c.height };
+              }
+            }
+            return null;
+          }
           function sideRect(node, offset, back) {
-            var r = rectAt(node, offset);
-            if (r && onPage(r)) return r;
             var n = node, o = offset;
-            if (n.nodeType !== 3) return r;
-            for (var step = 0; step < 3; step++) {
-              if (back) {
-                if (o <= 0) { n = textNear(n, true); if (!n) break; o = n.data.length; continue; }
-                var rs = charRects(n, o - 1, o);
-                for (var i = rs.length - 1; i >= 0; i--) {
-                  var b = rs[i];
-                  if (b.width && onPage(b)) return { left: b.right, right: b.right, top: b.top, bottom: b.bottom, height: b.height };
+            if (n.nodeType === 3) {
+              for (var step = 0; step < 4; step++) {
+                if (back) {
+                  if (o <= 0) { n = textNear(n, true); if (!n) break; o = n.data.length; continue; }
+                  if (/[\s\u00AD]/.test(n.data[o - 1])) { o--; continue; }
+                } else {
+                  if (o >= n.data.length) { n = textNear(n, false); if (!n) break; o = 0; continue; }
+                  if (/[\s\u00AD]/.test(n.data[o])) { o++; continue; }
                 }
-                if (/[\s\u00AD]/.test(n.data[o - 1])) { o--; continue; }
-                break;
-              } else {
-                if (o >= n.data.length) { n = textNear(n, false); if (!n) break; o = 0; continue; }
-                var rs2 = charRects(n, o, o + 1);
-                for (var j = 0; j < rs2.length; j++) {
-                  var c = rs2[j];
-                  if (c.width && onPage(c)) return { left: c.left, right: c.left, top: c.top, bottom: c.bottom, height: c.height };
-                }
-                if (/[\s\u00AD]/.test(n.data[o])) { o++; continue; }
+                var hit = charSide(n, o, back);
+                if (hit) return hit;
                 break;
               }
             }
-            return r;
+            var r = rectAt(node, offset);
+            return r && onPage(r) ? r : r;
           }
           function caretAt(x, y) {
             var r = document.caretRangeFromPoint ? document.caretRangeFromPoint(x, y) : null;
@@ -789,7 +795,7 @@ internal object TextSelection {
             var h = window.innerHeight;
             var sa = a && onPage(a) && a.bottom > 0 && a.top < h ? [a.left, a.bottom] : null;
             var sb = b && onPage(b) && b.bottom > 0 && b.top < h ? [b.right, b.bottom] : null;
-            var more = !!sb && !st.mode && !scrollMode() && root.scrollLeft + window.innerWidth < root.scrollWidth - 2 && edgeOf(b, 1);
+            var more = !!sb && !scrollMode() && root.scrollLeft + window.innerWidth < root.scrollWidth - 2 && edgeOf(b, 1);
             report(sa, sb, more);
           }
           function grab(mode, x, y) {
