@@ -93,6 +93,9 @@ jobs:
         run: |
           if [ -n "$PUBLIC" ]; then
             N="$PUBLIC"
+            if gh release view "v0.1.$N" --json isPrerelease -q .isPrerelease 2>/dev/null | grep -q true; then
+              gh release delete "v0.1.$N" --cleanup-tag -y
+            fi
             gh release create "v0.1.$N" "out/WikiFlerty-0.1.$N-x64.apk" "out/WikiFlerty-0.1.$N-x32.apk" \
               --title "WikiFlerty 0.1.$N" \
               --notes "" \
