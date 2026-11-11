@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -193,7 +194,7 @@ fun BookcaseView(
         val density = androidx.compose.ui.platform.LocalDensity.current
         val zone = with(density) { 64.dp.toPx() }
         val bottomInset = with(density) { 96.dp.toPx() }
-        val maxStep = with(density) { 9.dp.toPx() }
+        val maxStep = with(density) { 7.dp.toPx() }
         androidx.compose.runtime.LaunchedEffect(drag, listState) {
             var armed = false
             var speed = 0f
@@ -216,7 +217,7 @@ fun BookcaseView(
                 }
                 if (want == 0f) armed = true
                 val goal = if (armed) want * want * kotlin.math.sign(want) * maxStep else 0f
-                speed += (goal - speed) * 0.18f
+                speed += (goal - speed) * 0.1f
                 if (kotlin.math.abs(speed) > 0.3f) listState.dispatchRawDelta(speed)
             }
         }
@@ -227,6 +228,7 @@ fun BookcaseView(
             Box(
                 Modifier
                     .fillMaxSize()
+                    .clipToBounds()
                     .onGloballyPositioned { drag.root = it }
                     .pointerInput(drag) {
                         awaitPointerEventScope {
@@ -501,7 +503,7 @@ private fun Shelf(row: PlankRow, index: Int, onBook: (Book) -> Unit) {
     if (drag != null) androidx.compose.runtime.DisposableEffect(plank) { onDispose { drag.planks.remove(plank) } }
     val accent = AppColors.Accent
     val seenRows = LocalShelfSeen.current
-    val freshRow = remember(row.key) { ("row:" + row.key) !in seenRows }
+    val freshRow = remember(row.key) { ("row:" + row.key) !in seenRows && (drag == null || drag.phase == 0) }
     androidx.compose.runtime.LaunchedEffect(row.key) { seenRows += "row:" + row.key }
     Column(
         Modifier
@@ -606,7 +608,8 @@ private fun Modifier.animatePlacement(): Modifier {
 @Composable
 private fun Modifier.dropIn(shelf: Int, item: Int, id: Any): Modifier {
     val seen = LocalShelfSeen.current
-    val fresh = remember { id !in seen }
+    val dragging = LocalShelfDrag.current?.let { it.phase != 0 } == true
+    val fresh = remember { id !in seen && !dragging }
     val p = remember { androidx.compose.animation.core.Animatable(if (Motion.enabled && fresh) 0f else 1f) }
     androidx.compose.runtime.LaunchedEffect(Unit) {
         seen += id
@@ -621,7 +624,8 @@ private fun Modifier.dropIn(shelf: Int, item: Int, id: Any): Modifier {
 @Composable
 private fun Modifier.plankIn(shelf: Int, id: Any): Modifier {
     val seen = LocalShelfSeen.current
-    val fresh = remember { id !in seen }
+    val dragging = LocalShelfDrag.current?.let { it.phase != 0 } == true
+    val fresh = remember { id !in seen && !dragging }
     val p = remember { androidx.compose.animation.core.Animatable(if (Motion.enabled && fresh) 0f else 1f) }
     androidx.compose.runtime.LaunchedEffect(Unit) {
         seen += id

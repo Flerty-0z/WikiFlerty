@@ -21,7 +21,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             CompositionLocalProvider(LocalFeedback provides (application as App).feedback) {
                 WikiFlertyTheme {
-                    MainScreen(libraryViewModel)
+                    ThemeSwapHost { MainScreen(libraryViewModel) }
                 }
             }
         }

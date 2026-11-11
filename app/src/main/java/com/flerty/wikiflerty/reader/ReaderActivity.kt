@@ -657,12 +657,14 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             val rootLocation = IntArray(2).also { findViewById<View>(R.id.reader_root).getLocationInWindow(it) }
             val offsetY = (pageLocation[1] - rootLocation[1]).toFloat()
             val rect = selection.rect
+            val seen = runCatching { navigator.evaluateJavascript("window.__wfSel && window.__wfSel.box ? window.__wfSel.box() : \"\"") }.getOrNull()
+                ?.trim()?.removeSurrounding("\"")?.split(',')?.mapNotNull { it.toFloatOrNull() }?.takeIf { it.size == 2 }
             if (ui.panelsVisible || ui.sheet != null) ui.hideAll()
             ui.selection = SelectionInfo(
                 locator = selection.locator,
                 text = text,
-                top = (rect?.top ?: 200f) + offsetY,
-                bottom = (rect?.bottom ?: 240f) + offsetY,
+                top = (seen?.get(0) ?: rect?.top ?: 200f) + offsetY,
+                bottom = (seen?.get(1) ?: rect?.bottom ?: 240f) + offsetY,
             )
         }
     }
@@ -767,6 +769,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 selectionJob?.cancel()
                 ui.selection = null
                 ui.handles = null
+            }
+            "sel-turn" -> {
+                navigator.publicationView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
             }
             "auto-end" -> onAutoEnd()
             "feed-next" -> {
@@ -1466,7 +1471,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         notes = notes,
                         noteActions = noteActions,
                         ai = aiBridge,
-                        onEdgeTap = { left -> onStripTap(left) },
+                        onEdgeTap = { left, at -> onStripTap(left, at.x, at.y) },
                         onBrightnessPreview = { value -> setWindowBrightness(value) },
                         onMarkFinished = {
                             ui.askFinished = false
@@ -2080,11 +2085,38 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
     }
 
-    private fun onStripTap(left: Boolean) {
+    private fun onStripTap(left: Boolean, winX: Float, winY: Float) {
         if (ui.selection != null) {
             endSelection()
             return
         }
+        if (ui.person != null) {
+            ui.person = null
+            app.feedback.play(FeedbackSound.Close)
+            return
+        }
+        if (peopleNow.isEmpty()) {
+            stripTurn(left)
+            return
+        }
+        val view = navigator.publicationView
+        val loc = IntArray(2).also { view.getLocationInWindow(it) }
+        val density = resources.displayMetrics.density
+        val x = (winX - loc[0]) / density
+        val y = (winY - loc[1]) / density
+        lifecycleScope.launch {
+            val raw = runCatching { navigator.evaluateJavascript("window.__wfFlagAt ? window.__wfFlagAt($x, $y) : \"\"") }.getOrNull()
+            val id = raw?.trim()?.removeSurrounding("\"").orEmpty()
+            if (id.isNotEmpty() && id != "null") {
+                app.feedback.play(FeedbackSound.Open)
+                showPerson(id)
+            } else {
+                stripTurn(left)
+            }
+        }
+    }
+
+    private fun stripTurn(left: Boolean) {
         val s = settings
         if (s.edgeTaps && !s.scroll) {
             manualTurn(forward = !left || s.leftTapForward)
@@ -2474,7 +2506,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 swipeVelocity = null
                 val area = IntArray(2).also { bookArea.getLocationOnScreen(it) }
                 val inside = ev.rawX >= area[0] && ev.rawX <= area[0] + bookArea.width && ev.rawY >= area[1] && ev.rawY <= area[1] + bookArea.height
-                swipeState = if (inside && swipeAllowed() && !overPanels(ev)) SwipeState.Watching else SwipeState.Ignored
+                swipeState = if (inside && swipeAllowed() && !overPanels(ev) && !TouchShields.hit(ev.x, ev.y)) SwipeState.Watching else SwipeState.Ignored
                 if (swipeState == SwipeState.Watching) {
                     swipeRawX0 = ev.rawX
                     swipeX0 = ev.rawX - area[0]

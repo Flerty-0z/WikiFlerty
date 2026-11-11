@@ -92,6 +92,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.composed
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -260,7 +262,9 @@ private fun HandleDot(point: androidx.compose.ui.geometry.Offset, start: Boolean
     val box = with(density) { 44.dp.toPx() }
     val dot = with(density) { 20.dp.toPx() }
     val pad = (box - dot) / 2f
-    val left = if (start) point.x - dot - pad else point.x - pad
+    val screen = with(density) { androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp.toPx() }
+    val edge = with(density) { 4.dp.toPx() }
+    val left = (if (start) point.x - dot - pad else point.x - pad).coerceIn(edge - pad, screen - edge - pad - dot)
     val top = point.y - with(density) { 2.dp.toPx() }
     val coords = remember { arrayOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
     Box(
@@ -295,7 +299,20 @@ private fun HandleDot(point: androidx.compose.ui.geometry.Offset, start: Boolean
 private val SelectedSegment get() = AppColors.AccentTintStrong
 private val FlagBackground get() = AppColors.Panel.copy(alpha = 0.94f)
 
-private fun Modifier.blockTaps(): Modifier = pointerInput(Unit) { detectTapGestures { } }
+object TouchShields {
+    private val rects = java.util.concurrent.ConcurrentHashMap<Any, androidx.compose.ui.geometry.Rect>()
+    fun put(key: Any, rect: androidx.compose.ui.geometry.Rect) { rects[key] = rect }
+    fun remove(key: Any) { rects.remove(key) }
+    fun hit(x: Float, y: Float): Boolean = rects.values.any { it.contains(androidx.compose.ui.geometry.Offset(x, y)) }
+}
+
+private fun Modifier.blockTaps(): Modifier = composed {
+    val key = remember { Any() }
+    androidx.compose.runtime.DisposableEffect(key) { onDispose { TouchShields.remove(key) } }
+    this
+        .onGloballyPositioned { c -> if (c.isAttached) TouchShields.put(key, c.boundsInWindow()) }
+        .pointerInput(Unit) { detectTapGestures { } }
+}
 
 @Composable
 fun ReaderOverlay(
@@ -311,7 +328,7 @@ fun ReaderOverlay(
     notes: List<com.flerty.wikiflerty.data.Note>,
     noteActions: NoteActions,
     ai: AiBridge,
-    onEdgeTap: (left: Boolean) -> Unit,
+    onEdgeTap: (left: Boolean, at: Offset) -> Unit,
     onBrightnessPreview: (Double) -> Unit,
     onMarkFinished: () -> Unit = {},
     tts: TtsActions,
@@ -361,7 +378,7 @@ fun ReaderOverlay(
             BrightnessStrip(
                 settings = settings,
                 state = state,
-                onEdgeTap = { onEdgeTap(true) },
+                onEdgeTap = { at -> onEdgeTap(true, at) },
                 onPreview = onBrightnessPreview,
                 onCommit = { value -> onSettingsChange { it.copy(brightness = value) } },
                 modifier = Modifier.align(Alignment.CenterStart),
@@ -1241,7 +1258,7 @@ internal fun RoundIconButton(
 private fun BrightnessStrip(
     settings: ReaderSettings,
     state: ReaderUiState,
-    onEdgeTap: () -> Unit,
+    onEdgeTap: (Offset) -> Unit,
     onPreview: (Double) -> Unit,
     onCommit: (Double) -> Unit,
     modifier: Modifier,
@@ -1249,11 +1266,13 @@ private fun BrightnessStrip(
     val current by rememberUpdatedState(settings.brightness)
     val tap by rememberUpdatedState(onEdgeTap)
     var value by remember { mutableFloatStateOf(0.5f) }
+    val origin = remember { floatArrayOf(0f, 0f) }
     Box(
         modifier
             .fillMaxHeight()
             .width(28.dp)
-            .pointerInput(Unit) { detectTapGestures(onTap = { tap() }) }
+            .onGloballyPositioned { c -> c.positionInWindow().let { origin[0] = it.x; origin[1] = it.y } }
+            .pointerInput(Unit) { detectTapGestures(onTap = { p -> tap(Offset(origin[0] + p.x, origin[1] + p.y)) }) }
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragStart = {

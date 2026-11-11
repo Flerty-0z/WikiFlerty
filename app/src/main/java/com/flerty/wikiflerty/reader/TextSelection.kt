@@ -427,11 +427,7 @@ internal object TextSelection {
           try { new MutationObserver(later).observe(document.documentElement, { attributes: true, attributeFilter: ["style", "class"] }); } catch (x) {}
           try { if (window.ResizeObserver && document.body) new ResizeObserver(later).observe(document.body); } catch (x) {}
           try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(later); } catch (x) {}
-          window.addEventListener("click", function (e) {
-            if (!hits.length || e.defaultPrevented) return;
-            var sel = window.getSelection && window.getSelection();
-            if (sel && !sel.isCollapsed) return;
-            if (e.target && e.target.closest && e.target.closest("a[href]")) return;
+          function flagAt(x, y) {
             var best = -1, bestD = 1e9;
             for (var i = 0; i < hits.length; i++) {
               var f = hits[i].flag;
@@ -440,15 +436,33 @@ internal object TextSelection {
               if (!b.width) continue;
               var cx = b.left + b.width * 0.55, cy = b.top + b.height * 0.3;
               var reach = Math.max(18, b.width * 0.9);
-              var dx = e.clientX - cx, dy = e.clientY - cy, dd = dx * dx + dy * dy;
+              var dx = x - cx, dy = y - cy, dd = dx * dx + dy * dy;
               if (Math.abs(dx) <= reach && Math.abs(dy) <= reach && dd < bestD) { best = i; bestD = dd; }
             }
+            return best;
+          }
+          function bounce(i) {
+            var f = hits[i] && hits[i].flag;
+            if (!f) return;
+            f.style.transform = "scale(1.3)";
+            setTimeout(function () { f.style.transform = ""; }, 160);
+          }
+          window.__wfFlagAt = function (x, y) {
+            var i = flagAt(x, y);
+            if (i < 0) return "";
+            bounce(i);
+            return hits[i].id;
+          };
+          window.addEventListener("click", function (e) {
+            if (!hits.length || e.defaultPrevented) return;
+            var sel = window.getSelection && window.getSelection();
+            if (sel && !sel.isCollapsed) return;
+            if (e.target && e.target.closest && e.target.closest("a[href]")) return;
+            var best = flagAt(e.clientX, e.clientY);
             if (best < 0) return;
             e.preventDefault();
             e.stopImmediatePropagation();
-            var tapped = hits[best].flag;
-            tapped.style.transform = "scale(1.3)";
-            setTimeout(function () { tapped.style.transform = ""; }, 160);
+            bounce(best);
             try { window.${BRIDGE}.onEvent("person:" + hits[best].id); } catch (x) {}
           }, true);
         })();
@@ -787,12 +801,14 @@ internal object TextSelection {
             if (!c) return;
             if (st.mode === "long") {
               var w = wordAround(c);
+              if (w && (!onPage(rectAt(w.end.node, w.end.offset)) || !onPage(rectAt(w.start.node, w.start.offset)))) w = null;
               if (before(c, st.word.start)) select(st.word.end, w ? w.start : c);
               else select(st.word.start, w ? w.end : c);
               return;
             }
             if (!e) return;
             var wd = wordAround(c);
+            if (wd && (!onPage(rectAt(wd.end.node, wd.end.offset)) || !onPage(rectAt(wd.start.node, wd.start.offset)))) wd = null;
             if (st.mode === "end") {
               var to = wd && before(e.start, wd.end) ? wd.end : c;
               if (!before(e.start, to)) return;
@@ -815,6 +831,7 @@ internal object TextSelection {
             if (target < 0 || target > root.scrollWidth - w + 1) return;
             st.locked = target;
             root.scrollLeft = target;
+            notify("sel-turn");
             st.afterTurn = true;
             st.turnX = st.lastX;
             st.turnY = st.lastY;
@@ -841,8 +858,12 @@ internal object TextSelection {
             var w = window.innerWidth, h = window.innerHeight;
             var fwd = forward();
             var c = caretAt(x, y - st.grabY);
-            var atEnd = y > h - 22 || x > w - 14 || (!c && y > h * 0.6);
-            var atStart = y < 22 || x < 14 || (!c && y < h * 0.4);
+            var cb = c ? rectAt(c.node, c.offset) : null;
+            var py = y - st.grabY;
+            var below = !!cb && y > h * 0.6 && py > cb.bottom + cb.height * 0.8;
+            var above = !!cb && y < h * 0.4 && py < cb.top - cb.height * 0.8;
+            var atEnd = y > h - 22 || x > w - 14 || below || (!c && y > h * 0.6);
+            var atStart = y < 22 || x < 14 || above || (!c && y < h * 0.4);
             if (scrollMode()) {
               clearInterval(st.scrollTimer);
               if (fwd && y > h - 48) autoScroll(10);
@@ -855,7 +876,7 @@ internal object TextSelection {
               st.edgeTimer = 0;
               return;
             }
-            if (!st.edgeTimer) st.edgeTimer = setTimeout(function () { turn(want); }, 650);
+            if (!st.edgeTimer) st.edgeTimer = setTimeout(function () { turn(want); }, 520);
           }
           function stopEdges() {
             clearTimeout(st.edgeTimer);
@@ -976,7 +997,23 @@ internal object TextSelection {
           document.addEventListener("touchend", function (e) { finish(e, false); }, { capture: true, passive: false });
           document.addEventListener("touchcancel", function (e) { finish(null, true); }, true);
 
+          function box() {
+            var sel = window.getSelection();
+            if (!sel || sel.isCollapsed || !sel.rangeCount) return "";
+            var rs = sel.getRangeAt(0).getClientRects();
+            var h = window.innerHeight, t = 1e9, b = -1e9;
+            for (var i = 0; i < rs.length; i++) {
+              var r = rs[i];
+              if (!r.width || !onPage(r) || r.bottom < 0 || r.top > h) continue;
+              t = Math.min(t, r.top);
+              b = Math.max(b, r.bottom);
+            }
+            if (b < t) return "";
+            var k = window.devicePixelRatio || 1;
+            return (t * k) + "," + (b * k);
+          }
           window.__wfSel = {
+            box: box,
             place: place,
             clear: clearSelection,
             heal: function () { heal(); lastSent = null; place(); },

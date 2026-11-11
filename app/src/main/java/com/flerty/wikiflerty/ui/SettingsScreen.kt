@@ -1,5 +1,9 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.graphics.luminance
@@ -345,20 +349,33 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
         ) {
             items(Kit.entries.size) { i ->
                 val kit = Kit.entries[i]
-                KitCard(kit, selected = kit == current) {
-                    store.update { st ->
-                        val mode = if (st.kit != kit.id && ThemeMode.of(st.mode) != ThemeMode.System) (if (kit.lightFirst) ThemeMode.Light else ThemeMode.Dark).id else st.mode
-                        val light = when (ThemeMode.of(mode)) { ThemeMode.Light -> true; ThemeMode.Dark -> false; ThemeMode.System -> !AppStyle.systemDark }
-                        kit.applyTo(st, light).copy(mode = mode)
+                val spot = androidx.compose.runtime.remember { arrayOf<Offset?>(null) }
+                Box(Modifier.onGloballyPositioned { c -> spot[0] = c.positionInRoot() + Offset(c.size.width / 2f, c.size.height / 2f) }) {
+                    KitCard(kit, selected = kit == current) {
+                        if (kit == current) return@KitCard
+                        ThemeSwap.run(spot[0]) {
+                            store.update { st ->
+                                val mode = if (st.kit != kit.id && ThemeMode.of(st.mode) != ThemeMode.System) (if (kit.lightFirst) ThemeMode.Light else ThemeMode.Dark).id else st.mode
+                                val light = when (ThemeMode.of(mode)) { ThemeMode.Light -> true; ThemeMode.Dark -> false; ThemeMode.System -> !AppStyle.systemDark }
+                                kit.applyTo(st, light).copy(mode = mode)
+                            }
+                        }
                     }
                 }
             }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.PanelBorder))
-        Box(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+        val modeBox = androidx.compose.runtime.remember { arrayOf<androidx.compose.ui.geometry.Rect?>(null) }
+        Box(Modifier.padding(horizontal = 14.dp, vertical = 8.dp).onGloballyPositioned { c -> modeBox[0] = c.boundsInRoot() }) {
             val modes = ThemeMode.entries
             SettingSegmented(null, listOf("☀ Светлая", "☾ Тёмная", "◐ Система"), modes.indexOf(ThemeMode.of(style.mode))) { idx ->
-                store.update { it.copy(mode = modes[idx].id) }
+                if (modes[idx].id == style.mode) return@SettingSegmented
+                val b = modeBox[0]
+                val at = b?.let { Offset(it.left + it.width * (idx + 0.5f) / modes.size, it.center.y) }
+                val before = AppStyle.light
+                val after = when (modes[idx]) { ThemeMode.Light -> true; ThemeMode.Dark -> false; ThemeMode.System -> !AppStyle.systemDark }
+                if (before == after) store.update { it.copy(mode = modes[idx].id) }
+                else ThemeSwap.run(at) { store.update { it.copy(mode = modes[idx].id) } }
             }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.PanelBorder))
