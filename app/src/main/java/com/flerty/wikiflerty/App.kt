@@ -121,6 +121,7 @@ class App : Application() {
             appScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 kotlinx.coroutines.delay(600)
                 runCatching { com.flerty.wikiflerty.widget.WidgetSkin.refreshAll(this@App) }
+                runCatching { com.flerty.wikiflerty.widget.WidgetPreviews.publish(this@App) }
             }
         }
         ai.store.onChanged = { sync.settingsChanged() }
@@ -153,6 +154,10 @@ class App : Application() {
         appScope.launch {
             kotlinx.coroutines.delay(20_000)
             autoBackup.runIfDue()
+        }
+        appScope.launch(Dispatchers.IO) {
+            kotlinx.coroutines.delay(4_000)
+            runCatching { com.flerty.wikiflerty.widget.WidgetPreviews.publish(this@App) }
         }
         appScope.launch {
             kotlinx.coroutines.flow.merge(

@@ -117,8 +117,6 @@ class QuoteWidget : AppWidgetProvider() {
                 return views
             }
             views.setViewVisibility(R.id.quote_next, if (list.size > 1) View.VISIBLE else View.GONE)
-            val quote = art.fit("«${clean(note)}»", art.serifFace, skin.text, textW, textH, if (hDp >= 220) 23f else 19f, 13.5f, spacing = 1.2f)
-            art.draw(c, quote, pad, top + ((textH - quote.height) / 2f).coerceAtLeast(0f))
             val book = app.library.books.value.firstOrNull { it.id == note.bookId }
             val title = book?.title ?: app.syncedTitle(note.bookId) ?: "Удалённая книга"
             val place = if (book != null && book.positions > 0) {
@@ -126,13 +124,38 @@ class QuoteWidget : AppWidgetProvider() {
             } else {
                 "${(note.progression * 100).roundToInt()}%"
             }
+            paint(art, skin, c, hDp, "«${clean(note)}»", "$title · $place")
+            views.setImageViewBitmap(R.id.quote_art, c.bitmap)
+            return views
+        }
+
+        fun preview(context: Context, art: WidgetArt, skin: WidgetSkin): RemoteViews {
+            val views = RemoteViews(context.packageName, R.layout.widget_quote)
+            val c = art.base(280, 280)
+            val d = skin.density
+            val pad = 18 * d
+            art.label(c, "Цитата дня", pad, pad + 4 * d)
+            paint(art, skin, c, 280, "«Мы все учились понемногу чему-нибудь и как-нибудь»", "Евгений Онегин · стр. 14")
+            views.setImageViewBitmap(R.id.quote_art, c.bitmap)
+            views.setViewVisibility(R.id.quote_next, View.VISIBLE)
+            skin.icon(views, R.id.quote_next, skin.muted)
+            return views
+        }
+
+        private fun paint(art: WidgetArt, skin: WidgetSkin, c: WidgetArt.Canvased, hDp: Int, text: String, footText: String) {
+            val d = skin.density
+            val pad = 18 * d
+            val top = pad + art.labelHeight() + 14 * d
+            val footH = 34 * d
+            val textW = c.w - pad * 2
+            val textH = c.h - top - footH - pad
+            val quote = art.fit(text, art.serifFace, skin.text, textW, textH, if (hDp >= 220) 23f else 19f, 13.5f, spacing = 1.2f)
+            art.draw(c, quote, pad, top + ((textH - quote.height) / 2f).coerceAtLeast(0f))
             val footY = c.h - pad - footH
             val line = android.graphics.Paint().apply { color = WidgetSkin.withAlpha(skin.text, 0.1f); strokeWidth = 1 * d }
             c.canvas.drawLine(pad, footY, c.w - pad, footY, line)
-            val foot = art.layout("$title · $place", art.paint(art.monoFace, 11f, skin.faint), textW, maxLines = 1)
+            val foot = art.layout(footText, art.paint(art.monoFace, 11f, skin.faint), textW, maxLines = 1)
             art.draw(c, foot, pad, footY + (footH - foot.height) / 2f + 2 * d)
-            views.setImageViewBitmap(R.id.quote_art, c.bitmap)
-            return views
         }
     }
 }

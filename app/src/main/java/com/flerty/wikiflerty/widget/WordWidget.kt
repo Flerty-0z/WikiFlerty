@@ -6,7 +6,13 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.Typeface
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.StyleSpan
 import android.text.Layout
 import android.view.View
 import android.widget.RemoteViews
@@ -60,7 +66,7 @@ class WordWidget : AppWidgetProvider() {
         val app = context.applicationContext as App
         app.appScope.launch(Dispatchers.IO) {
             try {
-                block()
+                runCatching { block() }
             } finally {
                 pending.finish()
             }
@@ -91,14 +97,26 @@ class WordWidget : AppWidgetProvider() {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, WordWidget::class.java))
             if (ids.isEmpty()) return
-            val entry = pick(context)
+            val entry = runCatching { pick(context) }.getOrNull()
             val skin = WidgetSkin.current(context)
             val art = WidgetArt(context, skin)
             val shown = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_SHOWN, false)
             ids.forEach { id ->
                 val (w, h) = WidgetSkin.size(manager, id, 280, 280)
-                manager.updateAppWidget(id, build(context, art, skin, entry, shown, w, h))
+                val views = runCatching { build(context, art, skin, entry, shown, w, h) }
+                    .recoverCatching { build(context, art, skin, entry, false, w, h) }
+                    .getOrNull()
+                if (views != null) runCatching { manager.updateAppWidget(id, views) }
             }
+        }
+
+        fun preview(context: Context, art: WidgetArt, skin: WidgetSkin): RemoteViews {
+            val views = RemoteViews(context.packageName, R.layout.widget_word)
+            val c = art.base(280, 280)
+            paint(art, skin, c, 280, "Безмятежность", "Состояние полного спокойствия, когда ничто не тревожит", "Евгений Онегин", "", true)
+            views.setImageViewBitmap(R.id.word_art, c.bitmap)
+            views.setViewVisibility(R.id.word_buttons, View.GONE)
+            return views
         }
 
         private fun usable(e: DictionaryEntry): Boolean {
@@ -124,9 +142,91 @@ class WordWidget : AppWidgetProvider() {
                 .lines().map { it.trim() }.filter { it.isNotBlank() }
             val first = plain.firstOrNull { line -> line.length > 8 } ?: plain.firstOrNull().orEmpty()
             var text = first.replace(Regex("^(\\d+[.)]|[-•—])\\s*"), "").trim()
-            val stop = Regex("[.;](\\s|$)").find(text, 20)
-            if (stop != null) text = text.substring(0, stop.range.first)
-            return text.trim().trimEnd(',', ':').replaceFirstChar { it.uppercase() }
+            if (text.length > 20) {
+                val stop = Regex("[.;](\\s|$)").find(text, 20)
+                if (stop != null) text = text.substring(0, stop.range.first)
+            }
+            text = text.trim().trimEnd(',', ':')
+            if (text.isEmpty()) text = definition.trim().take(160)
+            return text.replaceFirstChar { it.uppercase() }
+        }
+
+        fun sentence(context: String, word: String): String {
+            val text = context.replace(Regex("\\s+"), " ").trim()
+            val key = word.trim().lowercase()
+            if (text.isEmpty() || key.isEmpty()) return ""
+            val at = text.lowercase().indexOf(key)
+            if (at < 0) return ""
+            val stops = ".!?…"
+            var s = at
+            while (s > 0 && text[s - 1] !in stops) s--
+            var e = at + key.length
+            while (e < text.length && text[e] !in stops) e++
+            while (e < text.length && (text[e] in stops || text[e] in "»”\")")) e++
+            return text.substring(s, e).trim().trimStart('»', '”', ')', '—', '-', ' ').trim()
+        }
+
+        private fun highlight(text: String, word: String, color: Int): CharSequence {
+            val out = SpannableString(text)
+            val low = text.lowercase()
+            val key = word.trim().lowercase()
+            if (key.isEmpty()) return out
+            var from = 0
+            while (true) {
+                val at = low.indexOf(key, from)
+                if (at < 0) break
+                out.setSpan(ForegroundColorSpan(color), at, at + key.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                out.setSpan(StyleSpan(Typeface.BOLD), at, at + key.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                from = at + key.length
+            }
+            return out
+        }
+
+        private fun paint(art: WidgetArt, skin: WidgetSkin, c: WidgetArt.Canvased, hDp: Int, wordText: String, meaningText: String, book: String?, context: String, shown: Boolean) {
+            val d = skin.density
+            val pad = 18 * d
+            art.label(c, "Повтори слово", pad, pad + 4 * d)
+            val top = pad + art.labelHeight() + 14 * d
+            val textW = c.w - pad * 2
+            val buttonsH = 40 * d
+            val bottom = c.h - pad - buttonsH - 12 * d
+            val tall = hDp >= 220
+            val word = art.fit(wordText.trim().replaceFirstChar { it.uppercase() }, art.serifFace, skin.text, textW, ((bottom - top) * 0.4f).coerceAtLeast(30 * d), if (tall) (if (shown) 36f else 42f) else 30f, 18f, weight = 600, spacing = 1.0f)
+            art.draw(c, word, pad, top)
+            var y = top + word.height + 6 * d
+            if (shown) {
+                y += 4 * d
+                val mean = art.fit(meaningText, art.serifFace, skin.text, textW, (bottom - y).coerceAtLeast(18 * d), if (tall) 19f else 15.5f, 12f, spacing = 1.2f)
+                art.draw(c, mean, pad, y)
+                y += mean.height + 14 * d
+                val ctx = sentence(context, wordText)
+                if (ctx.isNotEmpty() && bottom - y > 40 * d) {
+                    val line = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = WidgetSkin.withAlpha(skin.text, 0.12f); strokeWidth = 1 * d }
+                    c.canvas.drawLine(pad, y - 7 * d, pad + 36 * d, y - 7 * d, line)
+                    val l = art.fit(ctx, art.serifFace, skin.muted, textW, bottom - y, 13.5f, 11.5f, spacing = 1.2f)
+                    art.draw(c, art.layout(highlight(l.text.toString(), wordText, skin.accent), l.paint, textW, 1.2f, l.lineCount), pad, y)
+                }
+                val gap = 8 * d
+                val bw = (textW - gap) / 2f
+                val by = c.h - pad - buttonsH
+                art.pill(c, RectF(pad, by, pad + bw, by + buttonsH), "↻ Не помню", filled = false)
+                art.pill(c, RectF(pad + bw + gap, by, pad + bw * 2 + gap, by + buttonsH), "✓ Помню", filled = true)
+            } else {
+                book?.takeIf { it.isNotBlank() }?.let { title ->
+                    val src = art.layout("из «$title»", art.paint(art.monoFace, 11.5f, skin.faint), textW, maxLines = 1, align = Layout.Alignment.ALIGN_NORMAL)
+                    art.draw(c, src, pad, y)
+                    y += src.height + 16 * d
+                }
+                val ctx = sentence(context, wordText)
+                if (ctx.isNotEmpty() && bottom - y > 30 * d) {
+                    val bar = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = WidgetSkin.withAlpha(skin.accent, 0.55f) }
+                    val l = art.fit("$ctx", art.serifFace, skin.muted, textW - 12 * d, bottom - y, if (tall) 16f else 14f, 12f, spacing = 1.22f)
+                    c.canvas.drawRoundRect(RectF(pad, y + 2 * d, pad + 2.5f * d, y + l.height - 2 * d), 2 * d, 2 * d, bar)
+                    art.draw(c, art.layout(highlight(l.text.toString(), wordText, skin.accent), l.paint, textW - 12 * d, 1.22f, l.lineCount), pad + 12 * d, y)
+                }
+                val by = c.h - pad - buttonsH
+                art.pill(c, RectF(pad, by, c.w - pad, by + buttonsH), "Показать значение", filled = false)
+            }
         }
 
         private fun build(context: Context, art: WidgetArt, skin: WidgetSkin, entry: DictionaryEntry?, shown: Boolean, wDp: Int, hDp: Int): RemoteViews {
@@ -134,46 +234,27 @@ class WordWidget : AppWidgetProvider() {
             val c = art.base(wDp, hDp)
             val d = skin.density
             val pad = 18 * d
-            art.label(c, "Повтори слово", pad, pad + 4 * d)
-            val top = pad + art.labelHeight() + 14 * d
-            val textW = c.w - pad * 2
-            val buttonsH = 40 * d
             val flip = PendingIntent.getBroadcast(context, 500, Intent(context, WordWidget::class.java).setAction(ACTION_FLIP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             views.setOnClickPendingIntent(R.id.word_root, flip)
 
             if (entry == null) {
-                val t = art.fit("Выдели незнакомое слово в книге и нажми «Словарь» — оно будет появляться здесь для повторения", art.serifFace, skin.text, textW, c.h - top - pad, 16f, 12.5f)
+                art.label(c, "Повтори слово", pad, pad + 4 * d)
+                val top = pad + art.labelHeight() + 14 * d
+                val t = art.fit("Выдели незнакомое слово в книге и нажми «Словарь» — оно будет появляться здесь для повторения", art.serifFace, skin.text, c.w - pad * 2, c.h - top - pad, 17f, 12.5f)
                 art.draw(c, t, pad, top)
                 views.setViewVisibility(R.id.word_buttons, View.GONE)
                 views.setImageViewBitmap(R.id.word_art, c.bitmap)
                 return views
             }
 
-            val wordRoom = if (shown) c.h - top - pad - buttonsH - 12 * d else c.h - top - pad - 22 * d
-            val word = art.fit(entry.word.trim().replaceFirstChar { it.uppercase() }, art.serifFace, skin.text, textW, (wordRoom * 0.5f).coerceAtLeast(30 * d), if (hDp >= 220) 40f else 32f, 18f, weight = 600, spacing = 1.0f)
-            art.draw(c, word, pad, top)
-            var y = top + word.height + 8 * d
+            paint(art, skin, c, hDp, entry.word, if (shown) meaning(entry.definition) else "", entry.bookTitle, entry.context, shown)
             if (shown) {
-                val bottom = c.h - pad - buttonsH - 10 * d
-                val mean = art.fit(meaning(entry.definition), art.serifFace, skin.muted, textW, (bottom - y).coerceAtLeast(18 * d), if (hDp >= 220) 18f else 15f, 11.5f)
-                art.draw(c, mean, pad, y)
-                val gap = 8 * d
-                val bw = (textW - gap) / 2f
-                val by = c.h - pad - buttonsH
-                art.pill(c, RectF(pad, by, pad + bw, by + buttonsH), "↻ Не помню", filled = false)
-                art.pill(c, RectF(pad + bw + gap, by, pad + bw * 2 + gap, by + buttonsH), "✓ Помню", filled = true)
                 views.setViewVisibility(R.id.word_buttons, View.VISIBLE)
                 val no = Intent(context, WordWidget::class.java).setAction(ACTION_NO).putExtra(EXTRA_ENTRY, entry.id)
                 val yes = Intent(context, WordWidget::class.java).setAction(ACTION_YES).putExtra(EXTRA_ENTRY, entry.id)
                 views.setOnClickPendingIntent(R.id.word_no, PendingIntent.getBroadcast(context, 501, no, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
                 views.setOnClickPendingIntent(R.id.word_yes, PendingIntent.getBroadcast(context, 502, yes, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
             } else {
-                val hint = art.layout("Нажми, чтобы увидеть значение", art.paint(art.monoFace, 11f, skin.faint), textW, maxLines = 1)
-                art.draw(c, hint, pad, c.h - pad - hint.height)
-                entry.bookTitle?.takeIf { it.isNotBlank() }?.let { book ->
-                    val src = art.layout("из «$book»", art.paint(art.serifFace, 12.5f, skin.muted), textW, maxLines = 1, align = Layout.Alignment.ALIGN_NORMAL)
-                    if (y + src.height < c.h - pad - hint.height - 6 * d) art.draw(c, src, pad, y)
-                }
                 views.setViewVisibility(R.id.word_buttons, View.GONE)
             }
             views.setImageViewBitmap(R.id.word_art, c.bitmap)

@@ -71,37 +71,7 @@ class ReadingWidget : AppWidgetProvider() {
                 val (wDp, hDp) = WidgetSkin.size(manager, id, 280, 120)
                 val views = RemoteViews(context.packageName, R.layout.widget_reading)
                 val c = art.base(wDp, hDp)
-                val d = skin.density
-                val pad = 16 * d
-                val ringSize = 58
-                val ringPx = ringSize * d
-                if (book == null) {
-                    art.label(c, "WikiFlerty", pad, pad)
-                    val text = art.fit("Открой книгу — она появится здесь, чтобы продолжить с того же места", art.serifFace, skin.text, c.w - pad * 2, c.h - pad * 2 - art.labelHeight() - 8 * d, 17f, 12f)
-                    art.draw(c, text, pad, pad + art.labelHeight() + 8 * d)
-                } else {
-                    val percent = (book.progress * 100).roundToInt().coerceIn(0, 100)
-                    val coverH = (c.h - pad * 2).coerceAtMost(96 * d)
-                    val coverW = coverH * 0.68f
-                    val coverY = (c.h - coverH) / 2f
-                    if (cover != null) art.cover(c, cover, pad, coverY, coverW, coverH, 6 * d)
-                    val textX = pad + (if (cover != null) coverW + 12 * d else 0f)
-                    val ringX = c.w - pad - ringPx
-                    val textW = (ringX - 10 * d - textX).coerceAtLeast(40 * d)
-                    val labelH = art.labelHeight()
-                    val info = art.layout("$percent% · $today", art.paint(art.monoFace, 11f, skin.faint), textW, maxLines = 1)
-                    val titleRoom = c.h - pad * 2 - labelH - 6 * d - info.height - 6 * d
-                    val title = art.fit(book.title, art.monoFace, skin.text, textW, titleRoom.coerceAtLeast(16 * d), 15.5f, 12f, weight = 700, spacing = 1.08f)
-                    val block = labelH + 6 * d + title.height + 6 * d + info.height
-                    var y = (c.h - block) / 2f
-                    art.label(c, "Продолжить", textX, y)
-                    y += labelH + 6 * d
-                    art.draw(c, title, textX, y)
-                    y += title.height + 6 * d
-                    art.draw(c, info, textX, y)
-                    val ring = skin.ring(ringSize, book.progress.toFloat())
-                    c.canvas.drawBitmap(ring, ringX, (c.h - ring.height) / 2f, null)
-                }
+                paint(art, skin, c, book?.title, book?.progress ?: 0.0, today, cover)
                 views.setImageViewBitmap(R.id.widget_art, c.bitmap)
                 val intent = Intent(context, MainActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -110,6 +80,49 @@ class ReadingWidget : AppWidgetProvider() {
                 views.setOnClickPendingIntent(R.id.widget_root, pending)
                 manager.updateAppWidget(id, views)
             }
+        }
+
+        fun preview(context: Context, art: WidgetArt, skin: WidgetSkin): RemoteViews {
+            val views = RemoteViews(context.packageName, R.layout.widget_reading)
+            val c = art.base(280, 120)
+            val title = "Мастер и Маргарита"
+            paint(art, skin, c, title, 0.34, "сегодня 21/30 мин", skin.placeholderCover(title, "Михаил Булгаков", 64, 96))
+            views.setImageViewBitmap(R.id.widget_art, c.bitmap)
+            return views
+        }
+
+        private fun paint(art: WidgetArt, skin: WidgetSkin, c: WidgetArt.Canvased, title: String?, progress: Double, today: String, cover: Bitmap?) {
+            val d = skin.density
+            val pad = 16 * d
+            val ringSize = 58
+            val ringPx = ringSize * d
+            if (title == null) {
+                art.label(c, "WikiFlerty", pad, pad)
+                val text = art.fit("Открой книгу — она появится здесь, чтобы продолжить с того же места", art.serifFace, skin.text, c.w - pad * 2, c.h - pad * 2 - art.labelHeight() - 8 * d, 17f, 12f)
+                art.draw(c, text, pad, pad + art.labelHeight() + 8 * d)
+                return
+            }
+            val percent = (progress * 100).roundToInt().coerceIn(0, 100)
+            val coverH = (c.h - pad * 2).coerceAtMost(96 * d)
+            val coverW = coverH * 0.68f
+            val coverY = (c.h - coverH) / 2f
+            if (cover != null) art.cover(c, cover, pad, coverY, coverW, coverH, 6 * d)
+            val textX = pad + (if (cover != null) coverW + 12 * d else 0f)
+            val ringX = c.w - pad - ringPx
+            val textW = (ringX - 10 * d - textX).coerceAtLeast(40 * d)
+            val labelH = art.labelHeight()
+            val info = art.layout("$percent% · $today", art.paint(art.monoFace, 11f, skin.faint), textW, maxLines = 1)
+            val titleRoom = c.h - pad * 2 - labelH - 6 * d - info.height - 6 * d
+            val name = art.fit(title, art.monoFace, skin.text, textW, titleRoom.coerceAtLeast(16 * d), 15.5f, 12f, weight = 700, spacing = 1.08f)
+            val block = labelH + 6 * d + name.height + 6 * d + info.height
+            var y = (c.h - block) / 2f
+            art.label(c, "Продолжить", textX, y)
+            y += labelH + 6 * d
+            art.draw(c, name, textX, y)
+            y += name.height + 6 * d
+            art.draw(c, info, textX, y)
+            val ring = skin.ring(ringSize, progress.toFloat())
+            c.canvas.drawBitmap(ring, ringX, (c.h - ring.height) / 2f, null)
         }
 
         private fun loadCover(path: String): Bitmap? = runCatching {
