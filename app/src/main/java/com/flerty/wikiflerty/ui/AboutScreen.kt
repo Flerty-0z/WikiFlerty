@@ -318,7 +318,7 @@ const val DONATE_URL = "https://www.donationalerts.com/r/f1erty0z"
 private fun SupportTile(onClick: () -> Unit) {
     val shape = appCorner(20)
     val beat = androidx.compose.animation.core.rememberInfiniteTransition(label = "support")
-    val pulse by beat.animateFloat<Float>(
+    val pulse by beat.animateFloat(
         1f,
         1.12f,
         androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse),
