@@ -1,5 +1,8 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.compositeOver
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.Image
@@ -87,6 +90,10 @@ fun AboutScreen(modifier: Modifier = Modifier) {
                 Text("Версия $version", color = AppColors.Muted, fontSize = 13.sp)
             }
         }
+
+        var support by remember { mutableStateOf(false) }
+        SupportTile { support = true }
+        if (support) SupportSheet(app) { support = false }
 
         run {
             SettingsGroup("Обновления") {
@@ -304,3 +311,77 @@ fun shareText(context: Context, text: String, subject: String) {
 }
 
 const val PRIVACY_URL = "https://github.com/Flerty-0z/WikiFlerty/blob/main/PRIVACY.md"
+
+const val DONATE_URL = "https://www.donationalerts.com/r/f1erty0z"
+
+@Composable
+private fun SupportTile(onClick: () -> Unit) {
+    val shape = appCorner(20)
+    val beat = androidx.compose.animation.core.rememberInfiniteTransition(label = "support")
+    val pulse by beat.animateFloat<Float>(
+        1f,
+        1.12f,
+        androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse),
+        label = "support-pulse",
+    )
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
+            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(AppColors.Accent.copy(alpha = 0.18f).compositeOver(AppColors.Field), AppColors.Field)), shape)
+            .border(1.dp, AppColors.Accent.copy(alpha = 0.3f), shape)
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Box(
+            Modifier
+                .size(42.dp)
+                .clip(appCorner(13))
+                .background(AppColors.Accent.copy(alpha = 0.22f))
+                .border(1.dp, AppColors.Accent.copy(alpha = 0.3f), appCorner(13)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                AppIcons.Heart,
+                null,
+                tint = AppColors.Accent,
+                modifier = Modifier.size(22.dp).graphicsLayer { if (Motion.enabled) { scaleX = pulse; scaleY = pulse } },
+            )
+        }
+        Column(Modifier.weight(1f)) {
+            Text("Поддержать WikiFlerty", color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("Если приложение стало родным", color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(18.dp))
+    }
+}
+
+@Composable
+private fun SupportSheet(app: App, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    AppSheet(onDismiss, title = "Поддержать") {
+        val close = sheetClose(onDismiss)
+        Text(
+            "WikiFlerty бесплатная и такой останется. Если хочется сказать спасибо — вот как можно помочь",
+            color = AppColors.Muted,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+            modifier = Modifier.padding(bottom = 10.dp),
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingsNavRow(AppIcons.Heart, "Поддержать автора", "Любая сумма через DonationAlerts") {
+                app.updates.open(DONATE_URL)
+                close()
+            }
+            SettingsNavRow(AppIcons.Share, "Рассказать другу", "Поделиться ссылкой на канал") {
+                shareText(context, "Попробуй WikiFlerty — читалка для книг: ${com.flerty.wikiflerty.system.Updates.TELEGRAM}", "WikiFlerty")
+                close()
+            }
+            SettingsNavRow(AppIcons.Star, "Оценить в RuStore", "Отзыв помогает другим найти приложение") {
+                app.updates.open(com.flerty.wikiflerty.system.Updates.RUSTORE)
+                close()
+            }
+        }
+    }
+}

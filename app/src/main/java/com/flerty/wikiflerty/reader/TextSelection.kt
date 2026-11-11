@@ -647,6 +647,51 @@ internal object TextSelection {
               return null;
             }
           }
+          function charRects(node, from, to) {
+            try {
+              var q = document.createRange();
+              q.setStart(node, from);
+              q.setEnd(node, to);
+              return q.getClientRects();
+            } catch (e) {
+              return [];
+            }
+          }
+          function textNear(node, back) {
+            var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+            w.currentNode = node;
+            var n = back ? w.previousNode() : w.nextNode();
+            while (n && !(n.nodeValue || "").length) n = back ? w.previousNode() : w.nextNode();
+            return n;
+          }
+          function sideRect(node, offset, back) {
+            var r = rectAt(node, offset);
+            if (r && onPage(r)) return r;
+            var n = node, o = offset;
+            if (n.nodeType !== 3) return r;
+            for (var step = 0; step < 3; step++) {
+              if (back) {
+                if (o <= 0) { n = textNear(n, true); if (!n) break; o = n.data.length; continue; }
+                var rs = charRects(n, o - 1, o);
+                for (var i = rs.length - 1; i >= 0; i--) {
+                  var b = rs[i];
+                  if (b.width && onPage(b)) return { left: b.right, right: b.right, top: b.top, bottom: b.bottom, height: b.height };
+                }
+                if (/\s/.test(n.data[o - 1])) { o--; continue; }
+                break;
+              } else {
+                if (o >= n.data.length) { n = textNear(n, false); if (!n) break; o = 0; continue; }
+                var rs2 = charRects(n, o, o + 1);
+                for (var j = 0; j < rs2.length; j++) {
+                  var c = rs2[j];
+                  if (c.width && onPage(c)) return { left: c.left, right: c.left, top: c.top, bottom: c.bottom, height: c.height };
+                }
+                if (/\s/.test(n.data[o])) { o++; continue; }
+                break;
+              }
+            }
+            return r;
+          }
           function caretAt(x, y) {
             var r = document.caretRangeFromPoint ? document.caretRangeFromPoint(x, y) : null;
             if (!r || !r.startContainer) return null;
@@ -739,8 +784,8 @@ internal object TextSelection {
               report(null, null);
               return;
             }
-            var a = rectAt(e.start.node, e.start.offset);
-            var b = rectAt(e.end.node, e.end.offset);
+            var a = sideRect(e.start.node, e.start.offset, false);
+            var b = sideRect(e.end.node, e.end.offset, true);
             var h = window.innerHeight;
             var sa = a && onPage(a) && a.bottom > 0 && a.top < h ? [a.left, a.bottom] : null;
             var sb = b && onPage(b) && b.bottom > 0 && b.top < h ? [b.right, b.bottom] : null;
@@ -755,7 +800,7 @@ internal object TextSelection {
             lock();
             st.mode = mode;
             var p = mode === "start" ? sel.start : sel.end;
-            var r = rectAt(p.node, p.offset);
+            var r = sideRect(p.node, p.offset, mode !== "start");
             st.grabX = r ? x - (mode === "start" ? r.left : r.right) : 0;
             st.grabY = r ? y - (r.top + r.bottom) / 2 : 24;
             st.lastX = x;
