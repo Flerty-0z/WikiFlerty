@@ -121,6 +121,9 @@ fun AiSettingsContent(ai: AiManager, modifier: Modifier = Modifier) {
         if (showAll) {
             AppSheet(onDismiss = { showAll = false }, title = "Нейросети") {
                 all.forEach { card(it) }
+                LocalKinds.forEach { kind ->
+                    LocalCard(ai, kind, expanded == "local:" + kind.id) { expanded = if (expanded == "local:" + kind.id) null else "local:" + kind.id }
+                }
                 CustomCard(ai, expanded == "custom") { expanded = if (expanded == "custom") null else "custom" }
             }
         }
@@ -377,7 +380,13 @@ private fun ProviderCard(
 fun ProviderIcon(provider: AiProvider, size: androidx.compose.ui.unit.Dp) {
     val context = LocalContext.current
     val res = remember(provider.id) {
-        if (provider.custom) 0 else context.resources.getIdentifier("ai_${provider.id}", "drawable", context.packageName)
+        val name = when {
+            provider.id.startsWith("ollama_") -> "ollama"
+            provider.id.startsWith("lmstudio_") -> "lmstudio"
+            provider.custom -> null
+            else -> provider.id
+        }
+        if (name == null) 0 else context.resources.getIdentifier("ai_$name", "drawable", context.packageName)
     }
     if (res != 0) {
         Image(
@@ -565,7 +574,6 @@ private fun CustomCard(ai: AiManager, expanded: Boolean, onExpand: () -> Unit) {
     var model by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var preset by remember { mutableStateOf<String?>(null) }
     val shape = appCorner(18)
 
     Column(
@@ -606,34 +614,17 @@ private fun CustomCard(ai: AiManager, expanded: Boolean, onExpand: () -> Unit) {
                 Modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("LM Studio", "Ollama").forEach { name ->
-                        Chip(name, preset == name) {
-                            preset = if (preset == name) null else name
-                            if (preset != null && (title.isBlank() || title == "LM Studio" || title == "Ollama")) title = name
-                            if (preset == null && (title == "LM Studio" || title == "Ollama")) title = ""
-                            error = null
-                        }
-                    }
-                }
-                InputField(
-                    url,
-                    { url = it.trim(); error = null },
-                    if (preset != null) "IP компьютера: 192.168.1.5" else "Адрес: api.example.com/v1",
-                    monospace = true,
-                )
-                AnimatedVisibility(visible = preset == null, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-                    InputField(key, { key = it.trim(); error = null }, "API-ключ", secret = true)
-                }
+                InputField(url, { url = it.trim(); error = null }, "Адрес: api.example.com/v1", monospace = true)
+                InputField(key, { key = it.trim(); error = null }, "API-ключ", secret = true)
                 InputField(title, { title = it }, "Название (необязательно)")
                 InputField(model, { model = it.trim() }, "Модель (необязательно)", monospace = true)
                 ActionButton("Подключить", enabled = url.isNotBlank(), busy = busy) {
                     busy = true
                     error = null
                     scope.launch {
-                        ai.connectCustom(title, url, model, if (preset != null) "" else key, port = when (preset) { "LM Studio" -> 1234; "Ollama" -> 11434; else -> null })
+                        ai.connectCustom(title, url, model, key)
                             .onSuccess {
-                                title = ""; url = ""; key = ""; model = ""; preset = null
+                                title = ""; url = ""; key = ""; model = ""
                                 onExpand()
                             }
                             .onFailure { error = it.message ?: "Не получилось" }
@@ -642,15 +633,81 @@ private fun CustomCard(ai: AiManager, expanded: Boolean, onExpand: () -> Unit) {
                 }
                 error?.let { Text(it, color = Bad, fontSize = 13.sp, lineHeight = 18.sp) }
                 Text(
-                    when (preset) {
-                        "LM Studio" -> "На компьютере: Developer → Start Server, включи «Serve on Local Network». Телефон — в той же Wi-Fi сети"
-                        "Ollama" -> "На компьютере запусти Ollama с OLLAMA_HOST=0.0.0.0. Телефон — в той же Wi-Fi сети"
-                        else -> "Подойдёт любой сервис с OpenAI-совместимым API, в том числе локальный"
-                    },
+                    "Подойдёт любой сервис с OpenAI-совместимым API",
                     color = AppColors.Faint,
                     fontSize = 12.sp,
                     lineHeight = 16.sp,
                 )
+            }
+        }
+    }
+}
+
+private class LocalKind(val id: String, val title: String, val port: Int, val hint: String)
+
+private val LocalKinds = listOf(
+    LocalKind("ollama", "Ollama", 11434, "На компьютере запусти Ollama с OLLAMA_HOST=0.0.0.0. Телефон — в той же Wi-Fi сети"),
+    LocalKind("lmstudio", "LM Studio", 1234, "На компьютере: Developer → Start Server и «Serve on Local Network». Телефон — в той же Wi-Fi сети"),
+)
+
+@Composable
+private fun LocalCard(ai: AiManager, kind: LocalKind, expanded: Boolean, onExpand: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var url by remember { mutableStateOf("") }
+    var model by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val shape = appCorner(18)
+    val probe = remember(kind.id) { AiProvider.custom(kind.id + "_probe", kind.title, "http://localhost", null) }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(AppColors.Field)
+            .border(1.dp, AppColors.PanelBorder, shape),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onExpand)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            ProviderIcon(probe, 38.dp)
+            Column(Modifier.weight(1f)) {
+                Text(kind.title, color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text("Локально, без ключа", color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Icon(
+                AppIcons.Chevron,
+                null,
+                tint = AppColors.Muted,
+                modifier = Modifier.size(20.dp).rotate(if (expanded) 90f else 0f),
+            )
+        }
+        AnimatedVisibility(visible = expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            Column(
+                Modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                InputField(url, { url = it.trim(); error = null }, "IP компьютера: 192.168.1.5", monospace = true)
+                InputField(model, { model = it.trim() }, "Модель (необязательно)", monospace = true)
+                ActionButton("Подключить", enabled = url.isNotBlank(), busy = busy) {
+                    busy = true
+                    error = null
+                    scope.launch {
+                        ai.connectCustom(kind.title, url, model, "", port = kind.port, kind = kind.id)
+                            .onSuccess {
+                                url = ""; model = ""
+                                onExpand()
+                            }
+                            .onFailure { error = it.message ?: "Не получилось" }
+                        busy = false
+                    }
+                }
+                error?.let { Text(it, color = Bad, fontSize = 13.sp, lineHeight = 18.sp) }
+                Text(kind.hint, color = AppColors.Faint, fontSize = 12.sp, lineHeight = 16.sp)
             }
         }
     }

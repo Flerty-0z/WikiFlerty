@@ -296,6 +296,10 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                         SettingsNav.open = "Guide"
                         section = Section.Settings
                     }
+                    NewsTarget.Ai -> {
+                        SettingsNav.open = "Ai"
+                        section = Section.Settings
+                    }
                     NewsTarget.None -> Unit
                 }
             }

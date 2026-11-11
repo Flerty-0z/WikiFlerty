@@ -71,7 +71,7 @@ class AiManager(context: Context) {
         return Result.failure(AiException(message))
     }
 
-    suspend fun connectCustom(title: String, baseUrl: String, model: String, key: String, port: Int? = null): Result<AiProvider> {
+    suspend fun connectCustom(title: String, baseUrl: String, model: String, key: String, port: Int? = null, kind: String = "custom"): Result<AiProvider> {
         val raw = baseUrl.trim()
         if (raw.isBlank()) return Result.failure(AiException("Укажи адрес сервера"))
         val url = normalizeUrl(raw, port)
@@ -80,7 +80,7 @@ class AiManager(context: Context) {
         val candidates = if (hasPath) listOf(url) else listOf("$url/v1", url)
         var failure: Exception? = null
         for (candidate in candidates) {
-            val item = CustomAi("custom_" + System.currentTimeMillis().toString(36), title.trim().ifBlank { "Другое" }, candidate, model.trim())
+            val item = CustomAi(kind + "_" + System.currentTimeMillis().toString(36), title.trim().ifBlank { "Другое" }, candidate, model.trim())
             val provider = item.provider()
             try {
                 val models = AiClient.listModels(provider, cleanKey.ifBlank { "none" })

@@ -101,13 +101,15 @@ object Tips {
     }.getOrDefault(0)
 }
 
-enum class NewsTarget { None, Stats, Custom, Library, LibraryView, Guide }
+enum class NewsTarget { None, Stats, Custom, Library, LibraryView, Guide, Ai }
 
 class NewsItem(val group: String, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None, val query: String = "")
 
-const val NewsRelease = 235
+const val NewsRelease = 240
 
 val WhatsNewItems = listOf(
+    NewsItem("Ещё", AppIcons.Sparkle, "Локальные нейросети", "Ollama и LM Studio на компьютере в той же Wi-Fi сети", NewsTarget.Ai),
+    NewsItem("Библиотека", AppIcons.Shelf, "Порядок полок", "В «Показать» зажми полку и перетащи выше или ниже", NewsTarget.Library),
     NewsItem("Библиотека", AppIcons.Shelf, "Книги между полками", "Зажми книгу и перетащи её на другую полку", NewsTarget.Guide, "перетащ"),
     NewsItem("Библиотека", AppIcons.Book, "Три вида полок", "Обычная, с декором или живая — в «Вид и сортировка»", NewsTarget.LibraryView),
     NewsItem("Библиотека", AppIcons.Fire, "Живые предметы", "Растут, когда читаешь каждый день, и радуются прочитанным книгам", NewsTarget.Guide, "живые"),

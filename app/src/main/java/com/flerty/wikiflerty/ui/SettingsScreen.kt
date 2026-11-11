@@ -1,5 +1,6 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 
 import android.content.Context
@@ -139,7 +140,6 @@ fun SettingsScreen(modifier: Modifier = Modifier, onAbout: (() -> Unit)? = null)
 @Composable
 private fun SettingsHome(onAbout: (() -> Unit)?, onOpen: (SettingsPage) -> Unit) {
     val rows = listOfNotNull<Triple<androidx.compose.ui.graphics.vector.ImageVector, Pair<String, String>, () -> Unit>>(
-        Triple(AppIcons.Sparkle, "Что нового?" to "Всё новое в этой версии") { SettingsNav.news = true },
         Triple(AppIcons.Help, "Подсказки" to "Все функции и где их найти") { onOpen(SettingsPage.Guide) },
         Triple(AppIcons.Sparkle, "ИИ-помощник" to "Ключи, модели, перевод") { onOpen(SettingsPage.Ai) },
         Triple(AppIcons.Theme, "Кастомизация" to "Цвета, форма, фон") { onOpen(SettingsPage.Custom) },
@@ -148,10 +148,100 @@ private fun SettingsHome(onAbout: (() -> Unit)?, onOpen: (SettingsPage) -> Unit)
         Triple(AppIcons.Backup, "Резервная копия" to "Экспорт и импорт") { onOpen(SettingsPage.Backup) },
         onAbout?.let { Triple(AppIcons.Info, "О приложении" to "Обновления, журнал сбоев", it) },
     )
+    NewsShowcase { SettingsNav.news = true }
     Column(Modifier.fillMaxWidth().fieldSurface(appCorner(20))) {
         rows.forEachIndexed { i, (icon, text, action) ->
             if (i > 0) Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(1.dp).background(AppColors.PanelBorder))
             SettingsNavRow(icon, text.first, text.second, framed = false, onClick = action)
+        }
+    }
+}
+
+@Composable
+private fun NewsShowcase(onClick: () -> Unit) {
+    val context = LocalContext.current
+    val version = remember { runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty() }
+    val shape = appCorner(24)
+    val glow = androidx.compose.animation.core.rememberInfiniteTransition(label = "news")
+    val pulse by glow.animateFloat(
+        0f,
+        1f,
+        androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(2600, easing = androidx.compose.animation.core.FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse),
+        label = "news-pulse",
+    )
+    val count = WhatsNewItems.size
+    val word = when {
+        count % 100 in 11..14 -> "новинок"
+        count % 10 == 1 -> "новинка"
+        count % 10 in 2..4 -> "новинки"
+        else -> "новинок"
+    }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        AppColors.Accent.copy(alpha = 0.26f + 0.06f * pulse),
+                        AppColors.Accent.copy(alpha = 0.08f),
+                        AppColors.Field,
+                    ),
+                ),
+                shape,
+            )
+            .border(1.5.dp, AppColors.Accent.copy(alpha = 0.4f + 0.2f * pulse), shape)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Box(
+                Modifier
+                    .size(58.dp)
+                    .clip(appCorner(18))
+                    .background(AppColors.Accent)
+                    .border(1.dp, AppColors.Accent.copy(alpha = 0.6f), appCorner(18)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    AppIcons.Sparkle,
+                    null,
+                    tint = AppColors.OnAccent,
+                    modifier = Modifier.size(30.dp).graphicsLayer {
+                        val k = 0.92f + 0.12f * pulse
+                        scaleX = k
+                        scaleY = k
+                        rotationZ = 10f * pulse
+                    },
+                )
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("Что нового?", color = AppColors.Text, fontSize = 21.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(
+                    "$count $word" + if (version.isNotBlank()) " · v$version" else "",
+                    color = AppColors.Accent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                )
+            }
+            Icon(AppIcons.Chevron, null, tint = AppColors.Accent, modifier = Modifier.size(22.dp))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            WhatsNewItems.take(3).forEach { item ->
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .clip(appCorner(14))
+                        .background(AppColors.Panel.copy(alpha = 0.7f))
+                        .border(1.dp, AppColors.PanelBorder, appCorner(14))
+                        .padding(horizontal = 10.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(item.icon, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp))
+                    Text(item.title, color = AppColors.Text, fontSize = 11.5.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+            }
         }
     }
 }

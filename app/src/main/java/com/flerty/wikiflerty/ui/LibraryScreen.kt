@@ -1,5 +1,6 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -532,6 +533,14 @@ private fun FilterRow(filter: LibraryFilter, ids: List<String>, count: Int, sele
     }
 }
 
+private class OrderRow {
+    val shift = androidx.compose.runtime.mutableFloatStateOf(0f)
+    var goal = 0f
+    var job: kotlinx.coroutines.Job? = null
+    var top = 0f
+    var height = 0f
+}
+
 @Composable
 private fun ShelfOrderList(
     shelves: List<LibraryFilter>,
@@ -541,10 +550,13 @@ private fun ShelfOrderList(
     val density = androidx.compose.ui.platform.LocalDensity.current
     val gap = with(density) { 8.dp.toPx() }
     val feedback = LocalFeedback.current
+    val scope = rememberCoroutineScope()
     val order = remember { androidx.compose.runtime.mutableStateListOf<String>() }
     var dragging by remember { mutableStateOf<String?>(null) }
-    var offset by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-    val heights = remember { HashMap<String, Int>() }
+    var lifted by remember { mutableStateOf<String?>(null) }
+    val offset = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val rows = remember { HashMap<String, OrderRow>() }
+    var target by remember { androidx.compose.runtime.mutableIntStateOf(-1) }
     val byId = shelves.associateBy { it.id }
     if (dragging == null) {
         val ids = shelves.map { it.id }
@@ -553,95 +565,122 @@ private fun ShelfOrderList(
             order.addAll(ids)
         }
     }
-    val scope = rememberCoroutineScope()
-    val settle = remember { androidx.compose.animation.core.Animatable(0f) }
-    var settling by remember { mutableStateOf<String?>(null) }
+    val spring = androidx.compose.animation.core.spring<Float>(dampingRatio = 0.9f, stiffness = 380f)
+    fun moveTo(r: OrderRow, goal: Float) {
+        if (r.goal == goal) return
+        r.goal = goal
+        r.job?.cancel()
+        r.job = scope.launch {
+            androidx.compose.animation.core.animate(r.shift.floatValue, goal, animationSpec = spring) { v, _ -> r.shift.floatValue = v }
+        }
+    }
+    fun targetFor(id: String): Int {
+        val from = order.indexOf(id)
+        val me = rows[id] ?: return from
+        val top = me.top + offset.floatValue
+        val bottom = top + me.height
+        var t = from
+        for (j in from + 1..order.lastIndex) {
+            val r = rows[order[j]] ?: break
+            if (bottom > r.top + r.height / 2) t = j else break
+        }
+        if (t == from) {
+            for (j in from - 1 downTo 0) {
+                val r = rows[order[j]] ?: break
+                if (top < r.top + r.height / 2) t = j else break
+            }
+        }
+        return t
+    }
+    fun layoutShifts(id: String, t: Int) {
+        val from = order.indexOf(id)
+        val step = (rows[id]?.height ?: 0f) + gap
+        order.forEachIndexed { j, other ->
+            if (other == id) return@forEachIndexed
+            val r = rows.getOrPut(other) { OrderRow() }
+            val goal = when {
+                j in (from + 1)..t -> -step
+                j in t until from -> step
+                else -> 0f
+            }
+            moveTo(r, goal)
+        }
+    }
+    fun finish(id: String, commit: Boolean) {
+        val from = order.indexOf(id)
+        val t = if (commit && target >= 0) target else from
+        val me = rows[id]
+        val oldTop = me?.top ?: 0f
+        val newTop = when {
+            t > from -> rows[order[t]]?.let { it.top + it.height - (me?.height ?: 0f) } ?: oldTop
+            t < from -> rows[order[t]]?.top ?: oldTop
+            else -> oldTop
+        }
+        val rest = oldTop + offset.floatValue - newTop
+        order.forEach { other ->
+            val r = rows[other] ?: return@forEach
+            r.job?.cancel()
+            r.goal = 0f
+            r.shift.floatValue = 0f
+        }
+        if (t != from) {
+            order.removeAt(from)
+            order.add(t, id)
+            onReorder(order.map { byId[it]?.title ?: it.removePrefix("shelf:") })
+        }
+        offset.floatValue = 0f
+        dragging = null
+        target = -1
+        val r = rows.getOrPut(id) { OrderRow() }
+        r.shift.floatValue = rest
+        r.job = scope.launch {
+            androidx.compose.animation.core.animate(rest, 0f, animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 420f)) { v, _ -> r.shift.floatValue = v }
+            if (lifted == id) lifted = null
+        }
+    }
     Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        order.forEachIndexed { index, id ->
-            val f = byId[id] ?: return@forEachIndexed
+        order.forEach { id ->
+            val f = byId[id] ?: return@forEach
             androidx.compose.runtime.key(id) {
-                val shift = remember { androidx.compose.animation.core.Animatable(0f) }
-                val lastIndex = remember { intArrayOf(index) }
-                if (lastIndex[0] != index) {
-                    val delta = (lastIndex[0] - index) * ((heights[id] ?: 0) + gap)
-                    lastIndex[0] = index
-                    if (dragging != id) {
-                        androidx.compose.runtime.SideEffect {
-                            scope.launch {
-                                shift.snapTo(shift.value + delta)
-                                shift.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 520f))
-                            }
-                        }
-                    }
-                }
+                val state = remember(id) { rows.getOrPut(id) { OrderRow() } }
                 val active = dragging == id
-                val lift by androidx.compose.animation.core.animateFloatAsState(if (active) 1f else 0f, Motion.tween(160), label = "shelf-lift")
+                val lift by androidx.compose.animation.core.animateFloatAsState(if (active) 1f else 0f, Motion.tween(180), label = "shelf-lift")
                 val mod = Modifier
-                    .zIndex(if (active || settling == id) 2f else 0f)
-                    .onGloballyPositioned { heights[id] = it.size.height }
+                    .zIndex(if (lifted == id) 2f else 0f)
+                    .onGloballyPositioned {
+                        state.top = it.positionInParent().y
+                        state.height = it.size.height.toFloat()
+                    }
                     .graphicsLayer {
-                        translationY = when {
-                            active -> offset
-                            settling == id -> settle.value
-                            else -> shift.value
-                        }
-                        val sc = 1f + 0.035f * lift
+                        translationY = if (active) offset.floatValue else state.shift.floatValue
+                        val sc = 1f + 0.03f * lift
                         scaleX = sc
                         scaleY = sc
-                        shadowElevation = 18f * lift
+                        shadowElevation = 16f * lift
                         shape = appCorner(14)
                         clip = false
                     }
                     .pointerInput(id) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = {
+                                state.job?.cancel()
+                                state.shift.floatValue = 0f
+                                offset.floatValue = 0f
                                 dragging = id
-                                offset = 0f
+                                lifted = id
+                                target = order.indexOf(id)
                                 feedback?.play(FeedbackSound.Toggle)
                             },
-                            onDragEnd = {
-                                val rest = offset
-                                dragging = null
-                                settling = id
-                                onReorder(order.map { byId[it]?.title ?: it.removePrefix("shelf:") })
-                                scope.launch {
-                                    settle.snapTo(rest)
-                                    settle.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 420f))
-                                    if (settling == id) settling = null
-                                }
-                            },
-                            onDragCancel = {
-                                val rest = offset
-                                dragging = null
-                                settling = id
-                                scope.launch {
-                                    settle.snapTo(rest)
-                                    settle.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 420f))
-                                    if (settling == id) settling = null
-                                }
-                            },
+                            onDragEnd = { finish(id, commit = true) },
+                            onDragCancel = { finish(id, commit = false) },
                         ) { change, amount ->
                             change.consume()
-                            offset += amount.y
-                            val i = order.indexOf(id)
-                            if (offset > 0 && i < order.lastIndex) {
-                                val next = order[i + 1]
-                                val step = (heights[next] ?: 0) + gap
-                                if (step > 0 && offset > step / 2) {
-                                    order.removeAt(i)
-                                    order.add(i + 1, id)
-                                    offset -= step
-                                    feedback?.play(FeedbackSound.Toggle)
-                                }
-                            } else if (offset < 0 && i > 0) {
-                                val prev = order[i - 1]
-                                val step = (heights[prev] ?: 0) + gap
-                                if (step > 0 && -offset > step / 2) {
-                                    order.removeAt(i)
-                                    order.add(i - 1, id)
-                                    offset += step
-                                    feedback?.play(FeedbackSound.Toggle)
-                                }
+                            offset.floatValue += amount.y
+                            val t = targetFor(id)
+                            if (t != target) {
+                                target = t
+                                layoutShifts(id, t)
+                                feedback?.play(FeedbackSound.Toggle)
                             }
                         }
                     }
