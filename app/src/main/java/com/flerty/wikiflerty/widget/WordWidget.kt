@@ -34,12 +34,21 @@ class WordWidget : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             ACTION_FLIP -> {
-                val manager = AppWidgetManager.getInstance(context)
                 val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
                 if (id != AppWidgetManager.INVALID_APPWIDGET_ID) {
-                    val views = RemoteViews(context.packageName, R.layout.widget_word)
-                    views.showNext(R.id.word_flipper)
-                    manager.partiallyUpdateAppWidget(id, views)
+                    val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                    val key = KEY_FLIP + id
+                    val entryId = pick(context)?.id.orEmpty()
+                    if (prefs.getString(key, null) == entryId) prefs.edit().remove(key).apply() else prefs.edit().putString(key, entryId).apply()
+                    val pending = goAsync()
+                    val app = context.applicationContext as App
+                    app.appScope.launch(Dispatchers.IO) {
+                        try {
+                            refreshAll(context)
+                        } finally {
+                            pending.finish()
+                        }
+                    }
                 }
                 return
             }
@@ -66,6 +75,7 @@ class WordWidget : AppWidgetProvider() {
         const val ACTION_NEXT = "com.flerty.wikiflerty.WORD_NEXT"
         private const val PREFS = "word_widget"
         private const val KEY_OFFSET = "offset"
+        private const val KEY_FLIP = "flip_"
 
         fun refreshSoon(app: App) {
             app.appScope.launch(Dispatchers.IO) { runCatching { refreshAll(app) } }
@@ -108,7 +118,8 @@ class WordWidget : AppWidgetProvider() {
             skin.tint(views, R.id.word_definition, skin.text)
             skin.tint(views, R.id.word_source, skin.faint)
             skin.icon(views, R.id.word_next, skin.muted)
-            views.setDisplayedChild(R.id.word_flipper, 0)
+            val flipped = entry != null && context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_FLIP + id, null) == entry.id
+            views.setDisplayedChild(R.id.word_flipper, if (flipped) 1 else 0)
 
             val flip = Intent(context, WordWidget::class.java).setAction(ACTION_FLIP).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
             val flipPending = PendingIntent.getBroadcast(context, 500 + id, flip, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -126,9 +137,19 @@ class WordWidget : AppWidgetProvider() {
                 return views
             }
             views.setTextViewText(R.id.word_text, entry.word)
+            val room = (wDp - 36).coerceAtLeast(60)
+            val fit = room / (entry.word.length.coerceAtLeast(3) * 0.62f)
+            val maxSize = if (hDp >= 150) 34f else 28f
+            views.setTextViewTextSize(R.id.word_text, android.util.TypedValue.COMPLEX_UNIT_SP, fit.coerceIn(13f, maxSize))
+            val definition = clean(entry.definition)
+            val preview = definition.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty()
+            val roomy = hDp >= 130 || wDp >= 250
+            views.setViewVisibility(R.id.word_preview, if (roomy && preview.isNotBlank()) android.view.View.VISIBLE else android.view.View.GONE)
+            views.setTextViewText(R.id.word_preview, preview)
+            skin.tint(views, R.id.word_preview, skin.muted)
             views.setTextViewText(R.id.word_hint, context.getString(R.string.widget_word_hint))
             views.setTextViewText(R.id.word_back_title, entry.word)
-            views.setTextViewText(R.id.word_definition, clean(entry.definition))
+            views.setTextViewText(R.id.word_definition, definition)
             views.setTextViewText(R.id.word_source, entry.bookTitle.orEmpty())
             return views
         }

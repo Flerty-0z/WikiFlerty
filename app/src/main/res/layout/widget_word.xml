@@ -64,10 +64,24 @@
                     android:ellipsize="end"
                     android:fontFamily="serif"
                     android:gravity="center"
-                    android:maxLines="2"
+                    android:maxLines="1"
+                    android:singleLine="true"
                     android:textColor="#F2EBE1"
                     android:textSize="26sp"
                     android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/word_preview"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:ellipsize="end"
+                    android:gravity="center"
+                    android:lineSpacingMultiplier="1.1"
+                    android:maxLines="2"
+                    android:textColor="#B9A07C"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
 
                 <TextView
                     android:id="@+id/word_hint"
@@ -105,7 +119,7 @@
                     android:layout_marginTop="4dp"
                     android:ellipsize="end"
                     android:lineSpacingMultiplier="1.1"
-                    android:maxLines="5"
+                    android:maxLines="7"
                     android:textColor="#F2EBE1"
                     android:textSize="13sp" />
 

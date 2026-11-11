@@ -86,7 +86,9 @@ open class QuoteWidget : AppWidgetProvider() {
 
         private fun pick(context: Context): Note? {
             val app = context.applicationContext as App
-            val notes = app.notes.notes.value.filter { it.text.isNotBlank() }.sortedBy { it.createdAt }
+            val all = app.notes.notes.value.filter { it.text.isNotBlank() }.sortedBy { it.createdAt }
+            val quotes = all.filter { n -> n.text.trim().split(Regex("\\s+")).size >= 4 && n.text.trim().length >= 24 }
+            val notes = quotes.ifEmpty { all.filter { it.note.isNotBlank() || it.text.trim().length >= 12 } }.ifEmpty { all }
             if (notes.isEmpty()) return null
             val offset = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_OFFSET, 0)
             val index = ((LocalDate.now().toEpochDay() + offset) % notes.size).toInt().let { if (it < 0) it + notes.size else it }
