@@ -23,6 +23,7 @@ data class Bookmark(
     val progression: Double,
     val createdAt: Long,
     val label: String = "",
+    val updatedAt: Long = createdAt,
 ) {
     val locator: Locator? get() = runCatching { Locator.fromJSON(JSONObject(locatorJson)) }.getOrNull()
 
@@ -35,6 +36,7 @@ data class Bookmark(
         put("progression", progression)
         put("createdAt", createdAt)
         if (label.isNotBlank()) put("label", label)
+        put("updatedAt", updatedAt)
     }
 
     companion object {
@@ -47,6 +49,7 @@ data class Bookmark(
             progression = json.optDouble("progression", 0.0).takeUnless { it.isNaN() } ?: 0.0,
             createdAt = json.optLong("createdAt"),
             label = json.optString("label"),
+            updatedAt = json.optLong("updatedAt", json.optLong("createdAt")),
         )
     }
 }
@@ -74,7 +77,7 @@ class BookmarksRepository(context: Context) {
         return created
     }
 
-    suspend fun rename(id: String, label: String) = update { list -> list.map { if (it.id == id) it.copy(label = label.take(80)) else it } }
+    suspend fun rename(id: String, label: String) = update { list -> list.map { if (it.id == id) it.copy(label = label.take(80), updatedAt = System.currentTimeMillis()) else it } }
 
     suspend fun delete(ids: List<String>) {
         if (ids.isEmpty()) return

@@ -157,7 +157,8 @@ object Backup {
             val bookId = localBookId(j.optString("book").takeIf { it.isNotEmpty() }) ?: return@forEach
             val mark = runCatching { Bookmark.fromJson(j.put("bookId", bookId)) }.getOrNull() ?: return@forEach
             if (deletedBookmarks.containsKey(mark.id)) return@forEach
-            if (localMarks[mark.id] == null) {
+            val mine = localMarks[mark.id]
+            if (mine == null || mark.updatedAt > mine.updatedAt) {
                 localMarks[mark.id] = mark
                 marksChanged++
             }

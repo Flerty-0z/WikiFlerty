@@ -384,21 +384,25 @@ fun <T> Morph(
 
 @Composable
 fun throttledClock(animated: Boolean, wrapSeconds: Int): androidx.compose.runtime.State<Float> {
-    val time = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val wrap = wrapSeconds * 1000L
+    val time = remember(wrapSeconds) { androidx.compose.runtime.mutableFloatStateOf(SharedClock.seconds(wrap)) }
     if (animated && Motion.enabled) {
-        LaunchedEffect(Unit) {
-            val wrap = wrapSeconds * 1000L
-            val start = androidx.compose.runtime.withFrameNanos { it } - (time.floatValue * 1e9f).toLong()
+        LaunchedEffect(wrapSeconds) {
             var last = 0L
             while (true) {
                 androidx.compose.runtime.withFrameNanos { now ->
                     if (now - last >= 15_500_000L) {
                         last = now
-                        time.floatValue = ((now - start) / 1_000_000L % wrap) / 1000f
+                        time.floatValue = SharedClock.seconds(wrap)
                     }
                 }
             }
         }
     }
     return time
+}
+
+object SharedClock {
+    private val start = System.nanoTime()
+    fun seconds(wrapMs: Long): Float = ((System.nanoTime() - start) / 1_000_000L % wrapMs) / 1000f
 }

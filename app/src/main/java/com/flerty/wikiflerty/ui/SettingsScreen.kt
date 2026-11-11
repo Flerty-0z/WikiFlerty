@@ -162,7 +162,8 @@ private fun SettingsHome(onAbout: (() -> Unit)?, onOpen: (SettingsPage) -> Unit)
 private fun NewsShowcase(onClick: () -> Unit) {
     val context = LocalContext.current
     val version = remember { runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty() }
-    val shape = appCorner(24)
+    val items = WhatsNewItems
+    val state = androidx.compose.foundation.lazy.rememberLazyListState()
     val glow = androidx.compose.animation.core.rememberInfiniteTransition(label = "news")
     val pulse by glow.animateFloat(
         0f,
@@ -170,95 +171,87 @@ private fun NewsShowcase(onClick: () -> Unit) {
         androidx.compose.animation.core.infiniteRepeatable<Float>(androidx.compose.animation.core.tween<Float>(2600, easing = androidx.compose.animation.core.FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse),
         label = "news-pulse",
     )
-    val count = WhatsNewItems.size
-    val word = when {
-        count % 100 in 11..14 -> "новинок"
-        count % 10 == 1 -> "новинка"
-        count % 10 in 2..4 -> "новинки"
-        else -> "новинок"
-    }
-    val comic = AppStyle.decor == Decor.Comic
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
-            .then(if (comic) Modifier.hardShadow(shape, 4.dp) else Modifier),
-    ) {
-        KitBackdrop(AppStyle.decor, AppStyle.base, AppColors.Accent, Modifier.matchParentSize().clip(shape))
-        Box(
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
             Modifier
-                .matchParentSize()
-                .clip(shape)
-                .background(
-                    Brush.linearGradient(
-                        listOf(
-                            AppColors.Accent.copy(alpha = 0.22f + 0.06f * pulse),
-                            AppColors.Accent.copy(alpha = 0.05f),
-                            Color.Transparent,
-                        ),
-                    ),
-                )
-                .border(
-                    if (comic) 2.dp else 1.5.dp,
-                    if (comic) Color(0xFF111111) else AppColors.Accent.copy(alpha = 0.4f + 0.2f * pulse),
-                    shape,
-                ),
-        )
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .kitFrame()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(
-                Modifier
-                    .size(58.dp)
-                    .clip(appCorner(18))
-                    .background(AppColors.Accent)
-                    .border(1.dp, AppColors.Accent.copy(alpha = 0.6f), appCorner(18)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    AppIcons.Sparkle,
-                    null,
-                    tint = AppColors.OnAccent,
-                    modifier = Modifier.size(30.dp).graphicsLayer {
-                        val k = 0.92f + 0.12f * pulse
-                        scaleX = k
-                        scaleY = k
-                        rotationZ = 10f * pulse
-                    },
-                )
+                .fillMaxWidth()
+                .liveClick(appCorner(14), sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(
+                AppIcons.Sparkle,
+                null,
+                tint = AppColors.Accent,
+                modifier = Modifier.size(22.dp).graphicsLayer {
+                    val k = 0.9f + 0.14f * pulse
+                    scaleX = k
+                    scaleY = k
+                    rotationZ = 12f * pulse
+                },
+            )
+            Text("Что нового?", color = AppColors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
+            if (version.isNotBlank()) {
+                Box(
+                    Modifier
+                        .clip(CircleShape)
+                        .accentHighlight(CircleShape)
+                        .padding(horizontal = 11.dp, vertical = 4.dp),
+                ) { Text("v$version", color = accentContent, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("Что нового?", color = AppColors.Text, fontSize = 21.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text(
-                    "$count $word" + if (version.isNotBlank()) " · v$version" else "",
-                    color = AppColors.Accent,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                )
-            }
-            Icon(AppIcons.Chevron, null, tint = AppColors.Accent, modifier = Modifier.size(22.dp))
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            WhatsNewItems.take(3).forEach { item ->
+        androidx.compose.foundation.lazy.LazyRow(
+            state = state,
+            flingBehavior = androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior(state),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(end = 40.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            items(items.size, key = { items[it].title }) { i ->
+                val item = items[i]
                 Column(
                     Modifier
-                        .weight(1f)
-                        .fieldSurface(appCorner(14))
-                        .padding(horizontal = 10.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                        .width(232.dp)
+                        .height(162.dp)
+                        .liveClick(appCorner(20), sound = FeedbackSound.Open, pressedScale = 0.97f, onClick = onClick)
+                        .fieldSurface(appCorner(20))
+                        .kitFrame(),
                 ) {
-                    Icon(item.icon, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp))
-                    Text(item.title, color = AppColors.Text, fontSize = 11.5.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Column(Modifier.weight(1f).padding(start = 14.dp, end = 14.dp, top = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            Modifier
+                                .size(40.dp)
+                                .clip(appCorner(12))
+                                .background(AppColors.Accent.copy(alpha = 0.16f))
+                                .border(1.dp, AppColors.Accent.copy(alpha = 0.45f), appCorner(12)),
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(item.icon, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp)) }
+                        Text(item.title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Text(item.text, color = AppColors.Muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    }
+                    Box(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp)) { KitDivider() }
                 }
             }
         }
-    }
+        val dots = minOf(items.size, 7)
+        if (dots > 1) {
+            val active by androidx.compose.runtime.remember {
+                androidx.compose.runtime.derivedStateOf {
+                    val last = (items.size - 1).coerceAtLeast(1)
+                    val at = state.firstVisibleItemIndex + if (state.firstVisibleItemScrollOffset > 120) 1 else 0
+                    (at.coerceAtMost(last) * (dots - 1) + last / 2) / last
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                repeat(dots) { d ->
+                    val on = d == active
+                    val w by androidx.compose.animation.core.animateDpAsState(if (on) 18.dp else 6.dp, Motion.tween(260), label = "news-dot")
+                    val c by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent else AppColors.Accent.copy(alpha = 0.3f), Motion.fade(260), label = "news-dot-c")
+                    Box(Modifier.padding(horizontal = 3.dp).height(6.dp).width(w).clip(CircleShape).background(c))
+                }
+            }
+        }
     }
 }
 

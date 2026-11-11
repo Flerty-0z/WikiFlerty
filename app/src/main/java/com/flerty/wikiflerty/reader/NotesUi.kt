@@ -1,5 +1,8 @@
 package com.flerty.wikiflerty.reader
 
+import androidx.compose.ui.draw.rotate
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.animateContentSize
 import com.flerty.wikiflerty.ui.revealScroll
 import com.flerty.wikiflerty.ui.Reveal
 import androidx.compose.animation.AnimatedVisibility
@@ -259,8 +262,13 @@ fun NoteCard(
             .fieldSurface(shape),
     ) {
         Box(Modifier.width(5.dp).fillMaxHeight().background(Color(note.color)))
+        var expanded by remember(note.id) { mutableStateOf(false) }
+        var overflow by remember(note.id) { mutableStateOf(false) }
         Column(
-            Modifier.weight(1f).padding(start = 12.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
+            Modifier
+                .weight(1f)
+                .animateContentSize(Motion.tween(260))
+                .padding(start = 12.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
@@ -268,8 +276,9 @@ fun NoteCard(
                 color = AppColors.Text,
                 fontSize = 15.sp,
                 lineHeight = 21.sp,
-                maxLines = 3,
+                maxLines = if (pill && expanded) Int.MAX_VALUE else 3,
                 overflow = TextOverflow.Ellipsis,
+                onTextLayout = { if (!expanded && it.hasVisualOverflow) overflow = true },
             )
             if (note.note.isNotBlank()) {
                 Text(
@@ -277,8 +286,9 @@ fun NoteCard(
                     color = AppColors.Text.copy(alpha = 0.82f),
                     fontSize = 14.sp,
                     lineHeight = 19.sp,
-                    maxLines = 3,
+                    maxLines = if (pill && expanded) Int.MAX_VALUE else 3,
                     overflow = TextOverflow.Ellipsis,
+                    onTextLayout = { if (!expanded && it.hasVisualOverflow) overflow = true },
                 )
             }
             val place = if (pages > 0) {
@@ -289,7 +299,23 @@ fun NoteCard(
             if (!pill) {
                 val meta = listOfNotNull(subtitle, note.chapter?.takeIf { it.isNotBlank() }, place).joinToString(" · ")
                 Text(meta, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (footer != null) Box(Modifier.padding(top = 2.dp, end = 8.dp)) { footer() }
             } else {
+                if (overflow || expanded) {
+                    Row(
+                        Modifier
+                            .clip(CircleShape)
+                            .liveClick(CircleShape, sound = FeedbackSound.Toggle) { expanded = !expanded }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(if (expanded) "Свернуть" else "Развернуть", color = AppColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        val turn by animateFloatAsState(if (expanded) -90f else 90f, Motion.tween(240), label = "note-more")
+                        Icon(AppIcons.Chevron, null, tint = AppColors.Accent, modifier = Modifier.size(14.dp).rotate(turn))
+                    }
+                }
+                if (footer != null) Box(Modifier.padding(top = 2.dp, end = 8.dp)) { footer() }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(
                         Modifier
@@ -308,7 +334,6 @@ fun NoteCard(
                     }
                 }
             }
-            if (footer != null) Box(Modifier.padding(top = 2.dp, end = 8.dp)) { footer() }
         }
         if (onEdit != null) {
             Box(

@@ -238,6 +238,17 @@ fun LibraryScreen(
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Sort, "Вид и сортировка", tint = AppColors.Text, modifier = Modifier.size(20.dp)) }
         }
+        val lastBook = remember { arrayOfNulls<Book>(1) }
+        if (current != null) lastBook[0] = current
+        androidx.compose.animation.AnimatedVisibility(
+            visible = current != null,
+            enter = androidx.compose.animation.expandVertically(Motion.tween(280)) + androidx.compose.animation.fadeIn(Motion.fade(240)),
+            exit = androidx.compose.animation.shrinkVertically(Motion.tween(240)) + androidx.compose.animation.fadeOut(Motion.fade(180)),
+        ) {
+            lastBook[0]?.let { b ->
+                ContinueStrip(b, viewModel.coverFile(b), prefs.progressInPages, Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) { open(b) }
+            }
+        }
 
         androidx.compose.animation.Crossfade(
             targetState = LibraryLayout(prefs.view, columns, prefs.coverSize < 2),
@@ -937,6 +948,42 @@ private fun Modifier.dashedBorder(color: Color, shape: androidx.compose.ui.graph
             pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 8f)),
         ),
     )
+}
+
+@Composable
+private fun ContinueStrip(book: Book, coverFile: File?, inPages: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val shape = appCorner(16)
+    Row(
+        modifier
+            .fillMaxWidth()
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
+            .fieldSurface(shape)
+            .padding(start = 8.dp, end = 8.dp, top = 7.dp, bottom = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        CoverBox(book, coverFile, Modifier.size(width = 28.dp, height = 42.dp).clip(appCorner(5)), small = true)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(book.title, color = AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ProgressLine(book.progress.toFloat(), Modifier.weight(1f))
+                Text(progressLabel(book, inPages), color = AppColors.Muted, fontSize = 11.sp, maxLines = 1)
+            }
+        }
+        Row(
+            Modifier
+                .height(34.dp)
+                .clip(CircleShape)
+                .liveClick(CircleShape, sound = FeedbackSound.Open, onClick = onClick)
+                .accentHighlight(CircleShape)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(AppIcons.Play, null, tint = accentContent, modifier = Modifier.size(14.dp))
+            Text("Читать", color = accentContent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+    }
 }
 
 @Composable

@@ -1,5 +1,8 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -119,7 +122,7 @@ private fun arrange(books: List<Book>, onAdd: (() -> Unit)?, live: Boolean, deco
         units += ShelfUnit.Stack(chunk)
         if (props && i == 0 && standing.size % 2 == 0) prop()
     }
-    if (props && placed == 0 && (standing.isNotEmpty() || lying.isNotEmpty())) prop()
+    if (props && placed == 0) prop()
     if (onAdd != null) units += ShelfUnit.Add(onAdd)
     return units
 }
@@ -513,7 +516,21 @@ private fun Shelf(row: PlankRow, index: Int, onBook: (Book) -> Unit) {
                 is ShelfUnit.Prop -> ShelfProp(AppStyle.kit.decor, unit.index, Modifier.dropIn(index, i, unit.key))
             }
         }
-        if (row.scroll) {
+        if (row.scroll && row.units.size <= 80) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .height(BookWidth * 1.5f + 14.dp)
+                    .horizontalScroll(androidx.compose.foundation.rememberScrollState())
+                    .padding(horizontal = 22.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                row.units.forEachIndexed { i, unit ->
+                    androidx.compose.runtime.key(unit.key) { Box(Modifier.animatePlacement()) { content(i, unit) } }
+                }
+            }
+        } else if (row.scroll) {
             LazyRow(
                 modifier = Modifier.fillMaxWidth().height(BookWidth * 1.5f + 14.dp),
                 contentPadding = PaddingValues(horizontal = 22.dp),
@@ -536,11 +553,36 @@ private fun Shelf(row: PlankRow, index: Int, onBook: (Book) -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
-                row.units.forEachIndexed { i, unit -> androidx.compose.runtime.key(unit.key) { content(i, unit) } }
+                row.units.forEachIndexed { i, unit -> androidx.compose.runtime.key(unit.key) { Box(Modifier.animatePlacement()) { content(i, unit) } } }
             }
         }
         Box(Modifier.plankIn(index, "plank:" + row.key)) { Plank(row.name, target, row.onEdit) }
     }
+}
+
+@Composable
+private fun Modifier.animatePlacement(): Modifier {
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val holder = remember { arrayOfNulls<androidx.compose.animation.core.Animatable<androidx.compose.ui.unit.IntOffset, androidx.compose.animation.core.AnimationVector2D>>(1) }
+    val target = remember { arrayOf(androidx.compose.ui.unit.IntOffset.Zero) }
+    val placed = remember { booleanArrayOf(false) }
+    return this
+        .onPlaced { c ->
+            val p = c.positionInParent()
+            target[0] = androidx.compose.ui.unit.IntOffset(p.x.toInt(), p.y.toInt())
+            placed[0] = true
+        }
+        .offset {
+            if (!placed[0]) return@offset androidx.compose.ui.unit.IntOffset.Zero
+            val t = target[0]
+            val anim = holder[0] ?: androidx.compose.animation.core.Animatable(t, androidx.compose.ui.unit.IntOffset.VectorConverter).also { holder[0] = it }
+            if (anim.targetValue != t) {
+                scope.launch {
+                    anim.animateTo(t, androidx.compose.animation.core.spring(dampingRatio = 0.86f, stiffness = 340f, visibilityThreshold = androidx.compose.ui.unit.IntOffset.VisibilityThreshold))
+                }
+            }
+            anim.value - t
+        }
 }
 
 @Composable

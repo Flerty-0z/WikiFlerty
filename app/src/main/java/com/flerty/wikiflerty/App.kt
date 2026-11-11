@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty
 
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.drop
 import android.app.Application
 import com.flerty.wikiflerty.data.Book
 import com.flerty.wikiflerty.data.LibraryRepository
@@ -151,6 +153,13 @@ class App : Application() {
         appScope.launch {
             kotlinx.coroutines.delay(20_000)
             autoBackup.runIfDue()
+        }
+        appScope.launch {
+            kotlinx.coroutines.flow.merge(
+                bookmarks.bookmarks.drop(1).map { },
+                notes.notes.drop(1).map { },
+                characters.characters.drop(1).map { },
+            ).collect { cloud.request(4_000) }
         }
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             private var started = 0
