@@ -575,7 +575,7 @@ internal object TextSelection {
           var st = {
             anchor: null, word: null, mode: null, locked: null, timer: 0, edgeTimer: 0, pressing: false,
             startX: 0, startY: 0, lastX: 0, lastY: 0, grabX: 0, grabY: 0, programmatic: false,
-            swallow: false, turnX: 0, turnY: 0, afterTurn: false, scrollTimer: 0, turning: 0, turnTarget: 0
+            swallow: false, turnX: 0, turnY: 0, afterTurn: false, scrollTimer: 0, turning: 0, turnTarget: 0, carry: null, carryTimer: 0
           };
           var css = document.createElement("style");
           css.textContent =
@@ -1121,7 +1121,35 @@ internal object TextSelection {
             place();
             notify("done");
           }
+          function carry() {
+            var e = ends();
+            if (!e) return false;
+            st.carry = { node: e.start.node, offset: e.start.offset, from: root.scrollLeft, until: Date.now() + 4000 };
+            clearSelection();
+            return true;
+          }
+          function land() {
+            var c = st.carry;
+            if (!c) return;
+            if (Date.now() > c.until) { st.carry = null; return; }
+            if (root.scrollLeft <= c.from + 2) return;
+            st.carry = null;
+            var first = caretAt(20, 20) || caretAt(40, 40) || caretAt(60, 60);
+            if (!first || !c.node.isConnected) return;
+            var to = sentenceEnd(first) || first;
+            var from = { node: c.node, offset: c.offset };
+            if (!before(from, to)) return;
+            select(from, to);
+            place();
+            notify("done");
+          }
+          window.addEventListener("scroll", function () {
+            if (!st.carry) return;
+            clearTimeout(st.carryTimer);
+            st.carryTimer = setTimeout(land, 180);
+          }, true);
           window.__wfSel = {
+            carry: carry,
             prepPage: prepPage,
             nextPage: nextPage,
             turned: turned,

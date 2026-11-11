@@ -728,13 +728,12 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private fun selectionNextPage() {
         selectionJob?.cancel()
         ui.selection = null
-        jsQueue.trySend(false to "window.__wfSel && window.__wfSel.prepPage && window.__wfSel.prepPage()")
         lifecycleScope.launch {
-            kotlinx.coroutines.delay(30)
-            navigator.publicationView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
-            go(forward = true, animated = false)
-            kotlinx.coroutines.delay(140)
-            jsQueue.trySend(false to "window.__wfSel && window.__wfSel.nextPage && window.__wfSel.nextPage()")
+            val ok = runCatching { navigator.evaluateJavascript("window.__wfSel && window.__wfSel.carry ? window.__wfSel.carry() : false") }.getOrNull()
+            if (ok?.contains("true") != true) return@launch
+            ui.handles = null
+            kotlinx.coroutines.delay(60)
+            manualTurn(forward = true)
         }
     }
 
