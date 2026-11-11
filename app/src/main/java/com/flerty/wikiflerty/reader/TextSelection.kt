@@ -723,9 +723,9 @@ internal object TextSelection {
             el.style.display = "block";
           }
           var lastSent = null;
-          function report(s, e) {
+          function report(s, e, more) {
             var k = window.devicePixelRatio || 1;
-            var msg = s || e ? JSON.stringify({ s: s ? [s[0] * k, s[1] * k] : null, e: e ? [e[0] * k, e[1] * k] : null }) : "";
+            var msg = s || e ? JSON.stringify({ s: s ? [s[0] * k, s[1] * k] : null, e: e ? [e[0] * k, e[1] * k] : null, n: more ? 1 : 0 }) : "";
             if (msg === lastSent) return;
             lastSent = msg;
             try { window.${BRIDGE}.onHandles(msg); } catch (x) {}
@@ -744,7 +744,8 @@ internal object TextSelection {
             var h = window.innerHeight;
             var sa = a && onPage(a) && a.bottom > 0 && a.top < h ? [a.left, a.bottom] : null;
             var sb = b && onPage(b) && b.bottom > 0 && b.top < h ? [b.right, b.bottom] : null;
-            report(sa, sb);
+            var more = !!sb && !st.mode && !scrollMode() && root.scrollLeft + window.innerWidth < root.scrollWidth - 2 && edgeOf(b, 1);
+            report(sa, sb, more);
           }
           function grab(mode, x, y) {
             var sel = ends();
@@ -868,12 +869,10 @@ internal object TextSelection {
             var c = caretAt(x, y - st.grabY);
             var cb = c ? rectAt(c.node, c.offset) : null;
             var py = y - st.grabY;
-            var last = fwd ? edgeLine(true) : null;
-            var first = fwd ? null : edgeLine(false);
-            var onLast = !!cb && !!last && Math.abs(cb.top - last.top) < 4;
-            var onFirst = !!cb && !!first && Math.abs(cb.top - first.top) < 4;
-            var below = onLast && (py > cb.bottom - 2 || x > w * 0.78);
-            var above = onFirst && (py < cb.top + 2 || x < w * 0.22);
+            var onLast = fwd && !!cb && edgeOf(cb, 1);
+            var onFirst = !fwd && !!cb && edgeOf(cb, -1);
+            var below = onLast && (py > cb.top + cb.height * 0.5 || x > w * 0.55);
+            var above = onFirst && (py < cb.bottom - cb.height * 0.5 || x < w * 0.45);
             var atEnd = y > h - 22 || x > w - 14 || below || (!c && y > h * 0.6);
             var atStart = y < 22 || x < 14 || above || (!c && y < h * 0.4);
             if (scrollMode()) {
@@ -890,16 +889,19 @@ internal object TextSelection {
             }
             if (!st.edgeTimer) st.edgeTimer = setTimeout(function () { turn(want); }, 600);
           }
-          function edgeLine(bottom) {
+          function edgeOf(cb, dir) {
             var w = window.innerWidth, h = window.innerHeight;
-            var xs = [w * 0.5, w * 0.3, w * 0.7];
+            var y = dir > 0 ? cb.bottom + cb.height * 0.7 : cb.top - cb.height * 0.7;
+            if (y >= h - 1 || y <= 1) return true;
+            var xs = [w * 0.5, w * 0.25, w * 0.75];
             for (var i = 0; i < xs.length; i++) {
-              var r = document.caretRangeFromPoint ? document.caretRangeFromPoint(xs[i], bottom ? h - 3 : 3) : null;
-              if (!r || !r.startContainer) continue;
+              var r = document.caretRangeFromPoint ? document.caretRangeFromPoint(xs[i], y) : null;
+              if (!r || !r.startContainer || r.startContainer.nodeType !== 3) continue;
               var b = rectAt(r.startContainer, r.startOffset);
-              if (b && onPage(b) && b.height) return b;
+              if (!b || !onPage(b) || !b.height) continue;
+              if (dir > 0 ? b.top > cb.top + cb.height * 0.5 : b.bottom < cb.bottom - cb.height * 0.5) return false;
             }
-            return null;
+            return true;
           }
           function stopEdges() {
             clearTimeout(st.edgeTimer);
@@ -1035,7 +1037,48 @@ internal object TextSelection {
             var k = window.devicePixelRatio || 1;
             return (t * k) + "," + (b * k);
           }
+          function sentenceEnd(from) {
+            var w = window.innerWidth;
+            var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+            walker.currentNode = from.node;
+            var node = from.node, off = from.offset, last = null, count = 0;
+            while (node && count < 4000) {
+              var text = node.nodeValue || "";
+              for (var i = off; i < text.length; i++) {
+                var r = rectAt(node, i + 1);
+                if (!r || !onPage(r)) return last;
+                last = { node: node, offset: i + 1 };
+                count++;
+                if (/[.!?…]/.test(text[i])) {
+                  var j = i + 1;
+                  while (j < text.length && /[»"”’)\]]/.test(text[j])) j++;
+                  if (j >= text.length || /\s/.test(text[j])) return { node: node, offset: j };
+                }
+              }
+              node = walker.nextNode();
+              off = 0;
+            }
+            return last;
+          }
+          function prepPage() {
+            st.locked = null;
+            st.turnTarget = root.scrollLeft + window.innerWidth;
+          }
+          function nextPage() {
+            if (Math.abs(root.scrollLeft - st.turnTarget) > 2) root.scrollLeft = st.turnTarget;
+            st.locked = st.turnTarget;
+            var e = ends();
+            if (!e) { place(); return; }
+            var first = caretAt(20, 20) || caretAt(40, 40);
+            var start = first && before(e.end, first) ? first : e.end;
+            var to = sentenceEnd(start) || first;
+            if (to && before(e.start, to)) select(e.start, to);
+            place();
+            notify("done");
+          }
           window.__wfSel = {
+            prepPage: prepPage,
+            nextPage: nextPage,
             turned: turned,
             box: box,
             place: place,

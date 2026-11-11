@@ -722,7 +722,20 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         fun point(key: String) = json.optJSONArray(key)?.let {
             androidx.compose.ui.geometry.Offset(it.getDouble(0).toFloat() + pageOffset[0], it.getDouble(1).toFloat() + pageOffset[1])
         }
-        ui.handles = SelectionHandles(point("s"), point("e"))
+        ui.handles = SelectionHandles(point("s"), point("e"), json.optInt("n", 0) == 1)
+    }
+
+    private fun selectionNextPage() {
+        selectionJob?.cancel()
+        ui.selection = null
+        jsQueue.trySend(false to "window.__wfSel && window.__wfSel.prepPage && window.__wfSel.prepPage()")
+        lifecycleScope.launch {
+            kotlinx.coroutines.delay(30)
+            navigator.publicationView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+            go(forward = true, animated = false)
+            kotlinx.coroutines.delay(140)
+            jsQueue.trySend(false to "window.__wfSel && window.__wfSel.nextPage && window.__wfSel.nextPage()")
+        }
     }
 
     private fun onHandleDrag(phase: Int, start: Boolean, x: Float, y: Float) {
@@ -1368,6 +1381,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         setContentView(R.layout.activity_reader)
         ui.handleColor = selectionAccent()
         ui.onHandleDrag = { phase, start, x, y -> onHandleDrag(phase, start, x, y) }
+        ui.onSelectionNext = { selectionNextPage() }
         startJsQueue()
         ReaderReveal.run = { x, y, apply -> themeReveal(x, y, apply) }
         bookArea = findViewById(R.id.book_area)

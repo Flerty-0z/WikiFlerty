@@ -195,6 +195,7 @@ class ReaderUiState {
     var handles by mutableStateOf<SelectionHandles?>(null)
     var handleColor by mutableIntStateOf(0xFF8FB3FF.toInt())
     var onHandleDrag: ((phase: Int, start: Boolean, x: Float, y: Float) -> Unit)? = null
+    var onSelectionNext: (() -> Unit)? = null
     var footnote by mutableStateOf<FootnoteInfo?>(null)
     var autoActive by mutableStateOf(false)
     var autoPaused by mutableStateOf(false)
@@ -245,7 +246,7 @@ class ReaderUiState {
 
 data class TocItem(val title: String, val depth: Int, val link: Link)
 
-data class SelectionHandles(val start: androidx.compose.ui.geometry.Offset?, val end: androidx.compose.ui.geometry.Offset?)
+data class SelectionHandles(val start: androidx.compose.ui.geometry.Offset?, val end: androidx.compose.ui.geometry.Offset?, val more: Boolean = false)
 
 @Composable
 private fun SelectionHandleLayer(state: ReaderUiState) {
@@ -254,6 +255,30 @@ private fun SelectionHandleLayer(state: ReaderUiState) {
     val color = Color(state.handleColor)
     h.start?.let { HandleDot(it, true, color, state) }
     h.end?.let { HandleDot(it, false, color, state) }
+    val end = h.end
+    val last = remember { arrayOf<androidx.compose.ui.geometry.Offset?>(null) }
+    if (end != null && h.more) last[0] = end
+    androidx.compose.animation.AnimatedVisibility(
+        visible = h.more && end != null && state.selection != null,
+        enter = fadeIn(Motion.fade(180)) + scaleIn(Motion.tween(240), initialScale = 0.6f),
+        exit = fadeOut(Motion.fade(140)) + scaleOut(Motion.tween(180), targetScale = 0.7f),
+        modifier = Modifier.offset {
+            val p = last[0] ?: androidx.compose.ui.geometry.Offset.Zero
+            val size = 40.dp.toPx()
+            androidx.compose.ui.unit.IntOffset((p.x - size - 30.dp.toPx()).roundToInt().coerceAtLeast(8.dp.roundToPx()), (p.y + 8.dp.toPx()).roundToInt())
+        },
+    ) {
+        Box(
+            Modifier
+                .size(40.dp)
+                .shadow(6.dp, CircleShape)
+                .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.88f) { state.onSelectionNext?.invoke() }
+                .background(color, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(AppIcons.Forward, "Продолжить на следующей странице", tint = Color.White, modifier = Modifier.size(20.dp))
+        }
+    }
 }
 
 @Composable
