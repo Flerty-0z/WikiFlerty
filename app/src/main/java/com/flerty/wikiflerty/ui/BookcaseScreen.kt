@@ -192,32 +192,42 @@ fun BookcaseView(
             move?.invoke(book, from, to)
         }
         val density = androidx.compose.ui.platform.LocalDensity.current
-        val zone = with(density) { 64.dp.toPx() }
-        val bottomInset = with(density) { 96.dp.toPx() }
-        val maxStep = with(density) { 7.dp.toPx() }
+        val zone = with(density) { 44.dp.toPx() }
+        val bottomInset = with(density) { 92.dp.toPx() }
+        val maxStep = with(density) { 6.dp.toPx() }
         androidx.compose.runtime.LaunchedEffect(drag, listState) {
             var armed = false
             var speed = 0f
+            var since = 0L
+            var lastDir = 0
             while (true) {
-                androidx.compose.runtime.withFrameMillis { }
+                val now = androidx.compose.runtime.withFrameMillis { it }
                 val p = drag.pointer
                 val r = drag.root
                 if (drag.phase != 1 || p == null || r == null || !r.isAttached) {
                     armed = false
                     speed = 0f
+                    lastDir = 0
                     continue
                 }
                 val local = r.windowToLocal(p)
                 val top = zone
                 val bottom = r.size.height - bottomInset - zone
                 val want = when {
-                    local.y < top -> -((top - local.y) / zone).coerceIn(0f, 1f)
-                    local.y > bottom -> ((local.y - bottom) / zone).coerceIn(0f, 1f)
+                    local.y < top -> -((top - local.y) / zone).coerceIn(0.15f, 1f)
+                    local.y > bottom -> ((local.y - bottom) / zone).coerceIn(0.15f, 1f)
                     else -> 0f
                 }
-                if (want == 0f) armed = true
-                val goal = if (armed) want * want * kotlin.math.sign(want) * maxStep else 0f
-                speed += (goal - speed) * 0.1f
+                val dir = kotlin.math.sign(want).toInt()
+                if (dir == 0) armed = true
+                if (dir != lastDir) {
+                    since = now
+                    lastDir = dir
+                }
+                val held = now - since
+                val ramp = ((held - 280L).coerceAtLeast(0L) / 500f).coerceAtMost(1f)
+                val goal = if (armed && dir != 0) want * kotlin.math.abs(want) * maxStep * ramp else 0f
+                speed += (goal - speed) * 0.12f
                 if (kotlin.math.abs(speed) > 0.3f) listState.dispatchRawDelta(speed)
             }
         }

@@ -660,11 +660,12 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             val seen = runCatching { navigator.evaluateJavascript("window.__wfSel && window.__wfSel.box ? window.__wfSel.box() : \"\"") }.getOrNull()
                 ?.trim()?.removeSurrounding("\"")?.split(',')?.mapNotNull { it.toFloatOrNull() }?.takeIf { it.size == 2 }
             if (ui.panelsVisible || ui.sheet != null) ui.hideAll()
+            updatePageOffset()
             ui.selection = SelectionInfo(
                 locator = selection.locator,
                 text = text,
-                top = (seen?.get(0) ?: rect?.top ?: 200f) + offsetY,
-                bottom = (seen?.get(1) ?: rect?.bottom ?: 240f) + offsetY,
+                top = seen?.let { it[0] + pageOffset[1] } ?: ((rect?.top ?: 200f) + offsetY),
+                bottom = seen?.let { it[1] + pageOffset[1] } ?: ((rect?.bottom ?: 240f) + offsetY),
             )
         }
     }
@@ -2099,7 +2100,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             stripTurn(left)
             return
         }
-        val view = navigator.publicationView
+        val view = currentWebView() ?: navigator.publicationView
         val loc = IntArray(2).also { view.getLocationInWindow(it) }
         val density = resources.displayMetrics.density
         val x = (winX - loc[0]) / density

@@ -860,8 +860,12 @@ internal object TextSelection {
             var c = caretAt(x, y - st.grabY);
             var cb = c ? rectAt(c.node, c.offset) : null;
             var py = y - st.grabY;
-            var below = !!cb && y > h * 0.6 && py > cb.bottom + cb.height * 0.8;
-            var above = !!cb && y < h * 0.4 && py < cb.top - cb.height * 0.8;
+            var last = fwd ? edgeLine(true) : null;
+            var first = fwd ? null : edgeLine(false);
+            var onLast = !!cb && !!last && Math.abs(cb.top - last.top) < 4;
+            var onFirst = !!cb && !!first && Math.abs(cb.top - first.top) < 4;
+            var below = onLast && (py > cb.bottom - 2 || x > w * 0.78);
+            var above = onFirst && (py < cb.top + 2 || x < w * 0.22);
             var atEnd = y > h - 22 || x > w - 14 || below || (!c && y > h * 0.6);
             var atStart = y < 22 || x < 14 || above || (!c && y < h * 0.4);
             if (scrollMode()) {
@@ -876,7 +880,18 @@ internal object TextSelection {
               st.edgeTimer = 0;
               return;
             }
-            if (!st.edgeTimer) st.edgeTimer = setTimeout(function () { turn(want); }, 520);
+            if (!st.edgeTimer) st.edgeTimer = setTimeout(function () { turn(want); }, 600);
+          }
+          function edgeLine(bottom) {
+            var w = window.innerWidth, h = window.innerHeight;
+            var xs = [w * 0.5, w * 0.3, w * 0.7];
+            for (var i = 0; i < xs.length; i++) {
+              var r = document.caretRangeFromPoint ? document.caretRangeFromPoint(xs[i], bottom ? h - 3 : 3) : null;
+              if (!r || !r.startContainer) continue;
+              var b = rectAt(r.startContainer, r.startOffset);
+              if (b && onPage(b) && b.height) return b;
+            }
+            return null;
           }
           function stopEdges() {
             clearTimeout(st.edgeTimer);
