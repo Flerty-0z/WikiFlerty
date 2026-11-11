@@ -82,12 +82,7 @@ fun AiSettingsContent(ai: AiManager, modifier: Modifier = Modifier) {
     var showAll by remember { mutableStateOf(false) }
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(
-            "Вставь ключ любой нейросети — приложение само поймёт, чья она. Ключ хранится зашифрованным только на телефоне.",
-            color = AppColors.Muted,
-            fontSize = 13.sp,
-            lineHeight = 18.sp,
-        )
+        HintNote("Вставь ключ любой нейросети — приложение само поймёт, чья она. Ключ хранится зашифрованным только на телефоне.", AppIcons.Lock)
 
         QuickConnectCard(ai) { expanded = it.id }
 
@@ -288,14 +283,7 @@ private fun ProviderCard(
                             .background(if (keyInput.isNotBlank() || hasKey) AppColors.Accent else AppColors.Line),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(
-                            if (keyInput.isNotBlank()) "Сохранить и проверить" else "Проверить ключ",
-                            color = AppColors.OnAccent,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                        )
+                        ActionLabel(if (keyInput.isNotBlank()) "Сохранить и проверить" else "Проверить ключ", AppColors.OnAccent, fontSize = 14.sp, iconSize = 20.dp, icon = if (keyInput.isNotBlank()) AppIcons.Check else AppIcons.Search)
                     }
                     if (hasKey || provider.custom) {
                         Box(
@@ -352,7 +340,7 @@ private fun ProviderCard(
                                 .border(1.dp, AppColors.Accent.copy(alpha = 0.33f), appCorner(12)),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text("Сделать основной", color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            ActionLabel("Сделать основной", AppColors.Accent, fontSize = 14.sp, iconSize = 20.dp)
                         }
                     }
                     PickerRow(
@@ -513,7 +501,7 @@ private fun ActionButton(text: String, enabled: Boolean, busy: Boolean, onClick:
         if (busy) {
             com.flerty.wikiflerty.ui.KitSpinner(Modifier.size(18.dp), AppColors.OnAccent)
         } else {
-            Text(text, color = AppColors.OnAccent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            ActionLabel(text, AppColors.OnAccent, fontSize = 14.sp, iconSize = 20.dp)
         }
     }
 }
@@ -632,12 +620,7 @@ private fun CustomCard(ai: AiManager, expanded: Boolean, onExpand: () -> Unit) {
                     }
                 }
                 error?.let { Text(it, color = Bad, fontSize = 13.sp, lineHeight = 18.sp) }
-                Text(
-                    "Подойдёт любой сервис с OpenAI-совместимым API",
-                    color = AppColors.Faint,
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp,
-                )
+                HintNote("Подойдёт любой сервис с OpenAI-совместимым API")
             }
         }
     }

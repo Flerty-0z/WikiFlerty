@@ -1738,12 +1738,7 @@ private fun TextOptions(
         ) { i -> if (!settings.scroll) onSettingsChange { it.copy(columns = listOf("auto", "1", "2")[i]) } }
     }
     com.flerty.wikiflerty.ui.Appear(settings.scroll) {
-        Text(
-            "Колонки работают в режиме «Страницы». Сейчас включена лента — переключить можно в «Листании»",
-            color = AppColors.Faint,
-            fontSize = 12.sp,
-            lineHeight = 16.sp,
-        )
+        com.flerty.wikiflerty.ui.HintNote("Колонки работают в режиме «Страницы». Сейчас включена лента — переключить можно в «Листании»")
     }
     }
 }

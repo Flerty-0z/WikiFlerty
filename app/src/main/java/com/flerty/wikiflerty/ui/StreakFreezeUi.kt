@@ -408,12 +408,7 @@ fun BoxScope.StreakRescue() {
                 Icon(AppIcons.Snow, null, tint = IceColor, modifier = Modifier.size(30.dp))
             }
             Text("Спасти серию в ${StatsCalc.days(streak)}?", color = AppColors.Text, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                "Вчера ты не читал. Заморозь вчерашний день — серия сохранится. Следующая заморозка будет через 30 дней.",
-                color = AppColors.Muted,
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
-            )
+            HintNote("Вчера ты не читал. Заморозь вчерашний день — серия сохранится. Следующая заморозка будет через 30 дней.", AppIcons.Snow)
             Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 IceButton("Спасти", Modifier.weight(1f)) {
                     app.streakFreeze.add(today.minusDays(1), 1)

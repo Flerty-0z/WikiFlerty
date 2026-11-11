@@ -76,13 +76,7 @@ fun SyncContent() {
                     Modifier.fillMaxWidth().fieldSurface(appCorner(20)).padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text(
-                        "Прогресс, заметки, закладки, словарь, статистика и настройки — одинаковые на всех твоих устройствах. Без регистрации, данные зашифрованы.",
-                        color = AppColors.Muted,
-                        fontSize = 13.sp,
-                        lineHeight = 19.sp,
-                        modifier = Modifier.padding(horizontal = 2.dp),
-                    )
+                    HintNote("Прогресс, заметки, закладки, словарь, статистика и настройки — одинаковые на всех твоих устройствах. Без регистрации, данные зашифрованы.", AppIcons.Cloud, framed = false)
                     ListDivider()
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         SyncButton("Создать код", AppIcons.Cloud, Modifier.weight(1f), filled = true, enabled = !busy) {
@@ -235,7 +229,7 @@ private fun CodeCard(code: String) {
                     .liveClick(shape, sound = FeedbackSound.Open) { showQr = true }
                     .border(1.dp, AppColors.Accent.copy(alpha = 0.35f), shape),
                 contentAlignment = Alignment.Center,
-            ) { Icon(AppIcons.Qr, "QR-код", tint = AppColors.Accent, modifier = Modifier.size(21.dp)) }
+            ) { ActionLabel("QR", AppColors.Accent, fontSize = 14.sp, iconSize = 21.dp, icon = AppIcons.Qr) }
         }
         Appear(help) {
             Column(

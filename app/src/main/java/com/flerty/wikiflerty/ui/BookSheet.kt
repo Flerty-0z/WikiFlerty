@@ -191,7 +191,7 @@ fun ConfirmSheet(
             ) {
                 val icon = actionIcon(confirm)
                 if (icon != null) {
-                    Icon(icon, confirm, tint = if (danger) Danger else AppColors.OnAccent, modifier = Modifier.size(22.dp))
+                    ActionLabel(confirm, if (danger) Danger else AppColors.OnAccent, fontSize = 14.sp, iconSize = 21.dp, icon = icon)
                 } else {
                     FitText(confirm, if (danger) Danger else AppColors.OnAccent, 15.sp, Modifier.padding(horizontal = 10.dp), weight = FontWeight.SemiBold)
                 }
@@ -469,7 +469,7 @@ private fun DeleteRow(label: String, onDelete: () -> Unit) {
             .liveClick(shape, sound = FeedbackSound.Close) { onDelete() }
             .border(1.dp, Danger.copy(alpha = 0.45f), shape),
         contentAlignment = Alignment.Center,
-    ) { Icon(AppIcons.Trash, label, tint = Danger, modifier = Modifier.size(22.dp)) }
+    ) { ActionLabel(label, Danger, fontSize = 14.sp, iconSize = 21.dp, icon = AppIcons.Trash) }
 }
 
 @Composable
@@ -770,7 +770,7 @@ fun ShelfDialogView(dialog: ShelfDialog, shelves: List<String>, onDismiss: () ->
                     .border(1.dp, Danger.copy(alpha = 0.45f), appCorner(12)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("Удалить полку", color = Danger, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                ActionLabel("Удалить полку", Danger, fontSize = 14.sp, iconSize = 21.dp)
             }
         }
     }

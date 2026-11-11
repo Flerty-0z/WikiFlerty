@@ -328,7 +328,7 @@ fun RatingSheet(bookId: String, celebrate: Boolean, onDismiss: () -> Unit) {
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(AppIcons.Check, "Сохранить", tint = accentContent, modifier = Modifier.size(22.dp))
+                ActionLabel("Сохранить", accentContent, fontSize = 14.sp, iconSize = 21.dp, icon = AppIcons.Check)
             }
         }
     }

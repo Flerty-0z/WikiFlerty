@@ -144,7 +144,7 @@ internal fun QuoteContent(draft: QuoteDraft, actions: QuoteActions, modifier: Mo
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(AppIcons.Backup, "Сохранить в галерею", tint = AppColors.Accent, modifier = Modifier.size(24.dp))
+                com.flerty.wikiflerty.ui.ActionLabel("Сохранить", AppColors.Accent, fontSize = 14.sp, iconSize = 22.dp, icon = AppIcons.Image)
             }
             Row(
                 Modifier
@@ -158,7 +158,7 @@ internal fun QuoteContent(draft: QuoteDraft, actions: QuoteActions, modifier: Mo
                 if (actions.busy) {
                     com.flerty.wikiflerty.ui.KitSpinner(Modifier.size(22.dp), AppColors.OnAccent)
                 } else {
-                    Icon(AppIcons.Share, "Поделиться", tint = AppColors.OnAccent, modifier = Modifier.size(24.dp))
+                    com.flerty.wikiflerty.ui.ActionLabel("Поделиться", AppColors.OnAccent, fontSize = 14.sp, iconSize = 22.dp, icon = AppIcons.Share)
                 }
             }
         }

@@ -1098,7 +1098,7 @@ private fun AccentButton(text: String, enabled: Boolean = true, modifier: Modifi
             .background(if (enabled) Brush.verticalGradient(listOf(AppColors.AccentLight, AppColors.Accent)) else SolidColor(AppColors.AccentTintStrong)),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = if (enabled) AppColors.OnAccent else AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        com.flerty.wikiflerty.ui.ActionLabel(text, if (enabled) AppColors.OnAccent else AppColors.Accent, fontSize = 14.sp, weight = FontWeight.Bold, iconSize = 20.dp)
     }
 }
 
@@ -1113,6 +1113,6 @@ private fun OutlineButton(text: String, enabled: Boolean = true, modifier: Modif
             .border(1.dp, AppColors.Line, shape),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = if (enabled) AppColors.Text else AppColors.Muted, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        com.flerty.wikiflerty.ui.ActionLabel(text, if (enabled) AppColors.Text else AppColors.Muted, fontSize = 14.sp, iconSize = 20.dp)
     }
 }

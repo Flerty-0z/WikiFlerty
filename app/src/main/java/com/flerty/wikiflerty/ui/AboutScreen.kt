@@ -132,12 +132,7 @@ fun AboutScreen(modifier: Modifier = Modifier) {
                         AppButton("Очистить", primary = false, modifier = Modifier.weight(1f)) { app.crashLog.clear() }
                     }
                 }
-                Text(
-                    "Если приложение закроется с ошибкой, здесь появится запись. Отправь её разработчику — так ошибку проще исправить",
-                    color = AppColors.Faint,
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp,
-                )
+                HintNote("Если приложение закроется с ошибкой, здесь появится запись. Отправь её разработчику — так ошибку проще исправить", AppIcons.Alert)
             }
         }
 
@@ -269,12 +264,7 @@ fun StartupPrompts() {
     if (crashPrompt) {
         AppSheet(onDismiss = { crashPrompt = false; app.crashLog.markSeen() }, title = "Приложение закрылось с ошибкой") {
             val close = sheetClose { crashPrompt = false }
-            Text(
-                "В прошлый раз WikiFlerty закрылось неожиданно. Отправь отчёт разработчику — в нём только техническая информация, без книг и ключей",
-                color = AppColors.Muted,
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
-            )
+            HintNote("В прошлый раз WikiFlerty закрылось неожиданно. Отправь отчёт разработчику — в нём только техническая информация, без книг и ключей", AppIcons.Alert)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AppButton("Отправить", primary = true, modifier = Modifier.weight(1f)) {
                     app.crashLog.markSeen()
@@ -434,15 +424,15 @@ private fun SupportSheet(app: App, onDismiss: () -> Unit) {
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(
-                AppIcons.Share to {
+                Triple(AppIcons.Share, "Поделиться") {
                     shareText(context, "Попробуй WikiFlerty — читалка для книг: ${com.flerty.wikiflerty.system.Updates.TELEGRAM}", "WikiFlerty")
                     close()
                 },
-                AppIcons.Star to {
+                Triple(AppIcons.Star, "Оценить") {
                     app.updates.open(com.flerty.wikiflerty.system.Updates.RUSTORE)
                     close()
                 },
-            ).forEach { (icon, action) ->
+            ).forEach { (icon, label, action) ->
                 Box(
                     Modifier
                         .weight(1f)
@@ -450,7 +440,7 @@ private fun SupportSheet(app: App, onDismiss: () -> Unit) {
                         .liveClick(appCorner(16), sound = FeedbackSound.Open, pressedScale = 0.95f, onClick = action)
                         .fieldSurface(appCorner(16)),
                     contentAlignment = Alignment.Center,
-                ) { Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(22.dp)) }
+                ) { ActionLabel(label, AppColors.Accent, fontSize = 14.sp, iconSize = 21.dp, icon = icon) }
             }
         }
     }

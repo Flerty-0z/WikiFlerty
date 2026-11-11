@@ -244,7 +244,7 @@ fun TtsOptions(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
             ) {
-                Icon(if (playing) AppIcons.Pause else AppIcons.Play, if (playing) "Пауза" else "Продолжить", tint = accentContent, modifier = Modifier.size(24.dp))
+                com.flerty.wikiflerty.ui.ActionLabel(if (playing) "Пауза" else "Слушать", accentContent, fontSize = 14.sp, iconSize = 23.dp, icon = if (playing) AppIcons.Pause else AppIcons.Play)
             }
             Row(
                 Modifier.weight(1f).heightIn(min = 54.dp).liveClick(shape, sound = FeedbackSound.Close, onClick = actions.onStop)
@@ -252,7 +252,7 @@ fun TtsOptions(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
             ) {
-                Icon(AppIcons.Stop, "Остановить", tint = AppColors.Text, modifier = Modifier.size(22.dp))
+                com.flerty.wikiflerty.ui.ActionLabel("Стоп", AppColors.Text, fontSize = 14.sp, iconSize = 21.dp, icon = AppIcons.Stop)
             }
         }
     }

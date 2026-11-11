@@ -574,12 +574,7 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
                     .border(1.dp, AppColors.Accent.copy(alpha = 0.33f), shape),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    if (kind == BackgroundKind.Image) "Выбрать другую картинку" else "Выбрать другое видео",
-                    color = AppColors.Accent,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                ActionLabel(if (kind == BackgroundKind.Image) "Выбрать другую картинку" else "Выбрать другое видео", AppColors.Accent, fontSize = 14.sp, iconSize = 20.dp, icon = if (kind == BackgroundKind.Image) AppIcons.Image else AppIcons.Video)
             }
             SettingSlider("Приглушение", style.backgroundDim, 0f..0.9f, ::percent, icon = AppIcons.Moon) { v ->
                 store.update { it.copy(backgroundDim = v) }
@@ -631,7 +626,7 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
             }
             .border(1.dp, Color(0x55F08A8A), resetShape),
         contentAlignment = Alignment.Center,
-    ) { Text("Сбросить оформление", color = AppColors.Bad, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+    ) { ActionLabel("Сбросить оформление", AppColors.Bad, fontSize = 15.sp) }
     }
     }
 }

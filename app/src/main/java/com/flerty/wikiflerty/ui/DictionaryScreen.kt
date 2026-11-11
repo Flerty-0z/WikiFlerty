@@ -243,7 +243,7 @@ private fun DictionaryList(viewModel: LibraryViewModel, entries: List<Dictionary
                                         .liveClick(buttonShape, sound = FeedbackSound.Open) { viewModel.openDictionaryEntry(entry) }
                                         .border(1.dp, AppColors.Accent.copy(alpha = 0.33f), buttonShape),
                                     contentAlignment = Alignment.Center,
-                                ) { Text("Открыть в книге", color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
+                                ) { ActionLabel("Открыть в книге", AppColors.Accent, fontSize = 14.sp, iconSize = 20.dp) }
                             }
                             val deleteShape = appCorner(12)
                             Box(

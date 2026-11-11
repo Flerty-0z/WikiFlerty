@@ -619,7 +619,7 @@ private fun ColorSettings(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(AppIcons.Trash, "Удалить цвет", tint = AppColors.Bad, modifier = Modifier.size(22.dp))
+                    com.flerty.wikiflerty.ui.ActionLabel("Удалить", AppColors.Bad, fontSize = 14.sp, iconSize = 21.dp, icon = AppIcons.Trash)
                 }
             }
             Box(

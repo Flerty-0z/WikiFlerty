@@ -248,6 +248,21 @@ fun SettingIcon(icon: ImageVector, size: androidx.compose.ui.unit.Dp = 32.dp) {
 }
 
 @Composable
+fun HintNote(text: String, icon: ImageVector = AppIcons.Info, modifier: Modifier = Modifier, framed: Boolean = true) {
+    val shape = appCorner(14)
+    Row(
+        modifier
+            .fillMaxWidth()
+            .then(if (framed) Modifier.fieldSurface(shape).padding(horizontal = 12.dp, vertical = 11.dp) else Modifier),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        SettingIcon(icon, 30.dp)
+        Text(text, color = AppColors.Muted, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
 fun ListDivider(modifier: Modifier = Modifier) {
     Box(modifier.fillMaxWidth().height(1.dp).background(AppColors.PanelBorder))
 }
@@ -642,7 +657,7 @@ fun NumberInputSheet(
                     }
                     .border(1.dp, AppColors.Line, shape),
                 contentAlignment = Alignment.Center,
-            ) { Text("Без цели", color = AppColors.Muted, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
+            ) { ActionLabel("Без цели", AppColors.Muted, fontSize = 14.sp, iconSize = 20.dp) }
         }
     }
 }
@@ -766,27 +781,55 @@ fun TextInputSheet(
     }
 }
 
-fun actionIcon(label: String): ImageVector? = when (label) {
-    "Удалить", "Очистить" -> AppIcons.Trash
-    "Сохранить", "Готово", "Добавить", "Применить" -> AppIcons.Check
-    "Отмена", "Не сейчас", "Закрыть" -> AppIcons.Close
-    "Отправить", "Экспорт" -> AppIcons.Send
-    "Импорт", "Установить", "Скачать", "Скачать и установить" -> AppIcons.Download
-    "Повторить" -> AppIcons.Rotate
-    "Позже" -> AppIcons.Clock
-    "Копировать" -> AppIcons.Copy
-    "Поделиться" -> AppIcons.Share
-    else -> null
+fun actionIcon(label: String): ImageVector? {
+    val l = label.trim().lowercase()
+    fun starts(vararg p: String) = p.any { l.startsWith(it) }
+    return when {
+        starts("удалить", "очистить", "стереть") -> AppIcons.Trash
+        starts("сохранить в галерею") -> AppIcons.Image
+        starts("сохранить", "готово", "применить", "отлично", "понятно", "принять") -> AppIcons.Check
+        starts("создать", "добавить", "ещё", "новая", "новый") -> AppIcons.Plus
+        starts("отмена", "не сейчас", "закрыть", "без цели", "пропустить") -> AppIcons.Close
+        starts("отправить", "экспорт", "telegram") -> AppIcons.Send
+        starts("импорт", "установить", "скачать", "rustore", "обновить") -> AppIcons.Download
+        starts("повторить", "сбросить", "пройти", "заново", "вернуть") -> AppIcons.Rotate
+        starts("позже") -> AppIcons.Clock
+        starts("копировать") -> AppIcons.Copy
+        starts("поделиться") -> AppIcons.Share
+        starts("подключить") -> AppIcons.Cloud
+        starts("проверить") -> AppIcons.Search
+        starts("сделать основн") -> AppIcons.StarFilled
+        starts("выбрать папку", "папка") -> AppIcons.Folder
+        starts("выбрать другое видео", "видео") -> AppIcons.Video
+        starts("выбрать", "картинк") -> AppIcons.Image
+        starts("qr") -> AppIcons.Qr
+        starts("показать") -> AppIcons.Eye
+        starts("открыть", "к словарю", "читать") -> AppIcons.Book
+        starts("назад") -> AppIcons.Back
+        starts("далее", "дальше") -> AppIcons.Forward
+        starts("начать", "продолжить", "слушать") -> AppIcons.Play
+        starts("пауза") -> AppIcons.Pause
+        starts("стоп", "остановить") -> AppIcons.Stop
+        starts("оценить") -> AppIcons.Star
+        starts("поддержать") -> AppIcons.Heart
+        starts("в словарь") -> AppIcons.Translate
+        starts("в заметк") -> AppIcons.Note
+        starts("войти") -> AppIcons.Lock
+        else -> null
+    }
 }
 
 @Composable
-fun ActionLabel(text: String, color: Color, fontSize: androidx.compose.ui.unit.TextUnit = 15.sp, weight: FontWeight = FontWeight.SemiBold, iconSize: androidx.compose.ui.unit.Dp = 22.dp) {
-    val icon = actionIcon(text)
+fun ActionLabel(text: String, color: Color, fontSize: androidx.compose.ui.unit.TextUnit = 15.sp, weight: FontWeight = FontWeight.SemiBold, iconSize: androidx.compose.ui.unit.Dp = 22.dp, icon: ImageVector? = actionIcon(text)) {
+    if (text.startsWith("✓ ")) {
+        ActionLabel(text.removePrefix("✓ ").trim(), color, fontSize, weight, iconSize, AppIcons.Check)
+        return
+    }
     if (icon == null) {
         Text(text, color = color, fontSize = fontSize, fontWeight = weight, maxLines = 1)
         return
     }
-    val wide = with(androidx.compose.ui.platform.LocalDensity.current) { 150.dp.roundToPx() }
+    val wide = with(androidx.compose.ui.platform.LocalDensity.current) { 88.dp.roundToPx() }
     androidx.compose.ui.layout.Layout(
         content = {
             Icon(icon, text, tint = color, modifier = Modifier.size(iconSize))
@@ -794,12 +837,21 @@ fun ActionLabel(text: String, color: Color, fontSize: androidx.compose.ui.unit.T
                 Icon(icon, null, tint = color, modifier = Modifier.size(iconSize - 3.dp))
                 Text(text, color = color, fontSize = fontSize, fontWeight = weight, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 8.dp))
             }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, null, tint = color, modifier = Modifier.size(iconSize - 5.dp))
+                Text(text, color = color, fontSize = fontSize * 0.84f, fontWeight = weight, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 6.dp))
+            }
         },
     ) { measurables, constraints ->
         val loose = constraints.copy(minWidth = 0, minHeight = 0)
-        val full = measurables[1].measure(loose.copy(maxWidth = androidx.compose.ui.unit.Constraints.Infinity))
-        val useFull = constraints.hasBoundedWidth && constraints.maxWidth >= wide && full.width <= constraints.maxWidth
-        val chosen = if (useFull) full else measurables[0].measure(loose)
+        val free = loose.copy(maxWidth = androidx.compose.ui.unit.Constraints.Infinity)
+        val roomy = constraints.hasBoundedWidth && constraints.maxWidth >= wide
+        val full = measurables[1].measure(free)
+        val chosen = when {
+            roomy && full.width <= constraints.maxWidth -> full
+            roomy -> measurables[2].measure(free).takeIf { it.width <= constraints.maxWidth } ?: measurables[0].measure(loose)
+            else -> measurables[0].measure(loose)
+        }
         val w = chosen.width.coerceIn(constraints.minWidth, constraints.maxWidth.coerceAtLeast(constraints.minWidth))
         val h = chosen.height.coerceIn(constraints.minHeight, constraints.maxHeight.coerceAtLeast(constraints.minHeight))
         layout(w, h) { chosen.place((w - chosen.width) / 2, (h - chosen.height) / 2) }

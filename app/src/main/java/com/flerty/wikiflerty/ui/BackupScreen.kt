@@ -75,13 +75,7 @@ fun BackupContent() {
         }
     }
 
-    Text(
-        "Всё в одном файле: прогресс, заметки, закладки, словарь, статистика и настройки.",
-        color = AppColors.Muted,
-        fontSize = 13.sp,
-        lineHeight = 19.sp,
-        modifier = Modifier.padding(horizontal = 4.dp),
-    )
+    HintNote("Всё в одном файле: прогресс, заметки, закладки, словарь, статистика и настройки.", AppIcons.Backup)
 
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         BackupButton("Экспорт", "Сохранить файл", Modifier.weight(1f), enabled = busy == null, filled = true) {

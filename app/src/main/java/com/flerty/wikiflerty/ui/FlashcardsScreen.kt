@@ -360,7 +360,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.StudyBody(
                     .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f) { onFlip(current.id) }
                     .accentHighlight(shape),
                 contentAlignment = Alignment.Center,
-            ) { Text("Показать ответ", color = accentContent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
+            ) { ActionLabel("Показать ответ", accentContent, fontSize = 16.sp) }
         } else {
             Row(Modifier.fillMaxWidth().padding(bottom = 40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GradeButton("Снова", Srs.label(current.srs, Grade.Again, now), AppColors.Bad, Modifier.weight(1f)) { onAnswer(current, Grade.Again) }
@@ -613,7 +613,7 @@ private fun FinishedView(
                     .liveClick(shape, sound = FeedbackSound.Open, onClick = onMoreNew)
                     .border(1.dp, AppColors.Accent.copy(alpha = 0.4f), shape),
                 contentAlignment = Alignment.Center,
-            ) { Text("Ещё 10 новых слов", color = AppColors.Accent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+            ) { ActionLabel("Ещё 10 новых слов", AppColors.Accent, fontSize = 15.sp) }
         }
         val shape = appCorner(16)
         Box(
@@ -621,7 +621,7 @@ private fun FinishedView(
                 .liveClick(shape, sound = FeedbackSound.Close, onClick = onClose)
                 .accentHighlight(shape),
             contentAlignment = Alignment.Center,
-        ) { Text("К словарю", color = accentContent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
+        ) { ActionLabel("К словарю", accentContent, fontSize = 16.sp) }
     }
 }
 
@@ -712,12 +712,6 @@ fun FlashcardSettingsSheet(onDismiss: () -> Unit) {
                 app.flashcards.update { it.copy(autoSpeak = v) }
             }
         }
-        Text(
-            "«Снова» — слово вернётся через минуту. «Хорошо» — через всё более длинные промежутки: день, неделя, месяц. Так слова запоминаются надолго.",
-            color = AppColors.Faint,
-            fontSize = 12.sp,
-            lineHeight = 17.sp,
-            modifier = Modifier.padding(horizontal = 4.dp),
-        )
+        HintNote("«Снова» — слово вернётся через минуту. «Хорошо» — через всё более длинные промежутки: день, неделя, месяц. Так слова запоминаются надолго.", AppIcons.Clock)
     }
 }

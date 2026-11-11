@@ -136,12 +136,7 @@ fun FolderScanSheet(onDismiss: () -> Unit, onImport: (List<Uri>) -> Unit) {
         val close = sheetClose(onDismiss)
         when (val s = stage) {
             ScanStage.Pick -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    "Выбери папку — например, «Download» или «Books». Найдём EPUB, FB2, TXT и PDF во всех вложенных папках.",
-                    color = AppColors.Muted,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
-                )
+                HintNote("Выбери папку — например, «Download» или «Books». Найдём EPUB, FB2, TXT и PDF во всех вложенных папках.", AppIcons.FolderSearch)
                 AppButton("Выбрать папку", primary = true, modifier = Modifier.fillMaxWidth()) { launcher.launch(null) }
             }
             ScanStage.Scanning -> Row(
