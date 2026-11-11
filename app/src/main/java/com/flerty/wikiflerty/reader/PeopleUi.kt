@@ -104,7 +104,10 @@ internal fun PeopleList(people: List<BookCharacter>, focus: String?, onAdd: () -
                     .padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
-            ) { ActionLabel("Добавить", accentContent) }
+            ) {
+                Icon(AppIcons.Plus, null, tint = accentContent, modifier = Modifier.size(20.dp))
+                Text("Добавить персонажа", color = accentContent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(start = 10.dp))
+            }
         }
         if (people.isEmpty()) {
             item(key = "empty") {

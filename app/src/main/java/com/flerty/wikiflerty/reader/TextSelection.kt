@@ -221,6 +221,7 @@ internal object TextSelection {
             });
             applied = true;
             relayout();
+            if (window.__wfPeople && window.__wfPeopleLast) window.__wfPeople(window.__wfPeopleLast);
           }
           function remove() {
             var list = document.querySelectorAll("b.wf-bio");
@@ -229,6 +230,7 @@ internal object TextSelection {
             if (document.body) document.body.normalize();
             applied = false;
             relayout();
+            if (window.__wfPeople && window.__wfPeopleLast) window.__wfPeople(window.__wfPeopleLast);
           }
           window.__wfBionic = function (on) { if (on) apply(); else remove(); };
         })();
@@ -302,12 +304,14 @@ internal object TextSelection {
           var hits = [];
           var word = /(^|[^\p{L}\p{N}])(\p{Lu}[\p{L}]*)/gu;
           window.__wfPeople = function (list) {
+            window.__wfPeopleLast = list;
             hits = [];
             var hl = window.CSS && CSS.highlights && window.Highlight;
             if (hl) CSS.highlights.delete("wf-hero");
             if (!document.body || !list || !list.length) return;
             var map = {};
             list.forEach(function (k) { var o = map[k[0]]; if (!o || o.s < k[1]) map[k[0]] = { s: k[1], id: k[2] }; });
+            var BLOCK = "p,div,li,h1,h2,h3,h4,h5,h6,blockquote,td,th,dd,dt,section,article,figcaption,body";
             var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
               acceptNode: function (n) {
                 var p = n.parentNode;
@@ -315,10 +319,16 @@ internal object TextSelection {
                 return NodeFilter.FILTER_ACCEPT;
               }
             });
-            var n;
-            while ((n = walker.nextNode())) {
-              var text = n.nodeValue;
-              if (!text || text.length < 2) continue;
+            function locate(run, pos) {
+              for (var i = run.parts.length - 1; i >= 0; i--) {
+                var part = run.parts[i];
+                if (pos >= part.at) return { node: part.node, off: Math.min(pos - part.at, part.node.nodeValue.length) };
+              }
+              return null;
+            }
+            function scan(run) {
+              var text = run.text;
+              if (!text || text.length < 2) return;
               word.lastIndex = 0;
               var m;
               while ((m = word.exec(text))) {
@@ -328,15 +338,31 @@ internal object TextSelection {
                 for (var k = low.length; k >= Math.max(2, low.length - 3); k--) {
                   var hit = map[low.slice(0, k)];
                   if (hit && low.length - k <= hit.s) {
-                    var r = document.createRange();
-                    r.setStart(n, start);
-                    r.setEnd(n, start + w.length);
-                    hits.push({ r: r, id: hit.id });
+                    var a = locate(run, start), b = locate(run, start + w.length);
+                    if (a && b) {
+                      try {
+                        var r = document.createRange();
+                        r.setStart(a.node, a.off);
+                        r.setEnd(b.node, b.off);
+                        hits.push({ r: r, id: hit.id });
+                      } catch (x) {}
+                    }
                     break;
                   }
                 }
               }
             }
+            var run = null, n;
+            while ((n = walker.nextNode())) {
+              var block = n.parentNode.closest ? n.parentNode.closest(BLOCK) : null;
+              if (!run || run.block !== block) {
+                if (run) scan(run);
+                run = { block: block, text: "", parts: [] };
+              }
+              run.parts.push({ node: n, at: run.text.length });
+              run.text += n.nodeValue || "";
+            }
+            if (run) scan(run);
             if (!hl || !hits.length) return;
             var st = document.getElementById("wf-hero-style");
             if (!st) {
@@ -356,8 +382,7 @@ internal object TextSelection {
             if (!c) return;
             for (var i = 0; i < hits.length; i++) {
               var r = hits[i].r;
-              if (r.startContainer !== c.startContainer) continue;
-              if (c.startOffset < r.startOffset || c.startOffset > r.endOffset) continue;
+              try { if (r.comparePoint(c.startContainer, c.startOffset) !== 0) continue; } catch (x) { continue; }
               var rects = r.getClientRects();
               var inside = false;
               for (var j = 0; j < rects.length; j++) {

@@ -99,6 +99,20 @@ object CoverSearch {
         }
     }
 
+    private fun words(s: String) = s.lowercase().replace('ё', 'е').split(Regex("[^\\p{L}\\p{N}]+")).filter { it.length >= 3 }
+
+    private fun related(candidate: String, title: String): Boolean {
+        val want = words(title).toSet()
+        if (want.isEmpty()) return true
+        val have = words(candidate)
+        return have.any { h -> want.any { w -> h.startsWith(w.take(5)) || w.startsWith(h.take(5)) } }
+    }
+
+    private val personText = Regex(
+        "(\\(род\\.|\\(\\d{1,2} [а-яё]+ \\d{4}|родил(ся|ась)|\\(born|\\bborn\\b|(is|was) an? [a-z ]*(writer|author|novelist|poet|actor|actress|politician))",
+        RegexOption.IGNORE_CASE,
+    )
+
     private fun wikipedia(lang: String, title: String, author: String): List<Candidate> {
         val q = (title.trim() + " " + lastName(author)).trim()
         val url = "https://$lang.wikipedia.org/w/api.php?action=query&format=json&formatversion=2&generator=search&gsrlimit=6" +
@@ -110,8 +124,40 @@ object CoverSearch {
             .mapNotNull { p ->
                 val image = p.optJSONObject("thumbnail")?.optString("source")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
                 if (image.endsWith(".svg.png", true)) return@mapNotNull null
-                Candidate(image, p.optString("title"), "", p.optString("extract").trim().takeIf { it.length > 40 })
+                val name = p.optString("title")
+                val extract = p.optString("extract").trim()
+                if (!related(name, title)) return@mapNotNull null
+                if (personText.containsMatchIn(extract.take(260))) return@mapNotNull null
+                val file = image.substringAfterLast('/').lowercase()
+                if (Regex("(portrait|photo|_\\d{4}\\.|signature|logo|coat|герб|flag)").containsMatchIn(file)) return@mapNotNull null
+                Candidate(image, name, "", extract.takeIf { it.length > 40 })
             }
+    }
+
+    private fun litres(title: String, author: String): List<Candidate> {
+        val q = (title.trim() + " " + lastName(author)).trim()
+        val body = get("https://api.litres.ru/foundation/api/search?q=" + enc(q) + "&limit=24&types=text_book&types=audiobook")
+        val root = JSONObject(body)
+        val data = root.optJSONObject("payload")?.optJSONArray("data") ?: root.optJSONArray("data") ?: return emptyList()
+        return (0 until data.length()).mapNotNull { i ->
+            val e = data.optJSONObject(i) ?: return@mapNotNull null
+            val o = e.optJSONObject("instance") ?: e
+            val raw = o.optString("cover_url").ifBlank { o.optString("cover") }.ifBlank { return@mapNotNull null }
+            val image = when {
+                raw.startsWith("//") -> "https:$raw"
+                raw.startsWith("/") -> "https://cdn.litres.ru$raw"
+                else -> raw.replace("http://", "https://")
+            }
+            val name = o.optString("title")
+            if (!related(name, title)) return@mapNotNull null
+            val persons = o.optJSONArray("persons")?.let { a ->
+                (0 until a.length()).mapNotNull { k -> a.optJSONObject(k) }
+                    .filter { it.optString("role", "author") == "author" }
+                    .joinToString(", ") { it.optString("full_name") }
+            }.orEmpty()
+            val about = o.optString("annotation").ifBlank { o.optString("html_annotation") }.takeIf { it.isNotBlank() }?.let(::stripHtml)
+            Candidate(image, name, persons, about)
+        }
     }
 
     private fun stripHtml(s: String) = android.text.Html.fromHtml(s, android.text.Html.FROM_HTML_MODE_COMPACT).toString().trim()
@@ -119,19 +165,26 @@ object CoverSearch {
     suspend fun find(title: String, author: String): Outcome = coroutineScope {
         val last = lastName(author)
         val cyr = Regex("[а-яё]", RegexOption.IGNORE_CASE).containsMatchIn(title)
-        val jobs = listOf(
+        val main = listOf(
+            async(Dispatchers.IO) { runCatching { litres(title, author) } },
             async(Dispatchers.IO) { runCatching { google("intitle:" + title.trim() + if (last.isNotBlank()) " inauthor:$last" else "") } },
-            async(Dispatchers.IO) { runCatching { google((title.trim() + " " + author.trim()).trim()) } },
-            async(Dispatchers.IO) { runCatching { wikipedia(if (cyr) "ru" else "en", title, author) } },
+            async(Dispatchers.IO) { runCatching { google((title.trim() + " " + author.trim()).trim()).filter { related(it.title, title) } } },
             async(Dispatchers.IO) { runCatching { openLibrary(title, author) } },
+            async(Dispatchers.IO) { runCatching { if (last.isNotBlank()) openLibrary(title, "") else emptyList() } },
+        )
+        val extra = listOf(
+            async(Dispatchers.IO) { runCatching { wikipedia(if (cyr) "ru" else "en", title, author) } },
             async(Dispatchers.IO) { runCatching { if (cyr) wikipedia("en", title, author) else emptyList() } },
         )
-        val results = jobs.awaitAll()
-        val lists = results.map { it.getOrDefault(emptyList()) }
-        val offline = results.all { it.isFailure || it.getOrNull().isNullOrEmpty() } && results.count { it.isFailure } >= 3
+        val first = main.awaitAll()
+        val second = extra.awaitAll()
+        val results = first + second
+        val offline = results.all { it.isFailure || it.getOrNull().isNullOrEmpty() } && results.count { it.isFailure } >= 4
         val merged = mutableListOf<Candidate>()
+        val lists = first.map { it.getOrDefault(emptyList()) }
         val max = lists.maxOf { it.size }
         for (i in 0 until max) lists.forEach { l -> l.getOrNull(i)?.let(merged::add) }
+        second.forEach { r -> merged += r.getOrDefault(emptyList()) }
         Outcome(merged.distinctBy { it.image.substringBefore("&fife") }.take(24), offline)
     }
 

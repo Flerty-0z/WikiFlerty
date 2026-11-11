@@ -755,20 +755,23 @@ fun ShelfDialogView(dialog: ShelfDialog, shelves: List<String>, onDismiss: () ->
                 if (books.isEmpty()) Text("Сначала добавь книги", color = AppColors.Faint, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
             }
         }
-        AppButton(if (dialog is ShelfDialog.Create) "Создать полку" else "Сохранить", primary = true, modifier = Modifier.fillMaxWidth()) {
+        AppButton(if (dialog is ShelfDialog.Create) "Создать полку" else "Применить", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true) {
             if (ready) {
                 save()
                 close()
             }
         }
         if (dialog is ShelfDialog.Edit) {
-            Text(
-                "Удалить полку",
-                color = Danger,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.align(Alignment.CenterHorizontally).liveClick(appCorner(8), sound = FeedbackSound.Close) { confirmDelete = true }.padding(horizontal = 12.dp, vertical = 8.dp),
-            )
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .liveClick(appCorner(12), sound = FeedbackSound.Close) { confirmDelete = true }
+                    .border(1.dp, Danger.copy(alpha = 0.45f), appCorner(12)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("Удалить полку", color = Danger, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            }
         }
     }
     if (confirmDelete) {

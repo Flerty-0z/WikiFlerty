@@ -814,6 +814,7 @@ private fun progressText(state: ReaderUiState, settings: ReaderSettings): String
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun ProgressFlag(info: FlagInfo, settings: ReaderSettings, onClick: (() -> Unit)?, modifier: Modifier) {
     val k = settings.flagSize.toFloat().coerceIn(0.8f, 1.4f)
@@ -879,8 +880,14 @@ internal fun ProgressFlag(info: FlagInfo, settings: ReaderSettings, onClick: (()
                 color = AppColors.Muted,
                 style = style,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
+                softWrap = false,
+                modifier = Modifier.weight(1f, fill = false).basicMarquee(
+                    iterations = Int.MAX_VALUE,
+                    repeatDelayMillis = 1800,
+                    initialDelayMillis = 1800,
+                    spacing = MarqueeSpacing(28.dp),
+                    velocity = 22.dp,
+                ),
             )
         }
         items.forEachIndexed { i, text ->

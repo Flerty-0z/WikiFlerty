@@ -168,7 +168,11 @@ fun BookcaseView(
         val drag = remember { ShelfDrag() }
         val move by androidx.compose.runtime.rememberUpdatedState(onMove)
         drag.enabled = onMove != null && planks.size > 1
-        drag.onDrop = { book, from, to -> move?.invoke(book, from, to) }
+        val feedback = LocalFeedback.current
+        drag.onDrop = { book, from, to ->
+            feedback?.play(FeedbackSound.Success)
+            move?.invoke(book, from, to)
+        }
         androidx.compose.runtime.LaunchedEffect(drag, listState) {
             while (true) {
                 androidx.compose.runtime.withFrameMillis { }
@@ -190,7 +194,33 @@ fun BookcaseView(
         val shelfState = if (live) rememberShelfState() else LocalShelfState.current
         val kitMoment = if (live) rememberKitMoment() else null
         androidx.compose.runtime.CompositionLocalProvider(LocalShelfSeen provides seen, LocalShelfState provides shelfState, LocalKitMoment provides kitMoment, LocalShelfDrag provides drag) {
-            Box(Modifier.fillMaxSize().onGloballyPositioned { drag.root = it }) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .onGloballyPositioned { drag.root = it }
+                    .pointerInput(drag) {
+                        awaitPointerEventScope {
+                            var id: androidx.compose.ui.input.pointer.PointerId? = null
+                            while (true) {
+                                val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                                if (drag.phase != 1) {
+                                    id = null
+                                    continue
+                                }
+                                val change = id?.let { i -> event.changes.firstOrNull { it.id == i } }
+                                    ?: event.changes.firstOrNull { it.pressed || it.previousPressed }
+                                    ?: continue
+                                id = change.id
+                                val r = drag.root
+                                if (r != null && r.isAttached) drag.pointer = r.localToWindow(change.position)
+                                if (!change.pressed) {
+                                    drag.finish()
+                                    id = null
+                                }
+                            }
+                        }
+                    },
+            ) {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
@@ -240,6 +270,17 @@ private class ShelfDrag {
         return if (dist < 60f) best else null
     }
 
+    fun finish() {
+        val b = book ?: return
+        if (phase != 1) return
+        val target = target()
+        val moved = target != null && target != from
+        landPlank = if (moved) target!! else from
+        dest = null
+        phase = 2
+        if (moved) onDrop(b, from, target!!)
+    }
+
     fun hidden(id: String, plank: String): Boolean = book?.id == id && when (phase) {
         1 -> plank == from
         2 -> plank == landPlank
@@ -275,10 +316,19 @@ private fun DragGhost(drag: ShelfDrag) {
             if (dest != null && r != null && r.isAttached) {
                 val local = r.windowToLocal(dest)
                 kotlinx.coroutines.coroutineScope {
-                    launch { pos.animateTo(local, androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 260f)) }
+                    launch {
+                        pos.animateTo(local, androidx.compose.animation.core.spring(dampingRatio = 0.86f, stiffness = 260f))
+                        var last = local
+                        while (true) {
+                            val now = drag.dest?.let { d -> drag.root?.takeIf { it.isAttached }?.windowToLocal(d) } ?: break
+                            if ((now - last).getDistance() < 0.5f) break
+                            last = now
+                            pos.animateTo(now, androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 900f))
+                        }
+                    }
                     launch { lift.animateTo(0f, Motion.tween(340, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
                 }
-                fade.animateTo(0f, Motion.tween(140))
+                androidx.compose.runtime.withFrameNanos { }
             } else {
                 kotlinx.coroutines.coroutineScope {
                     launch { lift.animateTo(0f, Motion.tween(220)) }
@@ -318,12 +368,23 @@ private fun Modifier.shelfDraggable(book: Book, plank: String): Modifier {
     val feedback = LocalFeedback.current
     var coords by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
     val hidden = drag.hidden(book.id, plank)
-    val dim by androidx.compose.animation.core.animateFloatAsState(
-        if (hidden) (if (drag.phase == 1) 0.22f else 0f) else 1f,
-        if (hidden) Motion.tween(160) else Motion.tween(220),
-        label = "drag-dim",
-    )
     val landing = drag.phase == 2 && drag.book?.id == book.id && drag.landPlank == plank
+    val target = if (hidden) (if (drag.phase == 1) 0.22f else 0f) else 1f
+    val dimAnim = remember(book.id, plank) { androidx.compose.animation.core.Animatable(target) }
+    val wasLanding = remember(book.id, plank) { booleanArrayOf(false) }
+    if (landing) wasLanding[0] = true
+    val instant = !hidden && wasLanding[0]
+    androidx.compose.runtime.LaunchedEffect(target, landing) {
+        when {
+            landing -> dimAnim.snapTo(0f)
+            instant -> {
+                dimAnim.snapTo(1f)
+                wasLanding[0] = false
+            }
+            else -> dimAnim.animateTo(target, Motion.tween(if (hidden) 160 else 220))
+        }
+    }
+    val dim = if (instant) 1f else dimAnim.value
     return this
         .onGloballyPositioned { c ->
             coords = c
@@ -344,30 +405,9 @@ private fun Modifier.shelfDraggable(book: Book, plank: String): Modifier {
                     haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                     feedback?.play(FeedbackSound.Toggle)
                 },
-                onDragEnd = {
-                    val b = drag.book
-                    if (b == null || drag.phase != 1) return@detectDragGesturesAfterLongPress
-                    val target = drag.target()
-                    val moved = target != null && target != drag.from
-                    drag.landPlank = if (moved) target!! else drag.from
-                    drag.dest = null
-                    drag.phase = 2
-                    if (moved) {
-                        feedback?.play(FeedbackSound.Success)
-                        drag.onDrop(b, drag.from, target!!)
-                    }
-                },
-                onDragCancel = {
-                    if (drag.phase == 1) {
-                        drag.landPlank = drag.from
-                        drag.dest = null
-                        drag.phase = 2
-                    }
-                },
-            ) { change, amount ->
-                change.consume()
-                drag.pointer = (drag.pointer ?: Offset.Zero) + amount
-            }
+                onDragEnd = { drag.finish() },
+                onDragCancel = { if (coords?.isAttached == true) drag.finish() },
+            ) { change, _ -> change.consume() }
         }
 }
 
@@ -456,7 +496,7 @@ private fun Shelf(row: PlankRow, index: Int, onBook: (Book) -> Unit) {
                 itemsIndexed(row.units, key = { _, u -> u.key }) { i, unit ->
                     Box(
                         Modifier.animateItem(
-                            fadeInSpec = Motion.tween(260),
+                            fadeInSpec = null,
                             placementSpec = androidx.compose.animation.core.spring(dampingRatio = 0.82f, stiffness = 380f, visibilityThreshold = androidx.compose.ui.unit.IntOffset.VisibilityThreshold),
                             fadeOutSpec = Motion.tween(180),
                         ),

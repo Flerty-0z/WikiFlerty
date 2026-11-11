@@ -219,7 +219,7 @@ fun UpdatePanel(app: App, modifier: Modifier = Modifier, onLater: (() -> Unit)? 
 }
 
 @Composable
-fun AppButton(text: String, primary: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun AppButton(text: String, primary: Boolean, modifier: Modifier = Modifier, labeled: Boolean = false, onClick: () -> Unit) {
     val shape = appCorner(12)
     Box(
         modifier
@@ -233,8 +233,14 @@ fun AppButton(text: String, primary: Boolean, modifier: Modifier = Modifier, onC
         contentAlignment = Alignment.Center,
     ) {
         val icon = actionIcon(text)
-        if (icon != null) {
-            Icon(icon, text, tint = if (primary) AppColors.OnAccent else AppColors.Accent, modifier = Modifier.size(21.dp))
+        val tint = if (primary) AppColors.OnAccent else AppColors.Accent
+        if (labeled) {
+            androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                if (icon != null) Icon(icon, null, tint = tint, modifier = Modifier.size(19.dp))
+                FitText(text, tint, 14.sp, weight = FontWeight.SemiBold)
+            }
+        } else if (icon != null) {
+            Icon(icon, text, tint = tint, modifier = Modifier.size(21.dp))
         } else {
             FitText(text, if (primary) AppColors.OnAccent else AppColors.Accent, 14.sp, weight = FontWeight.SemiBold)
         }

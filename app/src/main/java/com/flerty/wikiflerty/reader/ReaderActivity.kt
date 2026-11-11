@@ -1257,6 +1257,11 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 ui.footnote = null
                 return true
             }
+            if (ui.person != null) {
+                ui.person = null
+                app.feedback.play(FeedbackSound.Close)
+                return true
+            }
             if (ui.selection != null) {
                 endSelection()
                 return true
@@ -1318,7 +1323,19 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         preRasterPages()
                         if (!revealed) {
                             revealed = true
-                            revealPages()
+                            lifecycleScope.launch {
+                                if (::navigator.isInitialized) {
+                                    kotlinx.coroutines.withTimeoutOrNull(900) {
+                                        runCatching { navigator.evaluateJavascript(selectionScript) }
+                                        runCatching { navigator.evaluateJavascript("window.__wfBionic && window.__wfBionic(${settings.bionic})") }
+                                        runCatching { navigator.evaluateJavascript(kitCall()) }
+                                        runCatching { navigator.evaluateJavascript(TextSelection.peopleCall(peopleNow)) }
+                                        delay(160)
+                                        runCatching { navigator.evaluateJavascript("1") }
+                                    }
+                                }
+                                revealPages()
+                            }
                         }
                     }
                 },
@@ -1375,7 +1392,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     revealed = true
                     revealPages()
                 }
-            }, 1500)
+            }, 2500)
         } else {
             revealed = true
         }
