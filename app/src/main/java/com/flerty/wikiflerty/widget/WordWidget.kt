@@ -6,25 +6,21 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.RectF
+import android.text.Layout
+import android.view.View
 import android.widget.RemoteViews
 import com.flerty.wikiflerty.App
 import com.flerty.wikiflerty.R
 import com.flerty.wikiflerty.data.DictionaryEntry
-import java.time.LocalDate
+import com.flerty.wikiflerty.data.Grade
+import com.flerty.wikiflerty.data.Srs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class WordWidget : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
-        val pending = goAsync()
-        val app = context.applicationContext as App
-        app.appScope.launch(Dispatchers.IO) {
-            try {
-                refreshAll(context)
-            } finally {
-                pending.finish()
-            }
-        }
+        later(context) { refreshAll(context) }
     }
 
     override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: android.os.Bundle) {
@@ -32,37 +28,26 @@ class WordWidget : AppWidgetProvider() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         when (intent.action) {
             ACTION_FLIP -> {
-                val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
-                if (id != AppWidgetManager.INVALID_APPWIDGET_ID) {
-                    val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                    val key = KEY_FLIP + id
-                    val entryId = pick(context)?.id.orEmpty()
-                    if (prefs.getString(key, null) == entryId) prefs.edit().remove(key).apply() else prefs.edit().putString(key, entryId).apply()
-                    val pending = goAsync()
-                    val app = context.applicationContext as App
-                    app.appScope.launch(Dispatchers.IO) {
-                        try {
-                            refreshAll(context)
-                        } finally {
-                            pending.finish()
-                        }
-                    }
-                }
+                prefs.edit().putBoolean(KEY_SHOWN, !prefs.getBoolean(KEY_SHOWN, false)).apply()
+                later(context) { refreshAll(context) }
                 return
             }
-            ACTION_NEXT -> {
-                val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                prefs.edit().putInt(KEY_OFFSET, prefs.getInt(KEY_OFFSET, 0) + 1).apply()
-                val pending = goAsync()
-                val app = context.applicationContext as App
-                app.appScope.launch(Dispatchers.IO) {
-                    try {
-                        refreshAll(context)
-                    } finally {
-                        pending.finish()
+            ACTION_YES, ACTION_NO -> {
+                val id = intent.getStringExtra(EXTRA_ENTRY).orEmpty()
+                val remembered = intent.action == ACTION_YES
+                later(context) {
+                    val app = context.applicationContext as App
+                    val entry = app.dictionary.entries.value.firstOrNull { it.id == id }
+                    if (entry != null) {
+                        val before = entry.srs
+                        app.dictionary.saveReview(entry.id, Srs.next(before, if (remembered) Grade.Good else Grade.Again))
+                        runCatching { app.flashcards.recordAnswer(remembered, wasNew = before.isNew) }
                     }
+                    prefs.edit().putBoolean(KEY_SHOWN, false).putString(KEY_LAST, id).apply()
+                    refreshAll(context)
                 }
                 return
             }
@@ -70,12 +55,33 @@ class WordWidget : AppWidgetProvider() {
         super.onReceive(context, intent)
     }
 
+    private fun later(context: Context, block: suspend () -> Unit) {
+        val pending = goAsync()
+        val app = context.applicationContext as App
+        app.appScope.launch(Dispatchers.IO) {
+            try {
+                block()
+            } finally {
+                pending.finish()
+            }
+        }
+    }
+
     companion object {
         const val ACTION_FLIP = "com.flerty.wikiflerty.WORD_FLIP"
-        const val ACTION_NEXT = "com.flerty.wikiflerty.WORD_NEXT"
+        const val ACTION_YES = "com.flerty.wikiflerty.WORD_YES"
+        const val ACTION_NO = "com.flerty.wikiflerty.WORD_NO"
+        private const val EXTRA_ENTRY = "entry"
         private const val PREFS = "word_widget"
-        private const val KEY_OFFSET = "offset"
-        private const val KEY_FLIP = "flip_"
+        private const val KEY_SHOWN = "shown"
+        private const val KEY_LAST = "last"
+
+        private val stopWords = setOf(
+            "это", "и", "в", "на", "не", "что", "как", "он", "она", "они", "мы", "вы", "я", "ты", "но", "да", "же", "бы",
+            "ли", "то", "так", "уже", "ещё", "еще", "вот", "там", "тут", "был", "была", "было", "были", "есть", "его", "её",
+            "ее", "их", "мне", "меня", "тебя", "себя", "для", "при", "про", "под", "над", "из", "за", "от", "до", "по", "со",
+            "the", "a", "an", "and", "or", "of", "to", "in", "is", "it",
+        )
 
         fun refreshSoon(app: App) {
             app.appScope.launch(Dispatchers.IO) { runCatching { refreshAll(app) } }
@@ -87,70 +93,90 @@ class WordWidget : AppWidgetProvider() {
             if (ids.isEmpty()) return
             val entry = pick(context)
             val skin = WidgetSkin.current(context)
+            val art = WidgetArt(context, skin)
+            val shown = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_SHOWN, false)
             ids.forEach { id ->
-                val (w, h) = WidgetSkin.size(manager, id, 180, 120)
-                manager.updateAppWidget(id, build(context, id, entry, skin, w, h))
+                val (w, h) = WidgetSkin.size(manager, id, 280, 150)
+                manager.updateAppWidget(id, build(context, art, skin, entry, shown, w, h))
             }
+        }
+
+        private fun usable(e: DictionaryEntry): Boolean {
+            val w = e.word.trim().lowercase()
+            return w.length >= 3 && w !in stopWords && e.definition.isNotBlank()
         }
 
         private fun pick(context: Context): DictionaryEntry? {
             val app = context.applicationContext as App
-            val entries = app.dictionary.entries.value.filter { it.word.isNotBlank() && it.definition.isNotBlank() }.sortedBy { it.createdAt }
-            if (entries.isEmpty()) return null
-            val offset = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_OFFSET, 0)
-            val index = ((LocalDate.now().toEpochDay() * 7 + offset) % entries.size).toInt().let { if (it < 0) it + entries.size else it }
-            return entries[index]
+            val all = app.dictionary.entries.value.filter(::usable)
+            if (all.isEmpty()) return null
+            val now = System.currentTimeMillis()
+            val last = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_LAST, null)
+            val due = all.filter { it.srs.due <= now }.sortedWith(compareBy<DictionaryEntry> { it.srs.isNew }.thenBy { it.srs.due })
+            return due.firstOrNull { it.id != last } ?: due.firstOrNull() ?: all.minByOrNull { it.srs.due }
         }
 
-        private fun clean(markdown: String): String =
-            markdown.replace(Regex("\\*\\*(.+?)\\*\\*"), "$1").replace(Regex("\\*(.+?)\\*"), "$1").replace(Regex("\\n{2,}"), "\\n").trim()
+        fun meaning(definition: String): String {
+            val plain = definition
+                .replace(Regex("\\*\\*(.+?)\\*\\*"), "$1")
+                .replace(Regex("\\*(.+?)\\*"), "$1")
+                .replace(Regex("(?m)^\\s*#+\\s*"), "")
+                .lines().map { it.trim() }.filter { it.isNotBlank() }
+            val first = plain.firstOrNull { line -> line.length > 8 } ?: plain.firstOrNull().orEmpty()
+            var text = first.replace(Regex("^(\\d+[.)]|[-•—])\\s*"), "").trim()
+            val stop = Regex("[.;](\\s|$)").find(text, 20)
+            if (stop != null) text = text.substring(0, stop.range.first)
+            return text.trim().trimEnd(',', ':').replaceFirstChar { it.uppercase() }
+        }
 
-        private fun build(context: Context, id: Int, entry: DictionaryEntry?, skin: WidgetSkin, wDp: Int, hDp: Int): RemoteViews {
+        private fun build(context: Context, art: WidgetArt, skin: WidgetSkin, entry: DictionaryEntry?, shown: Boolean, wDp: Int, hDp: Int): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_word)
-            skin.card(wDp, hDp)?.let {
-                views.setImageViewBitmap(R.id.word_bg, it)
-                views.setInt(R.id.word_root, "setBackgroundColor", 0)
-            }
-            skin.tint(views, R.id.word_label, skin.accent)
-            skin.tint(views, R.id.word_text, skin.text)
-            skin.tint(views, R.id.word_hint, skin.faint)
-            skin.tint(views, R.id.word_back_title, skin.accent)
-            skin.tint(views, R.id.word_definition, skin.text)
-            skin.tint(views, R.id.word_source, skin.faint)
-            skin.icon(views, R.id.word_next, skin.muted)
-            val flipped = entry != null && context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_FLIP + id, null) == entry.id
-            views.setDisplayedChild(R.id.word_flipper, if (flipped) 1 else 0)
-
-            val flip = Intent(context, WordWidget::class.java).setAction(ACTION_FLIP).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
-            val flipPending = PendingIntent.getBroadcast(context, 500 + id, flip, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            views.setOnClickPendingIntent(R.id.word_flipper, flipPending)
-            views.setOnClickPendingIntent(R.id.word_root, flipPending)
-            val next = Intent(context, WordWidget::class.java).setAction(ACTION_NEXT)
-            views.setOnClickPendingIntent(R.id.word_next, PendingIntent.getBroadcast(context, 499, next, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+            val c = art.base(wDp, hDp)
+            val d = skin.density
+            val pad = 18 * d
+            art.label(c, "Повтори слово", pad, pad + 4 * d)
+            val top = pad + art.labelHeight() + 14 * d
+            val textW = c.w - pad * 2
+            val buttonsH = 40 * d
+            val flip = PendingIntent.getBroadcast(context, 500, Intent(context, WordWidget::class.java).setAction(ACTION_FLIP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            views.setOnClickPendingIntent(R.id.word_root, flip)
 
             if (entry == null) {
-                views.setTextViewText(R.id.word_text, "Словарь пуст")
-                views.setTextViewText(R.id.word_hint, "Выдели слово в книге → «Словарь»")
-                views.setTextViewText(R.id.word_back_title, "")
-                views.setTextViewText(R.id.word_definition, "Слова, которые ты добавишь, будут появляться здесь каждый день.")
-                views.setTextViewText(R.id.word_source, "")
+                val t = art.fit("Выдели незнакомое слово в книге и нажми «Словарь» — оно будет появляться здесь для повторения", art.serifFace, skin.text, textW, c.h - top - pad, 16f, 12.5f)
+                art.draw(c, t, pad, top)
+                views.setViewVisibility(R.id.word_buttons, View.GONE)
+                views.setImageViewBitmap(R.id.word_art, c.bitmap)
                 return views
             }
-            views.setTextViewText(R.id.word_text, entry.word)
-            val room = (wDp - 36).coerceAtLeast(60)
-            val fit = room / (entry.word.length.coerceAtLeast(3) * 0.62f)
-            val maxSize = if (hDp >= 150) 34f else 28f
-            views.setTextViewTextSize(R.id.word_text, android.util.TypedValue.COMPLEX_UNIT_SP, fit.coerceIn(13f, maxSize))
-            val definition = clean(entry.definition)
-            val preview = definition.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty()
-            val roomy = hDp >= 130 || wDp >= 250
-            views.setViewVisibility(R.id.word_preview, if (roomy && preview.isNotBlank()) android.view.View.VISIBLE else android.view.View.GONE)
-            views.setTextViewText(R.id.word_preview, preview)
-            skin.tint(views, R.id.word_preview, skin.muted)
-            views.setTextViewText(R.id.word_hint, context.getString(R.string.widget_word_hint))
-            views.setTextViewText(R.id.word_back_title, entry.word)
-            views.setTextViewText(R.id.word_definition, definition)
-            views.setTextViewText(R.id.word_source, entry.bookTitle.orEmpty())
+
+            val wordRoom = if (shown) c.h - top - pad - buttonsH - 12 * d else c.h - top - pad - 22 * d
+            val word = art.fit(entry.word.trim().replaceFirstChar { it.uppercase() }, art.serifFace, skin.text, textW, (wordRoom * 0.5f).coerceAtLeast(30 * d), 32f, 18f, weight = 600, spacing = 1.0f)
+            art.draw(c, word, pad, top)
+            var y = top + word.height + 8 * d
+            if (shown) {
+                val bottom = c.h - pad - buttonsH - 10 * d
+                val mean = art.fit(meaning(entry.definition), art.serifFace, skin.muted, textW, (bottom - y).coerceAtLeast(18 * d), 15f, 11.5f)
+                art.draw(c, mean, pad, y)
+                val gap = 8 * d
+                val bw = (textW - gap) / 2f
+                val by = c.h - pad - buttonsH
+                art.pill(c, RectF(pad, by, pad + bw, by + buttonsH), "↻ Не помню", filled = false)
+                art.pill(c, RectF(pad + bw + gap, by, pad + bw * 2 + gap, by + buttonsH), "✓ Помню", filled = true)
+                views.setViewVisibility(R.id.word_buttons, View.VISIBLE)
+                val no = Intent(context, WordWidget::class.java).setAction(ACTION_NO).putExtra(EXTRA_ENTRY, entry.id)
+                val yes = Intent(context, WordWidget::class.java).setAction(ACTION_YES).putExtra(EXTRA_ENTRY, entry.id)
+                views.setOnClickPendingIntent(R.id.word_no, PendingIntent.getBroadcast(context, 501, no, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+                views.setOnClickPendingIntent(R.id.word_yes, PendingIntent.getBroadcast(context, 502, yes, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+            } else {
+                val hint = art.layout("Нажми, чтобы увидеть значение", art.paint(art.monoFace, 11f, skin.faint), textW, maxLines = 1)
+                art.draw(c, hint, pad, c.h - pad - hint.height)
+                entry.bookTitle?.takeIf { it.isNotBlank() }?.let { book ->
+                    val src = art.layout("из «$book»", art.paint(art.serifFace, 12.5f, skin.muted), textW, maxLines = 1, align = Layout.Alignment.ALIGN_NORMAL)
+                    if (y + src.height < c.h - pad - hint.height - 6 * d) art.draw(c, src, pad, y)
+                }
+                views.setViewVisibility(R.id.word_buttons, View.GONE)
+            }
+            views.setImageViewBitmap(R.id.word_art, c.bitmap)
             return views
         }
     }

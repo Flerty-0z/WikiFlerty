@@ -6,8 +6,6 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.view.View
 import android.widget.RemoteViews
 import com.flerty.wikiflerty.App
@@ -19,8 +17,7 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-open class QuoteWidget : AppWidgetProvider() {
-    open val small: Boolean = false
+class QuoteWidget : AppWidgetProvider() {
 
     override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: android.os.Bundle) {
         onUpdate(context, manager, intArrayOf(id))
@@ -69,112 +66,74 @@ open class QuoteWidget : AppWidgetProvider() {
 
         fun refreshAll(context: Context) {
             val manager = AppWidgetManager.getInstance(context)
-            val big = manager.getAppWidgetIds(ComponentName(context, QuoteWidget::class.java))
-            val little = manager.getAppWidgetIds(ComponentName(context, QuoteWidgetSmall::class.java))
-            if (big.isEmpty() && little.isEmpty()) return
-            val note = pick(context)
+            val ids = manager.getAppWidgetIds(ComponentName(context, QuoteWidget::class.java))
+            if (ids.isEmpty()) return
             val skin = WidgetSkin.current(context)
-            big.forEach { id ->
-                val (w, h) = WidgetSkin.size(manager, id, 250, 120)
-                manager.updateAppWidget(id, build(context, note, small = false, skin, w, h))
-            }
-            little.forEach { id ->
-                val (w, h) = WidgetSkin.size(manager, id, 140, 140)
-                manager.updateAppWidget(id, build(context, note, small = true, skin, w, h))
+            val art = WidgetArt(context, skin)
+            ids.forEach { id ->
+                val (w, h) = WidgetSkin.size(manager, id, 280, 140)
+                manager.updateAppWidget(id, build(context, art, skin, w, h))
             }
         }
 
-        private fun pick(context: Context): Note? {
+        private fun candidates(context: Context): List<Note> {
             val app = context.applicationContext as App
             val all = app.notes.notes.value.filter { it.text.isNotBlank() }.sortedBy { it.createdAt }
-            val quotes = all.filter { n -> n.text.trim().split(Regex("\\s+")).size >= 4 && n.text.trim().length >= 24 }
-            val notes = quotes.ifEmpty { all.filter { it.note.isNotBlank() || it.text.trim().length >= 12 } }.ifEmpty { all }
-            if (notes.isEmpty()) return null
-            val offset = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_OFFSET, 0)
-            val index = ((LocalDate.now().toEpochDay() + offset) % notes.size).toInt().let { if (it < 0) it + notes.size else it }
-            return notes[index]
+            return all.filter { n -> n.text.trim().split(Regex("\\s+")).size >= 4 && n.text.trim().length >= 24 }
         }
 
-        private fun build(context: Context, note: Note?, small: Boolean, skin: WidgetSkin, wDp: Int, hDp: Int): RemoteViews {
+        private fun build(context: Context, art: WidgetArt, skin: WidgetSkin, wDp: Int, hDp: Int): RemoteViews {
             val app = context.applicationContext as App
-            val views = RemoteViews(context.packageName, if (small) R.layout.widget_quote_small else R.layout.widget_quote)
-            skin.card(wDp, hDp)?.let {
-                views.setImageViewBitmap(R.id.quote_bg, it)
-                views.setInt(R.id.quote_root, "setBackgroundColor", 0)
-            }
-            skin.tint(views, R.id.quote_mark, skin.accent)
-            skin.tint(views, R.id.quote_text, skin.text)
-            if (small) {
-                skin.tint(views, R.id.quote_book, skin.faint)
-            } else {
-                skin.tint(views, R.id.quote_label, skin.accent)
-                skin.tint(views, R.id.quote_book, skin.text)
-                skin.tint(views, R.id.quote_meta, skin.faint)
-                skin.tint(views, R.id.quote_open, skin.accent)
-                skin.icon(views, R.id.quote_next, skin.muted)
-            }
-            val open = Intent(context, MainActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            val views = RemoteViews(context.packageName, R.layout.widget_quote)
+            val c = art.base(wDp, hDp)
+            val d = skin.density
+            val pad = 18 * d
+            art.label(c, "Цитата дня", pad, pad + 4 * d)
+            val top = pad + art.labelHeight() + 14 * d
+            val footH = 34 * d
+            val textW = c.w - pad * 2
+            val textH = c.h - top - footH - pad
+            val list = candidates(context)
+            val offset = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_OFFSET, 0)
+            val start = if (list.isEmpty()) 0 else ((LocalDate.now().toEpochDay() + offset) % list.size).toInt().let { if (it < 0) it + list.size else it }
+            fun clean(n: Note) = n.text.trim().replace(Regex("\\s+"), " ").trim('«', '»', '"', '“', '”')
+            val note = list.indices.asSequence().map { list[(start + it) % list.size] }
+                .firstOrNull { art.fits("«${clean(it)}»", art.serifFace, skin.text, textW, textH, 13.5f) }
+                ?: list.minByOrNull { it.text.length }
+
+            val open = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             if (note != null) open.setAction(ACTION_OPEN_NOTE).putExtra(EXTRA_NOTE_ID, note.id)
-            val openPending = PendingIntent.getActivity(
-                context,
-                if (small) 41 else 40,
-                open,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
+            val openPending = PendingIntent.getActivity(context, 40, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             views.setOnClickPendingIntent(R.id.quote_root, openPending)
+            val next = Intent(context, QuoteWidget::class.java).setAction(ACTION_NEXT)
+            views.setOnClickPendingIntent(R.id.quote_next, PendingIntent.getBroadcast(context, 42, next, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+            skin.icon(views, R.id.quote_next, skin.muted)
 
             if (note == null) {
-                views.setTextViewText(R.id.quote_text, "Выдели в книге цитату или сделай заметку — она появится здесь.")
-                views.setTextViewText(R.id.quote_book, "WikiFlerty")
-                if (!small) {
-                    views.setTextViewText(R.id.quote_meta, "")
-                    views.setViewVisibility(R.id.quote_cover, View.GONE)
-                    views.setViewVisibility(R.id.quote_open, View.GONE)
-                    views.setViewVisibility(R.id.quote_next, View.GONE)
-                }
+                val t = art.fit("Выдели в книге фразу, которая зацепила, — и она будет появляться здесь", art.serifFace, skin.text, textW, textH + footH, 17f, 13f)
+                art.draw(c, t, pad, top)
+                views.setViewVisibility(R.id.quote_next, View.GONE)
+                views.setImageViewBitmap(R.id.quote_art, c.bitmap)
                 return views
             }
-
+            views.setViewVisibility(R.id.quote_next, if (list.size > 1) View.VISIBLE else View.GONE)
+            val quote = art.fit("«${clean(note)}»", art.serifFace, skin.text, textW, textH, 19f, 13.5f)
+            art.draw(c, quote, pad, top + ((textH - quote.height) / 2f).coerceAtLeast(0f) * 0.35f)
             val book = app.library.books.value.firstOrNull { it.id == note.bookId }
-            val quote = note.text.trim().replace(Regex("\\s+"), " ").let { if (it.length > 320) it.take(320).trimEnd() + "…" else it }
-            views.setTextViewText(R.id.quote_text, "«$quote»")
-            views.setTextViewText(R.id.quote_book, book?.title ?: app.syncedTitle(note.bookId) ?: "Удалённая книга")
-            if (!small) {
-                val place = if (book != null && book.positions > 0) {
-                    "${(note.progression * book.positions).roundToInt().coerceIn(1, book.positions)}/${book.positions}"
-                } else {
-                    "${(note.progression * 100).roundToInt()}%"
-                }
-                views.setTextViewText(R.id.quote_meta, listOfNotNull(book?.author?.takeIf { it.isNotBlank() }, "стр. $place").joinToString(" · "))
-                views.setViewVisibility(R.id.quote_open, View.GONE)
-                views.setViewVisibility(R.id.quote_next, View.VISIBLE)
-                views.setOnClickPendingIntent(R.id.quote_open, openPending)
-                val next = Intent(context, QuoteWidget::class.java).setAction(ACTION_NEXT)
-                views.setOnClickPendingIntent(
-                    R.id.quote_next,
-                    PendingIntent.getBroadcast(context, 42, next, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE),
-                )
-                val cover = book?.let { app.library.coverFile(it) }?.takeIf { it.exists() }?.let { loadCover(it.path) }
-                    ?: book?.let { skin.placeholderCover(it.title, it.author, 26, 38) }
-                val showCover = hDp >= 150 && cover != null
-                views.setViewVisibility(R.id.quote_cover, if (showCover) View.VISIBLE else View.GONE)
-                if (showCover) views.setImageViewBitmap(R.id.quote_cover, cover)
+            val title = book?.title ?: app.syncedTitle(note.bookId) ?: "Удалённая книга"
+            val place = if (book != null && book.positions > 0) {
+                "стр. ${(note.progression * book.positions).roundToInt().coerceIn(1, book.positions)}"
+            } else {
+                "${(note.progression * 100).roundToInt()}%"
             }
+            val footY = c.h - pad - footH
+            val line = android.graphics.Paint().apply { color = WidgetSkin.withAlpha(skin.text, 0.1f); strokeWidth = 1 * d }
+            c.canvas.drawLine(pad, footY, c.w - pad, footY, line)
+            val foot = art.layout("$title · $place", art.paint(art.monoFace, 11f, skin.faint), textW, maxLines = 1)
+            art.draw(c, foot, pad, footY + (footH - foot.height) / 2f + 2 * d)
+            views.setImageViewBitmap(R.id.quote_art, c.bitmap)
             return views
         }
-
-        private fun loadCover(path: String): Bitmap? = runCatching {
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeFile(path, bounds)
-            var sample = 1
-            while (bounds.outHeight / sample > 240) sample *= 2
-            val bitmap = BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return null
-            if (bitmap.height <= 120) bitmap else Bitmap.createScaledBitmap(bitmap, (bitmap.width * 120f / bitmap.height).toInt().coerceAtLeast(1), 120, true)
-        }.getOrNull()
     }
 }
 
-class QuoteWidgetSmall : QuoteWidget() {
-    override val small: Boolean = true
-}
