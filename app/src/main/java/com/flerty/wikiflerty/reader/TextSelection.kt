@@ -677,7 +677,7 @@ internal object TextSelection {
                   var b = rs[i];
                   if (b.width && onPage(b)) return { left: b.right, right: b.right, top: b.top, bottom: b.bottom, height: b.height };
                 }
-                if (/\s/.test(n.data[o - 1])) { o--; continue; }
+                if (/[\s\u00AD]/.test(n.data[o - 1])) { o--; continue; }
                 break;
               } else {
                 if (o >= n.data.length) { n = textNear(n, false); if (!n) break; o = 0; continue; }
@@ -686,7 +686,7 @@ internal object TextSelection {
                   var c = rs2[j];
                   if (c.width && onPage(c)) return { left: c.left, right: c.left, top: c.top, bottom: c.bottom, height: c.height };
                 }
-                if (/\s/.test(n.data[o])) { o++; continue; }
+                if (/[\s\u00AD]/.test(n.data[o])) { o++; continue; }
                 break;
               }
             }

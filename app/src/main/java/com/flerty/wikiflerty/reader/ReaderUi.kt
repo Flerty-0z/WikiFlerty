@@ -797,9 +797,25 @@ fun ReaderOverlay(
             val gap = with(density) { 12.dp.toPx() }
             val minY = with(density) { 24.dp.toPx() }
             val maxY = with(density) { maxHeight.toPx() } - menuHeight - with(density) { 72.dp.toPx() }
-            val above = info.top - menuHeight - gap
-            val below = info.bottom + gap
+            val handles = state.handles
+            val line = with(density) { 30.dp.toPx() }
+            val drop = with(density) { 26.dp.toPx() }
+            val hs = handles?.start
+            val he = handles?.end
+            val top = when {
+                hs != null -> hs.y - line
+                he != null -> he.y - line
+                else -> info.top
+            }
+            val bottom = when {
+                he != null -> he.y + drop
+                hs != null -> hs.y + drop
+                else -> info.bottom
+            }
+            val above = top - menuHeight - gap
+            val below = bottom + gap
             val y = when {
+                hs == null && he != null && below <= maxY -> below
                 above >= minY -> above
                 below <= maxY -> below
                 else -> maxY
