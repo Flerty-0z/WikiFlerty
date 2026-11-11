@@ -310,9 +310,8 @@ internal object TextSelection {
           window.__wfPeople = function (list) {
             window.__wfPeopleLast = list;
             hits = [];
-            var hl = window.CSS && CSS.highlights && window.Highlight;
-            if (hl) CSS.highlights.delete("wf-hero");
-            if (!document.body || !list || !list.length) return;
+            try { if (window.CSS && CSS.highlights) CSS.highlights.delete("wf-hero"); } catch (x) {}
+            if (!document.body || !list || !list.length) { place(); return; }
             var map = {};
             list.forEach(function (k) { var o = map[k[0]]; if (!o || o.s < k[1]) map[k[0]] = { s: k[1], id: k[2] }; });
             var BLOCK = "p,div,li,h1,h2,h3,h4,h5,h6,blockquote,td,th,dd,dt,section,article,figcaption,body";
@@ -367,19 +366,24 @@ internal object TextSelection {
               run.text += n.nodeValue || "";
             }
             if (run) scan(run);
-            if (!hl || !hits.length) { place(); return; }
             var st = document.getElementById("wf-hero-style");
             if (!st) {
               st = document.createElement("style");
               st.id = "wf-hero-style";
               (document.head || document.documentElement).appendChild(st);
             }
-            st.textContent = "::highlight(wf-hero){color:__ACCENT__;text-decoration:none}" +
-              "#wf-hero-dots i{position:absolute;display:block;border-radius:50%;background:__ACCENT__;margin:0;padding:0;border:0}" +
-              "#wf-hero-dots{position:absolute;left:0;top:0;width:0;height:0;margin:0;padding:0;border:0;pointer-events:none;-webkit-user-select:none;user-select:none;z-index:1;transition:opacity .25s ease;opacity:1}";
-            CSS.highlights.set("wf-hero", new Highlight(...hits.map(function (h) { return h.r; })));
+            st.textContent =
+              "#wf-hero-flags,#wf-hero-flags i{margin:0!important;padding:0!important;border:0!important;background-color:transparent!important;pointer-events:none!important;-webkit-user-select:none;user-select:none}" +
+              "#wf-hero-flags{position:absolute!important;left:0;top:0;width:0;height:0;z-index:2;transition:opacity .3s ease}" +
+              "#wf-hero-flags i{position:absolute!important;display:block!important;background-repeat:no-repeat!important;background-size:100% 100%!important;background-image:" + flag + "!important}";
             place();
           };
+          var flag = 'url("data:image/svg+xml,' + encodeURIComponent(
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 30'>" +
+            "<rect x='1' y='1' width='2.6' height='28' rx='1.3' fill='__ACCENT__'/>" +
+            "<path d='M3.6 2.2h18.2c1.5 0 2.3 1.6 1.4 2.8l-2.9 4 2.9 4c.9 1.2.1 2.8-1.4 2.8H3.6z' fill='__ACCENT__'/>" +
+            "<path d='M10.6 6.6c.3-1.5 1.6-2.4 3.2-2.4 1.9 0 3.2 1.1 3.2 2.7 0 1.2-.7 1.9-1.6 2.5-.8.5-1 .8-1 1.6' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round'/>" +
+            "<circle cx='14.4' cy='13.3' r='1.05' fill='white'/></svg>") + '")';
           var layer = null, pending = 0, sizes = new Map();
           function place() {
             var host = document.documentElement;
@@ -387,7 +391,7 @@ internal object TextSelection {
             var fresh = !layer;
             if (!layer) {
               layer = document.createElement("div");
-              layer.id = "wf-hero-dots";
+              layer.id = "wf-hero-flags";
               layer.setAttribute("aria-hidden", "true");
             }
             if (!layer.isConnected) host.appendChild(layer);
@@ -402,17 +406,17 @@ internal object TextSelection {
               var el = hits[i].r.startContainer.parentElement;
               var fs = sizes.get(el);
               if (fs === undefined) { fs = el ? parseFloat(getComputedStyle(el).fontSize) || 16 : 16; sizes.set(el, fs); }
-              var d = Math.max(3, fs * 0.2);
-              var dot = document.createElement("i");
-              dot.style.left = (b.left - o.left - fs * 0.16 - d / 2) + "px";
-              dot.style.top = (b.top - o.top + b.height * 0.56 - d / 2) + "px";
-              dot.style.width = d + "px";
-              dot.style.height = d + "px";
-              frag.appendChild(dot);
+              var h = Math.max(13, fs), w = h * 26 / 30;
+              var f = document.createElement("i");
+              f.style.left = (b.left - o.left - fs * 0.22) + "px";
+              f.style.top = (b.top - o.top + b.height * 0.2 - h * 0.52) + "px";
+              f.style.width = w + "px";
+              f.style.height = h + "px";
+              frag.appendChild(f);
             }
             while (layer.firstChild) layer.removeChild(layer.firstChild);
             layer.appendChild(frag);
-            if (fresh) requestAnimationFrame(function () { if (layer) layer.style.opacity = "1"; });
+            if (fresh) requestAnimationFrame(function () { requestAnimationFrame(function () { if (layer) layer.style.opacity = "1"; }); });
           }
           function later() {
             if (pending) clearTimeout(pending);

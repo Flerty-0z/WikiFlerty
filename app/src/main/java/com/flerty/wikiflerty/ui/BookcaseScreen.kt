@@ -175,6 +175,13 @@ fun BookcaseView(
         lastOrder[0] = plankOrder
         val seen = remember(animationKey, live) { ShelfSeenStore.of("$animationKey|$live") }
         val listState = listStateHolder
+        androidx.compose.runtime.LaunchedEffect(listState, seen) {
+            var before = emptySet<Any>()
+            androidx.compose.runtime.snapshotFlow { listState.layoutInfo.visibleItemsInfo.map { it.key }.toSet() }.collect { now ->
+                (before - now).forEach { seen.remove("row:$it") }
+                before = now
+            }
+        }
         val drag = remember { ShelfDrag() }
         val move by androidx.compose.runtime.rememberUpdatedState(onMove)
         drag.enabled = onMove != null && planks.size > 1
@@ -841,9 +848,18 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
         val moment = LocalKitMoment.current
         if (moment != null && decor != Decor.None && moment.season != Season.Summer) {
             val seed = remember(name) { (name ?: "shelf").hashCode() }
+            val falling = moment.season == Season.Autumn || moment.season == Season.Spring
+            val tick = throttledClock(falling, 3600)
+            val motion = Motion.enabled
             androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().padding(horizontal = 10.dp).height(0.dp)) {
                 val ph = 20.dp.toPx()
-                translate(0f, -ph) { plankSeason(decor, moment.season, light, seed, ph) }
+                translate(0f, -ph) {
+                    plankSeason(decor, moment.season, light, seed, ph)
+                    if (falling) {
+                        tick.value
+                        plankFall(decor, moment.season, seed, System.currentTimeMillis(), motion)
+                    }
+                }
             }
         }
         if (decor == Decor.None || decor == Decor.Library || decor == Decor.Zen || decor == Decor.Comic) {

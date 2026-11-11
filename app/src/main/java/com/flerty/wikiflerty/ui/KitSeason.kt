@@ -71,7 +71,8 @@ private fun flakes(seed: Int, n: Int): List<Flake> {
 }
 
 private val InkLine = Color(0xFF141210)
-private val LeafColors = listOf(Color(0xFFD9882E), Color(0xFFC0502A), Color(0xFFB8862A), Color(0xFF8E4A22))
+internal val LeafColors = listOf(Color(0xFFD9882E), Color(0xFFC0502A), Color(0xFFB8862A), Color(0xFF8E4A22))
+internal val SummerLeafColors = listOf(Color(0xFF7FA84E), Color(0xFF9CC06A), Color(0xFF5E8E44), Color(0xFFB0C46A))
 private val WeedColors = listOf(Color(0xFF4E8A5A), Color(0xFF6E9A4A), Color(0xFF3E7A6A), Color(0xFF7A8A3A))
 
 @Composable
@@ -210,16 +211,17 @@ private fun leafPath(c: Offset, r: Float): Path = Path().apply {
     close()
 }
 
-private fun DrawScope.leaf(c: Offset, r: Float, angle: Float, color: Color, decor: Decor) {
+internal fun DrawScope.leaf(c: Offset, r: Float, angle: Float, color: Color, decor: Decor, alpha: Float = 1f) {
+    if (alpha <= 0.01f) return
     rotate(angle, c) {
         val p = leafPath(c, r)
-        drawPath(p, color)
+        drawPath(p, color.copy(alpha = color.alpha * alpha))
         when (decor) {
-            Decor.Comic -> drawPath(p, InkLine, style = Stroke(1.6f * density, join = StrokeJoin.Round))
-            Decor.Clay -> drawPath(p, Brush.linearGradient(listOf(Color.White.copy(alpha = 0.5f), Color.Transparent, Color.Black.copy(alpha = 0.12f)), start = Offset(c.x - r, c.y - r), end = Offset(c.x + r, c.y + r)))
+            Decor.Comic -> drawPath(p, InkLine.copy(alpha = alpha), style = Stroke(1.6f * density, join = StrokeJoin.Round))
+            Decor.Clay -> drawPath(p, Brush.linearGradient(listOf(Color.White.copy(alpha = 0.5f * alpha), Color.Transparent, Color.Black.copy(alpha = 0.12f * alpha)), start = Offset(c.x - r, c.y - r), end = Offset(c.x + r, c.y + r)))
             else -> Unit
         }
-        drawLine((if (decor == Decor.Comic) InkLine else Color.Black).copy(alpha = if (decor == Decor.Comic) 0.9f else 0.22f), Offset(c.x - r * 0.9f, c.y), Offset(c.x + r * 0.8f, c.y), 0.8f * density)
+        drawLine((if (decor == Decor.Comic) InkLine else Color.Black).copy(alpha = (if (decor == Decor.Comic) 0.9f else 0.22f) * alpha), Offset(c.x - r * 0.9f, c.y), Offset(c.x + r * 0.8f, c.y), 0.8f * density)
     }
 }
 
@@ -358,27 +360,61 @@ fun DrawScope.plankSeason(decor: Decor, season: Season, light: Boolean, seed: In
                 }
             }
         }
-        Season.Autumn -> {
-            if (decor == Decor.News || decor == Decor.Sea) return
-            val count = (w / (90 * d)).toInt().coerceIn(2, 5)
-            for (i in 0 until count) {
-                val x = (0.05f + r.nextFloat() * 0.9f) * w
-                leaf(Offset(x, -1.5f * d), (5f + r.nextFloat() * 3f) * d, -25f + r.nextFloat() * 50f, LeafColors[r.nextInt(LeafColors.size)], decor)
+        else -> Unit
+    }
+}
+
+fun DrawScope.plankFall(decor: Decor, season: Season, seed: Int, nowMs: Long, motion: Boolean) {
+    if (decor == Decor.News || decor == Decor.Sea || decor == Decor.None) return
+    if (season != Season.Autumn && season != Season.Spring) return
+    val d = density
+    val w = size.width
+    val autumn = season == Season.Autumn
+    val count = if (autumn) (w / (80 * d)).toInt().coerceIn(2, 5) else (w / (64 * d)).toInt().coerceIn(3, 7)
+    for (i in 0 until count) {
+        val base = Random(seed * 31 + i * 977)
+        val period = 26_000L + base.nextInt(24_000)
+        val shift = base.nextLong(period)
+        val at = nowMs + shift
+        val cycle = at / period
+        val u = (at % period).toFloat() / period
+        val r = Random(seed * 7919 + i * 104729 + (cycle % 100_000).toInt() * 31)
+        if (r.nextFloat() < 0.25f) continue
+        val restX = (0.05f + r.nextFloat() * 0.9f) * w
+        val drop = (70f + r.nextFloat() * 60f) * d
+        val restAngle = -30f + r.nextFloat() * 60f
+        val spin = if (r.nextBoolean()) 1f else -1f
+        val sway = (8f + r.nextFloat() * 10f) * d
+        val phase = r.nextFloat() * 6.28f
+        val fallEnd = (if (autumn) 4800f else 5600f) / period
+        val fadeStart = 0.72f + r.nextFloat() * 0.12f
+        var x = restX
+        var y = 0f
+        var angle = restAngle
+        var alpha = 1f
+        if (motion && u < fallEnd) {
+            val q = u / fallEnd
+            val e = q * (2f - q)
+            y = -drop * (1f - e)
+            x = restX + sin(q * 6.28f * 1.2f + phase) * sway * (1f - e)
+            angle = restAngle + (1f - e) * 320f * spin
+            alpha = (q * 6f).coerceAtMost(1f)
+        } else if (u >= fadeStart) {
+            alpha = 1f - ((u - fadeStart) / (1f - fadeStart)).coerceIn(0f, 1f)
+            alpha *= alpha
+        }
+        if (alpha <= 0.01f) continue
+        if (autumn) {
+            val lr = (5f + r.nextFloat() * 3f) * d
+            leaf(Offset(x, y - 1.5f * d), lr, angle, LeafColors[r.nextInt(LeafColors.size)], decor, alpha)
+        } else {
+            val pr = (2.6f + r.nextFloat() * 1.8f) * d
+            val c = Offset(x, y - pr * 0.3f)
+            val col = if (r.nextInt(3) == 0) Color.White else Color(0xFFF7B8C8)
+            rotate(angle, c) {
+                drawOval(col.copy(alpha = alpha), Offset(c.x - pr, c.y - pr * 0.6f), Size(pr * 2, pr * 1.2f))
+                if (decor == Decor.Comic) drawOval(InkLine.copy(alpha = alpha), Offset(c.x - pr, c.y - pr * 0.6f), Size(pr * 2, pr * 1.2f), style = Stroke(1.2f * d))
             }
         }
-        Season.Spring -> {
-            if (decor == Decor.News || decor == Decor.Sea) return
-            val count = (w / (60 * d)).toInt().coerceIn(3, 8)
-            for (i in 0 until count) {
-                val x = (0.04f + r.nextFloat() * 0.92f) * w
-                val pr = (2.6f + r.nextFloat() * 1.8f) * d
-                val c = Offset(x, -pr * 0.3f)
-                rotate(-30f + r.nextFloat() * 60f, c) {
-                    drawOval(if (i % 3 == 0) Color.White else Color(0xFFF7B8C8), Offset(c.x - pr, c.y - pr * 0.6f), Size(pr * 2, pr * 1.2f))
-                    if (decor == Decor.Comic) drawOval(InkLine, Offset(c.x - pr, c.y - pr * 0.6f), Size(pr * 2, pr * 1.2f), style = Stroke(1.2f * d))
-                }
-            }
-        }
-        Season.Summer -> Unit
     }
 }

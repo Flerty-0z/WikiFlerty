@@ -131,12 +131,18 @@ fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = 
                         glow(Color(0xFFF2A764), flicker * if (light) 0.6f else 1f, Offset(size.width * 0.86f, size.height * 0.13f), size.width * 0.55f)
                         dust(t, light, columns)
                     }
-                    Decor.Zen -> if (season != Season.Winter) petals.forEach { p ->
+                    Decor.Zen -> if (season != Season.Winter) petals.forEachIndexed { i, p ->
                         val span = size.height + 60f * density
                         val y = ((p.y * span + t * 18f * density * p.speed) % span) - 30f * density
                         val x = p.x * size.width + sin(t * 0.6f * p.speed + p.phase) * 28f * density
-                        rotate(t * 30f * p.speed + p.phase * 57f, Offset(x, y)) {
-                            drawOval(zenPetal(season).copy(alpha = if (light) 0.75f else 0.5f), Offset(x - 5f * density, y - 3.5f * density), Size(10f * density, 7f * density))
+                        val angle = t * 30f * p.speed + p.phase * 57f
+                        val leaves = zenLeaves(season)
+                        if (leaves != null) {
+                            leaf(Offset(x, y), (5f + p.size * 3f) * density, angle, leaves[i % leaves.size], Decor.Zen, if (light) 0.85f else 0.7f)
+                        } else {
+                            rotate(angle, Offset(x, y)) {
+                                drawOval(zenPetal(season).copy(alpha = if (light) 0.75f else 0.5f), Offset(x - 5f * density, y - 3.5f * density), Size(10f * density, 7f * density))
+                            }
                         }
                     }
                     Decor.Comic -> {
@@ -361,6 +367,12 @@ private fun DrawScope.dust(t: Float, light: Boolean, motes: List<Speck>) {
     }
 }
 
+private fun zenLeaves(season: Season?): List<Color>? = when (season) {
+    Season.Autumn -> LeafColors
+    Season.Summer -> SummerLeafColors
+    else -> null
+}
+
 private fun zenPetal(season: Season?): Color = when (season) {
     Season.Summer -> Color(0xFF9CC06A)
     Season.Autumn -> Color(0xFFD9603A)
@@ -397,7 +409,12 @@ private fun DrawScope.zenExtras(light: Boolean, season: Season? = null) {
         cubicTo(w * 0.8f, h * 0.16f, w * 0.75f, h * 0.15f, w * 0.71f, h * 0.14f)
     }
     drawPath(branch, bark, style = androidx.compose.ui.graphics.drawscope.Stroke(3.5f * d, cap = StrokeCap.Round))
-    listOf(0.66f to 0.255f, 0.71f to 0.14f, 0.75f to 0.22f, 0.8f to 0.18f, 0.9f to 0.175f, 0.76f to 0.15f, 0.69f to 0.24f).forEach { (fx, fy) ->
+    val leaves = zenLeaves(season)
+    listOf(0.66f to 0.255f, 0.71f to 0.14f, 0.75f to 0.22f, 0.8f to 0.18f, 0.9f to 0.175f, 0.76f to 0.15f, 0.69f to 0.24f).forEachIndexed { i, (fx, fy) ->
+        if (leaves != null) {
+            leaf(Offset(w * fx, h * fy), 6.5f * d, -40f + i * 23f % 80f, leaves[i % leaves.size], Decor.Zen)
+            return@forEachIndexed
+        }
         drawOval(zenPetal(season), Offset(w * fx - 5.5f * d, h * fy - 4 * d), Size(11 * d, 8 * d))
         drawCircle(
             when (season) {

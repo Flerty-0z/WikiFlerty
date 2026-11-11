@@ -996,7 +996,7 @@ private fun ContinueRing(progress: Float, onClick: () -> Unit) {
             },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(AppIcons.Play, "Читать", tint = accent, modifier = Modifier.padding(start = 2.dp).size(15.dp))
+        Icon(AppIcons.Play, "Читать", tint = accent, modifier = Modifier.size(15.dp))
     }
 }
 
