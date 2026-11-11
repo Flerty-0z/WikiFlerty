@@ -105,7 +105,7 @@ enum class NewsTarget { None, Stats, Custom, Library, LibraryView, Guide, Ai }
 
 class NewsItem(val group: String, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None, val query: String = "")
 
-const val NewsRelease = 246
+const val NewsRelease = 248
 
 val WhatsNewItems = listOf(
     NewsItem("Библиотека", AppIcons.Play, "Продолжить чтение", "Последняя книга под фильтром полок. Нажми на кольцо прогресса — и сразу читать", NewsTarget.Library),
