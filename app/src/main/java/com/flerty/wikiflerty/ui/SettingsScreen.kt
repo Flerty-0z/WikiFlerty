@@ -1,6 +1,7 @@
 package com.flerty.wikiflerty.ui
 
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.graphics.luminance
 
 import android.content.Context
@@ -166,7 +167,7 @@ private fun NewsShowcase(onClick: () -> Unit) {
     val pulse by glow.animateFloat(
         0f,
         1f,
-        androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(2600, easing = androidx.compose.animation.core.FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse),
+        androidx.compose.animation.core.infiniteRepeatable<Float>(androidx.compose.animation.core.tween<Float>(2600, easing = androidx.compose.animation.core.FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse),
         label = "news-pulse",
     )
     val count = WhatsNewItems.size
