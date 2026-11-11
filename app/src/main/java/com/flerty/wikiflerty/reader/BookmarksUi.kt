@@ -97,7 +97,7 @@ internal fun NavTabs(current: ReaderSheet, onSelect: (ReaderSheet) -> Unit, modi
         val offset by animateDpAsState(slot * index, Motion.tween(280), label = "tab")
         Box(
             Modifier
-                .offset(x = offset)
+                .offset { androidx.compose.ui.unit.IntOffset(offset.roundToPx(), 0) }
                 .width(slot)
                 .fillMaxHeight()
                 .clip(inner)

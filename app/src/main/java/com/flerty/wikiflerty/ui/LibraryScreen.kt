@@ -579,19 +579,23 @@ private fun ShelfOrderList(
         val me = rows[id] ?: return from
         val top = me.top + offset.floatValue
         val bottom = top + me.height
+        val current = if (target >= 0) target else from
         var t = from
         for (j in from + 1..order.lastIndex) {
             val r = rows[order[j]] ?: break
-            if (bottom > r.top + r.height / 2) t = j else break
+            val k = if (j <= current) 0.4f else 0.6f
+            if (bottom > r.top + r.height * k) t = j else break
         }
         if (t == from) {
             for (j in from - 1 downTo 0) {
                 val r = rows[order[j]] ?: break
-                if (top < r.top + r.height / 2) t = j else break
+                val k = if (j >= current) 0.6f else 0.4f
+                if (top < r.top + r.height * k) t = j else break
             }
         }
         return t
     }
+    val lastSound = remember { longArrayOf(0L) }
     fun layoutShifts(id: String, t: Int) {
         val from = order.indexOf(id)
         val step = (rows[id]?.height ?: 0f) + gap
@@ -680,7 +684,11 @@ private fun ShelfOrderList(
                             if (t != target) {
                                 target = t
                                 layoutShifts(id, t)
-                                feedback?.play(FeedbackSound.Toggle)
+                                val now = android.os.SystemClock.uptimeMillis()
+                                if (now - lastSound[0] > 140) {
+                                    lastSound[0] = now
+                                    feedback?.play(FeedbackSound.Toggle)
+                                }
                             }
                         }
                     }

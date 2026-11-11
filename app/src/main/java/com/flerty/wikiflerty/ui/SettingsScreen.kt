@@ -177,21 +177,37 @@ private fun NewsShowcase(onClick: () -> Unit) {
         count % 10 in 2..4 -> "новинки"
         else -> "новинок"
     }
-    Column(
+    val comic = AppStyle.decor == Decor.Comic
+    Box(
         Modifier
             .fillMaxWidth()
             .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        AppColors.Accent.copy(alpha = 0.26f + 0.06f * pulse),
-                        AppColors.Accent.copy(alpha = 0.08f),
-                        AppColors.Field,
+            .then(if (comic) Modifier.hardShadow(shape, 4.dp) else Modifier),
+    ) {
+        KitBackdrop(AppStyle.decor, AppStyle.base, AppColors.Accent, Modifier.matchParentSize().clip(shape))
+        Box(
+            Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            AppColors.Accent.copy(alpha = 0.22f + 0.06f * pulse),
+                            AppColors.Accent.copy(alpha = 0.05f),
+                            Color.Transparent,
+                        ),
                     ),
+                )
+                .border(
+                    if (comic) 2.dp else 1.5.dp,
+                    if (comic) Color(0xFF111111) else AppColors.Accent.copy(alpha = 0.4f + 0.2f * pulse),
+                    shape,
                 ),
-                shape,
-            )
-            .border(1.5.dp, AppColors.Accent.copy(alpha = 0.4f + 0.2f * pulse), shape)
+        )
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .kitFrame()
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -233,9 +249,7 @@ private fun NewsShowcase(onClick: () -> Unit) {
                 Column(
                     Modifier
                         .weight(1f)
-                        .clip(appCorner(14))
-                        .background(AppColors.Panel.copy(alpha = 0.7f))
-                        .border(1.dp, AppColors.PanelBorder, appCorner(14))
+                        .fieldSurface(appCorner(14))
                         .padding(horizontal = 10.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
@@ -244,6 +258,7 @@ private fun NewsShowcase(onClick: () -> Unit) {
                 }
             }
         }
+    }
     }
 }
 
@@ -697,7 +712,7 @@ private fun MotionPreview() {
             Box(
                 Modifier
                     .padding(4.dp)
-                    .offset(x = travel * offset)
+                    .offset { androidx.compose.ui.unit.IntOffset((travel * offset).roundToPx(), 0) }
                     .size(28.dp)
                     .clip(CircleShape)
                     .background(AppColors.Accent),

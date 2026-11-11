@@ -163,8 +163,15 @@ fun BookcaseView(
         val width = maxWidth.value - 44f
         val decor = AppStyle.kit.decor
         val list = remember(planks, width, live, decor, behave) { rows(planks, width, live, decor, behave) }
+        val listStateHolder = rememberLazyListState()
+        val plankOrder = planks.map { it.key }
+        val lastOrder = remember { arrayOf<List<String>?>(null) }
+        if (lastOrder[0] != null && lastOrder[0] != plankOrder && lastOrder[0]!!.toSet() == plankOrder.toSet()) {
+            listStateHolder.requestScrollToItem(listStateHolder.firstVisibleItemIndex, listStateHolder.firstVisibleItemScrollOffset)
+        }
+        lastOrder[0] = plankOrder
         val seen = remember(animationKey, live) { mutableSetOf<Any>() }
-        val listState = rememberLazyListState()
+        val listState = listStateHolder
         val drag = remember { ShelfDrag() }
         val move by androidx.compose.runtime.rememberUpdatedState(onMove)
         drag.enabled = onMove != null && planks.size > 1
@@ -242,7 +249,13 @@ fun BookcaseView(
                     verticalArrangement = Arrangement.spacedBy(28.dp),
                 ) {
                     itemsIndexed(list, key = { _, r -> r.key }) { index, row ->
-                        Shelf(row, index, onBook)
+                        Box(
+                            Modifier.animateItem(
+                                fadeInSpec = null,
+                                fadeOutSpec = null,
+                                placementSpec = androidx.compose.animation.core.spring(dampingRatio = 0.86f, stiffness = 320f, visibilityThreshold = androidx.compose.ui.unit.IntOffset.VisibilityThreshold),
+                            ),
+                        ) { Shelf(row, index, onBook) }
                     }
                     if (footer != null) item(key = "footer") { footer() }
                 }

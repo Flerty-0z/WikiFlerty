@@ -1130,7 +1130,7 @@ private fun SeekBar(
         }
         Box(
             Modifier
-                .offset(x = (width * fraction - thumb / 2).coerceIn(0.dp, maxOf(0.dp, width - thumb)))
+                .offset { androidx.compose.ui.unit.IntOffset((width * fraction - thumb / 2).coerceIn(0.dp, maxOf(0.dp, width - thumb)).roundToPx(), 0) }
                 .size(thumb)
                 .clip(CircleShape)
                 .background(AppColors.Accent)

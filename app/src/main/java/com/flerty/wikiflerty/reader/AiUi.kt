@@ -1015,7 +1015,7 @@ private fun TypingDots() {
                 animationSpec = infiniteRepeatable(Motion.tween(520, delayMillis = i * 160), RepeatMode.Reverse),
                 label = "dot$i",
             )
-            Box(Modifier.size(7.dp).alpha(alpha).clip(CircleShape).background(AppColors.Accent))
+            Box(Modifier.size(7.dp).graphicsLayer { this.alpha = alpha }.clip(CircleShape).background(AppColors.Accent))
         }
     }
 }

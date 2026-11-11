@@ -1,2 +1,4 @@
 HSPLcom/flerty/wikiflerty/**->**(**)**
 Lcom/flerty/wikiflerty/**;
+HSPLorg/readium/r2/navigator/**->**(**)**
+Lorg/readium/r2/navigator/**;
