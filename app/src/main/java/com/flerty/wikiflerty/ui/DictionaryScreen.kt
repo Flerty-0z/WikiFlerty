@@ -108,15 +108,17 @@ private fun DictionaryList(viewModel: LibraryViewModel, entries: List<Dictionary
     var wordFilter by rememberSaveable { mutableStateOf("all") }
     var filterSheet by remember { mutableStateOf(false) }
 
-    val filtered = entries.filter {
-        (query.isBlank() || it.word.contains(query, true) || it.definition.contains(query, true)) &&
-            when (wordFilter) {
-                "new" -> it.srs.isNew
-                "learn" -> it.srs.isLearning
-                "review" -> it.srs.isReview
-                "done" -> it.srs.isMastered
-                else -> true
-            }
+    val filtered = remember(entries, query, wordFilter) {
+        entries.filter {
+            (query.isBlank() || it.word.contains(query, true) || it.definition.contains(query, true)) &&
+                when (wordFilter) {
+                    "new" -> it.srs.isNew
+                    "learn" -> it.srs.isLearning
+                    "review" -> it.srs.isReview
+                    "done" -> it.srs.isMastered
+                    else -> true
+                }
+        }
     }
 
     LazyColumn(
@@ -206,13 +208,14 @@ private fun DictionaryList(viewModel: LibraryViewModel, entries: List<Dictionary
                     val (badge, badgeColor) = srsBadge(entry.srs)
                     TagPill(badge, srsIcon(entry.srs), badgeColor, small = true)
                 }
+                val definition = remember(entry.definition) { markdown(entry.definition) }
                 if (open) {
                     SelectionContainer {
-                        Text(markdown(entry.definition), color = AppColors.Text, fontSize = 15.sp, lineHeight = 22.sp)
+                        Text(definition, color = AppColors.Text, fontSize = 15.sp, lineHeight = 22.sp)
                     }
                 } else {
                     Text(
-                        markdown(entry.definition),
+                        definition,
                         color = AppColors.Muted,
                         fontSize = 14.sp,
                         lineHeight = 20.sp,
@@ -224,7 +227,7 @@ private fun DictionaryList(viewModel: LibraryViewModel, entries: List<Dictionary
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 4.dp)) {
                         if (entry.context.isNotBlank()) {
                             Text(
-                                "«${contextAround(entry.context, entry.word)}»",
+                                remember(entry.context, entry.word) { "«${contextAround(entry.context, entry.word)}»" },
                                 color = AppColors.Text.copy(alpha = 0.75f),
                                 fontSize = 14.sp,
                                 lineHeight = 20.sp,

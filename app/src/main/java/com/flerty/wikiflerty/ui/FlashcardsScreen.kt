@@ -412,19 +412,20 @@ private fun GradeButton(title: String, wait: String, color: Color, modifier: Mod
 
 @Composable
 private fun FlipCard(entry: DictionaryEntry, flipped: Boolean, reverse: Boolean, onFlip: () -> Unit, onSpeak: () -> Unit) {
-    val rotation by animateFloatAsState(if (flipped) 180f else 0f, Motion.tween(420), label = "flip")
+    val rotation = animateFloatAsState(if (flipped) 180f else 0f, Motion.tween(420), label = "flip")
+    val back by remember { androidx.compose.runtime.derivedStateOf { rotation.value > 90f } }
     val shape = appCorner(26)
     Box(
         Modifier
             .fillMaxSize()
             .graphicsLayer {
-                rotationY = rotation
+                rotationY = rotation.value
                 cameraDistance = 14f * density
             }
             .liveClick(shape, sound = FeedbackSound.Tap, pressedScale = 0.99f, onClick = onFlip)
             .fieldSurface(shape),
     ) {
-        if (rotation <= 90f) {
+        if (!back) {
             CardFront(entry, reverse, onSpeak)
         } else {
             Box(Modifier.fillMaxSize().graphicsLayer { rotationY = 180f }) { CardBack(entry, onSpeak) }
@@ -461,9 +462,9 @@ private fun CardFront(entry: DictionaryEntry, reverse: Boolean, onSpeak: () -> U
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 if (reverse) {
-                    val plain = markdown(entry.definition).text
+                    val masked = remember(entry.definition, entry.word) { maskWord(markdown(entry.definition).text, entry.word).take(320) }
                     Text(
-                        maskWord(plain, entry.word).take(320),
+                        masked,
                         color = AppColors.Text,
                         fontSize = 17.sp,
                         lineHeight = 24.sp,
@@ -545,14 +546,16 @@ private fun CardBack(entry: DictionaryEntry, onSpeak: () -> Unit) {
             SpeakButton(onSpeak)
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.Line))
-        Text(markdown(entry.definition), color = AppColors.Text, fontSize = 15.sp, lineHeight = 22.sp)
+        val definition = remember(entry.definition) { markdown(entry.definition) }
+        Text(definition, color = AppColors.Text, fontSize = 15.sp, lineHeight = 22.sp)
         if (entry.context.isNotBlank()) {
             Column(
                 Modifier.fillMaxWidth().clip(appCorner(14)).background(AppColors.Shade.copy(alpha = 0.05f)).padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
+                val accent = AppColors.Accent
                 Text(
-                    highlightWord("«${entry.context}»", entry.word, AppColors.Accent),
+                    remember(entry.context, entry.word, accent) { highlightWord("«${entry.context}»", entry.word, accent) },
                     color = AppColors.Text.copy(alpha = 0.75f),
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
@@ -629,8 +632,8 @@ private fun FinishedView(
 fun StudyCard(entries: List<DictionaryEntry>, onStart: () -> Unit, onSettings: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
     val prefs by app.flashcards.prefs.collectAsStateWithLifecycle()
-    val counts = StudyQueue.counts(entries, prefs)
-    val mastered = entries.count { it.srs.isMastered }
+    val counts = remember(entries, prefs) { StudyQueue.counts(entries, prefs) }
+    val mastered = remember(entries) { entries.count { it.srs.isMastered } }
     val today = prefs.history[java.time.LocalDate.now().toString()]?.first ?: 0
     val shape = appCorner(22)
     Column(

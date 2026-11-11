@@ -1066,6 +1066,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private var injectJob: Job? = null
 
+    private var injectedHref: String? = null
+
     private fun injectScripts() {
         refreshBoot()
         injectJob?.cancel()
@@ -1550,8 +1552,11 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
                     navigator.currentLocator.collect { locator ->
-                        injectScripts()
                         val href = locator.href.toString()
+                        if (href != injectedHref) {
+                            injectedHref = href
+                            injectScripts()
+                        }
                         if (href != autoHref) {
                             autoHref = href
                             if (ui.autoActive && !ui.autoPaused && settings.scroll) startAutoScrollJs()
@@ -2934,7 +2939,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             val gap = now - lastActivity
             val counted = if (gap <= 5 * 60_000L) gap else 60_000L
             val key = app.library.books.value.firstOrNull { it.id == bookId }?.statsKey ?: bookId
-            app.stats.add(key, counted, pagesSinceTrack)
+            val listening = app.readAloud.listening.value == bookId
+            app.stats.add(key, if (listening) 0L else counted, pagesSinceTrack)
             pagesSinceTrack = 0
         }
         lastActivity = now

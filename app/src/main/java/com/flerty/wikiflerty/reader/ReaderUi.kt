@@ -1147,14 +1147,35 @@ private fun SeekBar(
     modifier: Modifier,
 ) {
     var drag by remember { mutableStateOf<Float?>(null) }
+    var pending by remember { mutableStateOf<Float?>(null) }
     val preview by rememberUpdatedState(onPreview)
-    val seek by rememberUpdatedState(onSeek)
-    val smooth by androidx.compose.animation.core.animateFloatAsState(
-        progression.toFloat().coerceIn(0f, 1f),
-        com.flerty.wikiflerty.ui.Motion.tween(420, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-        label = "seek",
-    )
-    val fraction = drag ?: smooth
+    val seekTo by rememberUpdatedState(onSeek)
+    val shown = remember { androidx.compose.animation.core.Animatable(progression.toFloat().coerceIn(0f, 1f)) }
+    val target = progression.toFloat().coerceIn(0f, 1f)
+    LaunchedEffect(target, pending, drag) {
+        val wanted = pending
+        when {
+            drag != null -> Unit
+            wanted != null -> {
+                if (kotlin.math.abs(target - wanted) <= 0.025f) {
+                    pending = null
+                    shown.snapTo(wanted)
+                    shown.animateTo(target, com.flerty.wikiflerty.ui.Motion.tween(180))
+                } else {
+                    kotlinx.coroutines.delay(2600)
+                    pending = null
+                    shown.snapTo(wanted)
+                    shown.animateTo(target, com.flerty.wikiflerty.ui.Motion.tween(260))
+                }
+            }
+            else -> shown.animateTo(target, com.flerty.wikiflerty.ui.Motion.tween(420, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+        }
+    }
+    val seek: (Double) -> Unit = { f ->
+        pending = f.toFloat()
+        seekTo(f)
+    }
+    val fraction = drag ?: pending ?: shown.value
     val active = drag != null
     val thumb by androidx.compose.animation.core.animateDpAsState(if (active) 16.dp else 11.dp, label = "thumb")
     BoxWithConstraints(

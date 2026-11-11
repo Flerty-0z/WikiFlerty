@@ -8,13 +8,27 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 
-fun markdown(text: String): AnnotatedString = buildAnnotatedString {
+private val headingRule = Regex("^\\s{0,3}#{1,6}\\s+")
+private val bulletRule = Regex("^\\s*([-*•])\\s+")
+private val numberedRule = Regex("^\\s*(\\d+)[.)]\\s+")
+private val markdownCache = object : android.util.LruCache<String, AnnotatedString>(300_000) {
+    override fun sizeOf(key: String, value: AnnotatedString): Int = key.length.coerceAtLeast(1)
+}
+
+fun markdown(text: String): AnnotatedString {
+    markdownCache.get(text)?.let { return it }
+    val built = parseMarkdown(text)
+    markdownCache.put(text, built)
+    return built
+}
+
+private fun parseMarkdown(text: String): AnnotatedString = buildAnnotatedString {
     val lines = text.replace("\r", "").split("\n")
     lines.forEachIndexed { index, raw ->
         var line = raw
-        val heading = Regex("^\\s{0,3}#{1,6}\\s+").find(line)
-        val bullet = Regex("^\\s*([-*•])\\s+").find(line)
-        val numbered = Regex("^\\s*(\\d+)[.)]\\s+").find(line)
+        val heading = headingRule.find(line)
+        val bullet = bulletRule.find(line)
+        val numbered = numberedRule.find(line)
         when {
             heading != null -> {
                 line = line.substring(heading.range.last + 1)

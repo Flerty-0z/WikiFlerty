@@ -155,6 +155,9 @@ internal object TextSelection {
           }
           window.__wfKit = function (o) {
             if (!document.body) return;
+            var key = o && o.on ? css(o) : "";
+            if (window.__wfKitKey === key && (!key || document.querySelector(".wf-head") || !document.body.querySelector("h1,h2,h3,.title"))) return;
+            window.__wfKitKey = key;
             var st = document.getElementById("wf-kit-style");
             var old = document.querySelectorAll(".wf-dropcap,.wf-head");
             for (var i = 0; i < old.length; i++) { old[i].classList.remove("wf-dropcap"); old[i].classList.remove("wf-head"); }
@@ -225,7 +228,7 @@ internal object TextSelection {
             });
             applied = true;
             relayout();
-            if (window.__wfPeople && window.__wfPeopleLast) window.__wfPeople(window.__wfPeopleLast);
+            if (window.__wfPeople && window.__wfPeopleLast) window.__wfPeople(window.__wfPeopleLast, true);
           }
           function remove() {
             var list = document.querySelectorAll("b.wf-bio");
@@ -234,7 +237,7 @@ internal object TextSelection {
             if (document.body) document.body.normalize();
             applied = false;
             relayout();
-            if (window.__wfPeople && window.__wfPeopleLast) window.__wfPeople(window.__wfPeopleLast);
+            if (window.__wfPeople && window.__wfPeopleLast) window.__wfPeople(window.__wfPeopleLast, true);
           }
           window.__wfBionic = function (on) { if (on) apply(); else remove(); };
         })();
@@ -307,7 +310,10 @@ internal object TextSelection {
           window.__wfPeopleReady = true;
           var hits = [];
           var word = /(^|[^\p{L}\p{N}])(\p{Lu}[\p{L}]*)/gu;
-          window.__wfPeople = function (list) {
+          window.__wfPeople = function (list, force) {
+            var key = JSON.stringify(list || []);
+            if (!force && window.__wfPeopleKey === key) return;
+            window.__wfPeopleKey = key;
             window.__wfPeopleLast = list;
             hits = [];
             try { if (window.CSS && CSS.highlights) CSS.highlights.delete("wf-hero"); } catch (x) {}

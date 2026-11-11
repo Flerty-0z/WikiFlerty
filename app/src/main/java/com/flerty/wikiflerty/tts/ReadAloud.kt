@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.readium.navigator.media.tts.AndroidTtsNavigator
 import org.readium.navigator.media.tts.TtsNavigator
@@ -50,6 +51,9 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
 
     private val _problems = MutableSharedFlow<Problem>(extraBufferCapacity = 4)
     val problems = _problems.asSharedFlow()
+
+    private val _listening = MutableStateFlow<String?>(null)
+    val listening: StateFlow<String?> = _listening.asStateFlow()
 
     private val _sleep = MutableStateFlow<SleepTimer?>(null)
     val sleep: StateFlow<SleepTimer?> = _sleep.asStateFlow()
@@ -174,6 +178,42 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
                 }
             }
             launch {
+                var since = 0L
+                var unsaved = 0L
+                fun flush() {
+                    if (since <= 0L) return
+                    val now = android.os.SystemClock.elapsedRealtime()
+                    val ms = (now - since).coerceIn(0L, 10 * 60_000L)
+                    since = now
+                    if (ms <= 0L) return
+                    val key = app.library.books.value.firstOrNull { it.id == bookId }?.statsKey ?: bookId
+                    app.stats.add(key, ms, 0)
+                    unsaved += ms
+                    if (unsaved >= 60_000L) {
+                        unsaved = 0L
+                        app.appScope.launch(Dispatchers.IO) { runCatching { app.stats.save() } }
+                    }
+                }
+                navigator.playback
+                    .map { it.playWhenReady && it.state !is TtsNavigator.State.Ended && it.state !is TtsNavigator.State.Failure }
+                    .distinctUntilChanged()
+                    .collectLatest { playing ->
+                        _listening.value = if (playing) bookId else null
+                        if (!playing) return@collectLatest
+                        since = android.os.SystemClock.elapsedRealtime()
+                        try {
+                            while (true) {
+                                delay(15_000)
+                                flush()
+                            }
+                        } finally {
+                            flush()
+                            since = 0L
+                            app.appScope.launch(Dispatchers.IO) { runCatching { app.stats.save() } }
+                        }
+                    }
+            }
+            launch {
                 var last = 0L
                 navigator.currentLocator.collect { locator ->
                     val now = System.currentTimeMillis()
@@ -245,6 +285,7 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
         sleepJob?.cancel()
         _sleep.value = null
         watchJob?.cancel()
+        _listening.value = null
         val session = _session.value ?: return
         _session.value = null
         ReadAloudService.release()
