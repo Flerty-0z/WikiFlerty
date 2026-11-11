@@ -173,21 +173,34 @@ fun BookcaseView(
             feedback?.play(FeedbackSound.Success)
             move?.invoke(book, from, to)
         }
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val zone = with(density) { 64.dp.toPx() }
+        val bottomInset = with(density) { 96.dp.toPx() }
+        val maxStep = with(density) { 9.dp.toPx() }
         androidx.compose.runtime.LaunchedEffect(drag, listState) {
+            var armed = false
+            var speed = 0f
             while (true) {
                 androidx.compose.runtime.withFrameMillis { }
                 val p = drag.pointer
                 val r = drag.root
-                if (drag.phase == 1 && p != null && r != null && r.isAttached) {
-                    val local = r.windowToLocal(p)
-                    val edge = 90f * r.size.height / 1000f + 60f
-                    val dy = when {
-                        local.y < edge -> -(edge - local.y) / edge * 22f
-                        local.y > r.size.height - edge -> (local.y - (r.size.height - edge)) / edge * 22f
-                        else -> 0f
-                    }
-                    if (dy != 0f) listState.dispatchRawDelta(dy)
+                if (drag.phase != 1 || p == null || r == null || !r.isAttached) {
+                    armed = false
+                    speed = 0f
+                    continue
                 }
+                val local = r.windowToLocal(p)
+                val top = zone
+                val bottom = r.size.height - bottomInset - zone
+                val want = when {
+                    local.y < top -> -((top - local.y) / zone).coerceIn(0f, 1f)
+                    local.y > bottom -> ((local.y - bottom) / zone).coerceIn(0f, 1f)
+                    else -> 0f
+                }
+                if (want == 0f) armed = true
+                val goal = if (armed) want * want * kotlin.math.sign(want) * maxStep else 0f
+                speed += (goal - speed) * 0.18f
+                if (kotlin.math.abs(speed) > 0.3f) listState.dispatchRawDelta(speed)
             }
         }
         androidx.compose.runtime.key(animationKey, live) {
@@ -213,6 +226,7 @@ fun BookcaseView(
                                 id = change.id
                                 val r = drag.root
                                 if (r != null && r.isAttached) drag.pointer = r.localToWindow(change.position)
+                                event.changes.forEach { it.consume() }
                                 if (!change.pressed) {
                                     drag.finish()
                                     id = null
@@ -406,7 +420,7 @@ private fun Modifier.shelfDraggable(book: Book, plank: String): Modifier {
                     feedback?.play(FeedbackSound.Toggle)
                 },
                 onDragEnd = { drag.finish() },
-                onDragCancel = { if (coords?.isAttached == true) drag.finish() },
+                onDragCancel = {},
             ) { change, _ -> change.consume() }
         }
 }

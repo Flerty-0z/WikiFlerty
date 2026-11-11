@@ -719,7 +719,7 @@ fun ShelfDialogView(dialog: ShelfDialog, shelves: List<String>, onDismiss: () ->
                 Row(Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
                     Icon(AppIcons.Shelf, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
                     Box(Modifier.weight(1f).padding(start = 10.dp)) {
-                        if (name.isEmpty()) Text("Название, например «Психология»", color = AppColors.Faint, fontSize = 16.sp, maxLines = 1)
+                        if (name.isEmpty()) Text("Название полки", color = AppColors.Faint, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         inner()
                     }
                 }

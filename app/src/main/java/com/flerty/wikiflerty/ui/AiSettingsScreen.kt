@@ -565,6 +565,7 @@ private fun CustomCard(ai: AiManager, expanded: Boolean, onExpand: () -> Unit) {
     var model by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var preset by remember { mutableStateOf<String?>(null) }
     val shape = appCorner(18)
 
     Column(
@@ -605,17 +606,34 @@ private fun CustomCard(ai: AiManager, expanded: Boolean, onExpand: () -> Unit) {
                 Modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                InputField(url, { url = it.trim(); error = null }, "Адрес: api.example.com/v1", monospace = true)
-                InputField(key, { key = it.trim(); error = null }, "API-ключ", secret = true)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("LM Studio", "Ollama").forEach { name ->
+                        Chip(name, preset == name) {
+                            preset = if (preset == name) null else name
+                            if (preset != null && (title.isBlank() || title == "LM Studio" || title == "Ollama")) title = name
+                            if (preset == null && (title == "LM Studio" || title == "Ollama")) title = ""
+                            error = null
+                        }
+                    }
+                }
+                InputField(
+                    url,
+                    { url = it.trim(); error = null },
+                    if (preset != null) "IP компьютера: 192.168.1.5" else "Адрес: api.example.com/v1",
+                    monospace = true,
+                )
+                AnimatedVisibility(visible = preset == null, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                    InputField(key, { key = it.trim(); error = null }, "API-ключ", secret = true)
+                }
                 InputField(title, { title = it }, "Название (необязательно)")
                 InputField(model, { model = it.trim() }, "Модель (необязательно)", monospace = true)
                 ActionButton("Подключить", enabled = url.isNotBlank(), busy = busy) {
                     busy = true
                     error = null
                     scope.launch {
-                        ai.connectCustom(title, url, model, key)
+                        ai.connectCustom(title, url, model, if (preset != null) "" else key, port = when (preset) { "LM Studio" -> 1234; "Ollama" -> 11434; else -> null })
                             .onSuccess {
-                                title = ""; url = ""; key = ""; model = ""
+                                title = ""; url = ""; key = ""; model = ""; preset = null
                                 onExpand()
                             }
                             .onFailure { error = it.message ?: "Не получилось" }
@@ -624,7 +642,11 @@ private fun CustomCard(ai: AiManager, expanded: Boolean, onExpand: () -> Unit) {
                 }
                 error?.let { Text(it, color = Bad, fontSize = 13.sp, lineHeight = 18.sp) }
                 Text(
-                    "Подойдёт любой сервис с OpenAI-совместимым API",
+                    when (preset) {
+                        "LM Studio" -> "На компьютере: Developer → Start Server, включи «Serve on Local Network». Телефон — в той же Wi-Fi сети"
+                        "Ollama" -> "На компьютере запусти Ollama с OLLAMA_HOST=0.0.0.0. Телефон — в той же Wi-Fi сети"
+                        else -> "Подойдёт любой сервис с OpenAI-совместимым API, в том числе локальный"
+                    },
                     color = AppColors.Faint,
                     fontSize = 12.sp,
                     lineHeight = 16.sp,

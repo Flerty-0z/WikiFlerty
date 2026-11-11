@@ -71,28 +71,45 @@ class AiManager(context: Context) {
         return Result.failure(AiException(message))
     }
 
-    suspend fun connectCustom(title: String, baseUrl: String, model: String, key: String): Result<AiProvider> {
+    suspend fun connectCustom(title: String, baseUrl: String, model: String, key: String, port: Int? = null): Result<AiProvider> {
         val raw = baseUrl.trim()
         if (raw.isBlank()) return Result.failure(AiException("Укажи адрес сервера"))
-        val url = normalizeUrl(raw)
-        val item = CustomAi("custom_" + System.currentTimeMillis().toString(36), title.trim().ifBlank { "Другое" }, url, model.trim())
-        val provider = item.provider()
+        val url = normalizeUrl(raw, port)
         val cleanKey = key.trim().removePrefix("Bearer ").trim()
-        return try {
-            val models = AiClient.listModels(provider, cleanKey.ifBlank { "none" })
-            store.update { it.copy(custom = it.custom + item) }
-            vault.set(provider, cleanKey.ifBlank { "none" })
-            remember(provider, models)
-            _checks.value = _checks.value + (provider.id to KeyCheck.Ok(models.size))
-            Result.success(provider)
-        } catch (e: Exception) {
-            Result.failure(e)
+        val hasPath = url.substringAfter("://").contains('/')
+        val candidates = if (hasPath) listOf(url) else listOf("$url/v1", url)
+        var failure: Exception? = null
+        for (candidate in candidates) {
+            val item = CustomAi("custom_" + System.currentTimeMillis().toString(36), title.trim().ifBlank { "Другое" }, candidate, model.trim())
+            val provider = item.provider()
+            try {
+                val models = AiClient.listModels(provider, cleanKey.ifBlank { "none" })
+                store.update { it.copy(custom = it.custom + item) }
+                vault.set(provider, cleanKey.ifBlank { "none" })
+                remember(provider, models)
+                _checks.value = _checks.value + (provider.id to KeyCheck.Ok(models.size))
+                return Result.success(provider)
+            } catch (e: Exception) {
+                if (failure == null) failure = e
+            }
         }
+        return Result.failure(failure ?: AiException("Не получилось"))
     }
 
-    private fun normalizeUrl(raw: String): String {
-        val withScheme = if (raw.startsWith("http://") || raw.startsWith("https://")) raw else "https://$raw"
-        return withScheme.trimEnd('/').removeSuffix("/chat/completions").removeSuffix("/models").trimEnd('/')
+    private fun normalizeUrl(raw: String, port: Int? = null): String {
+        val hasScheme = raw.startsWith("http://") || raw.startsWith("https://")
+        val host = raw.substringAfter("://").substringBefore('/').substringBefore(':')
+        val local = AiClient.isLocalHost(host)
+        var url = if (hasScheme) raw else (if (local) "http://" else "https://") + raw
+        if (port != null) {
+            val authority = url.substringAfter("://").substringBefore('/')
+            if (!authority.contains(':')) {
+                val scheme = url.substringBefore("://")
+                val rest = url.substringAfter("://").removePrefix(authority)
+                url = "$scheme://$authority:$port$rest"
+            }
+        }
+        return url.trimEnd('/').removeSuffix("/chat/completions").removeSuffix("/models").trimEnd('/')
     }
 
     fun removeCustom(id: String) {

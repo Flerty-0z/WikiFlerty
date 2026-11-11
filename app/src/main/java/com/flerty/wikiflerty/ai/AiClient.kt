@@ -315,21 +315,40 @@ object AiClient {
             requestMethod = "POST"
             doOutput = true
             connectTimeout = 15_000
-            readTimeout = 120_000
+            readTimeout = if (isLocalHost(this.url.host)) 600_000 else 120_000
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("Accept", "text/event-stream")
             headers.forEach { (k, v) -> setRequestProperty(k, v) }
         }
-        connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+        try {
+            connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+        } catch (e: java.io.IOException) {
+            throw offline(connection)
+        }
         checkStatus(connection)
         return connection
     }
+
+    fun isLocalHost(host: String): Boolean {
+        val h = host.lowercase().trim('[', ']')
+        if (h == "localhost" || h.endsWith(".local") || h.endsWith(".lan") || h == "::1") return true
+        val p = h.split('.').mapNotNull { it.toIntOrNull() }
+        if (p.size != 4) return false
+        return p[0] == 10 || p[0] == 127 || (p[0] == 192 && p[1] == 168) || (p[0] == 172 && p[1] in 16..31) || (p[0] == 100 && p[1] in 64..127)
+    }
+
+    private fun offline(connection: HttpURLConnection): AiException =
+        if (isLocalHost(connection.url.host)) {
+            AiException("Нет связи с компьютером. Проверь, что телефон в той же Wi-Fi сети, сервер запущен и открыт для сети")
+        } else {
+            AiException("Нет связи с сервером. Проверь интернет.")
+        }
 
     private fun checkStatus(connection: HttpURLConnection) {
         val code = try {
             connection.responseCode
         } catch (e: java.io.IOException) {
-            throw AiException("Нет связи с сервером. Проверь интернет.")
+            throw offline(connection)
         }
         if (code in 200..299) return
         val raw = runCatching { connection.errorStream?.bufferedReader()?.readText() }.getOrNull().orEmpty()

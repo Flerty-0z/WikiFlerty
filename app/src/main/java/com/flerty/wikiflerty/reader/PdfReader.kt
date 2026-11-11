@@ -1475,7 +1475,7 @@ private fun PdfReaderScreen(host: PdfReaderActivity, state: PdfUiState) {
             TextInputSheet(
                 "Закладка",
                 mark.label,
-                "Название, например «Важный момент»",
+                "Название закладки",
                 onDismiss = { state.nameMark = null },
                 icon = AppIcons.Bookmark,
                 maxLength = 80,

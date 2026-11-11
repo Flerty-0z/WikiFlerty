@@ -240,7 +240,7 @@ fun AppButton(text: String, primary: Boolean, modifier: Modifier = Modifier, lab
                 FitText(text, tint, 14.sp, weight = FontWeight.SemiBold)
             }
         } else if (icon != null) {
-            Icon(icon, text, tint = tint, modifier = Modifier.size(21.dp))
+            ActionLabel(text, tint, fontSize = 14.sp, iconSize = 21.dp)
         } else {
             FitText(text, if (primary) AppColors.OnAccent else AppColors.Accent, 14.sp, weight = FontWeight.SemiBold)
         }

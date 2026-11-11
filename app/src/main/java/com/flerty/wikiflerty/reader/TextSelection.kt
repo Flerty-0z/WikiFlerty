@@ -6,7 +6,11 @@ class TextSelectionBridge(
     private val onEvent: (String) -> Unit,
     private val onFootnote: (String, String) -> Unit,
     private val onHandles: (String) -> Unit,
+    private val onBoot: () -> String = { "" },
 ) {
+    @JavascriptInterface
+    fun boot(): String = runCatching { onBoot() }.getOrDefault("")
+
     @JavascriptInterface
     fun onHandles(data: String) = onHandles.invoke(data)
 

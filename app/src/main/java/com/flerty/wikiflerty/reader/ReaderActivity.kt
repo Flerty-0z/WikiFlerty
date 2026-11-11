@@ -674,6 +674,14 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         )
     }
 
+    @Volatile private var bootScript: String = ""
+
+    private fun refreshBoot() {
+        bootScript = runCatching {
+            selectionScript + "\n;window.__wfBionic && window.__wfBionic(${settings.bionic});\n" + kitCall() + ";\n" + TextSelection.peopleCall(peopleNow)
+        }.getOrDefault("")
+    }
+
     private var pageOffset = floatArrayOf(0f, 0f)
     private val jsQueue = kotlinx.coroutines.channels.Channel<Pair<Boolean, String>>(kotlinx.coroutines.channels.Channel.UNLIMITED)
 
@@ -852,6 +860,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private fun applyPeople() {
         if (!::navigator.isInitialized) return
+        refreshBoot()
         val call = TextSelection.peopleCall(peopleNow)
         lifecycleScope.launch { runCatching { navigator.evaluateJavascript(call) } }
     }
@@ -1035,6 +1044,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private var injectJob: Job? = null
 
     private fun injectScripts() {
+        refreshBoot()
         injectJob?.cancel()
         injectJob = lifecycleScope.launch {
             for (wait in longArrayOf(0L, 250L, 700L, 1500L)) {
@@ -1311,6 +1321,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         bookAuthor = session.publication.metadata.authors.joinToString(", ") { it.name }
         loadHeroes(session.bookId)
         val initial = settings
+        refreshBoot()
 
         supportFragmentManager.fragmentFactory = EpubNavigatorFactory(session.publication)
             .createFragmentFactory(
@@ -1682,6 +1693,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 onEvent = { type -> runOnUiThread { onSelectionEvent(type) } },
                 onFootnote = { text, url -> runOnUiThread { showFootnote(text, url) } },
                 onHandles = { data -> runOnUiThread { onHandles(data) } },
+                onBoot = { bootScript },
             )
         }
         val accent = selectionAccent()

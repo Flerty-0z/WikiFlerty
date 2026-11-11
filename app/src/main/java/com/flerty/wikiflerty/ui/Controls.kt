@@ -722,7 +722,7 @@ fun TextInputSheet(
                     Spacer(Modifier.width(12.dp))
                 }
                 Box(Modifier.weight(1f), contentAlignment = if (multiline) Alignment.TopStart else Alignment.CenterStart) {
-                    if (text.text.isEmpty()) Text(hint, color = AppColors.Faint, fontSize = if (multiline) 16.sp else 20.sp, maxLines = 1)
+                    if (text.text.isEmpty()) Text(hint, color = AppColors.Faint, fontSize = if (multiline) 16.sp else 20.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     BasicTextField(
                         value = text,
                         onValueChange = { v ->
@@ -761,7 +761,7 @@ fun TextInputSheet(
                     .liveClick(shape, sound = FeedbackSound.Toggle) { save() }
                     .accentHighlight(shape),
                 contentAlignment = Alignment.Center,
-            ) { ActionLabel("Готово", accentContent) }
+            ) { ActionLabel("Сохранить", accentContent) }
         }
     }
 }
@@ -782,6 +782,26 @@ fun actionIcon(label: String): ImageVector? = when (label) {
 @Composable
 fun ActionLabel(text: String, color: Color, fontSize: androidx.compose.ui.unit.TextUnit = 15.sp, weight: FontWeight = FontWeight.SemiBold, iconSize: androidx.compose.ui.unit.Dp = 22.dp) {
     val icon = actionIcon(text)
-    if (icon != null) Icon(icon, text, tint = color, modifier = Modifier.size(iconSize))
-    else Text(text, color = color, fontSize = fontSize, fontWeight = weight, maxLines = 1)
+    if (icon == null) {
+        Text(text, color = color, fontSize = fontSize, fontWeight = weight, maxLines = 1)
+        return
+    }
+    val wide = with(androidx.compose.ui.platform.LocalDensity.current) { 150.dp.roundToPx() }
+    androidx.compose.ui.layout.Layout(
+        content = {
+            Icon(icon, text, tint = color, modifier = Modifier.size(iconSize))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, null, tint = color, modifier = Modifier.size(iconSize - 3.dp))
+                Text(text, color = color, fontSize = fontSize, fontWeight = weight, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 8.dp))
+            }
+        },
+    ) { measurables, constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val full = measurables[1].measure(loose.copy(maxWidth = androidx.compose.ui.unit.Constraints.Infinity))
+        val useFull = constraints.hasBoundedWidth && constraints.maxWidth >= wide && full.width <= constraints.maxWidth
+        val chosen = if (useFull) full else measurables[0].measure(loose)
+        val w = chosen.width.coerceIn(constraints.minWidth, constraints.maxWidth.coerceAtLeast(constraints.minWidth))
+        val h = chosen.height.coerceIn(constraints.minHeight, constraints.maxHeight.coerceAtLeast(constraints.minHeight))
+        layout(w, h) { chosen.place((w - chosen.width) / 2, (h - chosen.height) / 2) }
+    }
 }

@@ -1,5 +1,11 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.offset
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.graphics.drawOutline
@@ -333,6 +339,7 @@ fun LibraryScreen(
                 showFilterSheet = false
             },
             onEditShelf = { name -> controls.shelfDialog = ShelfDialog.Edit(name) },
+            onReorder = { order -> app.libraryPrefs.update { it.copy(shelves = order) } },
             onNewShelf = {
                 showFilterSheet = false
                 controls.shelfDialog = ShelfDialog.Create(null)
@@ -438,6 +445,7 @@ private fun LibraryFilterSheet(
     selectedId: String,
     onSelect: (String) -> Unit,
     onEditShelf: (String) -> Unit,
+    onReorder: (List<String>) -> Unit,
     onNewShelf: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -450,10 +458,8 @@ private fun LibraryFilterSheet(
         val shelves = filters.filter { it.isShelf }
         if (shelves.isNotEmpty()) {
             TabbedFrame("Полки", icon = AppIcons.Shelf, trailing = { CountBadge(shelves.size) }) {
-                Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    shelves.forEach { f ->
-                        FilterRow(f, coversFor[f.id].orEmpty(), counts[f.id] ?: 0, f.id == selectedId, onEdit = { onEditShelf(f.title) }) { onSelect(f.id) }
-                    }
+                ShelfOrderList(shelves, onReorder) { f, mod ->
+                    FilterRow(f, coversFor[f.id].orEmpty(), counts[f.id] ?: 0, f.id == selectedId, onEdit = { onEditShelf(f.title) }, modifier = mod) { onSelect(f.id) }
                 }
             }
         }
@@ -475,10 +481,10 @@ private fun LibraryFilterSheet(
 }
 
 @Composable
-private fun FilterRow(filter: LibraryFilter, ids: List<String>, count: Int, selected: Boolean, onEdit: (() -> Unit)?, onClick: () -> Unit) {
+private fun FilterRow(filter: LibraryFilter, ids: List<String>, count: Int, selected: Boolean, onEdit: (() -> Unit)?, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val shape = appCorner(14)
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .sheetReveal()
             .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.98f, onClick = onClick)
@@ -522,6 +528,125 @@ private fun FilterRow(filter: LibraryFilter, ids: List<String>, count: Int, sele
                 Modifier.size(34.dp).liveClick(CircleShape, sound = FeedbackSound.Open, onClick = onEdit),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Pencil, "Изменить", tint = AppColors.Muted, modifier = Modifier.size(17.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun ShelfOrderList(
+    shelves: List<LibraryFilter>,
+    onReorder: (List<String>) -> Unit,
+    row: @Composable (LibraryFilter, Modifier) -> Unit,
+) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val gap = with(density) { 8.dp.toPx() }
+    val feedback = LocalFeedback.current
+    val order = remember { androidx.compose.runtime.mutableStateListOf<String>() }
+    var dragging by remember { mutableStateOf<String?>(null) }
+    var offset by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val heights = remember { HashMap<String, Int>() }
+    val byId = shelves.associateBy { it.id }
+    if (dragging == null) {
+        val ids = shelves.map { it.id }
+        if (order.toList() != ids) {
+            order.clear()
+            order.addAll(ids)
+        }
+    }
+    val scope = rememberCoroutineScope()
+    val settle = remember { androidx.compose.animation.core.Animatable(0f) }
+    var settling by remember { mutableStateOf<String?>(null) }
+    Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        order.forEachIndexed { index, id ->
+            val f = byId[id] ?: return@forEachIndexed
+            androidx.compose.runtime.key(id) {
+                val shift = remember { androidx.compose.animation.core.Animatable(0f) }
+                val lastIndex = remember { intArrayOf(index) }
+                if (lastIndex[0] != index) {
+                    val delta = (lastIndex[0] - index) * ((heights[id] ?: 0) + gap)
+                    lastIndex[0] = index
+                    if (dragging != id) {
+                        androidx.compose.runtime.SideEffect {
+                            scope.launch {
+                                shift.snapTo(shift.value + delta)
+                                shift.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 520f))
+                            }
+                        }
+                    }
+                }
+                val active = dragging == id
+                val lift by androidx.compose.animation.core.animateFloatAsState(if (active) 1f else 0f, Motion.tween(160), label = "shelf-lift")
+                val mod = Modifier
+                    .zIndex(if (active || settling == id) 2f else 0f)
+                    .onGloballyPositioned { heights[id] = it.size.height }
+                    .graphicsLayer {
+                        translationY = when {
+                            active -> offset
+                            settling == id -> settle.value
+                            else -> shift.value
+                        }
+                        val sc = 1f + 0.035f * lift
+                        scaleX = sc
+                        scaleY = sc
+                        shadowElevation = 18f * lift
+                        shape = appCorner(14)
+                        clip = false
+                    }
+                    .pointerInput(id) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                dragging = id
+                                offset = 0f
+                                feedback?.play(FeedbackSound.Toggle)
+                            },
+                            onDragEnd = {
+                                val rest = offset
+                                dragging = null
+                                settling = id
+                                onReorder(order.map { byId[it]?.title ?: it.removePrefix("shelf:") })
+                                scope.launch {
+                                    settle.snapTo(rest)
+                                    settle.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 420f))
+                                    if (settling == id) settling = null
+                                }
+                            },
+                            onDragCancel = {
+                                val rest = offset
+                                dragging = null
+                                settling = id
+                                scope.launch {
+                                    settle.snapTo(rest)
+                                    settle.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 420f))
+                                    if (settling == id) settling = null
+                                }
+                            },
+                        ) { change, amount ->
+                            change.consume()
+                            offset += amount.y
+                            val i = order.indexOf(id)
+                            if (offset > 0 && i < order.lastIndex) {
+                                val next = order[i + 1]
+                                val step = (heights[next] ?: 0) + gap
+                                if (step > 0 && offset > step / 2) {
+                                    order.removeAt(i)
+                                    order.add(i + 1, id)
+                                    offset -= step
+                                    feedback?.play(FeedbackSound.Toggle)
+                                }
+                            } else if (offset < 0 && i > 0) {
+                                val prev = order[i - 1]
+                                val step = (heights[prev] ?: 0) + gap
+                                if (step > 0 && -offset > step / 2) {
+                                    order.removeAt(i)
+                                    order.add(i - 1, id)
+                                    offset += step
+                                    feedback?.play(FeedbackSound.Toggle)
+                                }
+                            }
+                        }
+                    }
+                row(f, mod)
+            }
         }
     }
 }
