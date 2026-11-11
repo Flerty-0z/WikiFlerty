@@ -188,28 +188,36 @@ fun LibraryScreen(
         return
     }
 
-    val shelves = allShelves(prefs, books)
-    val filters = baseFilters() + shelves.map { name -> LibraryFilter(SHELF + name, name, AppIcons.Shelf) { name in it.shelves } }
+    val shelves = remember(prefs, books) { allShelves(prefs, books) }
+    val filters = remember(shelves) { baseFilters() + shelves.map { name -> LibraryFilter(SHELF + name, name, AppIcons.Shelf) { name in it.shelves } } }
     val active = filters.firstOrNull { it.id == prefs.filter } ?: filters.first()
     val q = query.trim()
-    val shown = sorted(
-        books.filter { active.matches(it) && (q.isEmpty() || it.title.contains(q, true) || it.author.contains(q, true)) },
-        prefs,
-    )
+    val shown = remember(books, active, q, prefs) {
+        sorted(
+            books.filter { active.matches(it) && (q.isEmpty() || it.title.contains(q, true) || it.author.contains(q, true)) },
+            prefs,
+        )
+    }
     val open = { book: Book -> viewModel.open(book) }
-    val current = if (active.id == "all" && q.isEmpty()) {
-        books.filter { it.status == ReadStatus.Reading && it.lastReadAt != null }.maxByOrNull { it.lastReadAt ?: 0L }
-    } else {
-        null
+    val addBook by androidx.compose.runtime.rememberUpdatedState(onAddBook)
+    val current = remember(books, active.id, q) {
+        if (active.id == "all" && q.isEmpty()) {
+            books.filter { it.status == ReadStatus.Reading && it.lastReadAt != null }.maxByOrNull { it.lastReadAt ?: 0L }
+        } else {
+            null
+        }
     }
     val stats by app.stats.days.collectAsStateWithLifecycle()
     val todayMs = stats[LocalDate.now().toString()]?.values?.sumOf { it.ms } ?: 0L
     val longPress = { book: Book -> menuBookId = book.id }
     val goalText = if (prefs.dailyGoalMinutes > 0) "Сегодня ${todayMs / 60_000}/${prefs.dailyGoalMinutes} мин" else null
 
-    val counts = filters.associate { f -> f.id to books.count(f.matches) }
-    val recent = books.sortedByDescending { it.lastReadAt ?: it.addedAt }
-    val coversFor = filters.associate { f -> f.id to recent.filter(f.matches).map { it.id } }
+    val counts = remember(filters, books) { filters.associate { f -> f.id to books.count(f.matches) } }
+    val coversFor = remember(filters, books) {
+        val recent = books.sortedByDescending { it.lastReadAt ?: it.addedAt }
+        filters.associate { f -> f.id to recent.filter(f.matches).map { it.id } }
+    }
+    var showRandom by remember { mutableStateOf(false) }
     val tablet = LocalConfiguration.current.screenWidthDp >= 600
     val grid = prefs.view == LibraryView.Grid
     val columns = when (prefs.coverSize) {
@@ -233,10 +241,10 @@ fun LibraryScreen(
             Box(
                 Modifier
                     .size(44.dp)
-                    .liveClick(CircleShape, sound = FeedbackSound.Open) { controls.showViewSheet = true }
+                    .liveClick(CircleShape, sound = FeedbackSound.Open) { showRandom = true }
                     .fieldSurface(CircleShape),
                 contentAlignment = Alignment.Center,
-            ) { Icon(AppIcons.Sort, "Вид и сортировка", tint = AppColors.Text, modifier = Modifier.size(20.dp)) }
+            ) { Icon(AppIcons.Dice, "Случайная книга", tint = AppColors.Text, modifier = Modifier.size(21.dp)) }
         }
         val lastBook = remember { arrayOfNulls<Book>(1) }
         if (current != null) lastBook[0] = current
@@ -257,16 +265,16 @@ fun LibraryScreen(
         ) { layout ->
             val lgrid = layout.view == LibraryView.Grid
                 if (layout.view == LibraryView.Shelves) {
-                val planks = if (active.id == "all" && q.isEmpty()) {
+                val planks = remember(books, shelves, active, q, shown) { if (active.id == "all" && q.isEmpty()) {
                     val named = shelves.map { name ->
                         PlankSpec("shelf:$name", name, books.filter { name in it.shelves }, { controls.shelfDialog = ShelfDialog.Edit(name) }, { controls.shelfDialog = ShelfDialog.Edit(name) }, wrap = false)
                     }
                     val rest = books.filter { b -> b.shelves.none { it in shelves } }
-                    named + if (rest.isNotEmpty() || named.isEmpty()) listOf(PlankSpec("rest", if (named.isEmpty()) null else "Без полки", rest, onAddBook, null, wrap = named.isEmpty())) else emptyList()
+                    named + if (rest.isNotEmpty() || named.isEmpty()) listOf(PlankSpec("rest", if (named.isEmpty()) null else "Без полки", rest, { addBook() }, null, wrap = named.isEmpty())) else emptyList()
                 } else {
                     val edit = if (active.isShelf) ({ controls.shelfDialog = ShelfDialog.Edit(active.title) }) else null
-                    listOf(PlankSpec(active.id, if (active.isShelf) active.title else null, shown, edit ?: if (q.isEmpty()) onAddBook else null, edit, wrap = true))
-                }
+                    listOf(PlankSpec(active.id, if (active.isShelf) active.title else null, shown, edit ?: if (q.isEmpty()) ({ addBook() }) else null, edit, wrap = true))
+                } }
                 BookcaseView(
                     planks = planks,
                     onBook = { longPress(it) },
@@ -343,7 +351,7 @@ fun LibraryScreen(
     if (showFilterSheet) {
         LibraryFilterSheet(
             filters = filters,
-            counts = filters.associate { f -> f.id to books.count(f.matches) },
+            counts = counts,
             coversFor = coversFor,
             selectedId = active.id,
             onSelect = { id ->
@@ -362,6 +370,171 @@ fun LibraryScreen(
 
     controls.shelfDialog?.let { dialog ->
         ShelfDialogView(dialog, shelves, onDismiss = { controls.shelfDialog = null })
+    }
+
+    if (showRandom) {
+        RandomBookSheet(
+            books = books,
+            all = filters.first(),
+            shelves = filters.filter { it.isShelf },
+            counts = counts,
+            coversFor = coversFor,
+            coverFile = viewModel::coverFile,
+            onRead = { book ->
+                showRandom = false
+                viewModel.open(book)
+            },
+            onDismiss = { showRandom = false },
+        )
+    }
+}
+
+@Composable
+private fun RandomBookSheet(
+    books: List<Book>,
+    all: LibraryFilter,
+    shelves: List<LibraryFilter>,
+    counts: Map<String, Int>,
+    coversFor: Map<String, List<String>>,
+    coverFile: (Book) -> File?,
+    onRead: (Book) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    val store = remember { context.getSharedPreferences("random_book", android.content.Context.MODE_PRIVATE) }
+    val names = shelves.map { it.title }
+    var everything by remember { mutableStateOf(store.getBoolean("all", true) || names.isEmpty()) }
+    var picked by remember { mutableStateOf(store.getStringSet("shelves", emptySet()).orEmpty().filter { it in names }.toSet()) }
+    fun persist() = store.edit().putBoolean("all", everything).putStringSet("shelves", picked).apply()
+    val pool = remember(books, everything, picked) {
+        val base = if (everything) books else books.filter { b -> b.shelves.any { it in picked } }
+        base.filter { it.status != ReadStatus.Finished }.ifEmpty { base }
+    }
+    var reel by remember { mutableStateOf<Book?>(null) }
+    var spinning by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val feedback = LocalFeedback.current
+    fun spin() {
+        if (pool.isEmpty() || spinning) return
+        spinning = true
+        persist()
+        scope.launch {
+            val previous = reel
+            val final = pool.filter { it.id != previous?.id }.ifEmpty { pool }.random()
+            if (pool.size > 1) {
+                var last: Book? = previous
+                for (i in 0 until 13) {
+                    val next = pool.filter { it.id != last?.id }.ifEmpty { pool }.random()
+                    reel = next
+                    last = next
+                    feedback?.play(FeedbackSound.Tap)
+                    kotlinx.coroutines.delay(55L + i * i * 3L)
+                }
+            }
+            reel = final
+            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+            feedback?.play(FeedbackSound.Toggle)
+            spinning = false
+        }
+    }
+    AppSheet(onDismiss, title = "Случайная книга") {
+        androidx.compose.animation.AnimatedVisibility(
+            visible = reel != null,
+            enter = androidx.compose.animation.expandVertically(Motion.tween(300)) + androidx.compose.animation.fadeIn(Motion.fade(260)),
+            exit = androidx.compose.animation.shrinkVertically(Motion.tween(240)) + androidx.compose.animation.fadeOut(Motion.fade(180)),
+        ) {
+            val shape = appCorner(18)
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(132.dp)
+                    .clip(shape)
+                    .fieldSurface(shape)
+                    .padding(12.dp),
+            ) {
+                androidx.compose.animation.AnimatedContent(
+                    targetState = reel,
+                    transitionSpec = {
+                        if (spinning) {
+                            (androidx.compose.animation.slideInVertically(Motion.tween(110)) { -it } + androidx.compose.animation.fadeIn(Motion.fade(90))) togetherWith
+                                (androidx.compose.animation.slideOutVertically(Motion.tween(110)) { it } + androidx.compose.animation.fadeOut(Motion.fade(90)))
+                        } else {
+                            (androidx.compose.animation.slideInVertically(androidx.compose.animation.core.spring(dampingRatio = 0.55f, stiffness = 380f)) { -it / 2 } + androidx.compose.animation.fadeIn(Motion.fade(160))) togetherWith
+                                (androidx.compose.animation.slideOutVertically(Motion.tween(140)) { it } + androidx.compose.animation.fadeOut(Motion.fade(120)))
+                        }
+                    },
+                    label = "random-reel",
+                ) { book ->
+                    if (book != null) {
+                        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            CoverBox(book, coverFile(book), Modifier.size(width = 72.dp, height = 108.dp).clip(appCorner(8)), small = true, showStatus = false)
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(book.title, color = AppColors.Text, fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                                if (book.author.isNotBlank()) Text(book.author, color = AppColors.Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        FilterRow(all, coversFor[all.id].orEmpty(), counts[all.id] ?: 0, selected = false, onEdit = null, checked = everything) {
+            everything = !everything
+            picked = if (everything) names.toSet() else emptySet()
+            reel = null
+        }
+        if (shelves.isNotEmpty()) {
+            TabbedFrame("Полки", icon = AppIcons.Shelf, trailing = { CountBadge(shelves.size) }) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    shelves.forEach { f ->
+                        val on = everything || f.title in picked
+                        FilterRow(f, coversFor[f.id].orEmpty(), counts[f.id] ?: 0, selected = false, onEdit = null, checked = on) {
+                            val next = if (everything) names.toSet() - f.title else if (on) picked - f.title else picked + f.title
+                            everything = next.size == names.size
+                            picked = next
+                            reel = null
+                        }
+                    }
+                }
+            }
+        }
+        val reelBook = reel
+        val shape = appCorner(14)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (reelBook != null && !spinning) {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(52.dp)
+                        .liveClick(shape, sound = FeedbackSound.Open) { onRead(reelBook) }
+                        .accentHighlight(shape),
+                    contentAlignment = Alignment.Center,
+                ) { ActionLabel("Читать", AppColors.OnAccent, fontSize = 15.sp, icon = AppIcons.Play) }
+            }
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(52.dp)
+                    .liveClick(shape, sound = FeedbackSound.Toggle, enabled = pool.isNotEmpty() && !spinning) { spin() }
+                    .then(
+                        if (reelBook != null && !spinning) Modifier.border(1.dp, AppColors.Accent.copy(alpha = 0.4f), shape)
+                        else Modifier.accentHighlight(shape),
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                val tint = if (reelBook != null && !spinning) AppColors.Accent else AppColors.OnAccent
+                ActionLabel(
+                    when {
+                        pool.isEmpty() -> "Нет книг"
+                        reelBook != null -> "Ещё раз"
+                        else -> "Выбрать книгу"
+                    },
+                    tint,
+                    fontSize = 15.sp,
+                    icon = if (reelBook != null) AppIcons.Rotate else AppIcons.Dice,
+                )
+            }
+        }
     }
 }
 
@@ -493,8 +666,9 @@ private fun LibraryFilterSheet(
 }
 
 @Composable
-private fun FilterRow(filter: LibraryFilter, ids: List<String>, count: Int, selected: Boolean, onEdit: (() -> Unit)?, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun FilterRow(filter: LibraryFilter, ids: List<String>, count: Int, selected: Boolean, onEdit: (() -> Unit)?, modifier: Modifier = Modifier, checked: Boolean? = null, onClick: () -> Unit) {
     val shape = appCorner(14)
+    val selected = selected || checked == true
     Row(
         modifier
             .fillMaxWidth()
@@ -540,6 +714,25 @@ private fun FilterRow(filter: LibraryFilter, ids: List<String>, count: Int, sele
                 Modifier.size(34.dp).liveClick(CircleShape, sound = FeedbackSound.Open, onClick = onEdit),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Pencil, "Изменить", tint = AppColors.Muted, modifier = Modifier.size(17.dp)) }
+        }
+        if (checked != null) {
+            val fill by androidx.compose.animation.animateColorAsState(if (checked) AppColors.Accent else Color.Transparent, Motion.fade(200), label = "check-fill")
+            val edge by androidx.compose.animation.animateColorAsState(if (checked) AppColors.Accent else AppColors.Line, Motion.fade(200), label = "check-edge")
+            Box(
+                Modifier
+                    .padding(end = 4.dp)
+                    .size(24.dp)
+                    .clip(appCorner(7))
+                    .background(fill)
+                    .border(1.5.dp, edge, appCorner(7)),
+                contentAlignment = Alignment.Center,
+            ) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = checked,
+                    enter = androidx.compose.animation.scaleIn(androidx.compose.animation.core.spring(dampingRatio = 0.5f, stiffness = 500f)) + androidx.compose.animation.fadeIn(),
+                    exit = androidx.compose.animation.scaleOut(Motion.tween(120)) + androidx.compose.animation.fadeOut(Motion.fade(120)),
+                ) { Icon(AppIcons.Check, null, tint = AppColors.OnAccent, modifier = Modifier.size(15.dp)) }
+            }
         }
     }
 }

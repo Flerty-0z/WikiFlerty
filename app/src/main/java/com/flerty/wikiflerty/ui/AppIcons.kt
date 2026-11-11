@@ -60,6 +60,19 @@ object AppIcons {
     }
     val Grid by lazy { icon("grid", "M4 4h7v7H4z", "M13 4h7v7h-7z", "M4 13h7v7H4z", "M13 13h7v7h-7z") }
     val ListView by lazy { icon("list", "M4 5h4v4H4z", "M4 15h4v4H4z", "M11 7h9M11 17h9") }
+    val Dice by lazy {
+        icon(
+            "dice",
+            "M6 3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3z",
+            fills = listOf(
+                "M8.5 7a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3z",
+                "M15.5 7a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3z",
+                "M12 10.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3z",
+                "M8.5 14a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3z",
+                "M15.5 14a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3z",
+            ),
+        )
+    }
     val Sort by lazy { icon("sort", "M7 4v16M4 17l3 3 3-3", "M13 6h7M13 12h5M13 18h3") }
     val Chart by lazy { icon("chart", "M4 20h16", "M7 16v-5M12 16V7M17 16v-8") }
     val Shelf by lazy { icon("shelf", "M5 4v16M10 4v16", "M14.5 5.5l4 14", "M3 20h18") }

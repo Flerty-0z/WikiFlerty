@@ -133,7 +133,7 @@ class App : Application() {
         imports.resume()
         backgroundAudio.install()
         achievements.start(appScope)
-        runCatching { com.flerty.wikiflerty.system.ReadingReminder.schedule(this) }
+        runCatching { com.flerty.wikiflerty.system.ReadingReminder.cancel(this) }
         com.flerty.wikiflerty.system.FocusMode.load(this)
         appScope.launch {
             kotlinx.coroutines.flow.combine(readingTimer.watch, paper.stopwatch, com.flerty.wikiflerty.system.FocusMode.enabled) { w, p, _ ->

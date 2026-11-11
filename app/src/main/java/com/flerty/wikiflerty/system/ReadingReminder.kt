@@ -53,6 +53,11 @@ object ReadingReminder {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
 
+    fun cancel(context: Context) {
+        val alarms = context.getSystemService(AlarmManager::class.java) ?: return
+        alarms.cancel(pending(context))
+    }
+
     fun schedule(context: Context) {
         val alarms = context.getSystemService(AlarmManager::class.java) ?: return
         val intent = pending(context)
@@ -104,7 +109,6 @@ object ReadingReminder {
 
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == ReadingReminder.ACTION) runCatching { ReadingReminder.notifyIfNeeded(context) }
-        ReadingReminder.schedule(context)
+        runCatching { ReadingReminder.cancel(context) }
     }
 }

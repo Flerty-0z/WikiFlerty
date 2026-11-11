@@ -303,6 +303,8 @@ private class ShelfDrag {
     var pointer by mutableStateOf<Offset?>(null)
     var grab: Offset = Offset.Zero
     var dest by mutableStateOf<Offset?>(null)
+    var fromSpec: LyingSpec? = null
+    var destSpec by mutableStateOf<LyingSpec?>(null)
     var root: androidx.compose.ui.layout.LayoutCoordinates? = null
     var onDrop: (Book, String, String) -> Unit = { _, _, _ -> }
     var scrolling: () -> Boolean = { false }
@@ -333,6 +335,7 @@ private class ShelfDrag {
         val moved = target != null && target != from
         landPlank = if (moved) target!! else from
         dest = null
+        destSpec = null
         phase = 2
         if (moved) onDrop(b, from, target!!)
     }
@@ -350,20 +353,29 @@ private val LocalShelfDrag = androidx.compose.runtime.staticCompositionLocalOf<S
 private fun DragGhost(drag: ShelfDrag) {
     val book = drag.book ?: return
     val root = drag.root
+    val density = androidx.compose.ui.platform.LocalDensity.current
     val pos = remember(book.id) { androidx.compose.animation.core.Animatable(Offset.Zero, Offset.VectorConverter) }
     val lift = remember(book.id) { androidx.compose.animation.core.Animatable(0f) }
     val fade = remember(book.id) { androidx.compose.animation.core.Animatable(1f) }
+    val form = remember(book.id) { androidx.compose.animation.core.Animatable(if (drag.fromSpec != null) 0f else 1f) }
     val phase = drag.phase
-    val pointer = drag.pointer
     val held = remember(book.id) { arrayOf(Offset.Zero) }
     val snapped = remember(book.id) { booleanArrayOf(false) }
-    val dragPos = if (phase == 1 && pointer != null && root != null && root.isAttached) root.windowToLocal(pointer) - drag.grab else null
-    if (dragPos != null) held[0] = dragPos
-    if (phase == 1) snapped[0] = false
+    val spec = (if (phase == 2) drag.destSpec else null) ?: drag.fromSpec
+    val coverW = with(density) { BookWidth.toPx() }
+    val coverH = coverW * 1.5f
+    val spineW = with(density) { (spec?.width ?: BookWidth).toPx() }
+    val spineH = with(density) { (SpineHeight + if (spec?.top == true) 4.dp else 0.dp).toPx() }
+    val from = drag.fromSpec
+    val fromW = with(density) { (from?.width ?: BookWidth).toPx() }
+    val fromH = with(density) { (SpineHeight + if (from?.top == true) 4.dp else 0.dp).toPx() }
     androidx.compose.runtime.LaunchedEffect(book.id, phase) {
         if (phase == 1) {
             fade.snapTo(1f)
-            lift.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.62f, stiffness = 420f))
+            kotlinx.coroutines.coroutineScope {
+                if (drag.fromSpec != null) launch { form.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.78f, stiffness = 260f)) }
+                launch { lift.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.62f, stiffness = 420f)) }
+            }
         }
         if (phase == 2) {
             pos.snapTo(held[0])
@@ -374,6 +386,7 @@ private fun DragGhost(drag: ShelfDrag) {
             val r = drag.root
             if (dest != null && r != null && r.isAttached && !drag.scrolling()) {
                 val local = r.windowToLocal(dest)
+                val lying = drag.destSpec != null
                 kotlinx.coroutines.coroutineScope {
                     val flight = launch {
                         kotlinx.coroutines.coroutineScope {
@@ -389,6 +402,7 @@ private fun DragGhost(drag: ShelfDrag) {
                                 }
                             }
                             launch { lift.animateTo(0f, Motion.tween(320, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
+                            launch { form.animateTo(if (lying) 0f else 1f, Motion.tween(if (lying) 380 else 200, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
                         }
                     }
                     val watch = launch {
@@ -408,12 +422,24 @@ private fun DragGhost(drag: ShelfDrag) {
             drag.phase = 0
             drag.book = null
             drag.dest = null
+            drag.destSpec = null
             drag.pointer = null
         }
     }
+    fun lerp(a: Float, b: Float, t: Float) = a + (b - a) * t
     Box(
         Modifier.graphicsLayer {
-            val at = if (phase == 1) dragPos ?: held[0] else if (snapped[0]) pos.value else held[0]
+            val f = form.value
+            val pointer = drag.pointer
+            val at = if (drag.phase == 1 && pointer != null && root != null && root.isAttached) {
+                val g = drag.grab
+                val grab = if (from != null) Offset(lerp(g.x, g.x / fromW * coverW, f), lerp(g.y, g.y / fromH * coverH, f)) else g
+                (root.windowToLocal(pointer) - grab).also { held[0] = it }
+            } else if (snapped[0]) {
+                pos.value
+            } else {
+                held[0]
+            }
             translationX = at.x
             translationY = at.y
             alpha = fade.value
@@ -421,17 +447,40 @@ private fun DragGhost(drag: ShelfDrag) {
             scaleX = s
             scaleY = s
             rotationZ = -4f * lift.value
-            shadowElevation = 22.dp.toPx() * lift.value
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
-            clip = true
         },
     ) {
-        BookCover(book.id, BookWidth)
+        Box(
+            Modifier.graphicsLayer {
+                val f = form.value
+                alpha = (f * 1.6f - 0.3f).coerceIn(0f, 1f)
+                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+                scaleX = lerp(spineW / coverW, 1f, f)
+                scaleY = lerp(spineH / coverH, 1f, f)
+                shadowElevation = 22.dp.toPx() * lift.value * f
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
+                clip = true
+            },
+        ) {
+            BookCover(book.id, BookWidth)
+        }
+        if (spec != null) {
+            Box(
+                Modifier.graphicsLayer {
+                    val f = form.value
+                    alpha = (1.3f - f * 1.6f).coerceIn(0f, 1f)
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+                    scaleX = lerp(1f, coverW / spineW, f)
+                    scaleY = lerp(1f, coverH / spineH, f)
+                },
+            ) {
+                LyingFace(book, spec.width, spec.top, spec.pagesOut)
+            }
+        }
     }
 }
 
 @Composable
-private fun Modifier.shelfDraggable(book: Book, plank: String): Modifier {
+private fun Modifier.shelfDraggable(book: Book, plank: String, spec: LyingSpec? = null): Modifier {
     val drag = LocalShelfDrag.current ?: return this
     if (!drag.enabled) return this
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
@@ -458,7 +507,10 @@ private fun Modifier.shelfDraggable(book: Book, plank: String): Modifier {
     return this
         .onGloballyPositioned { c ->
             coords = c
-            if (landing) drag.dest = c.positionInWindow()
+            if (landing) {
+                drag.destSpec = spec
+                drag.dest = c.positionInWindow()
+            }
         }
         .graphicsLayer { alpha = dim }
         .pointerInput(book.id, plank) {
@@ -468,6 +520,8 @@ private fun Modifier.shelfDraggable(book: Book, plank: String): Modifier {
                     if (drag.phase != 0) return@detectDragGesturesAfterLongPress
                     drag.grab = offset
                     drag.from = plank
+                    drag.fromSpec = spec
+                    drag.destSpec = null
                     drag.dest = null
                     drag.pointer = c.positionInWindow() + offset
                     drag.book = book
@@ -688,18 +742,25 @@ private fun BookStack(books: List<Book>, modifier: Modifier = Modifier, plank: S
             val width = 114.dp + (h % 26).dp
             val shift = (((h shr 5) and 0x0F) - 7).dp
             val pages = i > 0 && (h shr 9) % 3 == 0
-            LyingBook(b, width, top = i == 0, pagesOut = pages, modifier = Modifier.offset(x = shift).shelfDraggable(b, plank)) { onBook(b) }
+            LyingBook(b, width, top = i == 0, pagesOut = pages, modifier = Modifier.offset(x = shift).shelfDraggable(b, plank, LyingSpec(width, i == 0, pages))) { onBook(b) }
         }
     }
 }
 
 @Composable
 private fun LyingBook(book: Book, width: Dp, top: Boolean, pagesOut: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val shape = appCorner(3)
+    LyingFace(book, width, top, pagesOut, modifier.liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onLongClick = if (LocalShelfDrag.current?.enabled == true) null else onClick, onClick = onClick))
+}
+
+private class LyingSpec(val width: Dp, val top: Boolean, val pagesOut: Boolean)
+
+@Composable
+private fun LyingFace(book: Book, width: Dp, top: Boolean, pagesOut: Boolean, modifier: Modifier = Modifier) {
     val tones = rememberCoverTones(book)
     val main = tones[tones.size / 2]
-    val shape = appCorner(3)
     val board = 4.dp
-    Column(modifier.width(width).liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onLongClick = if (LocalShelfDrag.current?.enabled == true) null else onClick, onClick = onClick)) {
+    Column(modifier.width(width)) {
         if (top) {
             Box(
                 Modifier.fillMaxWidth().height(board).drawBehind {

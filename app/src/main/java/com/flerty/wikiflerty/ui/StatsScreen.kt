@@ -212,7 +212,7 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
         }
     }
     val yearStart = today.withDayOfYear(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-    val finishedThisYear = books.count { it.status == ReadStatus.Finished && (it.finishedAt ?: 0) >= yearStart }
+    val finishedThisYear = remember(books, yearStart) { books.count { it.status == ReadStatus.Finished && (it.finishedAt ?: 0) >= yearStart } }
     val frozen = remember(freezes) { com.flerty.wikiflerty.data.StreakFreezeStore.days(freezes) }
     val best = remember(perDay, frozen) { StatsCalc.streaks(perDay, today, frozen = frozen).second }
     val total = remember(perDay) { perDay.values.fold(DayEntry()) { a, b -> a + b } }
@@ -241,7 +241,7 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
             Column(Modifier.fillMaxWidth().fieldSurface(appCorner(18))) {
                 GoalCard(prefs.dailyGoalMinutes, prefs.dailyGoalPages, perDay, framed = false) { v, pages -> app.libraryPrefs.update { it.copy(dailyGoalMinutes = v, dailyGoalPages = pages) } }
                 Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(1.dp).background(AppColors.PanelBorder))
-                val pagesThisYear = perDay.filterKeys { it.year == today.year }.values.sumOf { it.pages }
+                val pagesThisYear = remember(perDay, today.year) { perDay.filterKeys { it.year == today.year }.values.sumOf { it.pages } }
                 YearGoalCard(prefs.yearGoalBooks, prefs.yearGoalPages, finishedThisYear, pagesThisYear, framed = false) { n, pages -> app.libraryPrefs.update { it.copy(yearGoalBooks = n, yearGoalPages = pages) } }
             }
         }
@@ -411,7 +411,7 @@ private fun GoalCard(goalMinutes: Int, inPages: Boolean, perDay: Map<LocalDate, 
         GoalReveal(goalMinutes > 0) {
             val goal = lastGoal
             val done = if (inPages) todayPages >= goal else todayMs >= goal * 60_000L
-            val (streak, _) = if (inPages) StatsCalc.streaks(perDay, today, minMs = 0L, minPages = goal) else StatsCalc.streaks(perDay, today, minMs = goal * 60_000L)
+            val (streak, _) = remember(perDay, today, inPages, goal) { if (inPages) StatsCalc.streaks(perDay, today, minMs = 0L, minPages = goal) else StatsCalc.streaks(perDay, today, minMs = goal * 60_000L) }
             val left = goal - if (inPages) todayPages else (todayMs / 60_000).toInt()
             Row(
                 Modifier.padding(top = 6.dp, bottom = 4.dp),

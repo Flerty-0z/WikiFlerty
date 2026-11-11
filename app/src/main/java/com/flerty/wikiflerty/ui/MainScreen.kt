@@ -157,7 +157,6 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
     }
     var addMenu by remember { mutableStateOf(false) }
     var paperSheet by remember { mutableStateOf(false) }
-    var reminderSheet by remember { mutableStateOf(false) }
     SideDrawer(
         open = drawerOpen && !bottomNav,
         enabled = !bottomNav,
@@ -201,8 +200,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                             },
                         ) {
                             if (section == Section.Library) {
-                                val reminder by com.flerty.wikiflerty.system.ReadingReminder.minutes.collectAsStateWithLifecycle()
-                                HeaderButton(AppIcons.Bell, "Напоминание", tint = if (reminder >= 0) AppColors.Accent else AppColors.Text) { reminderSheet = true }
+                                HeaderButton(AppIcons.Sort, "Вид и сортировка") { libraryControls.showViewSheet = true }
                                 HeaderButton(if (libraryControls.searchOpen) AppIcons.Close else AppIcons.Search, "Поиск") {
                                     libraryControls.searchOpen = !libraryControls.searchOpen
                                 }
@@ -275,7 +273,6 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 )
             }
             if (paperSheet) PaperBookSheet(null) { paperSheet = false }
-            if (reminderSheet) ReminderSheet { reminderSheet = false }
             OnboardingHost(
                 libraryEmpty = libraryBooks.isEmpty(),
                 onAddBook = { addMenu = true },

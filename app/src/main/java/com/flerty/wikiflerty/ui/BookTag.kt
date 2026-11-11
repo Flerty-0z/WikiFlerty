@@ -17,6 +17,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,8 +43,8 @@ import kotlinx.coroutines.withContext
 fun BookCover(bookId: String?, width: Dp, modifier: Modifier = Modifier) {
     val app = LocalContext.current.applicationContext as App
     val books by app.library.books.collectAsStateWithLifecycle()
-    val book = books.firstOrNull { it.id == bookId }
-    val file = book?.let { app.library.coverFile(it) }
+    val book = remember(books, bookId) { books.firstOrNull { it.id == bookId } }
+    val file = remember(book) { book?.let { app.library.coverFile(it) } }
     val cover by produceState(CoverCache.peek(file, 160), file) {
         value = file?.let { withContext(Dispatchers.IO) { CoverCache.load(it, 160) } }
     }
