@@ -49,7 +49,7 @@ fun propCount(decor: Decor): Int = when (decor) {
 }
 
 @Composable
-private fun propClock(): State<Float> = throttledClock(true, 600)
+private fun propClock(): State<Float> = throttledClock(true, 600, shelf = true)
 
 @Composable
 fun ShelfProp(decor: Decor, index: Int, modifier: Modifier = Modifier) {

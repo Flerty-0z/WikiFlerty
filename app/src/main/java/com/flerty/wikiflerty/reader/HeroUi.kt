@@ -47,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -610,7 +611,7 @@ private fun HeroTyping() {
                 ),
                 label = "d$i",
             )
-            Box(Modifier.size(7.dp).clip(CircleShape).background(AppColors.Accent.copy(alpha = alpha)))
+            Box(Modifier.size(7.dp).then(Modifier.graphicsLayer { this.alpha = alpha }).clip(CircleShape).background(AppColors.Accent))
         }
     }
 }

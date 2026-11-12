@@ -384,18 +384,18 @@ fun <T> Morph(
 }
 
 @Composable
-fun throttledClock(animated: Boolean, wrapSeconds: Int): androidx.compose.runtime.State<Float> {
+fun throttledClock(animated: Boolean, wrapSeconds: Int, shelf: Boolean = false): androidx.compose.runtime.State<Float> {
     val wrap = wrapSeconds * 1000L
-    val time = remember(wrapSeconds) { androidx.compose.runtime.mutableFloatStateOf(SharedClock.seconds(wrap)) }
+    val time = remember(wrapSeconds, shelf) { androidx.compose.runtime.mutableFloatStateOf(if (shelf) SharedClock.shelfSeconds(wrap) else SharedClock.seconds(wrap)) }
     if (animated && Motion.enabled) {
-        LaunchedEffect(wrapSeconds) {
-            var last = 0L
+        LaunchedEffect(wrapSeconds, shelf) {
             while (true) {
-                androidx.compose.runtime.withFrameNanos { now ->
-                    if (now - last >= 15_500_000L) {
-                        last = now
-                        time.floatValue = SharedClock.seconds(wrap)
-                    }
+                kotlinx.coroutines.delay(20)
+                androidx.compose.runtime.withFrameNanos { }
+                if (shelf) {
+                    if (!SharedClock.held) time.floatValue = SharedClock.shelfSeconds(wrap)
+                } else {
+                    time.floatValue = SharedClock.seconds(wrap)
                 }
             }
         }
@@ -405,5 +405,23 @@ fun throttledClock(animated: Boolean, wrapSeconds: Int): androidx.compose.runtim
 
 object SharedClock {
     private val start = System.nanoTime()
+    private var pausedTotal = 0L
+    private var pausedAt = 0L
+    private var holds = 0
+
+    val held: Boolean get() = holds > 0
+
+    fun hold() {
+        if (holds++ == 0) pausedAt = System.nanoTime()
+    }
+
+    fun release() {
+        if (holds > 0 && --holds == 0) pausedTotal += System.nanoTime() - pausedAt
+    }
+
     fun seconds(wrapMs: Long): Float = ((System.nanoTime() - start) / 1_000_000L % wrapMs) / 1000f
+
+    fun shelfMillis(): Long = ((if (holds > 0) pausedAt else System.nanoTime()) - start - pausedTotal) / 1_000_000L
+
+    fun shelfSeconds(wrapMs: Long): Float = (shelfMillis() % wrapMs) / 1000f
 }

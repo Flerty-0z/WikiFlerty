@@ -165,7 +165,7 @@ private fun FocusMoon(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun StatePill(text: String, color: Color, dot: Float? = null) {
+private fun StatePill(text: String, color: Color, dot: (() -> Float)? = null) {
     Row(
         Modifier
             .clip(CircleShape)
@@ -175,17 +175,17 @@ private fun StatePill(text: String, color: Color, dot: Float? = null) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        if (dot != null) Box(Modifier.size(7.dp).graphicsLayer { alpha = dot }.background(color, CircleShape))
+        if (dot != null) Box(Modifier.size(7.dp).graphicsLayer { alpha = dot() }.background(color, CircleShape))
         Text(text, color = color, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
     }
 }
 
 @Composable
-private fun Digits(ms: Long, dim: Boolean = false) {
+private fun Digits(ms: Long, dim: () -> Boolean = { false }) {
     val s = ms / 1000
     val parts = listOf("%02d".format(s / 3600) to "часы", "%02d".format(s / 60 % 60) to "минуты", "%02d".format(s % 60) to "секунды")
     Row(
-        Modifier.graphicsLayer { alpha = if (dim) 0.55f else 1f },
+        Modifier.graphicsLayer { alpha = if (dim()) 0.55f else 1f },
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -212,7 +212,7 @@ private fun RoundControl(icon: ImageVector, description: String, size: Int, fill
 
 @Composable
 fun StopwatchIdle(note: String? = null, onStart: () -> Unit) {
-    Digits(0L, dim = true)
+    Digits(0L, dim = { true })
     RoundControl(AppIcons.Play, "Засечь время", 64, filled = true, sound = FeedbackSound.Toggle, onClick = onStart)
     if (note != null) Text(note, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1)
 }
@@ -226,15 +226,15 @@ fun StopwatchActive(key: Any, elapsed: (Long) -> Long, running: Boolean, onToggl
             delay(250)
         }
     }
-    val pulse by rememberInfiniteTransition(label = "watch-pulse").animateFloat(1f, 0.25f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "dot")
+    val pulse = rememberInfiniteTransition(label = "watch-pulse").animateFloat(1f, 0.25f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "dot")
     AnimatedContent(
         targetState = running,
         transitionSpec = { fadeIn(Motion.fade(220)) togetherWith fadeOut(Motion.fade(140)) },
         label = "watch-pill",
     ) { on ->
-        if (on) StatePill("Идёт сеанс чтения", AppColors.Accent, dot = pulse) else StatePill("Пауза", AppColors.Muted)
+        if (on) StatePill("Идёт сеанс чтения", AppColors.Accent, dot = { pulse.value }) else StatePill("Пауза", AppColors.Muted)
     }
-    Digits(elapsed(now), dim = !running && pulse < 0.6f)
+    Digits(elapsed(now), dim = { !running && pulse.value < 0.6f })
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
         RoundControl(AppIcons.Close, "Сбросить", 48, filled = false, sound = FeedbackSound.Close, onClick = onCancel)
         Box(

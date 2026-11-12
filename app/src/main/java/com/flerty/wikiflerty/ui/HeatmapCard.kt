@@ -224,9 +224,13 @@ private fun YearGrid(year: Int, perDay: Map<LocalDate, DayEntry>, frozen: Set<Lo
             label = "today-pulse",
         )
         val pulseColor = AppColors.Accent
+        val todayCell = remember(weeks, year) {
+            if (today.year != year) null else weeks.indexOfFirst { !it.isAfter(today) && !it.plusDays(6).isBefore(today) }.takeIf { it >= 0 }?.let { it to (today.dayOfWeek.value - 1) }
+        }
         Box(Modifier.weight(1f).horizontalScroll(scroll)) {
             androidx.compose.foundation.Canvas(
                 Modifier
+                    .graphicsLayer()
                     .width(15.dp * weeks.size - 3.dp)
                     .height(14.dp + 15.dp * 7 - 3.dp)
                     .pointerInput(year) {
@@ -271,17 +275,6 @@ private fun YearGrid(year: Int, perDay: Map<LocalDate, DayEntry>, frozen: Set<Lo
                         val x = wi * step
                         val y = top + d * step + (cell - h) / 2
                         drawRoundRect(color.copy(alpha = color.alpha * a), androidx.compose.ui.geometry.Offset(x, y), androidx.compose.ui.geometry.Size(cell, h), r)
-                        if (day == today && Motion.enabled && a >= 1f) {
-                            val p = pulse.value
-                            val grow = 4.dp.toPx() * p
-                            drawRoundRect(
-                                pulseColor.copy(alpha = 0.55f * (1f - p)),
-                                androidx.compose.ui.geometry.Offset(x - grow, y - grow),
-                                androidx.compose.ui.geometry.Size(cell + grow * 2, h + grow * 2),
-                                androidx.compose.ui.geometry.CornerRadius(r.x + grow, r.y + grow),
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()),
-                            )
-                        }
                         if (day == selected) {
                             val sw = 1.5.dp.toPx()
                             drawRoundRect(
@@ -293,6 +286,26 @@ private fun YearGrid(year: Int, perDay: Map<LocalDate, DayEntry>, frozen: Set<Lo
                             )
                         }
                     }
+                }
+            }
+            if (todayCell != null && Motion.enabled) {
+                androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+                    if (appear.value < 1f) return@Canvas
+                    val p = pulse.value
+                    val step = 15.dp.toPx()
+                    val cell = 12.dp.toPx()
+                    val top = 14.dp.toPx()
+                    val r = 3.dp.toPx() * AppStyle.current.corners.coerceAtMost(1.3f)
+                    val x = todayCell.first * step
+                    val y = top + todayCell.second * step
+                    val grow = 4.dp.toPx() * p
+                    drawRoundRect(
+                        pulseColor.copy(alpha = 0.55f * (1f - p)),
+                        androidx.compose.ui.geometry.Offset(x - grow, y - grow),
+                        androidx.compose.ui.geometry.Size(cell + grow * 2, cell + grow * 2),
+                        androidx.compose.ui.geometry.CornerRadius(r + grow, r + grow),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()),
+                    )
                 }
             }
         }

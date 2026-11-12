@@ -322,6 +322,25 @@ fun BookcaseView(
         lastOrder[0] = plankOrder
         val seen = remember(animationKey, live) { ShelfSeenStore.of("$animationKey|$live") }
         val listState = listStateHolder
+        val holdScope = androidx.compose.runtime.rememberCoroutineScope()
+        androidx.compose.runtime.DisposableEffect(listState) {
+            var held = false
+            val job = holdScope.launch {
+                androidx.compose.runtime.snapshotFlow { listState.isScrollInProgress }.collect { moving ->
+                    if (moving && !held) {
+                        held = true
+                        SharedClock.hold()
+                    } else if (!moving && held) {
+                        held = false
+                        SharedClock.release()
+                    }
+                }
+            }
+            onDispose {
+                job.cancel()
+                if (held) SharedClock.release()
+            }
+        }
         androidx.compose.runtime.LaunchedEffect(listState, seen) {
             var before = emptySet<Any>()
             androidx.compose.runtime.snapshotFlow { listState.layoutInfo.visibleItemsInfo.map { it.key }.toSet() }.collect { now ->
@@ -1298,7 +1317,7 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
         if (moment != null && decor != Decor.None && moment.season != Season.Summer) {
             val seed = remember(name) { (name ?: "shelf").hashCode() }
             val falling = (moment.season == Season.Autumn || moment.season == Season.Spring) && AppStyle.current.tune().particles
-            val tick = throttledClock(falling, 3600)
+            val tick = throttledClock(falling, 3600, shelf = true)
             val motion = Motion.enabled
             androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().padding(horizontal = 10.dp).height(0.dp)) {
                 val ph = 20.dp.toPx()
@@ -1306,14 +1325,14 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
                     plankSeason(decor, moment.season, light, seed, ph)
                     if (falling) {
                         tick.value
-                        plankFall(decor, moment.season, seed, System.currentTimeMillis(), motion)
+                        plankFall(decor, moment.season, seed, SharedClock.shelfMillis(), motion)
                     }
                 }
             }
         }
         if (decor == Decor.Frost) {
             val garlandSeed = remember(name) { (name ?: "shelf").hashCode() }
-            val twinkle = throttledClock(true, 3600)
+            val twinkle = throttledClock(true, 3600, shelf = true)
             androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(20.dp)) {
                 plankGarland(twinkle.value, garlandSeed, light)
             }

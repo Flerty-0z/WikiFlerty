@@ -3061,13 +3061,14 @@ private fun SelectionNextBar(handle: Color, modifier: Modifier = Modifier, onCli
     val ink = Color(0xFF141210)
     val gold = Color(0xFFE7C77E)
     val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "next")
-    val nudge by pulse.animateFloat(
+    val nudge = pulse.animateFloat(
         0f,
         1f,
         androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse),
         label = "next-nudge",
     )
-    val move = if (Motion.enabled) nudge else 0f
+    val motionOn = Motion.enabled
+    fun move(): Float = if (motionOn) nudge.value else 0f
     val label = if (decor == com.flerty.wikiflerty.ui.Decor.News || decor == com.flerty.wikiflerty.ui.Decor.Comic) "ДАЛЕЕ" else "Далее"
     val labelColor = when (decor) {
         com.flerty.wikiflerty.ui.Decor.Library -> gold
@@ -3123,8 +3124,8 @@ private fun SelectionNextBar(handle: Color, modifier: Modifier = Modifier, onCli
                         drawRoundRect(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(accent.copy(alpha = 0.55f), accent.copy(alpha = 0.3f))), cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2))
                         drawRoundRect(Color.White.copy(alpha = 0.55f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2), style = androidx.compose.ui.graphics.drawscope.Stroke(1.3f * d))
                         drawRoundRect(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.25f), Color.Transparent), endY = h * 0.5f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2))
-                        drawCircle(Color.White.copy(alpha = 0.5f), 2f * d, Offset(10 * d, 9 * d - move * 2 * d))
-                        drawCircle(Color.White.copy(alpha = 0.35f), 1.3f * d, Offset(15 * d, 13 * d - move * 1.5f * d))
+                        drawCircle(Color.White.copy(alpha = 0.5f), 2f * d, Offset(10 * d, 9 * d - move() * 2 * d))
+                        drawCircle(Color.White.copy(alpha = 0.35f), 1.3f * d, Offset(15 * d, 13 * d - move() * 1.5f * d))
                     }
                     com.flerty.wikiflerty.ui.Decor.Clay -> {
                         drawRoundRect(Color.Black.copy(alpha = 0.18f), Offset(0f, 4 * d), size, androidx.compose.ui.geometry.CornerRadius(h / 2))
@@ -3135,8 +3136,8 @@ private fun SelectionNextBar(handle: Color, modifier: Modifier = Modifier, onCli
                         drawRoundRect(Color.Black.copy(alpha = 0.25f), Offset(0f, 2.5f * d), size, androidx.compose.ui.geometry.CornerRadius(h / 2))
                         drawRoundRect(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.lerp(accent, Color.White, 0.2f), accent, androidx.compose.ui.graphics.lerp(accent, Color.Black, 0.18f))), cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2))
                         drawRoundRect(Color.White.copy(alpha = 0.75f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2), style = androidx.compose.ui.graphics.drawscope.Stroke(1.3f * d))
-                        drawCircle(Color.White.copy(alpha = 0.85f), 1.6f * d, Offset(9 * d, 9 * d + move * 1.5f * d))
-                        drawCircle(Color.White.copy(alpha = 0.6f), 1.1f * d, Offset(w - 9 * d, h - 9 * d - move * 1.5f * d))
+                        drawCircle(Color.White.copy(alpha = 0.85f), 1.6f * d, Offset(9 * d, 9 * d + move() * 1.5f * d))
+                        drawCircle(Color.White.copy(alpha = 0.6f), 1.1f * d, Offset(w - 9 * d, h - 9 * d - move() * 1.5f * d))
                     }
                     com.flerty.wikiflerty.ui.Decor.None -> {
                         drawRoundRect(Color.Black.copy(alpha = 0.2f), Offset(0f, 2 * d), size, androidx.compose.ui.geometry.CornerRadius(h / 2))
@@ -3164,7 +3165,7 @@ private fun SelectionNextBar(handle: Color, modifier: Modifier = Modifier, onCli
                 com.flerty.wikiflerty.ui.Decor.Zen -> Color.White
                 else -> labelColor
             }
-            androidx.compose.foundation.Canvas(Modifier.size(width = 28.dp, height = 14.dp).padding(horizontal = 5.dp).graphicsLayer { translationX = move * 2.dp.toPx() }) {
+            androidx.compose.foundation.Canvas(Modifier.size(width = 28.dp, height = 14.dp).padding(horizontal = 5.dp).graphicsLayer { translationX = move() * 2.dp.toPx() }) {
                 val d = density
                 val y = size.height / 2f
                 val head = size.height * 0.42f

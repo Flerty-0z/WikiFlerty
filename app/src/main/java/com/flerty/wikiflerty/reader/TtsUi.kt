@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -410,7 +411,10 @@ fun TtsMini(playing: Boolean, onExpand: () -> Unit) {
             .size(36.dp)
             .panelSurface(CircleShape, elevation = 8.dp)
             .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.85f, onClick = onExpand)
-            .border(1.5.dp, AppColors.Accent.copy(alpha = if (playing) pulse else 0.3f), CircleShape),
+            .drawWithContent {
+                drawContent()
+                drawCircle(AppColors.Accent.copy(alpha = if (playing) pulse else 0.3f), size.minDimension / 2f - 0.75.dp.toPx(), style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
+            },
         contentAlignment = Alignment.Center,
     ) {
         Icon(AppIcons.Eye, "Показать чтение вслух", tint = AppColors.Accent, modifier = Modifier.size(18.dp))
