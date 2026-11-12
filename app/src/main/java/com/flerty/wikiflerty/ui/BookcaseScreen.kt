@@ -1314,7 +1314,7 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
         if (decor == Decor.Frost) {
             val garlandSeed = remember(name) { (name ?: "shelf").hashCode() }
             val twinkle = throttledClock(true, 3600)
-            androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(0.dp)) {
+            androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(20.dp)) {
                 plankGarland(twinkle.value, garlandSeed, light)
             }
         }

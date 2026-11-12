@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private val TitleIcons: List<Pair<List<String>, () -> ImageVector>> = listOf(
+    listOf("тег") to { AppIcons.Tag },
+    listOf("серии", "серию") to { AppIcons.Series },
     listOf("поддерж") to { AppIcons.Heart },
     listOf("синхрон", "код синхрон") to { AppIcons.Cloud },
     listOf("qr") to { AppIcons.Qr },

@@ -6,6 +6,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -137,10 +143,157 @@ internal fun CardButton(text: String, icon: ImageVector, modifier: Modifier, onC
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+private val FactIcons: Map<String, ImageVector>
+    get() = mapOf(
+        BookFacts.Publisher to AppIcons.Book,
+        BookFacts.Year to AppIcons.Calendar,
+        BookFacts.Language to AppIcons.Globe,
+        BookFacts.Translator to AppIcons.Translate,
+        BookFacts.Original to AppIcons.Quote,
+        BookFacts.Isbn to AppIcons.Barcode,
+    )
+
+private class FactItem(val icon: ImageVector, val label: String, val value: String, val wide: Boolean)
+
+@Composable
+private fun HeaderAction(icon: ImageVector, description: String, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(34.dp)
+            .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.88f, onClick = onClick)
+            .clip(CircleShape)
+            .background(AppColors.AccentSoft)
+            .border(1.dp, AppColors.Accent.copy(alpha = 0.25f), CircleShape),
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, description, tint = AppColors.Accent, modifier = Modifier.size(16.dp)) }
+}
+
+@Composable
+private fun FactTile(item: FactItem, modifier: Modifier) {
+    val shape = appCorner(12)
+    Column(
+        modifier
+            .clip(shape)
+            .background(AppColors.Line.copy(alpha = 0.22f))
+            .border(1.dp, AppColors.PanelBorder, shape)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            Icon(item.icon, null, tint = AppColors.Accent, modifier = Modifier.size(12.dp))
+            Text(item.label, color = AppColors.Faint, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Text(item.value, color = AppColors.Text, fontSize = 13.5.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = if (item.wide) 3 else 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun FactGrid(items: List<FactItem>) {
+    val rows = remember(items) {
+        val out = mutableListOf<List<FactItem>>()
+        val pending = mutableListOf<FactItem>()
+        items.forEach { f ->
+            if (f.wide) out += listOf(f) else {
+                pending += f
+                if (pending.size == 2) {
+                    out += pending.toList()
+                    pending.clear()
+                }
+            }
+        }
+        if (pending.isNotEmpty()) out += pending.toList()
+        out
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        rows.forEach { row ->
+            Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                row.forEach { FactTile(it, Modifier.weight(1f).fillMaxHeight()) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SeriesLine(series: BookSeries, onClick: () -> Unit) {
+    val shape = appCorner(12)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 44.dp)
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
+            .clip(shape)
+            .background(AppColors.AccentSoft)
+            .border(1.dp, AppColors.Accent.copy(alpha = 0.25f), shape)
+            .padding(start = 10.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(9.dp),
+    ) {
+        Icon(AppIcons.Series, null, tint = AppColors.Accent, modifier = Modifier.size(16.dp))
+        Text(series.name, color = AppColors.Text, fontSize = 13.5.sp, lineHeight = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        series.numberLabel?.let { n ->
+            Box(Modifier.heightIn(min = 26.dp).clip(appCorner(8)).background(AppColors.Accent).padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
+                Text("№ $n", color = AppColors.OnAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+            }
+        }
+        Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(16.dp))
+    }
+}
+
+@Composable
+private fun TagChip(text: String, icon: ImageVector?, onClick: () -> Unit) {
+    val shape = appCorner(10)
+    Row(
+        Modifier
+            .height(32.dp)
+            .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.94f, onClick = onClick)
+            .clip(shape)
+            .background(AppColors.Line.copy(alpha = 0.3f))
+            .border(1.dp, AppColors.PanelBorder, shape)
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        if (icon != null) Icon(icon, null, tint = AppColors.Muted, modifier = Modifier.size(13.dp))
+        Text(text, color = AppColors.Text, fontSize = 12.5.sp, maxLines = 1, softWrap = false)
+    }
+}
+
+@Composable
+private fun TagStrip(tags: List<String>, hide: Boolean, hint: Boolean, onReveal: () -> Unit, onOpen: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.size(32.dp).clip(appCorner(10)).background(AppColors.AccentSoft), contentAlignment = Alignment.Center) {
+            Icon(AppIcons.Tag, null, tint = AppColors.Accent, modifier = Modifier.size(15.dp))
+        }
+        if (tags.isEmpty()) {
+            Text("Нет тегов", color = AppColors.Faint, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f))
+        } else {
+            Row(
+                Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                tags.forEach { tag ->
+                    val hidden = hide && tagSpoiler(tag)
+                    TagChip(if (hidden) "#спойлер" else tagTitle(tag), if (hidden) AppIcons.EyeOff else null) { if (hidden) onReveal() else onOpen() }
+                }
+            }
+        }
+        Box {
+            Box(
+                Modifier
+                    .size(32.dp)
+                    .liveClick(appCorner(10), sound = FeedbackSound.Open, pressedScale = 0.88f, onClick = onOpen)
+                    .clip(appCorner(10))
+                    .border(1.dp, AppColors.Accent.copy(alpha = 0.35f), appCorner(10)),
+                contentAlignment = Alignment.Center,
+            ) { Icon(AppIcons.Plus, "Теги", tint = AppColors.Accent, modifier = Modifier.size(16.dp)) }
+            if (hint) Box(Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp).size(8.dp).clip(CircleShape).background(AppColors.Accent))
+        }
+    }
+}
+
 @Composable
 fun BookAboutCard(app: App, book: Book, onOpenBook: ((Book) -> Unit)? = null) {
-    val scope = rememberCoroutineScope()
     val info by produceState<BookInfo?>(null, book.id, book.scan) { value = app.library.info(book) }
     val description = book.customDescription?.takeIf { it.isNotBlank() } ?: info?.description.orEmpty()
     var expanded by remember(book.id) { mutableStateOf(false) }
@@ -149,58 +302,56 @@ fun BookAboutCard(app: App, book: Book, onOpenBook: ((Book) -> Unit)? = null) {
     var tagging by remember { mutableStateOf(false) }
     var series by remember { mutableStateOf<BookSeries?>(null) }
     var reveal by remember(book.id) { mutableStateOf(false) }
-    val facts = BookFacts.Shown.mapNotNull { k -> book.fact(k).takeIf { it.isNotBlank() }?.let { BookFacts.title(k) to it } } +
-        listOfNotNull(book.positions.takeIf { it > 0 && !book.paper }?.let { "Объём" to "$it стр." })
-    val suggestions = remember(book.facts, book.tags) { tagSuggestions(book).take(3) }
+    val icons = FactIcons
+    val facts = BookFacts.Shown.mapNotNull { k ->
+        book.fact(k).takeIf { it.isNotBlank() }?.let { v ->
+            FactItem(icons[k] ?: AppIcons.Info, BookFacts.title(k), v, wide = k == BookFacts.Publisher || k == BookFacts.Translator || k == BookFacts.Original)
+        }
+    } + listOfNotNull(book.positions.takeIf { it > 0 && !book.paper }?.let { FactItem(AppIcons.Pages, "Объём", "$it стр.", wide = false) })
+    val hint = remember(book.facts, book.tags) { tagSuggestions(book).isNotEmpty() }
     val finished = book.status == ReadStatus.Finished
     val library by app.library.books.collectAsStateWithLifecycle()
     val sequel = remember(library, book.id, finished) { if (finished) nextInSeries(library, book) else null }
-    TabbedFrame("О книге", icon = AppIcons.Info) {
-        Column(Modifier.padding(vertical = 10.dp).animateContentSize(Motion.tween(260)), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    val empty = description.isBlank() && facts.isEmpty() && book.series.isEmpty()
+    TabbedFrame("О книге", icon = AppIcons.Info, trailing = {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            HeaderAction(AppIcons.Search, "Найти сведения") { lookup = true }
+            HeaderAction(AppIcons.Pencil, "Изменить") { editing = true }
+        }
+    }) {
+        Column(Modifier.padding(vertical = 10.dp).animateContentSize(Motion.tween(260)), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (description.isNotBlank()) {
-                Text(
-                    description,
-                    color = AppColors.Text,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
-                    maxLines = if (expanded) Int.MAX_VALUE else 5,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (description.length > 260) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        if (expanded) "Свернуть" else "Читать полностью",
-                        color = AppColors.Accent,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.liveClick(appCorner(8), sound = FeedbackSound.Toggle) { expanded = !expanded }.padding(vertical = 2.dp),
+                        description,
+                        color = AppColors.Text,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                        maxLines = if (expanded) Int.MAX_VALUE else 5,
+                        overflow = TextOverflow.Ellipsis,
                     )
+                    if (description.length > 260) {
+                        Text(
+                            if (expanded) "Свернуть" else "Читать полностью",
+                            color = AppColors.Accent,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.liveClick(appCorner(8), sound = FeedbackSound.Toggle) { expanded = !expanded }.padding(vertical = 2.dp),
+                        )
+                    }
                 }
             }
+            if (empty) {
+                CardButton("Найти сведения", AppIcons.Search, Modifier.fillMaxWidth()) { lookup = true }
+            }
             if (book.series.isNotEmpty()) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    book.series.forEach { s -> InfoChip(s.label, AppIcons.Series, accent = true) { series = s } }
-                }
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { book.series.forEach { s -> SeriesLine(s) { series = s } } }
             }
             sequel?.let { (next, s) ->
                 NextInSeriesCard(next, s, app.library.coverFile(next), onClick = onOpenBook?.let { go -> { go(next) } })
             }
-            if (facts.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) { facts.forEach { (label, value) -> FactRow(label, value) } }
-            }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                book.tags.forEach { tag ->
-                    val hidden = tagSpoiler(tag) && !finished && !reveal
-                    InfoChip(if (hidden) "#спойлер" else tagTitle(tag), if (hidden) AppIcons.EyeOff else null) { if (hidden) reveal = true else tagging = true }
-                }
-                suggestions.forEach { g ->
-                    InfoChip(g, AppIcons.Plus, dashed = true) { scope.launch { app.library.setTags(book.id, book.tags + g) } }
-                }
-                InfoChip("Теги", AppIcons.Tag, dashed = suggestions.isEmpty() && book.tags.isEmpty()) { tagging = true }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CardButton("Найти сведения", AppIcons.Search, Modifier.weight(1f)) { lookup = true }
-                CardButton("Изменить", AppIcons.Pencil, Modifier.weight(1f)) { editing = true }
-            }
+            if (facts.isNotEmpty()) FactGrid(facts)
+            TagStrip(book.tags, hide = !finished && !reveal, hint = hint, onReveal = { reveal = true }, onOpen = { tagging = true })
         }
     }
     if (editing) BookDetailsSheet(book) { editing = false }
@@ -214,45 +365,101 @@ private class SeriesDraft(name: String, number: String) {
     var number by mutableStateOf(number)
 }
 
+private fun partLabel(number: String): String? = number.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }?.let { BookSeries("", it).numberLabel }
+
+@Composable
+private fun SeriesEditRow(draft: SeriesDraft, onClick: () -> Unit) {
+    val shape = appCorner(14)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
+            .fieldSurface(shape)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.size(32.dp).clip(appCorner(10)).background(AppColors.AccentSoft), contentAlignment = Alignment.Center) {
+            Icon(AppIcons.Series, null, tint = AppColors.Accent, modifier = Modifier.size(16.dp))
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(draft.name.ifBlank { "Без названия" }, color = if (draft.name.isBlank()) AppColors.Faint else AppColors.Text, fontSize = 14.5.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(partLabel(draft.number)?.let { "Часть $it" } ?: "Без номера", color = AppColors.Muted, fontSize = 12.sp, maxLines = 1)
+        }
+        Icon(AppIcons.Pencil, null, tint = AppColors.Faint, modifier = Modifier.size(15.dp))
+    }
+}
+
+@Composable
+private fun StepButton(icon: ImageVector, description: String, enabled: Boolean, onClick: () -> Unit) {
+    val shape = appCorner(12)
+    Box(
+        Modifier
+            .size(40.dp)
+            .liveClick(shape, sound = FeedbackSound.Tick, pressedScale = 0.86f, enabled = enabled, onClick = onClick)
+            .border(1.dp, if (enabled) AppColors.Accent.copy(alpha = 0.4f) else AppColors.PanelBorder, shape),
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, description, tint = if (enabled) AppColors.Accent else AppColors.Faint, modifier = Modifier.size(18.dp)) }
+}
+
+@Composable
+private fun SeriesEditSheet(draft: SeriesDraft, onRemove: () -> Unit, onDismiss: () -> Unit) {
+    var naming by remember { mutableStateOf(false) }
+    AppSheet(onDismiss, title = "Серия") {
+        val close = sheetClose(onDismiss)
+        PaperField(draft.name, "Название серии", AppIcons.Series) { naming = true }
+        val value = draft.number.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 60.dp).fieldSurface(appCorner(16)).padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(AppIcons.Sort, null, tint = AppColors.Muted, modifier = Modifier.size(18.dp))
+            Text("Часть", color = AppColors.Text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+            StepButton(AppIcons.Minus, "Меньше", value != null) {
+                val next = (value ?: 0.0) - 1
+                draft.number = if (next < 1) "" else BookSeries("", next).numberLabel.orEmpty()
+            }
+            Text(partLabel(draft.number) ?: "—", color = AppColors.Accent, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, textAlign = TextAlign.Center, modifier = Modifier.width(44.dp))
+            StepButton(AppIcons.Plus, "Больше", (value ?: 0.0) < 999) {
+                draft.number = BookSeries("", (value ?: 0.0) + 1).numberLabel.orEmpty()
+            }
+        }
+        AppButton("Готово", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true) { close() }
+        DeleteRow("Убрать серию") {
+            onRemove()
+            close()
+        }
+    }
+    if (naming) {
+        TextInputSheet("Серия", draft.name, "Название серии", onDismiss = { naming = false }, icon = AppIcons.Series, maxLength = 120) { draft.name = it.trim() }
+    }
+}
+
 @Composable
 fun BookDetailsSheet(book: Book, onDismiss: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
     val keys = listOf(BookFacts.Publisher, BookFacts.Year, BookFacts.Language, BookFacts.Translator, BookFacts.Original, BookFacts.Isbn)
-    val icons = mapOf(
-        BookFacts.Publisher to AppIcons.Book,
-        BookFacts.Year to AppIcons.Calendar,
-        BookFacts.Language to AppIcons.Globe,
-        BookFacts.Translator to AppIcons.Translate,
-        BookFacts.Original to AppIcons.Quote,
-        BookFacts.Isbn to AppIcons.Barcode,
-    )
+    val icons = FactIcons
     val values = remember { androidx.compose.runtime.mutableStateMapOf<String, String>().apply { keys.forEach { put(it, book.fact(it)) } } }
     val series = remember { androidx.compose.runtime.mutableStateListOf<SeriesDraft>().apply { book.series.forEach { add(SeriesDraft(it.name, it.numberLabel.orEmpty())) } } }
     var field by remember { mutableStateOf<String?>(null) }
-    var seriesEdit by remember { mutableStateOf<Pair<SeriesDraft, Boolean>?>(null) }
+    var open by remember { mutableStateOf<SeriesDraft?>(null) }
     AppSheet(onDismiss, title = "Сведения о книге") {
         val close = sheetClose(onDismiss)
         TabbedFrame("Серия", icon = AppIcons.Series) {
             Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                series.forEach { s ->
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Box(Modifier.weight(1f)) { PaperField(s.name, "Название серии", AppIcons.Series) { seriesEdit = s to false } }
-                        Box(Modifier.width(74.dp)) { PaperField(s.number, "№", AppIcons.Sort) { seriesEdit = s to true } }
-                        Box(
-                            Modifier.size(40.dp).liveClick(appCorner(12), sound = FeedbackSound.Trash, pressedScale = 0.88f) { series.remove(s) }.border(1.dp, AppColors.PanelBorder, appCorner(12)),
-                            contentAlignment = Alignment.Center,
-                        ) { Icon(AppIcons.Trash, "Убрать серию", tint = AppColors.Muted, modifier = Modifier.size(17.dp)) }
-                    }
-                }
+                series.forEach { s -> SeriesEditRow(s) { open = s } }
                 CardButton("Добавить серию", AppIcons.Plus, Modifier.fillMaxWidth()) {
                     val draft = SeriesDraft("", "")
                     series.add(draft)
-                    seriesEdit = draft to false
+                    open = draft
                 }
             }
         }
         keys.forEach { k -> PaperField(values[k].orEmpty(), BookFacts.title(k), icons.getValue(k)) { field = k } }
-        AppButton("Сохранить", primary = true, modifier = Modifier.fillMaxWidth()) {
+        AppButton("Сохранить", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true) {
             val facts = keys.associateWith { values[it].orEmpty() }
             val list = series.filter { it.name.isNotBlank() }.map { BookSeries(it.name.trim(), it.number.replace(',', '.').toDoubleOrNull()?.takeIf { n -> n > 0 }) }
             app.appScope.launch { app.library.editDetails(book.id, facts, list) }
@@ -262,18 +469,15 @@ fun BookDetailsSheet(book: Book, onDismiss: () -> Unit) {
     field?.let { k ->
         TextInputSheet(BookFacts.title(k), values[k].orEmpty(), BookFacts.title(k), onDismiss = { field = null }, icon = icons.getValue(k), number = k == BookFacts.Year, maxLength = 160) { values[k] = it.trim() }
     }
-    seriesEdit?.let { (draft, number) ->
-        TextInputSheet(
-            if (number) "Номер в серии" else "Серия",
-            if (number) draft.number else draft.name,
-            if (number) "Например, 3" else "Название серии",
+    open?.let { draft ->
+        SeriesEditSheet(
+            draft,
+            onRemove = { series.remove(draft) },
             onDismiss = {
-                seriesEdit = null
+                open = null
                 if (draft.name.isBlank()) series.remove(draft)
             },
-            icon = if (number) AppIcons.Sort else AppIcons.Series,
-            maxLength = if (number) 6 else 120,
-        ) { if (number) draft.number = it.trim() else draft.name = it.trim() }
+        )
     }
 }
 
@@ -334,7 +538,6 @@ fun BookLookupSheet(book: Book, onDismiss: () -> Unit) {
                     Text(if (outcome?.offline == true) "Проверь интернет или VPN" else "Проверь название и автора", color = AppColors.Faint, fontSize = 13.sp)
                 }
                 else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HintNote("Выбери свою книгу — заполнятся только пустые поля", AppIcons.Info)
                     results.orEmpty().forEach { r ->
                         LookupCard(r, busy === r) {
                             if (busy != null) return@LookupCard
@@ -412,7 +615,6 @@ fun BookTagsSheet(book: Book, onDismiss: () -> Unit) {
                 }
             }
         }
-        HintNote("Глаз прячет тег-спойлер, пока книга не дочитана", AppIcons.EyeOff)
     }
     if (adding) {
         TextInputSheet("Новый тег", "", "Например, Тёмное фэнтези", onDismiss = { adding = false }, icon = AppIcons.Tag, maxLength = 40) { text ->

@@ -1112,20 +1112,7 @@ private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean
                     ) { Icon(AppIcons.Pages, "Бумажная книга", tint = Color.White, modifier = Modifier.size(if (small) 11.dp else 13.dp)) }
                 }
                 val part = book.series.firstOrNull()?.numberLabel
-                if (part != null && (rating == null || !small)) {
-                    Row(
-                        Modifier
-                            .clip(CircleShape)
-                            .background(chipBg)
-                            .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape)
-                            .padding(horizontal = if (small) 6.dp else 8.dp, vertical = if (small) 2.dp else 3.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(3.dp),
-                    ) {
-                        Icon(AppIcons.Series, "Часть серии", tint = Color.White, modifier = Modifier.size(if (small) 10.dp else 12.dp))
-                        Text(part, color = Color.White, fontSize = if (small) 10.sp else 11.5.sp, lineHeight = 13.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
-                    }
-                }
+                if (part != null && (rating == null || !small)) SeriesBadge(part, small = small)
                 Spacer(Modifier.weight(1f))
                 androidx.compose.animation.AnimatedVisibility(
                     visible = book.favorite,
@@ -1213,7 +1200,10 @@ private fun BookRow(book: Book, coverFile: File?, inPages: Boolean, onClick: () 
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                CoverBox(book, coverFile, Modifier.size(width = 52.dp, height = 78.dp).coverShadow(appCorner(6)).clip(appCorner(6)), small = true, showStatus = false, bare = true)
+                Box {
+                    CoverBox(book, coverFile, Modifier.size(width = 52.dp, height = 78.dp).coverShadow(appCorner(6)).clip(appCorner(6)), small = true, showStatus = false, bare = true)
+                    book.series.firstOrNull()?.numberLabel?.let { part -> SeriesBadge(part, Modifier.align(Alignment.TopEnd).padding(3.dp), small = true) }
+                }
                 FitText(label, color, 11.5.sp, Modifier.width(56.dp).wrapContentWidth(Alignment.CenterHorizontally), weight = FontWeight.ExtraBold)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -1227,12 +1217,6 @@ private fun BookRow(book: Book, coverFile: File?, inPages: Boolean, onClick: () 
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     StatusPill(book.status, true, framed = true)
-                    book.series.firstOrNull()?.let { s ->
-                        RowChip {
-                            Icon(AppIcons.Series, "Серия", tint = AppColors.Accent, modifier = Modifier.size(12.dp))
-                            Text(s.label, color = AppColors.Text, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 150.dp))
-                        }
-                    }
                     book.rating?.takeIf { it > 0f }?.let { r ->
                         RowChip {
                             Icon(AppIcons.StarFilled, "Оценка", tint = AppColors.Accent, modifier = Modifier.size(12.dp))
@@ -1248,6 +1232,22 @@ private fun BookRow(book: Book, coverFile: File?, inPages: Boolean, onClick: () 
         Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(AppColors.Line)) {
             Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).background(color))
         }
+    }
+}
+
+@Composable
+private fun SeriesBadge(part: String, modifier: Modifier = Modifier, small: Boolean = false) {
+    Row(
+        modifier
+            .clip(CircleShape)
+            .background(Color(0xD9100D0B))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape)
+            .padding(horizontal = if (small) 5.dp else 8.dp, vertical = if (small) 1.5.dp else 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(if (small) 2.dp else 3.dp),
+    ) {
+        Icon(AppIcons.Series, "Часть серии", tint = Color.White, modifier = Modifier.size(if (small) 9.dp else 12.dp))
+        Text(part, color = Color.White, fontSize = if (small) 9.5.sp else 11.5.sp, lineHeight = 12.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
     }
 }
 

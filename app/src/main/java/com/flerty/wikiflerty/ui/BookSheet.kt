@@ -515,7 +515,7 @@ private fun BookStatusRow(app: App, book: Book) {
 }
 
 @Composable
-private fun DeleteRow(label: String, onDelete: () -> Unit) {
+internal fun DeleteRow(label: String, onDelete: () -> Unit) {
     val shape = appCorner(16)
     Box(
         Modifier.fillMaxWidth().heightIn(min = 50.dp).sheetReveal()
@@ -673,15 +673,6 @@ fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
                 SettingSegmented("Размер обложек", listOf("Мелкие", "Средние", "Крупные"), prefs.coverSize) { i ->
                     app.libraryPrefs.update { it.copy(coverSize = i) }
                 }
-            }
-        }
-        SettingsGroup(null) {
-            SettingSwitch("Свечение карточки", prefs.aura, hint = "Карточка книги в цветах обложки", icon = AppIcons.Sparkle) { v ->
-                app.libraryPrefs.update { it.copy(aura = v) }
-            }
-            ListDivider()
-            SettingSwitch("Сведения из интернета", prefs.autoInfo, hint = "Серия, издательство и жанры новых книг", icon = AppIcons.Globe) { v ->
-                app.libraryPrefs.update { it.copy(autoInfo = v) }
             }
         }
     }

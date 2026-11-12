@@ -84,6 +84,7 @@ object AppIcons {
     val Chart by lazy { icon("chart", "M4 20h16", "M7 16v-5M12 16V7M17 16v-8") }
     val Shelf by lazy { icon("shelf", "M5 4v16M10 4v16", "M14.5 5.5l4 14", "M3 20h18") }
     val Plus by lazy { icon("plus", "M12 5v14M5 12h14") }
+    val Minus by lazy { icon("minus", "M5 12h14") }
     val Clock by lazy { icon("clock", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 7v5l3 2") }
     val Qr by lazy {
         icon(

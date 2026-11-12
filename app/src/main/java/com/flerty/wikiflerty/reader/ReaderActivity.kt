@@ -1124,8 +1124,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private fun applyKitTexture() {
         val s = settings
         val page = s.pageTheme
-        val decor = if (bookKit) com.flerty.wikiflerty.ui.AppStyle.decor else com.flerty.wikiflerty.ui.Decor.None
-        findViewById<PageTextureView>(R.id.page_texture)?.configure(decor, page.text.toInt(), pageAccent(), page.isLight)
+        findViewById<PageTextureView>(R.id.page_texture)?.configure(com.flerty.wikiflerty.ui.Decor.None, page.text.toInt(), pageAccent(), page.isLight)
     }
 
     private var injectJob: Job? = null

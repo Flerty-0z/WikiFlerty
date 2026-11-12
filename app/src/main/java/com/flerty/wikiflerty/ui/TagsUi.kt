@@ -196,51 +196,95 @@ fun TagCloudSheet(active: List<String>, onApply: (List<String>) -> Unit, onDismi
     if (manage) TagManageSheet { manage = false }
 }
 
+private fun booksWord(n: Int): String {
+    val m10 = n % 10
+    val m100 = n % 100
+    return when {
+        m10 == 1 && m100 != 11 -> "книга"
+        m10 in 2..4 && m100 !in 12..14 -> "книги"
+        else -> "книг"
+    }
+}
+
 @Composable
-fun TagManageSheet(onDismiss: () -> Unit) {
+private fun TagRow(tag: TagCount, pinned: Boolean, onClick: () -> Unit) {
+    val shape = appCorner(14)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 58.dp)
+            .sheetReveal()
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
+            .fieldSurface(shape)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.size(34.dp).clip(appCorner(10)).background(AppColors.AccentSoft), contentAlignment = Alignment.Center) {
+            Icon(if (pinned) AppIcons.Shelf else AppIcons.Hash, null, tint = AppColors.Accent, modifier = Modifier.size(17.dp))
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("#" + tag.name, color = AppColors.Text, fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(
+                "${tag.count} ${booksWord(tag.count)}" + if (pinned) " · полка в шкафу" else "",
+                color = AppColors.Muted,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Icon(AppIcons.Chevron, null, tint = AppColors.Faint, modifier = Modifier.size(16.dp))
+    }
+}
+
+@Composable
+private fun TagActionsSheet(name: String, count: Int, onDismiss: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
-    val books by app.library.books.collectAsStateWithLifecycle()
     val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
-    val counts = remember(books) { tagCounts(books) }
-    var rename by remember { mutableStateOf<String?>(null) }
-    var delete by remember { mutableStateOf<String?>(null) }
-    AppSheet(onDismiss, title = "Управление тегами") {
-        if (counts.isEmpty()) EmptyNote(AppIcons.Hash, "Тегов пока нет", "Добавь их в карточке книги")
-        counts.forEach { t ->
-            val pinned = prefs.tagShelves.any { it.equals(t.name, true) }
-            Row(
-                Modifier.fillMaxWidth().sheetReveal().fieldSurface(appCorner(14)).padding(start = 12.dp, end = 8.dp, top = 7.dp, bottom = 7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text("#" + t.name, color = AppColors.Text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                CountBadge(t.count, AppColors.Muted, AppColors.Line)
-                RowAction(AppIcons.Shelf, "Полка в шкафу", if (pinned) FeedbackSound.Uncheck else FeedbackSound.Check, active = pinned) {
-                    app.libraryPrefs.update { p ->
-                        p.copy(tagShelves = if (pinned) p.tagShelves.filterNot { it.equals(t.name, true) } else p.tagShelves + t.name)
-                    }
-                }
-                RowAction(AppIcons.Pencil, "Переименовать", FeedbackSound.Open) { rename = t.name }
-                RowAction(AppIcons.Trash, "Удалить тег", FeedbackSound.Open) { delete = t.name }
+    val pinned = prefs.tagShelves.any { it.equals(name, true) }
+    var rename by remember { mutableStateOf(false) }
+    var delete by remember { mutableStateOf(false) }
+    AppSheet(onDismiss, title = "Тег") {
+        val close = sheetClose(onDismiss)
+        Row(
+            Modifier.fillMaxWidth().sheetReveal().fieldSurface(appCorner(16)).padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(Modifier.size(38.dp).clip(appCorner(12)).background(AppColors.AccentSoft), contentAlignment = Alignment.Center) {
+                Icon(AppIcons.Hash, null, tint = AppColors.Accent, modifier = Modifier.size(19.dp))
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("#$name", color = AppColors.Text, fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text("$count ${booksWord(count)}", color = AppColors.Muted, fontSize = 12.5.sp, maxLines = 1)
             }
         }
-        if (counts.isNotEmpty()) HintNote("Полка ставит тег в шкаф. Одинаковое имя объединяет теги", AppIcons.Shelf)
+        SettingsGroup(null) {
+            SettingSwitch("Полка в шкафу", pinned, hint = null, icon = AppIcons.Shelf) { v ->
+                app.libraryPrefs.update { p ->
+                    p.copy(tagShelves = if (v) (p.tagShelves + name).distinctBy { it.lowercase() } else p.tagShelves.filterNot { it.equals(name, true) })
+                }
+            }
+        }
+        PaperField(name, "Название тега", AppIcons.Tag) { rename = true }
+        DeleteRow("Удалить тег") { delete = true }
     }
-    rename?.let { old ->
-        TextInputSheet("Переименовать тег", old, "Название тега", onDismiss = { rename = null }, icon = AppIcons.Tag, maxLength = 40) { text ->
+    if (rename) {
+        TextInputSheet("Название тега", name, "Название тега", onDismiss = { rename = false }, icon = AppIcons.Tag, maxLength = 40) { text ->
             val clean = text.trim().trimStart('#').replace('|', ' ').trim()
-            if (clean.isNotEmpty() && clean != old) {
-                app.appScope.launch { app.library.renameTag(old, clean) }
+            if (clean.isNotEmpty() && clean != name) {
+                app.appScope.launch { app.library.renameTag(name, clean) }
                 app.libraryPrefs.update { p ->
                     p.copy(
-                        tagShelves = p.tagShelves.map { if (it.equals(old, true)) clean else it }.distinctBy { it.lowercase() },
+                        tagShelves = p.tagShelves.map { if (it.equals(name, true)) clean else it }.distinctBy { it.lowercase() },
                         filter = if (p.filter.startsWith(TagFilterPrefix)) "all" else p.filter,
                     )
                 }
+                onDismiss()
             }
         }
     }
-    delete?.let { name ->
+    if (delete) {
         ConfirmSheet(
             title = "Удалить тег?",
             text = "#$name пропадёт у всех книг. Сами книги останутся.",
@@ -253,10 +297,25 @@ fun TagManageSheet(onDismiss: () -> Unit) {
                         filter = if (p.filter.startsWith(TagFilterPrefix)) "all" else p.filter,
                     )
                 }
+                onDismiss()
             },
-            onDismiss = { delete = null },
+            onDismiss = { delete = false },
         )
     }
+}
+
+@Composable
+fun TagManageSheet(onDismiss: () -> Unit) {
+    val app = LocalContext.current.applicationContext as App
+    val books by app.library.books.collectAsStateWithLifecycle()
+    val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
+    val counts = remember(books) { tagCounts(books) }
+    var open by remember { mutableStateOf<TagCount?>(null) }
+    AppSheet(onDismiss, title = "Управление тегами") {
+        if (counts.isEmpty()) EmptyNote(AppIcons.Hash, "Тегов пока нет", "Добавь их в карточке книги")
+        counts.forEach { t -> TagRow(t, prefs.tagShelves.any { it.equals(t.name, true) }) { open = t } }
+    }
+    open?.let { t -> TagActionsSheet(t.name, t.count) { open = null } }
 }
 
 @Composable
