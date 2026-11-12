@@ -60,6 +60,7 @@ fun KitTuneSheet(kit: Kit, onDismiss: () -> Unit) {
     AppSheet(onDismiss, title = kit.title) {
         TabbedFrame("Атмосфера", icon = AppIcons.Sun) {
             Column(Modifier.padding(horizontal = 14.dp)) {
+                SettingSwitch("Стиль шаблона в книге", tune.bookStyle, icon = AppIcons.Book) { v -> set(tune.copy(bookStyle = v)) }
                 SettingSwitch("Время суток и сезоны", tune.living, icon = AppIcons.Sun) { v -> set(tune.copy(living = v)) }
                 SettingSwitch("Листья, снег и искры", tune.particles, enabled = tune.living, icon = AppIcons.Snow) { v -> set(tune.copy(particles = v)) }
             }
@@ -76,7 +77,7 @@ fun KitTuneSheet(kit: Kit, onDismiss: () -> Unit) {
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(horizontal = 2.dp),
                         ) {
-                            itemsIndexed(PropPlace.entries) { _, place ->
+                            itemsIndexed(PropPlace.entries.filter { it != PropPlace.Custom || tune.pins.isNotEmpty() }) { _, place ->
                                 PlaceTile(place, selected = place.id == tune.propPlace, enabled = on) { set(tune.copy(propPlace = place.id)) }
                             }
                         }
@@ -182,6 +183,7 @@ private fun PlaceTile(place: PropPlace, selected: Boolean, enabled: Boolean, onC
                 PropPlace.Edges -> "pbbbbbp"
                 PropPlace.Start -> "pbbbbbb"
                 PropPlace.End -> "bbbbbbp"
+                PropPlace.Custom -> "pbbpbbb"
             }
             val step = size.width / pattern.length
             pattern.forEachIndexed { i, c ->

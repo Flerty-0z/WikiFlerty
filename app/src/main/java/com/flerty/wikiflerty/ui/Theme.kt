@@ -338,6 +338,7 @@ enum class PropPlace(val id: String, val title: String) {
     Edges("edges", "По краям"),
     Start("start", "В начале"),
     End("end", "В конце"),
+    Custom("custom", "Свой"),
     ;
 
     companion object {
@@ -345,30 +346,49 @@ enum class PropPlace(val id: String, val title: String) {
     }
 }
 
+data class PropPin(val id: String, val variant: Int, val after: String)
+
 data class KitTune(
+    val bookStyle: Boolean = true,
     val living: Boolean = true,
     val particles: Boolean = true,
     val props: Boolean = true,
     val propPlace: String = PropPlace.Between.id,
     val propEvery: Int = 2,
+    val pins: Map<String, List<PropPin>> = emptyMap(),
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
+        put("bookStyle", bookStyle)
         put("living", living)
         put("particles", particles)
         put("props", props)
         put("propPlace", propPlace)
         put("propEvery", propEvery)
+        put("pins", JSONObject().apply {
+            pins.forEach { (plank, list) ->
+                put(plank, org.json.JSONArray().apply { list.forEach { pin -> put(JSONObject().put("id", pin.id).put("v", pin.variant).put("a", pin.after)) } })
+            }
+        })
     }
 
     companion object {
         fun fromJson(json: JSONObject): KitTune {
             val d = KitTune()
             return KitTune(
+                bookStyle = json.optBoolean("bookStyle", d.bookStyle),
                 living = json.optBoolean("living", d.living),
                 particles = json.optBoolean("particles", d.particles),
                 props = json.optBoolean("props", d.props),
                 propPlace = json.optString("propPlace", d.propPlace),
                 propEvery = json.optInt("propEvery", d.propEvery).coerceIn(1, 6),
+                pins = json.optJSONObject("pins")?.let { obj ->
+                    obj.keys().asSequence().associateWith { plank ->
+                        val arr = obj.optJSONArray(plank)
+                        (0 until (arr?.length() ?: 0)).mapNotNull { i ->
+                            arr?.optJSONObject(i)?.let { o -> PropPin(o.optString("id"), o.optInt("v"), o.optString("a")) }
+                        }
+                    }
+                }.orEmpty(),
             )
         }
     }

@@ -525,7 +525,7 @@ fun ReaderOverlay(
         }
 
         AnimatedVisibility(
-            visible = state.askFinished && state.sheet == null && !state.panelsVisible,
+            visible = state.askFinished && state.sheet == null && !state.panelsVisible && state.returnTo == null && state.footnote == null,
             enter = fadeIn(Motion.fade(260)) + slideInVertically(Motion.tween(300)) { it / 2 },
             exit = fadeOut(Motion.fade(180)),
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = maxOf(FlagBottom + 44.dp, flagSpace + 8.dp), start = 16.dp, end = 16.dp),
@@ -2088,7 +2088,6 @@ private fun ScrollOptions(
 
 @Composable
 private fun ThemeOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit) {
-    SwitchRow("Стиль шаблона в книге", settings.kitStyle, icon = AppIcons.Palette) { v -> onSettingsChange { it.copy(kitStyle = v) } }
     Group(if (settings.autoNight) "Днём" else "Фон страницы") {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             PageTheme.entries.chunked(3).forEach { row ->

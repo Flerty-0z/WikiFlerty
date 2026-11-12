@@ -1051,7 +1051,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             (android.graphics.Color.blue(accent) * 0.68).toInt(),
         )
         val style = org.json.JSONObject()
-            .put("on", s.kitStyle && com.flerty.wikiflerty.ui.AppStyle.decor != com.flerty.wikiflerty.ui.Decor.None)
+            .put("on", bookKit && com.flerty.wikiflerty.ui.AppStyle.decor != com.flerty.wikiflerty.ui.Decor.None)
             .put("kit", com.flerty.wikiflerty.ui.AppStyle.kit.id)
             .put("acc", hex(accent))
             .put("bg", hex(page.background.toInt()))
@@ -1060,10 +1060,12 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         return "window.__wfKit && window.__wfKit($style)"
     }
 
+    private val bookKit: Boolean get() = com.flerty.wikiflerty.ui.AppStyle.current.tune().bookStyle
+
     private fun applyKitTexture() {
         val s = settings
         val page = s.pageTheme
-        val decor = if (s.kitStyle) com.flerty.wikiflerty.ui.AppStyle.decor else com.flerty.wikiflerty.ui.Decor.None
+        val decor = if (bookKit) com.flerty.wikiflerty.ui.AppStyle.decor else com.flerty.wikiflerty.ui.Decor.None
         findViewById<PageTextureView>(R.id.page_texture)?.configure(decor, page.text.toInt(), pageAccent(), page.isLight)
     }
 
@@ -1624,7 +1626,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         applyWindowSettings(s)
                         applyListeningSettings(s)
                         val layoutKey = "${s.margins}|${s.fontSize}|${s.lineHeight}|${s.font}"
-                        val kitKey = "${s.kitStyle}|${s.pageTheme.id}"
+                        val kitKey = "$bookKit|${s.pageTheme.id}"
                         if (kitKey != lastKitLook) {
                             lastKitLook = kitKey
                             applyKitTexture()
@@ -2962,8 +2964,13 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         lastActivity = now
     }
 
+    private var finishProbe = -1.0
+
     private fun maybeAskFinished(progression: Double) {
+        val before = finishProbe
+        finishProbe = progression
         if (askedFinished || progression < 0.985) return
+        if (ui.returnTo != null || before < 0 || progression - before > 0.03) return
         val book = app.library.books.value.firstOrNull { it.id == bookId } ?: return
         askedFinished = true
         if (book.status != ReadStatus.Finished) ui.askFinished = true
