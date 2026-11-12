@@ -449,20 +449,27 @@ class LibraryRepository(
     }
 
     suspend fun setTags(bookId: String, tags: List<String>) = editMeta(bookId) { b ->
-        b.copy(tags = tags.map { it.trim().trimStart('#').trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() })
+        b.copy(tags = tags.map { it.replace('|', ' ').trim().trimStart('#').trim() }.filter { it.removePrefix("!").isNotBlank() }.distinctBy { it.removePrefix("!").lowercase() })
     }
 
     suspend fun renameTag(from: String, to: String?) {
         val now = System.currentTimeMillis()
+        val target = to?.trim()?.trimStart('#')?.trim()?.takeIf { it.isNotEmpty() }
         update { list ->
             list.map { b ->
-                if (b.tags.none { it.equals(from, true) }) b
+                if (b.tags.none { it.removePrefix("!").equals(from, true) }) b
                 else b.copy(
-                    tags = b.tags.mapNotNull { if (it.equals(from, true)) to?.trim()?.takeIf { t -> t.isNotEmpty() } else it }.distinctBy { it.lowercase() },
+                    tags = b.tags
+                        .mapNotNull { t -> if (t.removePrefix("!").equals(from, true)) target?.let { if (t.startsWith("!")) "!$it" else it } else t }
+                        .distinctBy { it.removePrefix("!").lowercase() },
                     metaChangedAt = now,
                 )
             }
         }
+    }
+
+    suspend fun addTag(bookId: String, tag: String) = editMeta(bookId) { b ->
+        if (b.tags.any { it.removePrefix("!").equals(tag, true) }) b else b.copy(tags = b.tags + tag)
     }
 
     suspend fun ensureFingerprints() = withContext(Dispatchers.IO) {

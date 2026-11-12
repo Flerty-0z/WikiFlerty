@@ -193,19 +193,41 @@ fun LibraryScreen(
     }
 
     val shelves = remember(prefs, books) { allShelves(prefs, books) }
-    val filters = remember(shelves) { baseFilters() + shelves.map { name -> LibraryFilter(SHELF + name, name, AppIcons.Shelf) { name in it.shelves } } }
+    val shelfFilters = remember(shelves) { baseFilters() + shelves.map { name -> LibraryFilter(SHELF + name, name, AppIcons.Shelf) { name in it.shelves } } }
+    val tagFilter = remember(prefs.filter) {
+        tagFilterNames(prefs.filter).takeIf { it.isNotEmpty() }?.let { names ->
+            LibraryFilter(prefs.filter, names.joinToString(" ") { "#$it" }, AppIcons.Hash) { b -> names.all { n -> b.hasTag(n) } }
+        }
+    }
+    val filters = remember(shelfFilters, tagFilter) { shelfFilters + listOfNotNull(tagFilter) }
     val active = filters.firstOrNull { it.id == prefs.filter } ?: filters.first()
     val q = query.trim()
     val shown = remember(books, active, q, prefs) {
+        val tagQuery = q.trimStart('#')
         sorted(
-            books.filter { active.matches(it) && (q.isEmpty() || it.title.contains(q, true) || it.author.contains(q, true)) },
+            books.filter { b ->
+                active.matches(b) && (
+                    q.isEmpty() || b.title.contains(q, true) || b.author.contains(q, true) ||
+                        b.series.any { it.name.contains(q, true) } ||
+                        (tagQuery.isNotEmpty() && b.tags.any { it.removePrefix(SpoilerMark).contains(tagQuery, true) })
+                    )
+            },
             prefs,
         )
     }
     val open = { book: Book -> viewModel.open(book) }
     val addBook by androidx.compose.runtime.rememberUpdatedState(onAddBook)
-    val current = remember(books, active.id, q) {
+    val sequel = remember(books, active.id, q) {
         if (active.id == "all" && q.isEmpty()) {
+            books.filter { it.lastReadAt != null }.maxByOrNull { it.lastReadAt ?: 0L }
+                ?.takeIf { it.status == ReadStatus.Finished }
+                ?.let { nextInSeries(books, it) }
+        } else {
+            null
+        }
+    }
+    val current = remember(books, active.id, q, sequel) {
+        if (active.id == "all" && q.isEmpty() && sequel == null) {
             books.filter { it.status == ReadStatus.Reading && it.lastReadAt != null }.maxByOrNull { it.lastReadAt ?: 0L }
         } else {
             null
@@ -222,6 +244,11 @@ fun LibraryScreen(
         filters.associate { f -> f.id to recent.filter(f.matches).map { it.id } }
     }
     var showRandom by remember { mutableStateOf(false) }
+    var showTags by remember { mutableStateOf(false) }
+    var showSeries by remember { mutableStateOf(false) }
+    var manageTags by remember { mutableStateOf(false) }
+    val tagTotal = remember(books) { books.flatMap { b -> b.tags.map { it.removePrefix(SpoilerMark).lowercase() } }.distinct().size }
+    val seriesTotal = remember(books) { books.flatMap { b -> b.series.map { it.name.trim().lowercase() } }.filter { it.isNotEmpty() }.distinct().size }
     val tablet = LocalConfiguration.current.screenWidthDp >= 600
     val grid = prefs.view == LibraryView.Grid
     val columns = when (prefs.coverSize) {
@@ -261,6 +288,17 @@ fun LibraryScreen(
                 ContinueStrip(b, viewModel.coverFile(b), prefs.progressInPages, Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) { open(b) }
             }
         }
+        val lastSequel = remember { arrayOfNulls<Pair<Book, com.flerty.wikiflerty.data.BookSeries>>(1) }
+        if (sequel != null) lastSequel[0] = sequel
+        androidx.compose.animation.AnimatedVisibility(
+            visible = sequel != null,
+            enter = androidx.compose.animation.expandVertically(Motion.tween(280)) + androidx.compose.animation.fadeIn(Motion.fade(240)),
+            exit = androidx.compose.animation.shrinkVertically(Motion.tween(240)) + androidx.compose.animation.fadeOut(Motion.fade(180)),
+        ) {
+            lastSequel[0]?.let { (b, s) ->
+                NextInSeriesCard(b, s, viewModel.coverFile(b), Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) { open(b) }
+            }
+        }
 
         androidx.compose.animation.Crossfade(
             targetState = LibraryLayout(prefs.view, columns, prefs.coverSize < 2),
@@ -269,9 +307,12 @@ fun LibraryScreen(
         ) { layout ->
             val lgrid = layout.view == LibraryView.Grid
                 if (layout.view == LibraryView.Shelves) {
-                val planks = remember(books, shelves, active, q, shown) { if (active.id == "all" && q.isEmpty()) {
+                val planks = remember(books, shelves, active, q, shown, prefs.tagShelves) { if (active.id == "all" && q.isEmpty()) {
                     val named = shelves.map { name ->
                         PlankSpec("shelf:$name", name, books.filter { name in it.shelves }, { controls.shelfDialog = ShelfDialog.Edit(name) }, { controls.shelfDialog = ShelfDialog.Edit(name) }, wrap = false)
+                    } + prefs.tagShelves.distinctBy { it.lowercase() }.mapNotNull { tag ->
+                        val tagged = books.filter { it.hasTag(tag) }
+                        if (tagged.isEmpty()) null else PlankSpec(TagFilterPrefix + tag, "#$tag", tagged, null, { manageTags = true }, wrap = false)
                     }
                     val rest = books.filter { b -> b.shelves.none { it in shelves } }
                     named + if (rest.isNotEmpty() || named.isEmpty()) listOf(PlankSpec("rest", if (named.isEmpty()) null else "Без полки", rest, { addBook() }, null, wrap = named.isEmpty())) else emptyList()
@@ -286,11 +327,17 @@ fun LibraryScreen(
                     animationKey = active.id + "|" + q,
                     live = prefs.liveShelf,
                     behave = prefs.shelfBehavior,
-                    onMove = if (active.id == "all" && q.isEmpty() && shelves.isNotEmpty()) { book, from, to ->
-                        val src = from.removePrefix("shelf:").takeIf { from.startsWith("shelf:") }
-                        val dst = to.removePrefix("shelf:").takeIf { to.startsWith("shelf:") }
-                        val next = (book.shelves.filter { it != src } + listOfNotNull(dst)).distinct()
-                        app.appScope.launch { app.library.setShelves(book.id, next) }
+                    onMove = if (active.id == "all" && q.isEmpty() && (shelves.isNotEmpty() || prefs.tagShelves.isNotEmpty())) { book, from, to ->
+                        if (to.startsWith(TagFilterPrefix)) {
+                            app.appScope.launch { app.library.addTag(book.id, to.removePrefix(TagFilterPrefix)) }
+                        } else {
+                            val src = from.removePrefix("shelf:").takeIf { from.startsWith("shelf:") }
+                            val dst = to.removePrefix("shelf:").takeIf { to.startsWith("shelf:") }
+                            if (!(from.startsWith(TagFilterPrefix) && dst == null)) {
+                                val next = (book.shelves.filter { it != src } + listOfNotNull(dst)).distinct()
+                                app.appScope.launch { app.library.setShelves(book.id, next) }
+                            }
+                        }
                     } else null,
                     footer = {
                         if (shown.isEmpty() && q.isNotEmpty()) {
@@ -353,9 +400,30 @@ fun LibraryScreen(
     if (controls.scanFolder) FolderScanSheet(onDismiss = { controls.scanFolder = false }, onImport = viewModel::importAll)
     if (controls.showViewSheet) LibraryViewSheet(prefs, onDismiss = { controls.showViewSheet = false })
 
+    if (showTags) {
+        TagCloudSheet(
+            active = tagFilterNames(prefs.filter),
+            onApply = { names -> app.libraryPrefs.update { it.copy(filter = if (names.isEmpty()) "all" else tagFilterId(names)) } },
+            onDismiss = { showTags = false },
+        )
+    }
+    if (manageTags) TagManageSheet { manageTags = false }
+    if (showSeries) SeriesListSheet(onOpenBook = { menuBookId = it.id }) { showSeries = false }
+
     if (showFilterSheet) {
         LibraryFilterSheet(
-            filters = filters,
+            filters = shelfFilters,
+            tags = tagTotal,
+            series = seriesTotal,
+            tagsActive = tagFilter != null,
+            onTags = {
+                showFilterSheet = false
+                showTags = true
+            },
+            onSeries = {
+                showFilterSheet = false
+                showSeries = true
+            },
             counts = counts,
             coversFor = coversFor,
             selectedId = active.id,
@@ -674,11 +742,22 @@ private fun LibraryFilterSheet(
     onReorder: (List<String>) -> Unit,
     onNewShelf: () -> Unit,
     onDismiss: () -> Unit,
+    tags: Int = 0,
+    series: Int = 0,
+    tagsActive: Boolean = false,
+    onTags: () -> Unit = {},
+    onSeries: () -> Unit = {},
 ) {
     AppSheet(onDismiss, title = "Показать") {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             filters.filterNot { it.isShelf }.forEach { f ->
                 FilterRow(f, coversFor[f.id].orEmpty(), counts[f.id] ?: 0, f.id == selectedId, onEdit = null) { onSelect(f.id) }
+            }
+        }
+        if (tags > 0 || series > 0) {
+            Row(Modifier.fillMaxWidth().sheetReveal(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (series > 0) GroupTile("Серии", AppIcons.Series, series, false, Modifier.weight(1f), onSeries)
+                if (tags > 0) GroupTile("Теги", AppIcons.Hash, tags, tagsActive, Modifier.weight(1f), onTags)
             }
         }
         val shelves = filters.filter { it.isShelf }
@@ -703,6 +782,24 @@ private fun LibraryFilterSheet(
             SettingIcon(AppIcons.ShelfAdd)
             Text("Новая полка", color = AppColors.Accent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
+    }
+}
+
+@Composable
+private fun GroupTile(title: String, icon: ImageVector, count: Int, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val shape = appCorner(14)
+    Row(
+        modifier
+            .heightIn(min = 50.dp)
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onClick = onClick)
+            .fieldSurface(shape, selected = selected)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(9.dp),
+    ) {
+        Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
+        Text(title, color = if (selected) AppColors.Accent else AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.weight(1f))
+        CountBadge(count, AppColors.Muted, AppColors.Line)
     }
 }
 
@@ -1014,6 +1111,21 @@ private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean
                         contentAlignment = Alignment.Center,
                     ) { Icon(AppIcons.Pages, "Бумажная книга", tint = Color.White, modifier = Modifier.size(if (small) 11.dp else 13.dp)) }
                 }
+                val part = book.series.firstOrNull()?.numberLabel
+                if (part != null && (rating == null || !small)) {
+                    Row(
+                        Modifier
+                            .clip(CircleShape)
+                            .background(chipBg)
+                            .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape)
+                            .padding(horizontal = if (small) 6.dp else 8.dp, vertical = if (small) 2.dp else 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                    ) {
+                        Icon(AppIcons.Series, "Часть серии", tint = Color.White, modifier = Modifier.size(if (small) 10.dp else 12.dp))
+                        Text(part, color = Color.White, fontSize = if (small) 10.sp else 11.5.sp, lineHeight = 13.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
+                    }
+                }
                 Spacer(Modifier.weight(1f))
                 androidx.compose.animation.AnimatedVisibility(
                     visible = book.favorite,
@@ -1115,6 +1227,12 @@ private fun BookRow(book: Book, coverFile: File?, inPages: Boolean, onClick: () 
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     StatusPill(book.status, true, framed = true)
+                    book.series.firstOrNull()?.let { s ->
+                        RowChip {
+                            Icon(AppIcons.Series, "Серия", tint = AppColors.Accent, modifier = Modifier.size(12.dp))
+                            Text(s.label, color = AppColors.Text, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 150.dp))
+                        }
+                    }
                     book.rating?.takeIf { it > 0f }?.let { r ->
                         RowChip {
                             Icon(AppIcons.StarFilled, "Оценка", tint = AppColors.Accent, modifier = Modifier.size(12.dp))

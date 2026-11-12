@@ -121,7 +121,7 @@ private fun FactRow(label: String, value: String) {
 }
 
 @Composable
-private fun CardButton(text: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
+internal fun CardButton(text: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
     val shape = appCorner(12)
     Row(
         modifier
@@ -153,6 +153,8 @@ fun BookAboutCard(app: App, book: Book, onOpenBook: ((Book) -> Unit)? = null) {
         listOfNotNull(book.positions.takeIf { it > 0 && !book.paper }?.let { "Объём" to "$it стр." })
     val suggestions = remember(book.facts, book.tags) { tagSuggestions(book).take(3) }
     val finished = book.status == ReadStatus.Finished
+    val library by app.library.books.collectAsStateWithLifecycle()
+    val sequel = remember(library, book.id, finished) { if (finished) nextInSeries(library, book) else null }
     TabbedFrame("О книге", icon = AppIcons.Info) {
         Column(Modifier.padding(vertical = 10.dp).animateContentSize(Motion.tween(260)), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (description.isNotBlank()) {
@@ -178,6 +180,9 @@ fun BookAboutCard(app: App, book: Book, onOpenBook: ((Book) -> Unit)? = null) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     book.series.forEach { s -> InfoChip(s.label, AppIcons.Series, accent = true) { series = s } }
                 }
+            }
+            sequel?.let { (next, s) ->
+                NextInSeriesCard(next, s, app.library.coverFile(next), onClick = onOpenBook?.let { go -> { go(next) } })
             }
             if (facts.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(5.dp)) { facts.forEach { (label, value) -> FactRow(label, value) } }

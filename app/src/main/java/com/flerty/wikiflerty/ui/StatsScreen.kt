@@ -250,6 +250,7 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
         revealItem(key = "heatmap") { YearHeatmapCard(days, perDay, books) }
         revealItem(key = "status") { StatusCard(books) }
         if (books.any { (it.rating ?: 0f) > 0f }) revealItem(key = "ratings") { RatingsCard(books, yearStart) }
+        if (books.any { it.series.isNotEmpty() || it.tags.isNotEmpty() }) revealItem(key = "themes") { ThemesCard(books, yearStart) }
         revealItem(key = "tiles") {
             StatPanel(
                 "Итоги чтения",

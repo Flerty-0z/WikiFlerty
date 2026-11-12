@@ -299,6 +299,11 @@ fun RatingSheet(bookId: String, celebrate: Boolean, onDismiss: () -> Unit) {
                 }
             },
         )
+        if (celebrate) {
+            remember(books, book.id) { nextInSeries(books, book.copy(status = com.flerty.wikiflerty.data.ReadStatus.Finished)) }?.let { (next, s) ->
+                NextInSeriesCard(next, s, app.library.coverFile(next), onClick = null)
+            }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             val shape = appCorner(16)
             Box(

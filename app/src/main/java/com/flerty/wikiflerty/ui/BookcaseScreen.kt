@@ -82,7 +82,7 @@ private sealed class ShelfUnit(val key: String) {
 
 class PlankSpec(val key: String, val name: String?, val books: List<Book>, val onAdd: (() -> Unit)?, val onEdit: (() -> Unit)?, val wrap: Boolean)
 
-private class PlankRow(val key: String, val name: String?, val units: List<ShelfUnit>, val onEdit: (() -> Unit)?, val scroll: Boolean)
+private class PlankRow(val key: String, val plank: String, val name: String?, val units: List<ShelfUnit>, val onEdit: (() -> Unit)?, val scroll: Boolean)
 
 internal fun <T> placeProps(content: List<T>, tune: KitTune, seed: String, prop: (Int) -> T): List<T> {
     val base = seed.hashCode() and 0x7FFFFFFF
@@ -204,7 +204,7 @@ private fun unitWidth(u: ShelfUnit): Float = when (u) {
 
 private fun rows(planks: List<PlankSpec>, width: Float, live: Boolean, decor: Decor, behave: Boolean, tune: KitTune): List<PlankRow> = planks.flatMap { p ->
     val units = arrange(p.books, p.onAdd, live, decor, p.key, behave, tune)
-    if (!p.wrap) return@flatMap listOf(PlankRow(p.key, p.name, units, p.onEdit, scroll = true))
+    if (!p.wrap) return@flatMap listOf(PlankRow(p.key, p.key, p.name, units, p.onEdit, scroll = true))
     val out = mutableListOf<MutableList<ShelfUnit>>(mutableListOf())
     var used = 0f
     units.forEach { u ->
@@ -216,7 +216,7 @@ private fun rows(planks: List<PlankSpec>, width: Float, live: Boolean, decor: De
         out.last() += u
         used += w
     }
-    out.mapIndexed { i, r -> PlankRow(p.key + "#" + i, if (i == 0) p.name else null, r, p.onEdit, scroll = false) }
+    out.mapIndexed { i, r -> PlankRow(p.key + "#" + i, p.key, if (i == 0) p.name else null, r, p.onEdit, scroll = false) }
 }
 
 @Composable
@@ -241,7 +241,7 @@ fun BookcaseView(
         val list = remember(planks, width, live, decor, behave, effective) { rows(planks, width, live, decor, behave, effective) }
         drag.layout = {
             val out = LinkedHashMap<String, MutableList<ShelfUnit>>()
-            list.forEach { r -> out.getOrPut(r.key.substringBefore('#')) { mutableListOf() }.addAll(r.units.filter { it !is ShelfUnit.Add }) }
+            list.forEach { r -> out.getOrPut(r.plank) { mutableListOf() }.addAll(r.units.filter { it !is ShelfUnit.Add }) }
             out
         }
         val styleStore = (androidx.compose.ui.platform.LocalContext.current.applicationContext as App).style
@@ -459,7 +459,7 @@ private class ShelfDrag {
     var root: androidx.compose.ui.layout.LayoutCoordinates? = null
     var onDrop: (Book, String, String) -> Unit = { _, _, _ -> }
     var scrolling: () -> Boolean = { false }
-    val planks = HashMap<String, androidx.compose.ui.geometry.Rect>()
+    val planks = HashMap<String, Pair<String, androidx.compose.ui.geometry.Rect>>()
     var prop by mutableStateOf<ShelfUnit.Prop?>(null)
     var preview by mutableStateOf<Map<String, List<PropPin>>?>(null)
     var snapshot: Map<String, List<PropPin>>? = null
@@ -475,11 +475,10 @@ private class ShelfDrag {
 
     fun target(keep: String? = null, margin: Float = 0f): String? {
         val p = pointer ?: return null
-        if (keep != null && planks.any { (key, r) -> key.substringBefore('#') == keep && p.y >= r.top - margin && p.y <= r.bottom + margin }) return keep
+        if (keep != null && planks.values.any { (key, r) -> key == keep && p.y >= r.top - margin && p.y <= r.bottom + margin }) return keep
         var best: String? = null
         var dist = Float.MAX_VALUE
-        planks.forEach { (row, r) ->
-            val key = row.substringBefore('#')
+        planks.values.forEach { (key, r) ->
             val d = when {
                 p.y < r.top -> r.top - p.y
                 p.y > r.bottom -> p.y - r.bottom
@@ -936,7 +935,7 @@ private fun Modifier.bookcaseWall(): Modifier = this.drawBehind {
 @Composable
 private fun Shelf(row: PlankRow, index: Int, onBook: (Book) -> Unit) {
     val drag = LocalShelfDrag.current
-    val plank = row.key.substringBefore('#')
+    val plank = row.plank
     val target = drag?.book != null && drag.phase == 1 && drag.target() == plank && drag.from != plank
     val glow by androidx.compose.animation.core.animateFloatAsState(if (target) 1f else 0f, Motion.tween(180), label = "plank-target")
     if (drag != null) androidx.compose.runtime.DisposableEffect(row.key) { onDispose { drag.planks.remove(row.key) } }
@@ -948,7 +947,7 @@ private fun Shelf(row: PlankRow, index: Int, onBook: (Book) -> Unit) {
         Modifier
             .fillMaxWidth()
             .then(if (freshRow) Modifier.scrollReveal() else Modifier)
-            .onGloballyPositioned { c -> if (drag != null) drag.planks[row.key] = c.boundsInWindow() }
+            .onGloballyPositioned { c -> if (drag != null) drag.planks[row.key] = plank to c.boundsInWindow() }
             .drawBehind {
                 if (glow > 0f) {
                     drawRoundRect(
