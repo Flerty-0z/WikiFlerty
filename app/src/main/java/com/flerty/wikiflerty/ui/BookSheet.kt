@@ -373,9 +373,22 @@ fun BookSheet(
             }
         }
 
-        Row(Modifier.height(IntrinsicSize.Min).sheetReveal(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            InfoTile(AppIcons.Pages, if (book.progress > 0 || inPages) progressLabel(book, inPages) else "Не начата", Modifier.weight(1f))
-            InfoTile(statusIcon(book.status), book.status.title, Modifier.weight(1f))
+        var statusOpen by remember(book.id) { mutableStateOf(false) }
+        Column(Modifier.sheetReveal()) {
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                InfoTile(AppIcons.Pages, if (book.progress > 0 || inPages) progressLabel(book, inPages) else "Не начата", Modifier.weight(1f))
+                StatusTile(book.status, statusOpen, Modifier.weight(1f)) { statusOpen = !statusOpen }
+            }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = statusOpen,
+                enter = androidx.compose.animation.expandVertically(Motion.tween(260), expandFrom = Alignment.Top) + androidx.compose.animation.fadeIn(Motion.fade(220)),
+                exit = androidx.compose.animation.shrinkVertically(Motion.tween(220), shrinkTowards = Alignment.Top) + androidx.compose.animation.fadeOut(Motion.fade(160)),
+            ) {
+                StatusOptions(book.status, Modifier.padding(top = 8.dp)) { status ->
+                    statusOpen = false
+                    if (status != book.status) scope.launch { app.library.setStatus(book.id, status) }
+                }
+            }
         }
 
         androidx.compose.animation.AnimatedContent(
@@ -411,6 +424,79 @@ fun BookSheet(
             onConfirm = onDelete,
             onDismiss = { confirmDelete = false },
         )
+    }
+}
+
+@Composable
+private fun StatusTile(status: ReadStatus, open: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val shape = appCorner(16)
+    val turn by androidx.compose.animation.core.animateFloatAsState(if (open) 180f else 0f, Motion.tween(240), label = "status-chevron")
+    val edge by androidx.compose.animation.animateColorAsState(if (open) AppColors.Accent.copy(alpha = 0.5f) else Color.Transparent, Motion.fade(200), label = "status-edge")
+    Row(
+        modifier
+            .fillMaxHeight()
+            .liveClick(shape, sound = if (open) FeedbackSound.Close else FeedbackSound.Open, pressedScale = 0.97f, onClick = onClick)
+            .fieldSurface(shape)
+            .border(1.dp, edge, shape)
+            .padding(start = 10.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        val tint = AppColors.Accent
+        Box(
+            Modifier
+                .size(32.dp)
+                .clip(appCorner(10))
+                .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.26f), tint.copy(alpha = 0.08f))))
+                .border(1.dp, tint.copy(alpha = 0.18f), appCorner(10)),
+            contentAlignment = Alignment.Center,
+        ) {
+            androidx.compose.animation.Crossfade(status, animationSpec = Motion.fade(200), label = "status-icon") { s ->
+                Icon(statusIcon(s), null, tint = tint, modifier = Modifier.size(17.dp))
+            }
+        }
+        androidx.compose.animation.Crossfade(status, Modifier.weight(1f), animationSpec = Motion.fade(200), label = "status-title") { s ->
+            Text(
+                s.title,
+                color = AppColors.Text,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                softWrap = false,
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 15.sp, stepSize = 0.5.sp),
+            )
+        }
+        Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = 90f + turn })
+    }
+}
+
+@Composable
+private fun StatusOptions(current: ReadStatus, modifier: Modifier, onPick: (ReadStatus) -> Unit) {
+    val shape = appCorner(16)
+    Column(
+        modifier
+            .fillMaxWidth()
+            .fieldSurface(shape)
+            .padding(6.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        listOf(ReadStatus.Reading, ReadStatus.Planned, ReadStatus.Finished, ReadStatus.New).forEach { s ->
+            val selected = s == current
+            val row = appCorner(12)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 46.dp)
+                    .liveClick(row, sound = if (selected) FeedbackSound.Close else FeedbackSound.Check, pressedScale = 0.98f) { onPick(s) }
+                    .then(if (selected) Modifier.clip(row).background(AppColors.AccentSoft) else Modifier)
+                    .padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(statusIcon(s), null, tint = if (selected) AppColors.Accent else AppColors.Muted, modifier = Modifier.size(18.dp))
+                Text(s.title, color = if (selected) AppColors.Accent else AppColors.Text, fontSize = 15.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1, modifier = Modifier.weight(1f))
+                if (selected) Icon(AppIcons.Check, null, tint = AppColors.Accent, modifier = Modifier.size(17.dp))
+            }
+        }
     }
 }
 
@@ -456,7 +542,6 @@ private fun ColumnScope.BookMainContent(
     val scope = rememberCoroutineScope()
     if (book.paper) {
         PaperMain(book, onEdit)
-        BookStatusRow(app, book)
         RateRow(book, onRate)
         BookAboutCard(app, book, onOpenBook)
         SettingsNavRow(AppIcons.Chart, "Статистика книги", "Время по дням, вклад в цели") { onStats() }
@@ -489,29 +574,12 @@ private fun ColumnScope.BookMainContent(
 
     ReadingWatchCard(book)
 
-    BookStatusRow(app, book)
-
     RateRow(book, onRate)
     BookAboutCard(app, book, onOpenBook)
 
     SettingsNavRow(AppIcons.Chart, "Статистика книги", "Время, скорость, остаток") { onStats() }
 
     DeleteRow("Удалить с телефона", onDelete)
-}
-
-@Composable
-private fun BookStatusRow(app: App, book: Book) {
-    val scope = rememberCoroutineScope()
-    SettingsGroup(null) {
-        PickerRow(
-            label = "Статус",
-            icon = AppIcons.Bookmark,
-            options = listOf(ReadStatus.Reading, ReadStatus.Planned, ReadStatus.Finished, ReadStatus.New).map { status ->
-                PickerOption(status.id, status.title, icon = statusIcon(status))
-            },
-            selectedId = book.status.id,
-        ) { id -> ReadStatus.of(id)?.let { status -> scope.launch { app.library.setStatus(book.id, status) } } }
-    }
 }
 
 @Composable

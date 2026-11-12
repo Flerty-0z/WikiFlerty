@@ -138,6 +138,7 @@ fun TabbedFrame(
     inset: Boolean = true,
     modifier: Modifier = Modifier,
     trailing: (@Composable () -> Unit)? = null,
+    leading: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val decor = AppStyle.kit.decor
@@ -146,8 +147,10 @@ fun TabbedFrame(
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             val density = androidx.compose.ui.platform.LocalDensity.current
             var side by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+            var lead by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+            if (leading != null) Box(Modifier.onSizeChanged { lead = it.width }) { leading() }
             if (trailing != null) androidx.compose.foundation.layout.Spacer(Modifier.width(with(density) { side.toDp() }))
-            Box(Modifier.weight(1f).padding(horizontal = if (trailing != null) 6.dp else if (decor == Decor.Zen) 30.dp else 0.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.weight(1f).padding(horizontal = if (trailing != null || leading != null) 6.dp else if (decor == Decor.Zen) 30.dp else 0.dp), contentAlignment = Alignment.Center) {
                 val label = if (decor == Decor.News) title.uppercase() else title
                 if (decor == Decor.Comic) {
                     val bubble = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
@@ -164,6 +167,7 @@ fun TabbedFrame(
                 }
             }
             if (trailing != null) Box(Modifier.onSizeChanged { side = it.width }) { trailing() }
+            if (leading != null) androidx.compose.foundation.layout.Spacer(Modifier.width(with(density) { lead.toDp() }))
         }
         if (trailing == null) KitSeal(Modifier.align(Alignment.CenterEnd).padding(end = 12.dp))
         }

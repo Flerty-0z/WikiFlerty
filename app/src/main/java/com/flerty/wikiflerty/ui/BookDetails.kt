@@ -70,9 +70,6 @@ fun tagTitle(tag: String): String = "#" + tag.removePrefix(SpoilerMark)
 
 fun tagSpoiler(tag: String): Boolean = tag.startsWith(SpoilerMark)
 
-fun tagSuggestions(book: Book): List<String> {
-    val have = book.tags.map { it.removePrefix(SpoilerMark).lowercase() }.toSet()
-    return BookFacts.genres(book.facts).filter { it.lowercase() !in have }
 }
 
 @Composable
@@ -259,7 +256,7 @@ private fun TagChip(text: String, icon: ImageVector?, onClick: () -> Unit) {
 }
 
 @Composable
-private fun TagStrip(tags: List<String>, hide: Boolean, hint: Boolean, onReveal: () -> Unit, onOpen: () -> Unit) {
+private fun TagStrip(tags: List<String>, hide: Boolean, onReveal: () -> Unit, onOpen: () -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(Modifier.size(32.dp).clip(appCorner(10)).background(AppColors.AccentSoft), contentAlignment = Alignment.Center) {
             Icon(AppIcons.Tag, null, tint = AppColors.Accent, modifier = Modifier.size(15.dp))
@@ -287,7 +284,6 @@ private fun TagStrip(tags: List<String>, hide: Boolean, hint: Boolean, onReveal:
                     .border(1.dp, AppColors.Accent.copy(alpha = 0.35f), appCorner(10)),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Plus, "Теги", tint = AppColors.Accent, modifier = Modifier.size(16.dp)) }
-            if (hint) Box(Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp).size(8.dp).clip(CircleShape).background(AppColors.Accent))
         }
     }
 }
@@ -308,12 +304,11 @@ fun BookAboutCard(app: App, book: Book, onOpenBook: ((Book) -> Unit)? = null) {
             FactItem(icons[k] ?: AppIcons.Info, BookFacts.title(k), v, wide = k == BookFacts.Publisher || k == BookFacts.Translator || k == BookFacts.Original)
         }
     } + listOfNotNull(book.positions.takeIf { it > 0 && !book.paper }?.let { FactItem(AppIcons.Pages, "Объём", "$it стр.", wide = false) })
-    val hint = remember(book.facts, book.tags) { tagSuggestions(book).isNotEmpty() }
     val finished = book.status == ReadStatus.Finished
     val library by app.library.books.collectAsStateWithLifecycle()
     val sequel = remember(library, book.id, finished) { if (finished) nextInSeries(library, book) else null }
     val empty = description.isBlank() && facts.isEmpty() && book.series.isEmpty()
-    TabbedFrame("О книге", icon = AppIcons.Info, trailing = {
+    TabbedFrame("О книге", icon = AppIcons.Info, leading = {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             HeaderAction(AppIcons.Search, "Найти сведения") { lookup = true }
             HeaderAction(AppIcons.Pencil, "Изменить") { editing = true }
@@ -351,7 +346,7 @@ fun BookAboutCard(app: App, book: Book, onOpenBook: ((Book) -> Unit)? = null) {
                 NextInSeriesCard(next, s, app.library.coverFile(next), onClick = onOpenBook?.let { go -> { go(next) } })
             }
             if (facts.isNotEmpty()) FactGrid(facts)
-            TagStrip(book.tags, hide = !finished && !reveal, hint = hint, onReveal = { reveal = true }, onOpen = { tagging = true })
+            TagStrip(book.tags, hide = !finished && !reveal, onReveal = { reveal = true }, onOpen = { tagging = true })
         }
     }
     if (editing) BookDetailsSheet(book) { editing = false }
@@ -572,7 +567,6 @@ fun BookTagsSheet(book: Book, onDismiss: () -> Unit) {
             .groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key }
             .filter { it.lowercase() !in have }.take(14)
     }
-    val suggestions = remember(current.facts, current.tags) { tagSuggestions(current) }
     fun save(tags: List<String>) {
         scope.launch { app.library.setTags(book.id, tags) }
     }
@@ -601,17 +595,13 @@ fun BookTagsSheet(book: Book, onDismiss: () -> Unit) {
                 CardButton("Новый тег", AppIcons.Plus, Modifier.fillMaxWidth()) { adding = true }
             }
         }
-        if (suggestions.isNotEmpty()) {
-            TabbedFrame("Похоже на", icon = AppIcons.Sparkle) {
-                FlowRow(Modifier.padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    suggestions.forEach { g -> InfoChip(g, AppIcons.Plus, dashed = true) { save(current.tags + g) } }
-                }
-            }
-        }
         if (popular.isNotEmpty()) {
-            TabbedFrame("Мои теги", icon = AppIcons.Hash) {
-                FlowRow(Modifier.padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    popular.forEach { t -> InfoChip("#$t") { save(current.tags + t) } }
+            TabbedFrame("Мои теги", icon = AppIcons.Hash, inset = false) {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    popular.forEach { t -> InfoChip("#$t", AppIcons.Plus) { save(current.tags + t) } }
                 }
             }
         }

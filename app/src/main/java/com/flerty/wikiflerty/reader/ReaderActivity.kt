@@ -100,6 +100,14 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private val app: App get() = application as App
     private val settings: ReaderSettings get() = app.readerSettings.settings.value
     private var lastTurnKey: String? = null
+    private var tocItems: List<TocItem> = emptyList()
+
+    private fun chapterFor(href: String, progression: Double?): String? {
+        val key = href.substringBefore('#')
+        if (key.isNotEmpty()) tocItems.lastOrNull { it.link.href.toString().substringBefore('#') == key }?.title?.takeIf { it.isNotBlank() }?.let { return it }
+        val at = progression ?: return null
+        return ui.chapterMarks.lastOrNull { it.at <= at + 0.0001 }?.item?.title?.takeIf { it.isNotBlank() }
+    }
     private var inkTurns = 0
     private val ui = ReaderUiState()
     private lateinit var navigator: EpubNavigatorFragment
@@ -1533,6 +1541,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val title = book?.title ?: session.publication.metadata.title.orEmpty()
         bookTitle = title
         val toc = flattenToc(session.publication.tableOfContents)
+        tocItems = toc
         var cover by mutableStateOf<ImageBitmap?>(null)
 
         if (!com.flerty.wikiflerty.ui.Tips.readerCoachDone(this)) ui.coach = true
@@ -1621,6 +1630,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     firstAt[key]?.let { ChapterMark(it, item) }
                 }.distinctBy { it.at to it.item.depth }.sortedBy { it.at }
             }
+            if (ui.chapter.isNullOrBlank()) ui.chapter = chapterFor(ui.currentHref.orEmpty(), ui.progression)
             val total = ui.totalPositions
             app.appScope.launch { app.library.setPositions(session.bookId, total) }
         }
@@ -1646,7 +1656,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                             ui.progression = total ?: ui.progression
                             ui.position = locator.locations.position
                         }
-                        ui.chapter = locator.title
+                        ui.chapter = locator.title?.takeIf { it.isNotBlank() } ?: chapterFor(href, total)
                         ui.currentHref = href
                         val turnKey = href + "|" + (locator.locations.progression ?: 0.0)
                         if (turnKey != lastTurnKey) {
