@@ -215,12 +215,25 @@ fun KitSlider(
     val field = AppColors.Field
     val faint = AppColors.Faint
     val light = AppStyle.light
+    val feedback = LocalFeedback.current
+    val buckets = if (steps > 0) steps + 1 else 20
+    val lastBucket = androidx.compose.runtime.remember { intArrayOf(Int.MIN_VALUE) }
+    val span = (valueRange.endInclusive - valueRange.start).takeIf { it > 0f } ?: 1f
     Slider(
         value = value,
-        onValueChange = onValueChange,
+        onValueChange = { v ->
+            val f = ((v - valueRange.start) / span).coerceIn(0f, 1f)
+            val b = kotlin.math.round(f * buckets).toInt()
+            if (lastBucket[0] != Int.MIN_VALUE && b != lastBucket[0]) feedback?.play(FeedbackSound.Tick, rate = 0.85f + f * 0.4f)
+            lastBucket[0] = b
+            onValueChange(v)
+        },
         modifier = modifier,
         enabled = enabled,
-        onValueChangeFinished = onValueChangeFinished,
+        onValueChangeFinished = {
+            lastBucket[0] = Int.MIN_VALUE
+            onValueChangeFinished?.invoke()
+        },
         colors = SliderDefaults.colors(),
         steps = steps,
         valueRange = valueRange,

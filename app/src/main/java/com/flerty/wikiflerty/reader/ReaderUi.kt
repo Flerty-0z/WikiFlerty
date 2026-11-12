@@ -279,7 +279,11 @@ private fun SelectionHandleLayer(state: ReaderUiState) {
             androidx.compose.ui.unit.IntOffset(((screenW - barW) / 2f).roundToInt(), y.roundToInt())
         },
     ) {
-        SelectionNextBar(color, with(density) { barW.toDp() }) { state.onSelectionNext?.invoke() }
+        val nextFeedback = com.flerty.wikiflerty.ui.LocalFeedback.current
+        SelectionNextBar(color, with(density) { barW.toDp() }) {
+            nextFeedback?.play(FeedbackSound.Page)
+            state.onSelectionNext?.invoke()
+        }
     }
 }
 
@@ -802,13 +806,15 @@ fun ReaderOverlay(
         val last = remember { arrayOf<SelectionInfo?>(null) }
         selection?.let { last[0] = it }
         val info = last[0] ?: return@AnimatedVisibility
+        val kept = remember { arrayOf<SelectionHandles?>(null) }
+        if (selection != null) state.handles?.let { kept[0] = it }
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val density = androidx.compose.ui.platform.LocalDensity.current
             val menuHeight = with(density) { 58.dp.toPx() }
             val gap = with(density) { 12.dp.toPx() }
             val minY = with(density) { 24.dp.toPx() }
             val maxY = with(density) { maxHeight.toPx() } - menuHeight - with(density) { 72.dp.toPx() }
-            val handles = state.handles
+            val handles = kept[0]
             val line = with(density) { 30.dp.toPx() }
             val drop = with(density) { 26.dp.toPx() }
             val hs = handles?.start
@@ -832,12 +838,35 @@ fun ReaderOverlay(
                 else -> maxY
             }.coerceIn(minY, maxOf(minY, maxY))
             val layout = remember(settings.selectionButtons, settings.selectionMore) { settings.selectionLayout() }
+            val menuY = remember { androidx.compose.animation.core.Animatable(y) }
+            val menuFeedback = com.flerty.wikiflerty.ui.LocalFeedback.current
+            var placed by remember { mutableStateOf(false) }
+            val known = handles != null
+            LaunchedEffect(y, known) {
+                if (!placed) {
+                    if (!known) kotlinx.coroutines.delay(180)
+                    menuY.snapTo(y)
+                    placed = true
+                    menuFeedback?.play(FeedbackSound.Pop)
+                } else if (selection != null) {
+                    menuY.animateTo(y, androidx.compose.animation.core.spring(dampingRatio = 0.9f, stiffness = 420f))
+                }
+            }
+            val shown by androidx.compose.animation.core.animateFloatAsState(if (placed) 1f else 0f, Motion.fade(160), label = "menu-in")
             SelectionMenu(
                 markerColor = settings.markerColor,
                 actions = noteActions,
                 main = layout.first,
                 more = layout.second,
-                modifier = Modifier.fillMaxWidth().offset { androidx.compose.ui.unit.IntOffset(0, y.roundToInt()) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .offset { androidx.compose.ui.unit.IntOffset(0, menuY.value.roundToInt()) }
+                    .graphicsLayer {
+                        alpha = shown
+                        val s = 0.96f + 0.04f * shown
+                        scaleX = s
+                        scaleY = s
+                    },
             )
         }
     }
@@ -1150,6 +1179,7 @@ private fun SeekBar(
     var pending by remember { mutableStateOf<Float?>(null) }
     val preview by rememberUpdatedState(onPreview)
     val seekTo by rememberUpdatedState(onSeek)
+    val seekFeedback = com.flerty.wikiflerty.ui.LocalFeedback.current
     val shown = remember { androidx.compose.animation.core.Animatable(progression.toFloat().coerceIn(0f, 1f)) }
     val target = progression.toFloat().coerceIn(0f, 1f)
     LaunchedEffect(target, pending, drag) {
@@ -1204,7 +1234,10 @@ private fun SeekBar(
                     },
                 ) { change, _ ->
                     change.consume()
-                    drag = (change.position.x / size.width).coerceIn(0f, 1f)
+                    val before = drag
+                    val now = (change.position.x / size.width).coerceIn(0f, 1f)
+                    drag = now
+                    if (before != null && (before * 20f).toInt() != (now * 20f).toInt()) seekFeedback?.play(FeedbackSound.Tick, rate = 0.85f + now * 0.4f)
                     preview(drag?.toDouble())
                 }
             },

@@ -109,7 +109,13 @@ fun KeepHostBars() {
 fun sheetHeight(): androidx.compose.ui.unit.Dp = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.57f).dp
 
 @Composable
-fun AppSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable ColumnScope.() -> Unit) {
+fun AppSheet(
+    onDismiss: () -> Unit,
+    title: String? = null,
+    aboveHeight: androidx.compose.ui.unit.Dp = 0.dp,
+    above: (@Composable androidx.compose.foundation.layout.BoxScope.() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val latest by androidx.compose.runtime.rememberUpdatedState(onDismiss)
@@ -122,6 +128,9 @@ fun AppSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable 
             }
         }
     }
+    val corner = (26 * AppStyle.current.corners).dp
+    val sheetShape = RoundedCornerShape(topStart = corner, topEnd = corner)
+    val floating = above != null
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = state,
@@ -131,26 +140,44 @@ fun AppSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable 
             isAppearanceLightStatusBars = AppStyle.light,
             isAppearanceLightNavigationBars = AppStyle.light,
         ),
-        containerColor = AppColors.Panel,
-        shape = RoundedCornerShape(topStart = (26 * AppStyle.current.corners).dp, topEnd = (26 * AppStyle.current.corners).dp),
+        containerColor = if (floating) Color.Transparent else AppColors.Panel,
+        tonalElevation = 0.dp,
+        shape = if (floating) androidx.compose.ui.graphics.RectangleShape else sheetShape,
     ) {
         KeepHostBars()
         val enter = remember { androidx.compose.animation.core.Animatable(if (Motion.enabled) 0f else 1f) }
         LaunchedEffect(Unit) { enter.animateTo(1f, Motion.tween(340, 60)) }
         val viewport = remember { RevealViewport() }
         androidx.compose.runtime.CompositionLocalProvider(LocalSheetClose provides close, LocalRevealViewport provides viewport) {
-            Column(
-                Modifier.height(sheetHeight()).graphicsLayer {
-                    alpha = 0.35f + 0.65f * enter.value
-                    translationY = (1f - enter.value) * 22f * density
-                },
-            ) {
-                if (title != null) Box(Modifier.padding(horizontal = 16.dp)) { SheetHeader(title, close) }
+            val body: @Composable (Modifier) -> Unit = { mod ->
                 Column(
-                    Modifier.weight(1f).revealViewport(viewport).padding(horizontal = 16.dp).navigationBarsPadding().revealScroll().padding(top = if (title == null) 16.dp else 14.dp, bottom = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    mod.height(sheetHeight()).graphicsLayer {
+                        alpha = 0.35f + 0.65f * enter.value
+                        translationY = (1f - enter.value) * 22f * density
+                    },
                 ) {
-                    content()
+                    if (title != null) Box(Modifier.padding(horizontal = 16.dp)) { SheetHeader(title, close) }
+                    Column(
+                        Modifier.weight(1f).revealViewport(viewport).padding(horizontal = 16.dp).navigationBarsPadding().revealScroll().padding(top = if (title == null) 16.dp else 14.dp, bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        content()
+                    }
+                }
+            }
+            if (above == null) {
+                body(Modifier)
+            } else {
+                Box(Modifier.fillMaxWidth().height(sheetHeight() + aboveHeight)) {
+                    Box(Modifier.fillMaxWidth().height(aboveHeight + corner).padding(horizontal = 16.dp), content = above)
+                    Box(
+                        Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .height(sheetHeight())
+                            .background(AppColors.Panel, sheetShape)
+                            .clip(sheetShape),
+                    ) { body(Modifier) }
                 }
             }
         }
@@ -181,7 +208,7 @@ fun ConfirmSheet(
                 Modifier
                     .weight(1f)
                     .height(46.dp)
-                    .liveClick(shape, sound = if (danger) FeedbackSound.Close else FeedbackSound.Toggle) {
+                    .liveClick(shape, sound = if (danger) FeedbackSound.Trash else FeedbackSound.Toggle) {
                         onConfirm()
                         close()
                     }
@@ -466,7 +493,7 @@ private fun DeleteRow(label: String, onDelete: () -> Unit) {
     val shape = appCorner(16)
     Box(
         Modifier.fillMaxWidth().heightIn(min = 50.dp).sheetReveal()
-            .liveClick(shape, sound = FeedbackSound.Close) { onDelete() }
+            .liveClick(shape, sound = FeedbackSound.Trash) { onDelete() }
             .border(1.dp, Danger.copy(alpha = 0.45f), shape),
         contentAlignment = Alignment.Center,
     ) { ActionLabel(label, Danger, fontSize = 14.sp, iconSize = 21.dp, icon = AppIcons.Trash) }

@@ -188,10 +188,7 @@ fun BookcaseView(
         drag.enabled = onMove != null && planks.size > 1
         val feedback = LocalFeedback.current
         drag.scrolling = { listStateHolder.isScrollInProgress }
-        drag.onDrop = { book, from, to ->
-            feedback?.play(FeedbackSound.Success)
-            move?.invoke(book, from, to)
-        }
+        drag.onDrop = { book, from, to -> move?.invoke(book, from, to) }
         val density = androidx.compose.ui.platform.LocalDensity.current
         val zone = with(density) { 44.dp.toPx() }
         val bottomInset = with(density) { 92.dp.toPx() }
@@ -493,12 +490,16 @@ private fun Modifier.shelfDraggable(book: Book, plank: String, spec: LyingSpec? 
     val wasLanding = remember(book.id, plank) { booleanArrayOf(false) }
     if (landing) wasLanding[0] = true
     val instant = !hidden && wasLanding[0]
+    val settle = remember(book.id, plank) { androidx.compose.animation.core.Animatable(1f) }
     androidx.compose.runtime.LaunchedEffect(target, landing) {
         when {
             landing -> dimAnim.snapTo(0f)
             instant -> {
                 dimAnim.snapTo(1f)
                 wasLanding[0] = false
+                feedback?.play(FeedbackSound.Place)
+                settle.snapTo(0.9f)
+                settle.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.42f, stiffness = 520f))
             }
             else -> dimAnim.animateTo(target, Motion.tween(if (hidden) 160 else 220))
         }
@@ -512,7 +513,13 @@ private fun Modifier.shelfDraggable(book: Book, plank: String, spec: LyingSpec? 
                 drag.dest = c.positionInWindow()
             }
         }
-        .graphicsLayer { alpha = dim }
+        .graphicsLayer {
+            alpha = dim
+            val k = settle.value
+            scaleY = k
+            scaleX = 1f + (1f - k) * 0.45f
+            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+        }
         .pointerInput(book.id, plank) {
             detectDragGesturesAfterLongPress(
                 onDragStart = { offset ->
@@ -527,7 +534,7 @@ private fun Modifier.shelfDraggable(book: Book, plank: String, spec: LyingSpec? 
                     drag.book = book
                     drag.phase = 1
                     haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                    feedback?.play(FeedbackSound.Toggle)
+                    feedback?.play(FeedbackSound.Pick)
                 },
                 onDragEnd = { drag.finish() },
                 onDragCancel = {},

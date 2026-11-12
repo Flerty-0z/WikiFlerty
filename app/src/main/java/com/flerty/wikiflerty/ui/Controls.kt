@@ -128,7 +128,7 @@ fun SettingSwitch(
     val feedback = LocalFeedback.current
     val view = LocalView.current
     val change: (Boolean) -> Unit = {
-        feedback?.play(FeedbackSound.Toggle, view)
+        feedback?.play(if (it) FeedbackSound.Check else FeedbackSound.Uncheck, view)
         onChange(it)
     }
     Row(

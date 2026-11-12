@@ -6,6 +6,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.offset
 import androidx.compose.animation.core.animateFloatAsState
@@ -380,10 +381,7 @@ fun LibraryScreen(
             counts = counts,
             coversFor = coversFor,
             coverFile = viewModel::coverFile,
-            onRead = { book ->
-                showRandom = false
-                viewModel.open(book)
-            },
+            onRead = { book -> viewModel.open(book) },
             onDismiss = { showRandom = false },
         )
     }
@@ -415,6 +413,7 @@ private fun RandomBookSheet(
     val scope = rememberCoroutineScope()
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val feedback = LocalFeedback.current
+    val gleam = remember { androidx.compose.animation.core.Animatable(1f) }
     fun spin() {
         if (pool.isEmpty() || spinning) return
         spinning = true
@@ -428,33 +427,65 @@ private fun RandomBookSheet(
                     val next = pool.filter { it.id != last?.id }.ifEmpty { pool }.random()
                     reel = next
                     last = next
-                    feedback?.play(FeedbackSound.Tap)
+                    feedback?.play(FeedbackSound.Tick, rate = 1.15f - i * 0.02f)
                     kotlinx.coroutines.delay(55L + i * i * 3L)
                 }
             }
             reel = final
             haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-            feedback?.play(FeedbackSound.Toggle)
+            feedback?.play(FeedbackSound.Reveal)
             spinning = false
+            gleam.snapTo(0f)
+            gleam.animateTo(1f, Motion.tween(720, 120, androidx.compose.animation.core.FastOutSlowInEasing))
         }
     }
-    AppSheet(onDismiss, title = "Случайная книга") {
-        androidx.compose.animation.AnimatedVisibility(
-            visible = reel != null,
-            enter = androidx.compose.animation.expandVertically(Motion.tween(300)) + androidx.compose.animation.fadeIn(Motion.fade(260)),
-            exit = androidx.compose.animation.shrinkVertically(Motion.tween(240)) + androidx.compose.animation.fadeOut(Motion.fade(180)),
-        ) {
-            val shape = appCorner(18)
+    val cardH = 128.dp
+    val raise by androidx.compose.animation.core.animateFloatAsState(
+        if (reel != null) 1f else 0f,
+        androidx.compose.animation.core.spring(dampingRatio = 0.72f, stiffness = 260f),
+        label = "reel-raise",
+    )
+    val shown = remember { arrayOf<Book?>(null) }
+    reel?.let { shown[0] = it }
+    AppSheet(
+        onDismiss,
+        title = "Случайная книга",
+        aboveHeight = cardH + 14.dp,
+        above = {
+            val shape = appCorner(20)
             Box(
                 Modifier
+                    .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .height(132.dp)
-                    .clip(shape)
-                    .fieldSurface(shape)
+                    .height(cardH)
+                    .graphicsLayer {
+                        translationY = (1f - raise) * (cardH + 40.dp).toPx()
+                        val s = 0.94f + 0.06f * raise
+                        scaleX = s
+                        scaleY = s
+                        alpha = if (raise < 0.02f) 0f else 1f
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+                    }
+                    .panelSurface(shape, elevation = 10.dp)
+                    .drawWithContent {
+                        drawContent()
+                        val g = gleam.value
+                        if (g in 0.001f..0.999f) {
+                            val band = size.width * 0.45f
+                            val x = -band + (size.width + band * 2) * g
+                            drawRect(
+                                androidx.compose.ui.graphics.Brush.linearGradient(
+                                    listOf(Color.Transparent, AppColors.Accent.copy(alpha = 0.22f), Color.White.copy(alpha = 0.16f), Color.Transparent),
+                                    start = androidx.compose.ui.geometry.Offset(x - band, 0f),
+                                    end = androidx.compose.ui.geometry.Offset(x + band, size.height),
+                                ),
+                            )
+                        }
+                    }
                     .padding(12.dp),
             ) {
                 androidx.compose.animation.AnimatedContent(
-                    targetState = reel,
+                    targetState = reel ?: shown[0],
                     transitionSpec = {
                         if (spinning) {
                             (androidx.compose.animation.slideInVertically(Motion.tween(110)) { -it } + androidx.compose.animation.fadeIn(Motion.fade(90))) togetherWith
@@ -464,11 +495,12 @@ private fun RandomBookSheet(
                                 (androidx.compose.animation.slideOutVertically(Motion.tween(140)) { it } + androidx.compose.animation.fadeOut(Motion.fade(120)))
                         }
                     },
+                    modifier = Modifier.clipToBounds().fillMaxSize(),
                     label = "random-reel",
                 ) { book ->
                     if (book != null) {
                         Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                            CoverBox(book, coverFile(book), Modifier.size(width = 72.dp, height = 108.dp).clip(appCorner(8)), small = true, showStatus = false)
+                            CoverBox(book, coverFile(book), Modifier.size(width = 70.dp, height = 104.dp).clip(appCorner(8)), small = true, showStatus = false)
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(book.title, color = AppColors.Text, fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
                                 if (book.author.isNotBlank()) Text(book.author, color = AppColors.Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -477,7 +509,9 @@ private fun RandomBookSheet(
                     }
                 }
             }
-        }
+        },
+    ) {
+        val close = sheetClose(onDismiss)
         FilterRow(all, coversFor[all.id].orEmpty(), counts[all.id] ?: 0, selected = false, onEdit = null, checked = everything) {
             everything = !everything
             picked = if (everything) names.toSet() else emptySet()
@@ -506,7 +540,10 @@ private fun RandomBookSheet(
                     Modifier
                         .weight(1f)
                         .height(52.dp)
-                        .liveClick(shape, sound = FeedbackSound.Open) { onRead(reelBook) }
+                        .liveClick(shape, sound = FeedbackSound.Open) {
+                            close()
+                            onRead(reelBook)
+                        }
                         .accentHighlight(shape),
                     contentAlignment = Alignment.Center,
                 ) { ActionLabel("Читать", AppColors.OnAccent, fontSize = 15.sp, icon = AppIcons.Play) }
@@ -673,7 +710,7 @@ private fun FilterRow(filter: LibraryFilter, ids: List<String>, count: Int, sele
         modifier
             .fillMaxWidth()
             .sheetReveal()
-            .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.98f, onClick = onClick)
+            .liveClick(shape, sound = when (checked) { null -> FeedbackSound.Toggle; true -> FeedbackSound.Uncheck; false -> FeedbackSound.Check }, pressedScale = 0.98f, onClick = onClick)
             .background(androidx.compose.animation.animateColorAsState(if (selected) AppColors.Accent.copy(alpha = 0.14f) else AppColors.Line.copy(alpha = 0.45f), Motion.fade(240), label = "row-bg").value, shape)
             .border(1.dp, androidx.compose.animation.animateColorAsState(if (selected) AppColors.Accent.copy(alpha = 0.45f) else AppColors.PanelBorder, Motion.fade(240), label = "row-edge").value, shape)
             .padding(8.dp),

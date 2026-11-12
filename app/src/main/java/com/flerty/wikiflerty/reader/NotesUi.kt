@@ -162,7 +162,11 @@ private fun SelectionAction(button: SelectionButton, markerColor: Long, actions:
     MenuAction(
         button.title,
         highlighted = button == SelectionButton.Ai,
-        sound = if (button == SelectionButton.Marker) FeedbackSound.Toggle else FeedbackSound.Open,
+        sound = when (button) {
+            SelectionButton.Marker -> FeedbackSound.Toggle
+            SelectionButton.Copy -> FeedbackSound.Copy
+            else -> FeedbackSound.Open
+        },
         onClick = click,
     ) { SelectionIcon(button, markerColor, if (button == SelectionButton.Ai) accentContent else AppColors.Text) }
 }
@@ -614,7 +618,7 @@ private fun ColorSettings(
                     Modifier
                         .weight(1f)
                         .height(44.dp)
-                        .liveClick(shape, sound = FeedbackSound.Close, onClick = onDelete)
+                        .liveClick(shape, sound = FeedbackSound.Trash, onClick = onDelete)
                         .border(1.dp, Color(0x55F08A8A), shape),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
