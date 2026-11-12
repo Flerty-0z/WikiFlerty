@@ -968,39 +968,18 @@ internal fun ProgressFlag(info: FlagInfo, settings: ReaderSettings, onClick: (()
     val showChapter = settings.flagChapter && !info.chapter.isNullOrBlank()
     val showBattery = settings.flagBattery && battery >= 0
     if (!showChapter && items.isEmpty() && !showBattery) return
-    Row(
-        modifier = modifier
-            .height((24 * k).dp)
-            .clip(shape)
-            .then(if (bg) Modifier.background(FlagBackground).border(1.dp, AppColors.PanelBorder, shape) else Modifier)
-            .then(if (onClick != null) Modifier.liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.94f, onClick = onClick) else Modifier)
-            .padding(horizontal = (10 * k).dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy((7 * k).dp),
-    ) {
-        val dot = @Composable { Box(Modifier.size((3 * k).dp).clip(CircleShape).background(AppColors.Faint)) }
-        if (showChapter) {
-            Text(
-                info.chapter.orEmpty(),
-                color = AppColors.Muted,
-                style = style,
-                maxLines = 1,
-                softWrap = false,
-                modifier = Modifier.weight(1f, fill = false).basicMarquee(
-                    iterations = Int.MAX_VALUE,
-                    repeatDelayMillis = 1800,
-                    initialDelayMillis = 1800,
-                    spacing = MarqueeSpacing(28.dp),
-                    velocity = 22.dp,
-                ),
-            )
-        }
+    val surface = Modifier
+        .clip(shape)
+        .then(if (bg) Modifier.background(FlagBackground).border(1.dp, AppColors.PanelBorder, shape) else Modifier)
+        .then(if (onClick != null) Modifier.liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.94f, onClick = onClick) else Modifier)
+    val dot = @Composable { Box(Modifier.size((3 * k).dp).clip(CircleShape).background(AppColors.Faint)) }
+    val stats: @Composable (Boolean) -> Unit = { lead ->
         items.forEachIndexed { i, text ->
-            if (i > 0 || showChapter) dot()
+            if (i > 0 || lead) dot()
             Text(text, color = AppColors.Text, style = style, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
         }
         if (showBattery) {
-            if (showChapter || items.isNotEmpty()) dot()
+            if (lead || items.isNotEmpty()) dot()
             val tint = AppColors.Text
             val low = AppColors.Bad
             androidx.compose.foundation.Canvas(Modifier.size(width = (16 * k).dp, height = (9 * k).dp)) {
@@ -1013,6 +992,62 @@ internal fun ProgressFlag(info: FlagInfo, settings: ReaderSettings, onClick: (()
             }
             Text("$battery%", color = AppColors.Text, style = style, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
         }
+    }
+    val chapterText = @Composable { size: Float, mod: Modifier ->
+        Text(
+            info.chapter.orEmpty(),
+            color = AppColors.Muted,
+            style = style.copy(fontSize = (size * k).sp),
+            maxLines = 1,
+            softWrap = false,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = mod.basicMarquee(
+                iterations = Int.MAX_VALUE,
+                repeatDelayMillis = 1800,
+                initialDelayMillis = 1800,
+                spacing = MarqueeSpacing(28.dp),
+                velocity = 22.dp,
+            ),
+        )
+    }
+    if (showChapter && (items.isNotEmpty() || showBattery)) {
+        Column(
+            modifier = modifier
+                .then(surface)
+                .width(androidx.compose.foundation.layout.IntrinsicSize.Max)
+                .padding(horizontal = (12 * k).dp, vertical = (4 * k).dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            chapterText(10.5f, Modifier.fillMaxWidth())
+            Box(
+                Modifier
+                    .padding(vertical = (3 * k).dp)
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.horizontalGradient(
+                            listOf(Color.Transparent, AppColors.PanelBorder, AppColors.PanelBorder, Color.Transparent),
+                        ),
+                    ),
+            )
+            Row(
+                Modifier.height((16 * k).dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy((7 * k).dp),
+            ) { stats(false) }
+        }
+        return
+    }
+    Row(
+        modifier = modifier
+            .height((24 * k).dp)
+            .then(surface)
+            .padding(horizontal = (10 * k).dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy((7 * k).dp),
+    ) {
+        if (showChapter) chapterText(12f, Modifier.weight(1f, fill = false))
+        stats(showChapter)
     }
 }
 
