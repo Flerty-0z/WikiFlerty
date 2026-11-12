@@ -303,7 +303,8 @@ private fun HandleDot(point: androidx.compose.ui.geometry.Offset, start: Boolean
     val pad = (box - dot) / 2f
     val screen = with(density) { androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp.toPx() }
     val edge = with(density) { 10.dp.toPx() }
-    val left = (if (start) point.x - dot - pad else point.x - pad).coerceIn(edge - pad, screen - edge - pad - dot)
+    val rawLeft = if (start) point.x - dot - pad else point.x - pad
+    val left = if (style == HandleStyle.Drop) rawLeft.coerceIn(edge - pad, screen - edge - pad - dot) else rawLeft
     val top = point.y - with(density) { 2.dp.toPx() }
     val coords = remember { arrayOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
     Box(

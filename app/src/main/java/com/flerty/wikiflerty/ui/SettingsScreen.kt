@@ -7,6 +7,7 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.blur
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.graphics.luminance
 
@@ -376,14 +377,34 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
                     ) {
                         val spin = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(-120f) }
                         androidx.compose.runtime.LaunchedEffect(Unit) { spin.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 200f)) }
+                        val thumb by rememberKitThumb(kit, AppStyle.light, 124.dp, 176.dp)
+                        val ring = Color(if (AppStyle.light) kit.accentLight else kit.accent)
                         Box(
                             Modifier
-                                .size(48.dp)
-                                .panelSurface(CircleShape, elevation = 10.dp)
+                                .size(52.dp)
+                                .clip(CircleShape)
                                 .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.86f) { tuneKit = kit },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Icon(AppIcons.Options, "Настроить шаблон", tint = AppColors.Accent, modifier = Modifier.size(23.dp).graphicsLayer { rotationZ = spin.value })
+                            thumb?.let { image ->
+                                androidx.compose.foundation.Image(
+                                    image,
+                                    contentDescription = null,
+                                    contentScale = androidx.compose.ui.layout.ContentScale.None,
+                                    alignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .graphicsLayer { scaleX = 1.15f; scaleY = 1.15f }
+                                        .then(if (android.os.Build.VERSION.SDK_INT >= 31) Modifier.blur(9.dp) else Modifier),
+                                )
+                            }
+                            Box(
+                                Modifier
+                                    .matchParentSize()
+                                    .background(Color.Black.copy(alpha = if (android.os.Build.VERSION.SDK_INT >= 31) 0.18f else 0.38f))
+                                    .border(1.5.dp, ring.copy(alpha = 0.85f), CircleShape),
+                            )
+                            Icon(AppIcons.Options, "Настроить шаблон", tint = Color.White, modifier = Modifier.size(23.dp).graphicsLayer { rotationZ = spin.value })
                         }
                     }
                 }

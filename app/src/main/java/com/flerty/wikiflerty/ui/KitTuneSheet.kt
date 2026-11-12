@@ -179,7 +179,7 @@ private fun PlaceTile(place: PropPlace, selected: Boolean, onClick: () -> Unit) 
     val muted = AppColors.Faint
     Column(
         Modifier
-            .width(92.dp)
+            .width(88.dp)
             .clip(shape)
             .background(fill)
             .border(if (selected) 1.5.dp else 1.dp, edge, shape)
@@ -210,6 +210,7 @@ private fun PlaceTile(place: PropPlace, selected: Boolean, onClick: () -> Unit) 
             place.title,
             color = if (selected) AppColors.Text else AppColors.Muted,
             fontSize = 11.sp,
+            softWrap = false,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             maxLines = 1,
             textAlign = TextAlign.Center,
@@ -225,36 +226,37 @@ private fun EveryStepper(value: Int, onChange: (Int) -> Unit) {
             .fillMaxWidth()
             .clip(appCorner(14))
             .background(AppColors.Field)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(start = 10.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         SettingIcon(AppIcons.Sliders, 30.dp)
-        Text("Через каждые", color = AppColors.Text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+        Column(Modifier.weight(1f)) {
+            Text("Частота", color = AppColors.Text, fontSize = 14.sp, maxLines = 1, softWrap = false)
+            androidx.compose.animation.AnimatedContent(
+                targetState = value,
+                transitionSpec = {
+                    val up = targetState > initialState
+                    (androidx.compose.animation.slideInVertically(Motion.tween(180)) { if (up) it else -it } + fadeIn(Motion.fade(160))) togetherWith
+                        (androidx.compose.animation.slideOutVertically(Motion.tween(180)) { if (up) -it else it } + fadeOut(Motion.fade(120)))
+                },
+                label = "every",
+            ) { v ->
+                Text(
+                    "каждые $v ${if (v == 1) "книга" else if (v in 2..4) "книги" else "книг"}",
+                    color = AppColors.Accent,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
+        }
         Box(
             Modifier.size(36.dp).liveClick(shape, sound = FeedbackSound.Tick, enabled = value > 1) { onChange(value - 1) }.border(1.dp, AppColors.PanelBorder, shape),
             contentAlignment = Alignment.Center,
         ) {
             val tint = if (value > 1) AppColors.Accent else AppColors.Faint
             Canvas(Modifier.size(14.dp)) { drawLine(tint, Offset(0f, size.height / 2), Offset(size.width, size.height / 2), strokeWidth = 2.2f * density) }
-        }
-        androidx.compose.animation.AnimatedContent(
-            targetState = value,
-            transitionSpec = {
-                val up = targetState > initialState
-                (androidx.compose.animation.slideInVertically(Motion.tween(180)) { if (up) it else -it } + fadeIn(Motion.fade(160))) togetherWith
-                    (androidx.compose.animation.slideOutVertically(Motion.tween(180)) { if (up) -it else it } + fadeOut(Motion.fade(120)))
-            },
-            label = "every",
-        ) { v ->
-            Text(
-                "$v ${if (v == 1) "книгу" else if (v in 2..4) "книги" else "книг"}",
-                color = AppColors.Accent,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.width(72.dp),
-            )
         }
         Box(
             Modifier.size(36.dp).liveClick(shape, sound = FeedbackSound.Tick, enabled = value < 6) { onChange(value + 1) }.border(1.dp, AppColors.PanelBorder, shape),

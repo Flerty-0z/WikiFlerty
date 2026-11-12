@@ -268,8 +268,6 @@ private fun Modifier.revealCore(edgeDp: Float, liftDp: Float, delayMs: Int = 0):
             if (!shown.value && visible) {
                 fromAbove.value = hiddenTop > 1f
                 shown.value = true
-            } else if (shown.value && !visible) {
-                shown.value = false
             }
             exit.floatValue = if (hiddenTop <= 0f) 1f else ((h - hiddenTop) / minOf(edge, h)).coerceIn(0f, 1f)
         }
@@ -326,6 +324,7 @@ fun Modifier.fadeEdges(canUp: () -> Boolean, canDown: () -> Boolean, top: androi
 
 class RevealViewport {
     var coords: androidx.compose.ui.layout.LayoutCoordinates? = null
+    val since: Long = android.os.SystemClock.uptimeMillis()
 }
 
 val LocalRevealViewport = androidx.compose.runtime.staticCompositionLocalOf<RevealViewport?> { null }
@@ -333,7 +332,9 @@ val LocalRevealViewport = androidx.compose.runtime.staticCompositionLocalOf<Reve
 fun Modifier.revealViewport(viewport: RevealViewport): Modifier = this.onGloballyPositioned { viewport.coords = it }
 
 fun Modifier.sheetReveal(): Modifier = composed {
-    if (LocalRevealViewport.current == null || !Motion.enabled) return@composed this
+    val viewport = LocalRevealViewport.current
+    val late = remember { viewport != null && android.os.SystemClock.uptimeMillis() - viewport.since > 700 }
+    if (viewport == null || !Motion.enabled || late) return@composed this
     revealCore(80f, 24f)
 }
 

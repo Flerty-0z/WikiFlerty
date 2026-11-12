@@ -333,7 +333,7 @@ data class UiStyle(
 }
 
 enum class PropPlace(val id: String, val title: String) {
-    Between("between", "Между книгами"),
+    Between("between", "Между"),
     Scatter("scatter", "Вразброс"),
     Edges("edges", "По краям"),
     Start("start", "В начале"),
