@@ -101,6 +101,7 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         crashLog.install()
+        com.flerty.wikiflerty.ui.EInk.init(this)
         streakFreeze
         Thread({ runCatching { com.flerty.wikiflerty.reader.FontCatalog.warm(this) }; runCatching { java.io.File(filesDir, "charmap").deleteRecursively(); java.io.File(filesDir, "pet.json").delete() } }, "font-warm").apply { priority = Thread.MIN_PRIORITY }.start()
         style = StyleStore(this)

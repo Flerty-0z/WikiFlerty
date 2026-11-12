@@ -116,7 +116,7 @@ object Backup {
             put("deletedCharacters", JSONObject(state.deletedCharacters))
             put("settings", JSONObject().apply {
                 put("changedAt", state.settingsChangedAt)
-                put("reader", app.readerSettings.settings.value.toJson())
+                put("reader", app.readerSettings.saved.toJson())
                 put("style", app.style.style.value.toJson())
                 put("ai", app.ai.settings.value.toJson())
             })

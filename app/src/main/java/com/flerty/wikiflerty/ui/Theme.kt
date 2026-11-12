@@ -202,6 +202,10 @@ enum class UiBase(
         "frost_light", "Новогодняя сказка", 0xFFE8F0F4, 0xFFF8FBFD, 0xFFFFFFFF, 0xFFF0F5F8, 0xFFC8D7DE, 0xFFFFFFFF, 0xFFF3F8FA, 0xFFD3E0E6,
         light = true, text = 0xFF1D3932, muted = 0xFF55756B, faint = 0xFF89A299,
     ),
+    Ink(
+        "ink", "E-Ink", 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFF000000, 0xFF000000, 0xFFFFFFFF, 0xFFB4B4B4,
+        light = true, text = 0xFF000000, muted = 0xFF262626, faint = 0xFF4D4D4D,
+    ),
     ;
 
     companion object {
@@ -442,6 +446,7 @@ enum class Kit(
     Sea("sea", "Подводный мир", UiBase.SeaDark, UiBase.SeaLight, 0xFF45E6CF, 0xFF0A8F87, 1.2f, ButtonLook.Soft, MotionStyle.Soft, Decor.Sea),
     Clay("clay", "Пластилин", UiBase.ClayDark, UiBase.ClayLight, 0xFFFF8FB6, 0xFFF0508A, 1.7f, ButtonLook.Filled, MotionStyle.Bouncy, Decor.Clay, lightFirst = true),
     NewYear("newyear", "Новогодняя сказка", UiBase.FrostDark, UiBase.FrostLight, 0xFFF25C5C, 0xFFCF2F3A, 1f, ButtonLook.Filled, MotionStyle.Soft, Decor.Frost),
+    Ink("ink", "E-Ink", UiBase.Ink, UiBase.Ink, 0xFF000000, 0xFF000000, 0.5f, ButtonLook.Filled, MotionStyle.Strict, Decor.None),
     ;
 
     fun applyTo(style: UiStyle, light: Boolean) = style.copy(
@@ -454,13 +459,33 @@ enum class Kit(
     )
 
     companion object {
+        val shown: List<Kit> get() = entries.filter { it != Ink }
+
         fun of(id: String?) = entries.firstOrNull { it.id == id } ?: Library
     }
 }
 
 object AppStyle {
-    var current by mutableStateOf(UiStyle())
-        internal set
+    private var stored by mutableStateOf(UiStyle())
+    private var inkSource: UiStyle? = null
+    private var inkStyle: UiStyle? = null
+
+    var current: UiStyle
+        get() {
+            val s = stored
+            if (!EInk.on) return s
+            val cached = inkStyle
+            if (cached != null && inkSource === s) return cached
+            return EInk.style(s).also {
+                inkSource = s
+                inkStyle = it
+            }
+        }
+        internal set(value) {
+            stored = value
+        }
+
+    val saved: UiStyle get() = stored
 
     var systemDark by mutableStateOf(true)
 
@@ -486,7 +511,7 @@ class StyleStore(context: Context) {
 
     init {
         val loaded = _style.value
-        if (Kit.entries.none { it.id == loaded.kit }) {
+        if (Kit.shown.none { it.id == loaded.kit }) {
             val fixed = Kit.Library.applyTo(loaded, ThemeMode.of(loaded.mode) == ThemeMode.Light)
             _style.value = fixed
             runCatching { file.writeText(fixed.toJson().toString()) }
@@ -531,10 +556,10 @@ object AppColors {
     val Text: Color get() = Color(base.text)
     val Muted: Color get() = Color(base.muted)
     val Faint: Color get() = Color(base.faint)
-    val Good: Color get() = if (light) Color(0xFF2E8B57) else Color(0xFF7ED3A0)
-    val Warn: Color get() = if (light) Color(0xFFC07514) else Color(0xFFF2B36B)
-    val Bad: Color get() = if (light) Color(0xFFD0443E) else Color(0xFFF08A8A)
-    val Info: Color get() = if (light) Color(0xFF3D6EF5) else Color(0xFF8AB4F8)
+    val Good: Color get() = if (EInk.on) Color.Black else if (light) Color(0xFF2E8B57) else Color(0xFF7ED3A0)
+    val Warn: Color get() = if (EInk.on) Color(0xFF333333) else if (light) Color(0xFFC07514) else Color(0xFFF2B36B)
+    val Bad: Color get() = if (EInk.on) Color.Black else if (light) Color(0xFFD0443E) else Color(0xFFF08A8A)
+    val Info: Color get() = if (EInk.on) Color.Black else if (light) Color(0xFF3D6EF5) else Color(0xFF8AB4F8)
     val Shade: Color get() = Color(base.text)
 
     val Accent: Color get() {
@@ -549,7 +574,7 @@ object AppColors {
         )
     }
     val OnAccent: Color get() = if (Accent.luminance() > 0.4f) Color(0xFF0D1424) else Color.White
-    val AccentSoft: Color get() = Accent.copy(alpha = 0.18f)
+    val AccentSoft: Color get() = Accent.copy(alpha = if (EInk.on) 0.12f else 0.18f)
     val AccentLight: Color get() = Color.White.copy(alpha = 0.22f).compositeOver(Accent)
     val AccentDark: Color get() = Color.Black.copy(alpha = 0.2f).compositeOver(Accent)
     val AccentTint: Color get() = Accent.copy(alpha = 0.12f).compositeOver(Field)

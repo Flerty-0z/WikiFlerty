@@ -77,7 +77,7 @@ class BackgroundAudio(private val app: App) {
     }
 
     private fun target(): Pair<Boolean, Float> {
-        if (started <= 0) return false to 0f
+        if (started <= 0 || com.flerty.wikiflerty.ui.EInk.on) return false to 0f
         val style = app.style.style.value
         val base = if (app.readAloud.session.value != null) 0f else style.videoVolume
         if (readers > 0) {

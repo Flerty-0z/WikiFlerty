@@ -99,7 +99,7 @@ fun Modifier.fieldSurface(shape: Shape, selected: Boolean = false, accent: Color
 }
 
 private fun Modifier.baseFieldSurface(shape: Shape, selected: Boolean, accent: Color): Modifier = this
-    .then(if (AppStyle.light) Modifier.shadow(3.dp, shape, ambientColor = Color(0x33A07850), spotColor = Color(0x33A07850)) else Modifier)
+    .then(if (AppStyle.light && !EInk.on) Modifier.shadow(3.dp, shape, ambientColor = Color(0x33A07850), spotColor = Color(0x33A07850)) else Modifier)
     .clip(shape)
     .background(AppColors.Field)
     .border(if (selected) 2.dp else 1.dp, if (selected) accent else AppColors.PanelBorder, shape)

@@ -63,6 +63,7 @@ internal fun FeedBadge(pull: FeedPull, settings: ReaderSettings, modifier: Modif
             Kit.Sea -> sea(k, ready, time, bg, accent)
             Kit.Clay -> clay(k, ready, bg, accent)
             Kit.NewYear -> frost(k, ready, time, bg, accent)
+            Kit.Ink -> news(k, ready, bg, fg, accent)
         }
     }
 }

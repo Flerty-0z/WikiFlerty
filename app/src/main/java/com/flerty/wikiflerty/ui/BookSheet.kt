@@ -253,7 +253,7 @@ private fun RoundButton(icon: androidx.compose.ui.graphics.vector.ImageVector, d
     ) { Icon(icon, description, tint = tint, modifier = Modifier.size(20.dp)) }
 }
 
-val StarYellow = Color(0xFFFFC94D)
+val StarYellow: Color get() = if (EInk.on) Color.Black else Color(0xFFFFC94D)
 
 @Composable
 private fun FavoriteButton(on: Boolean, onClick: () -> Unit) {
@@ -334,7 +334,7 @@ fun BookSheet(
     var editPaper by remember { mutableStateOf(false) }
     var editInfo by remember { mutableStateOf(false) }
     val inPages = book.paper || app.libraryPrefs.prefs.value.progressInPages
-    val aura by rememberCoverAura(coverFile, app.libraryPrefs.prefs.value.aura)
+    val aura by rememberCoverAura(coverFile, app.libraryPrefs.prefs.value.aura && !EInk.on)
 
     AppSheet(onDismiss, aura = aura) {
         val close = sheetClose(onDismiss)

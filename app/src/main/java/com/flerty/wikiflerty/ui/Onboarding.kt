@@ -108,16 +108,17 @@ enum class NewsTarget { None, Stats, Custom, Library, LibraryView, Guide, Ai }
 
 class NewsItem(val group: String, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None, val query: String = "")
 
-const val NewsRelease = 270
+const val NewsRelease = 271
 
 val WhatsNewItems = listOf(
-    NewsItem("Оформление", AppIcons.Sliders, "Настройки шаблона", "Нажми на выбранный шаблон: атмосфера, стиль в книге, сезоны и декор на полках. Сохраняются в копии и синхронизации", NewsTarget.Custom),
-    NewsItem("Библиотека", AppIcons.Shelf, "Свой декор на полках", "Зажми предмет и перенеси куда хочешь, даже на другую полку. У каждого предмета свой звук", NewsTarget.Library),
-    NewsItem("Чтение", AppIcons.Panel, "Новая верхняя панель", "Глава и страница, засечки глав на ползунке, закладка и поиск под рукой"),
-    NewsItem("Чтение", AppIcons.Flag, "Флажок в два этажа", "Глава сверху, статистика снизу. Размер 80–100%, панели подстраиваются под него"),
-    NewsItem("Чтение", AppIcons.Drop, "Капли выделения", "Шесть стилей капель и компактная кнопка «Далее» у конца выделения"),
-    NewsItem("Звук", AppIcons.Sound, "Новые звуки", "Выделение, копирование, удаление, отметки и полки теперь звучат по-своему"),
-    NewsItem("Исправления", AppIcons.Check, "Фикс багов", "Меню выделения без скачков, страница не дёргается при клавиатуре, сноска и персонаж не накладываются, книга встаёт на полку сразу, шторки без подёргиваний"),
+    NewsItem("Оформление", AppIcons.Snow, "Шаблон «Новогодняя сказка»", "Гирлянды, снег и праздничные предметы на полках", NewsTarget.Custom),
+    NewsItem("Библиотека", AppIcons.Search, "Сведения о книге", "Серия, издательство, год и жанры читаются из файла. Чего нет — «Найти сведения» в карточке книги", NewsTarget.Library),
+    NewsItem("Библиотека", AppIcons.Series, "Серии", "Номер части на книге, все части в одном окне и подсказка «Дальше в серии»", NewsTarget.Library),
+    NewsItem("Библиотека", AppIcons.Hash, "Теги", "Теги в карточке книги, облако и фильтр в окне «Показать». Тег можно поставить полкой в шкаф", NewsTarget.Library),
+    NewsItem("Библиотека", AppIcons.Sparkle, "Свечение карточки", "Карточка книги светится цветами обложки", NewsTarget.Library),
+    NewsItem("Чтение", AppIcons.Person, "Профиль персонажа", "Роль, внешность, отношения, судьба и цитаты. ИИ заполняет по прочитанному — без спойлеров"),
+    NewsItem("Оформление", AppIcons.Ereader, "Режим E-Ink", "Для электронных книг: чёрное на белом, без анимаций. Настройки → Режим E-Ink"),
+    NewsItem("Исправления", AppIcons.Check, "Фикс багов", "Декор не скачет при прокрутке полок, флажок до 100%, мелкие правки в библиотеке"),
 )
 
 @Composable
@@ -125,6 +126,7 @@ fun OnboardingHost(libraryEmpty: Boolean, onAddBook: () -> Unit, onTarget: (News
     val context = LocalContext.current
     var tour by remember { mutableStateOf(false) }
     var news by remember { mutableStateOf<List<NewsItem>>(emptyList()) }
+    var inkAsk by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         val code = Tips.versionCode(context)
         val seen = Tips.seenVersion(context)
@@ -135,6 +137,20 @@ fun OnboardingHost(libraryEmpty: Boolean, onAddBook: () -> Unit, onTarget: (News
         if (!libraryEmpty) Tips.markTour(context)
         Tips.markVersion(context, code)
         Tips.markRelease(context, NewsRelease)
+        if (!EInk.on && !EInk.asked && EInk.likelyDevice()) inkAsk = true
+    }
+    if (inkAsk && !tour && news.isEmpty()) {
+        ConfirmSheet(
+            title = "Это электронная книга?",
+            text = "Режим E-Ink убирает анимации и декор и делает всё чёрно-белым. Выключить можно в настройках.",
+            confirm = "Включить",
+            danger = false,
+            onConfirm = { EInk.turn(true) },
+            onDismiss = {
+                EInk.markAsked()
+                inkAsk = false
+            },
+        )
     }
     if (tour) {
         WelcomeTour(
@@ -285,8 +301,8 @@ private fun KitPicker() {
     val light = AppStyle.light
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp)) {
-        items(Kit.entries.size) { i ->
-            val kit = Kit.entries[i]
+        items(Kit.shown.size) { i ->
+            val kit = Kit.shown[i]
             val selected = kit == current
             val thumb by rememberKitThumb(kit, light, 110.dp, 160.dp)
             val shape = appCorner(16)
@@ -492,6 +508,9 @@ val GuideGroups = listOf(
         listOf(
             GuideEntry(AppIcons.Plus, "Добавить книги", "«+» внизу → Файл, Папка или Бумажная книга. Поддерживаются EPUB, FB2, TXT, PDF", "импорт загрузить открыть файл"),
             GuideEntry(AppIcons.Image, "Обложка и описание", "Карточка книги → карандаш на обложке → Из галереи, Сфотографировать или Найти в интернете", "обложка картинка фото название автор"),
+            GuideEntry(AppIcons.Search, "Сведения о книге", "Карточка книги → «Найти сведения»: серия, издательство, год, жанры. «Изменить» — вписать вручную", "издательство год isbn переводчик информация описание"),
+            GuideEntry(AppIcons.Series, "Серии", "Чип серии в карточке книги открывает все части. Все серии — окно «Показать» → Серии", "цикл часть следующая том"),
+            GuideEntry(AppIcons.Hash, "Теги", "Карточка книги → «Теги». Облако и фильтр — «Показать» → Теги. Значок полки ставит тег в шкаф", "тег метка жанр тема хештег"),
             GuideEntry(AppIcons.Fire, "Живые предметы", "Предметы на полках растут от серии чтения и прочитанных книг. Иней — когда действует заморозка", "полка декор растение"),
             GuideEntry(AppIcons.Dice, "Случайная книга", "Кубик рядом с полками → отметь полки или «Все книги» → «Выбрать книгу»", "случайно рандом выбрать кубик"),
             GuideEntry(AppIcons.Shelf, "Перетащить книгу на другую полку", "Зажми книгу на полке и перетащи на нужную. На «Без полки» — убрать с полки", "перетащить перенести полка зажать"),
@@ -522,6 +541,7 @@ val GuideGroups = listOf(
             GuideEntry(AppIcons.Translate, "Перевод", "Выдели текст → Перевод. Язык — плашка в окне перевода", "переводчик язык"),
             GuideEntry(AppIcons.TextSize, "Толкование и карточки", "Выдели слово → Словарь → «В словарь». Повторяй в разделе Словарь", "значение слово флешкарты"),
             GuideEntry(AppIcons.Person, "Персонажи", "Выдели имя → ⋯ → Персонаж. Перед именем в тексте появится флажок, нажми на него — откроется карточка. Список — в меню чтения на вкладке с человечком", "герой имя"),
+            GuideEntry(AppIcons.Person, "Профиль персонажа", "Карточка персонажа: роль, кто это, внешность, отношения, судьба и цитаты. «Заполнить с ИИ» берёт только прочитанное", "анкета герой роль спойлер"),
             GuideEntry(AppIcons.Quote, "Цитата-карточка", "Выдели текст → ⋯ → Цитата", "поделиться картинка"),
         ),
     ),
@@ -538,6 +558,7 @@ val GuideGroups = listOf(
         listOf(
             GuideEntry(AppIcons.Palette, "Шаблоны оформления", "Настройки → Кастомизация", "тема цвет стиль"),
             GuideEntry(AppIcons.Sun, "Время суток и сезоны", "Настройки → Кастомизация, под шаблонами", "снег осень ночь"),
+            GuideEntry(AppIcons.Ereader, "Режим E-Ink", "Настройки → Режим E-Ink: чёрное на белом, без анимаций, очистка экрана раз в несколько страниц", "электронная книга читалка onyx pocketbook"),
             GuideEntry(AppIcons.Cloud, "Синхронизация", "Настройки → Синхронизация → Создать код, на втором устройстве — Ввести код", "телефон планшет перенос"),
             GuideEntry(AppIcons.Backup, "Резервная копия", "Настройки → Резервная копия", "экспорт файл"),
             GuideEntry(AppIcons.Calendar, "Итоги года", "Статистика → «Итоги»", "год статистика"),

@@ -88,6 +88,7 @@ import kotlinx.coroutines.withContext
 private enum class SettingsPage(val title: String) {
     Ai("ИИ-помощник"),
     Custom("Кастомизация"),
+    Ink("Режим E-Ink"),
     Sound("Звук и отклик"),
     Backup("Резервная копия"),
     Sync("Синхронизация"),
@@ -137,6 +138,7 @@ fun SettingsScreen(modifier: Modifier = Modifier, onAbout: (() -> Unit)? = null)
                 when (current) {
                     SettingsPage.Ai -> AiSettingsContent((LocalContext.current.applicationContext as App).ai)
                     SettingsPage.Custom -> Unit
+                    SettingsPage.Ink -> InkContent()
                     SettingsPage.Sound -> SoundContent()
                     SettingsPage.Backup -> BackupContent()
                     SettingsPage.Sync -> SyncContent()
@@ -153,6 +155,7 @@ private fun SettingsHome(onAbout: (() -> Unit)?, onOpen: (SettingsPage) -> Unit)
         Triple(AppIcons.Help, "Подсказки" to "Все функции и где их найти") { onOpen(SettingsPage.Guide) },
         Triple(AppIcons.Sparkle, "ИИ-помощник" to "Ключи, модели, перевод") { onOpen(SettingsPage.Ai) },
         Triple(AppIcons.Theme, "Кастомизация" to "Цвета, форма, фон") { onOpen(SettingsPage.Custom) },
+        Triple(AppIcons.Ereader, "Режим E-Ink" to if (EInk.on) "Включён" else "Для электронных книг") { onOpen(SettingsPage.Ink) },
         Triple(AppIcons.Sound, "Звук и отклик" to "Звуки и вибрация") { onOpen(SettingsPage.Sound) },
         Triple(AppIcons.Cloud, "Синхронизация" to "Между устройствами") { onOpen(SettingsPage.Sync) },
         Triple(AppIcons.Backup, "Резервная копия" to "Экспорт и импорт") { onOpen(SettingsPage.Backup) },
@@ -270,6 +273,20 @@ private fun PageHeader(title: String, onBack: () -> Unit) {
 }
 
 @Composable
+private fun InkContent() {
+    SettingsGroup(null) {
+        SettingSwitch("Режим E-Ink", EInk.on, hint = "Чёрное на белом, без анимаций и декора", icon = AppIcons.Ereader) { v -> EInk.turn(v) }
+        SettingSegmented(
+            "Очистка экрана",
+            EInk.refreshChoices.map { if (it == 0) "Нет" else "$it стр." },
+            EInk.refreshChoices.indexOf(EInk.refresh).coerceAtLeast(0),
+        ) { i -> EInk.refreshEvery(EInk.refreshChoices[i]) }
+    }
+    HintNote("Очистка мигает чёрным раз в несколько страниц и убирает следы на экране", AppIcons.Info)
+    HintNote("Режим работает только на этом устройстве. Шаблон и тема вернутся, когда выключишь", AppIcons.Ereader)
+}
+
+@Composable
 private fun SoundContent() {
     val app = LocalContext.current.applicationContext as App
     val settings by app.readerSettings.settings.collectAsStateWithLifecycle()
@@ -342,20 +359,21 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
     revealItem(key = "header") { header() }
+    if (EInk.on) revealItem(key = "ink-note") { HintNote("Включён режим E-Ink — оформление упрощено", AppIcons.Ereader) }
     revealItem(key = "preview") { StylePreview() }
 
     revealItem(key = "templates") {
     TabbedFrame("Шаблоны оформления", icon = AppIcons.Palette, inset = false) {
         val current = Kit.of(style.kit)
-        val start = Kit.entries.indexOf(current).coerceAtLeast(0)
-        Kit.entries.forEach { rememberKitThumb(it, AppStyle.light, 124.dp, 176.dp) }
+        val start = Kit.shown.indexOf(current).coerceAtLeast(0)
+        Kit.shown.forEach { rememberKitThumb(it, AppStyle.light, 124.dp, 176.dp) }
         androidx.compose.foundation.lazy.LazyRow(
             state = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = (start - 1).coerceAtLeast(0)),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            items(Kit.entries.size) { i ->
-                val kit = Kit.entries[i]
+            items(Kit.shown.size) { i ->
+                val kit = Kit.shown[i]
                 val spot = androidx.compose.runtime.remember { arrayOf<Offset?>(null) }
                 Box(Modifier.onGloballyPositioned { c -> spot[0] = c.positionInWindow() + Offset(c.size.width / 2f, c.size.height / 2f) }) {
                     KitCard(kit, selected = kit == current) {

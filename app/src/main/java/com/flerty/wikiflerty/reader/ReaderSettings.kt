@@ -26,11 +26,14 @@ enum class PageTheme(
     Sepia("sepia", "Сепия", 0xFF231D16, 0xFFE0D3BC, ReadiumTheme.DARK),
     Paper("paper", "Бумага", 0xFFEFE6D2, 0xFF3B3328, ReadiumTheme.LIGHT),
     Light("light", "Светлая", 0xFFF6F3EC, 0xFF2A2724, ReadiumTheme.LIGHT),
+    Ink("ink", "E-Ink", 0xFFFFFFFF, 0xFF000000, ReadiumTheme.LIGHT),
     ;
 
     val isLight: Boolean get() = readiumBase == ReadiumTheme.LIGHT
 
     companion object {
+        val shown: List<PageTheme> get() = entries.filter { it != Ink }
+
         fun of(id: String) = entries.firstOrNull { it.id == id } ?: Dark
     }
 }
@@ -350,9 +353,18 @@ class ReaderSettingsStore(context: Context) {
     private val file = File(context.filesDir, "reader_settings.json")
 
     private val _settings = MutableStateFlow(load())
-    val settings: StateFlow<ReaderSettings> = _settings.asStateFlow()
+    private val _effective = MutableStateFlow(effective(_settings.value))
+    val settings: StateFlow<ReaderSettings> = _effective.asStateFlow()
+    val saved: ReaderSettings get() = _settings.value
 
     var onChanged: (() -> Unit)? = null
+
+    init {
+        com.flerty.wikiflerty.ui.EInk.listen { _effective.value = effective(_settings.value) }
+    }
+
+    private fun effective(s: ReaderSettings): ReaderSettings =
+        if (com.flerty.wikiflerty.ui.EInk.on) s.copy(theme = PageTheme.Ink.id, autoNight = false, pageAnimation = PageAnimation.None.id) else s
 
     fun update(transform: (ReaderSettings) -> ReaderSettings) {
         if (write(transform(_settings.value))) onChanged?.invoke()
@@ -365,6 +377,7 @@ class ReaderSettingsStore(context: Context) {
     private fun write(updated: ReaderSettings): Boolean {
         if (updated == _settings.value) return false
         _settings.value = updated
+        _effective.value = effective(updated)
         runCatching {
             val tmp = File(file.parentFile, "reader_settings.json.tmp")
             tmp.writeText(updated.toJson().toString())

@@ -216,6 +216,7 @@ class ReaderUiState {
     var ttsProblem by mutableStateOf<com.flerty.wikiflerty.tts.ReadAloud.Problem?>(null)
     var ttsSleep by mutableStateOf<com.flerty.wikiflerty.tts.SleepTimer?>(null)
     var askFinished by mutableStateOf(false)
+    var inkFlash by mutableStateOf(0)
     var chatFromHistory by mutableStateOf(false)
     var bookmarked by mutableStateOf(false)
     var pageTurning by mutableStateOf(false)
@@ -534,6 +535,8 @@ fun ReaderOverlay(
         ) {
             FinishedPrompt(onMark = onMarkFinished, onDismiss = { state.askFinished = false })
         }
+
+        InkFlash(state.inkFlash)
 
 
         AnimatedVisibility(
@@ -2107,7 +2110,7 @@ private fun ScrollOptions(
 private fun ThemeOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit) {
     Group(if (settings.autoNight) "Днём" else "Фон страницы") {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            PageTheme.entries.chunked(3).forEach { row ->
+            PageTheme.shown.chunked(3).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { theme ->
                         val selected = settings.dayTheme == theme
@@ -2143,7 +2146,7 @@ private fun ThemeOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
         PickerRow(
             label = "Ночная тема",
             icon = AppIcons.Theme,
-            options = PageTheme.entries.map { PickerOption(it.id, it.title, swatch = Color(it.background)) },
+            options = PageTheme.shown.map { PickerOption(it.id, it.title, swatch = Color(it.background)) },
             selectedId = settings.nightTheme,
         ) { id -> onSettingsChange { it.copy(nightTheme = id) } }
         com.flerty.wikiflerty.ui.ListDivider()
@@ -2716,6 +2719,18 @@ private fun AlignIcon(justify: Boolean) {
             )
         }
     }
+}
+
+@Composable
+private fun InkFlash(tick: Int) {
+    var show by remember { mutableStateOf(false) }
+    LaunchedEffect(tick) {
+        if (tick <= 0) return@LaunchedEffect
+        show = true
+        kotlinx.coroutines.delay(120)
+        show = false
+    }
+    if (show) Box(Modifier.fillMaxSize().background(Color.Black))
 }
 
 @Composable

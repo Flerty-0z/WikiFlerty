@@ -99,6 +99,8 @@ import org.readium.r2.shared.util.AbsoluteUrl
 class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private val app: App get() = application as App
     private val settings: ReaderSettings get() = app.readerSettings.settings.value
+    private var lastTurnKey: String? = null
+    private var inkTurns = 0
     private val ui = ReaderUiState()
     private lateinit var navigator: EpubNavigatorFragment
     private lateinit var fonts: List<FontEntry>
@@ -1647,6 +1649,19 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         }
                         ui.chapter = locator.title
                         ui.currentHref = href
+                        val turnKey = href + "|" + (locator.locations.progression ?: 0.0)
+                        if (turnKey != lastTurnKey) {
+                            val first = lastTurnKey == null
+                            lastTurnKey = turnKey
+                            val every = com.flerty.wikiflerty.ui.EInk.refresh
+                            if (!first && com.flerty.wikiflerty.ui.EInk.on && every > 0 && !settings.scroll) {
+                                inkTurns++
+                                if (inkTurns >= every) {
+                                    inkTurns = 0
+                                    ui.inkFlash++
+                                }
+                            }
+                        }
                         updatePageCount(locator)
                         val position = locator.locations.position
                         val previous = lastPosition
@@ -3145,6 +3160,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         com.flerty.wikiflerty.ui.Kit.Sea -> ChapterShiftView.Kind.Sea
         com.flerty.wikiflerty.ui.Kit.Clay -> ChapterShiftView.Kind.Clay
         com.flerty.wikiflerty.ui.Kit.NewYear -> ChapterShiftView.Kind.Library
+        com.flerty.wikiflerty.ui.Kit.Ink -> ChapterShiftView.Kind.News
     }
 
     private fun feedJump(forward: Boolean, force: Boolean = false): Boolean {
