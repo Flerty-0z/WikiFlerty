@@ -13,6 +13,7 @@ enum class LibrarySort(val id: String, val title: String) {
     Added("added", "Дата добавления"),
     Title("title", "Название"),
     Author("author", "Автор"),
+    Series("series", "Серия"),
     Progress("progress", "Прогресс");
 
     companion object {
@@ -42,6 +43,7 @@ data class LibraryPrefs(
     val progressInPages: Boolean = false,
     val liveShelf: Boolean = true,
     val shelfBehavior: Boolean = true,
+    val autoInfo: Boolean = true,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("filter", filter)
@@ -58,6 +60,7 @@ data class LibraryPrefs(
         put("progressInPages", progressInPages)
         put("liveShelf", liveShelf)
         put("shelfBehavior", shelfBehavior)
+        put("autoInfo", autoInfo)
     }
 
     companion object {
@@ -74,6 +77,7 @@ data class LibraryPrefs(
             progressInPages = j.optBoolean("progressInPages", false),
             liveShelf = j.optBoolean("liveShelf", true),
             shelfBehavior = j.optBoolean("shelfBehavior", true),
+            autoInfo = j.optBoolean("autoInfo", true),
             shelves = j.optJSONArray("shelves")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
         )
     }

@@ -29,14 +29,17 @@ object BookConverter {
         return if (utf16 || (read > 0 && binary <= read / 100)) Kind.Txt else Kind.Unknown
     }
 
-    fun toEpub(source: File, kind: Kind, target: File, fallbackTitle: String, identifier: String) {
-        when (kind) {
-            Kind.Fb2 -> source.inputStream().buffered().use { Fb2Converter(identifier).convert(it, target, fallbackTitle) }
+    fun toEpub(source: File, kind: Kind, target: File, fallbackTitle: String, identifier: String): com.flerty.wikiflerty.data.FileMeta? {
+        return when (kind) {
+            Kind.Fb2 -> source.inputStream().buffered().use { input -> Fb2Converter(identifier).let { c -> c.convert(input, target, fallbackTitle); c.meta } }
             Kind.Fb2Zip -> ZipFile(source).use { zip ->
                 val entry = zip.entries().asSequence().first { it.name.lowercase().endsWith(".fb2") }
-                zip.getInputStream(entry).buffered().use { Fb2Converter(identifier).convert(it, target, fallbackTitle) }
+                zip.getInputStream(entry).buffered().use { input -> Fb2Converter(identifier).let { c -> c.convert(input, target, fallbackTitle); c.meta } }
             }
-            Kind.Txt -> TxtConverter(identifier).convert(source.readBytes(), target, fallbackTitle)
+            Kind.Txt -> {
+                TxtConverter(identifier).convert(source.readBytes(), target, fallbackTitle)
+                null
+            }
             else -> throw IllegalArgumentException("unsupported")
         }
     }

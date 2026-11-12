@@ -73,6 +73,12 @@ object AppIcons {
             ),
         )
     }
+    val Series by lazy { icon("series", "M12 3l9 4.5-9 4.5-9-4.5z", "M3 12l9 4.5 9-4.5", "M3 16.5L12 21l9-4.5") }
+    val Tag by lazy { icon("tag", "M3 11.5V4h7.5L21 14.5 14.5 21z", fills = listOf("M7.5 6.3a1.3 1.3 0 1 0 0 2.6a1.3 1.3 0 1 0 0-2.6z")) }
+    val Hash by lazy { icon("hash", "M9.5 4L7.5 20M16.5 4l-2 16M4.5 9h16M3.5 15h16") }
+    val Globe by lazy { icon("globe", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M3 12h18", "M12 3c3.2 3 3.2 15 0 18c-3.2-3-3.2-15 0-18z") }
+    val Barcode by lazy { icon("barcode", "M4 6v12M7.5 6v12M10.5 6v12M14 6v12M17 6v12M20 6v12", width = 1.8f) }
+    val Ink by lazy { icon("ink", "M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z", "M8 8h8M8 12h8M8 16h5") }
     val Sort by lazy { icon("sort", "M7 4v16M4 17l3 3 3-3", "M13 6h7M13 12h5M13 18h3") }
     val Chart by lazy { icon("chart", "M4 20h16", "M7 16v-5M12 16V7M17 16v-8") }
     val Shelf by lazy { icon("shelf", "M5 4v16M10 4v16", "M14.5 5.5l4 14", "M3 20h18") }

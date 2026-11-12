@@ -19,6 +19,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.collectLatest
 import org.json.JSONObject
 import org.readium.r2.shared.publication.Locator
@@ -51,6 +52,7 @@ class App : Application() {
         private set
 
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val autoInfoLock = kotlinx.coroutines.sync.Mutex()
 
     val readAloud: com.flerty.wikiflerty.tts.ReadAloud by lazy { com.flerty.wikiflerty.tts.ReadAloud(this) }
 
@@ -128,8 +130,22 @@ class App : Application() {
         library.onBookAdded = { book ->
             Backup.onBookAdded(this, book)
             cloud.request(1_000)
+            if (libraryPrefs.prefs.value.autoInfo && !book.paper && (book.series.isEmpty() || book.fact(com.flerty.wikiflerty.data.BookFacts.Genres).isBlank() || book.fact(com.flerty.wikiflerty.data.BookFacts.Publisher).isBlank())) {
+                appScope.launch {
+                    autoInfoLock.withLock {
+                        runCatching {
+                            val found = com.flerty.wikiflerty.data.BookLookup.auto(book.title, book.author)
+                            if (found != null) library.fillDetails(book.id, found.description, found.facts, found.series)
+                        }
+                        kotlinx.coroutines.delay(500)
+                    }
+                }
+            }
         }
-        appScope.launch { library.ensureFingerprints() }
+        appScope.launch {
+            library.ensureFingerprints()
+            library.ensureScan()
+        }
         imports.resume()
         backgroundAudio.install()
         achievements.start(appScope)

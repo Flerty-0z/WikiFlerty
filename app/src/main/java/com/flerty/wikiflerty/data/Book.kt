@@ -14,6 +14,35 @@ enum class ReadStatus(val id: String, val title: String) {
     }
 }
 
+data class BookSeries(val name: String, val number: Double? = null) {
+    val numberLabel: String? get() = number?.let { if (it == Math.floor(it)) it.toLong().toString() else it.toString() }
+    val label: String get() = numberLabel?.let { "$name · $it" } ?: name
+}
+
+object BookFacts {
+    const val Publisher = "publisher"
+    const val Year = "year"
+    const val Language = "language"
+    const val Translator = "translator"
+    const val Isbn = "isbn"
+    const val Genres = "genres"
+    const val Original = "original"
+    const val Pages = "pages"
+    val Shown = listOf(Publisher, Year, Language, Translator, Original, Isbn)
+
+    fun title(key: String): String = when (key) {
+        Publisher -> "Издательство"
+        Year -> "Год"
+        Language -> "Язык"
+        Translator -> "Переводчик"
+        Isbn -> "ISBN"
+        Original -> "Оригинал"
+        else -> key
+    }
+
+    fun genres(facts: Map<String, String>): List<String> = facts[Genres].orEmpty().split('|').map { it.trim() }.filter { it.isNotEmpty() }
+}
+
 data class Book(
     val id: String,
     val title: String,
@@ -38,7 +67,13 @@ data class Book(
     val edited: Boolean = false,
     val customDescription: String? = null,
     val pdf: Boolean = false,
+    val facts: Map<String, String> = emptyMap(),
+    val series: List<BookSeries> = emptyList(),
+    val tags: List<String> = emptyList(),
+    val scan: Int = 0,
 ) {
+    fun fact(key: String): String = facts[key].orEmpty()
+
     val statsKey: String get() = fingerprint ?: id
 
     val isPdf: Boolean get() = pdf || fileName.endsWith(".pdf")
@@ -61,6 +96,11 @@ data class Book(
             put("editAuthor", author)
         }
         customDescription?.let { put("description", it) }
+        put("facts", JSONObject().apply { facts.forEach { (k, v) -> put(k, v) } })
+        if (scan > 0 || series.isNotEmpty()) {
+            put("series", JSONArray().apply { series.forEach { s -> put(JSONObject().put("n", s.name).apply { s.number?.let { put("i", it) } }) } })
+        }
+        put("tags", JSONArray(tags))
     }
 
     fun withMeta(j: JSONObject): Book = copy(
@@ -82,6 +122,15 @@ data class Book(
         author = if (j.has("editAuthor")) j.optString("editAuthor") else author,
         edited = edited || j.has("editTitle"),
         customDescription = if (j.has("description")) j.optString("description") else customDescription,
+        facts = j.optJSONObject("facts")?.let { o -> facts + o.keys().asSequence().associateWith { k -> o.optString(k) } } ?: facts,
+        series = j.optJSONArray("series")?.let { a ->
+            (0 until a.length()).mapNotNull { i ->
+                val o = a.optJSONObject(i) ?: return@mapNotNull null
+                val name = o.optString("n").trim().takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                BookSeries(name, if (o.has("i")) o.optDouble("i").takeUnless { it.isNaN() } else null)
+            }
+        } ?: series,
+        tags = j.optJSONArray("tags")?.let { a -> (0 until a.length()).map { a.optString(it).trim() }.filter { it.isNotEmpty() }.distinct() } ?: tags,
     )
 
     fun toJson(): JSONObject = metaJson().apply {
@@ -96,6 +145,7 @@ data class Book(
         put("locator", locatorJson)
         put("fingerprint", fingerprint)
         if (pdf) put("pdf", true)
+        if (scan > 0) put("scan", scan)
     }
 
     companion object {
@@ -114,6 +164,7 @@ data class Book(
                 fingerprint = json.optStringOrNull("fingerprint"),
                 status = if (progress > 0.0) ReadStatus.Reading else ReadStatus.New,
                 pdf = json.optBoolean("pdf", false),
+                scan = json.optInt("scan", 0),
             )
             return if (json.has("status")) base.withMeta(json) else base
         }

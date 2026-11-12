@@ -143,6 +143,9 @@ private fun sorted(books: List<Book>, prefs: LibraryPrefs): List<Book> {
         LibrarySort.Title -> compareBy(String.CASE_INSENSITIVE_ORDER) { it.title }
         LibrarySort.Author -> compareBy<Book, String>(String.CASE_INSENSITIVE_ORDER) { it.author.ifBlank { "￿" } }
             .thenBy(String.CASE_INSENSITIVE_ORDER) { it.title }
+        LibrarySort.Series -> compareBy<Book, String>(String.CASE_INSENSITIVE_ORDER) { it.series.firstOrNull()?.name ?: "￿" }
+            .thenBy { it.series.firstOrNull()?.number ?: Double.MAX_VALUE }
+            .thenBy(String.CASE_INSENSITIVE_ORDER) { it.title }
         LibrarySort.Progress -> compareBy<Book> { if (it.status == ReadStatus.Finished) 1.0 else it.progress }
     }
     return books.sortedWith(if (prefs.descending) comparator.reversed() else comparator)
@@ -343,6 +346,7 @@ fun LibraryScreen(
                 viewModel.delete(book)
             },
             onDismiss = { menuBookId = null },
+            onOpenBook = { menuBookId = it.id },
         )
     }
 

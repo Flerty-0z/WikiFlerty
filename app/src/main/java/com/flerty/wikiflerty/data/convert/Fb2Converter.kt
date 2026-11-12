@@ -30,6 +30,8 @@ class Fb2Converter(private val identifier: String) {
     private val images = mutableMapOf<String, Image>()
     private var noteIds = setOf<String>()
     private var language = "ru"
+    var meta: com.flerty.wikiflerty.data.FileMeta? = null
+        private set
     private var sectionCounter = 0
 
     fun convert(input: InputStream, target: File, fallbackTitle: String) {
@@ -37,14 +39,32 @@ class Fb2Converter(private val identifier: String) {
         val description = root.child("description")
         val info = description?.child("title-info")
         val title = info?.child("book-title")?.text()?.clean()?.takeIf { it.isNotEmpty() } ?: fallbackTitle
-        val authors = info?.all("author").orEmpty().mapNotNull { author ->
-            listOf("first-name", "middle-name", "last-name")
-                .mapNotNull { author.child(it)?.text()?.clean()?.takeIf { s -> s.isNotEmpty() } }
-                .joinToString(" ")
-                .ifBlank { author.child("nickname")?.text()?.clean() }
-                ?.takeIf { it.isNotBlank() }
-        }
+        fun person(el: El): String? = listOf("first-name", "middle-name", "last-name")
+            .mapNotNull { el.child(it)?.text()?.clean()?.takeIf { s -> s.isNotEmpty() } }
+            .joinToString(" ")
+            .ifBlank { el.child("nickname")?.text()?.clean() }
+            ?.takeIf { it.isNotBlank() }
+        val authors = info?.all("author").orEmpty().mapNotNull { person(it) }
         language = info?.child("lang")?.text()?.clean()?.lowercase()?.takeIf { it.matches(Regex("[a-z]{2,3}(-[a-z0-9]+)?")) } ?: "ru"
+        meta = runCatching {
+            val publish = description?.child("publish-info")
+            val facts = LinkedHashMap<String, String>()
+            publish?.child("publisher")?.text()?.clean()?.takeIf { it.isNotEmpty() }?.let { facts[com.flerty.wikiflerty.data.BookFacts.Publisher] = it }
+            val year = com.flerty.wikiflerty.data.BookMetaReader.year(publish?.child("year")?.text())
+                ?: info?.child("date")?.let { com.flerty.wikiflerty.data.BookMetaReader.year(it.attr("value")) ?: com.flerty.wikiflerty.data.BookMetaReader.year(it.text()) }
+            year?.let { facts[com.flerty.wikiflerty.data.BookFacts.Year] = it }
+            com.flerty.wikiflerty.data.BookMetaReader.isbn(publish?.child("isbn")?.text())?.let { facts[com.flerty.wikiflerty.data.BookFacts.Isbn] = it }
+            info?.child("lang")?.text()?.clean()?.takeIf { it.isNotEmpty() }?.let { facts[com.flerty.wikiflerty.data.BookFacts.Language] = com.flerty.wikiflerty.data.BookMetaReader.languageName(it) }
+            info?.all("translator").orEmpty().mapNotNull { person(it) }.joinToString(", ").takeIf { it.isNotBlank() }?.let { facts[com.flerty.wikiflerty.data.BookFacts.Translator] = it }
+            description?.child("src-title-info")?.child("book-title")?.text()?.clean()?.takeIf { it.isNotEmpty() && !it.equals(title, true) }?.let { facts[com.flerty.wikiflerty.data.BookFacts.Original] = it }
+            com.flerty.wikiflerty.data.BookMetaReader.genres(info?.all("genre").orEmpty().map { it.text().clean() }).takeIf { it.isNotEmpty() }
+                ?.let { facts[com.flerty.wikiflerty.data.BookFacts.Genres] = it.joinToString("|") }
+            val series = (info?.all("sequence").orEmpty() + publish?.all("sequence").orEmpty()).mapNotNull { seq ->
+                val name = seq.attr("name")?.clean()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                com.flerty.wikiflerty.data.BookSeries(name, seq.attr("number")?.trim()?.toDoubleOrNull()?.takeIf { it > 0 })
+            }.distinctBy { it.name.lowercase() }
+            com.flerty.wikiflerty.data.FileMeta("", facts, series)
+        }.getOrNull()
 
         root.all("binary").forEach { bin ->
             val id = bin.attr("id") ?: return@forEach

@@ -49,6 +49,7 @@ class LibraryRepository(
                 ?: return@withContext Result.failure(Exception("Не удалось прочитать файл"))
             input.use { stream -> source.outputStream().use { stream.copyTo(it) } }
             val kind = BookConverter.detect(source)
+            var converted: FileMeta? = null
             when (kind) {
                 BookConverter.Kind.Epub -> if (!source.renameTo(file)) {
                     source.copyTo(file, overwrite = true)
@@ -57,7 +58,7 @@ class LibraryRepository(
                 BookConverter.Kind.Fb2, BookConverter.Kind.Fb2Zip, BookConverter.Kind.Txt -> {
                     val name = displayName(uri)?.substringBeforeLast('.')?.removeSuffix(".fb2")?.takeIf { it.isNotBlank() } ?: "Без названия"
                     try {
-                        BookConverter.toEpub(source, kind, file, name, fingerprintOf(source).take(24))
+                        converted = BookConverter.toEpub(source, kind, file, name, fingerprintOf(source).take(24))
                     } catch (e: Throwable) {
                         file.delete()
                         val what = if (kind == BookConverter.Kind.Txt) "текстовый файл" else "FB2"
@@ -102,6 +103,8 @@ class LibraryRepository(
                     name
                 }
 
+                val meta = (converted ?: FileMeta()).over(runCatching { BookMetaReader.read(publication, file) }.getOrNull() ?: FileMeta())
+                writeDescription(id, meta.description)
                 val book = Book(
                     id = id,
                     title = title,
@@ -113,6 +116,9 @@ class LibraryRepository(
                     progress = 0.0,
                     locatorJson = null,
                     fingerprint = fingerprint,
+                    facts = meta.facts,
+                    series = meta.series,
+                    scan = BookMetaReader.Version,
                 )
                 update { it + book }
                 onBookAdded?.invoke(book)
@@ -363,33 +369,100 @@ class LibraryRepository(
 
     private val infoDir = File(context.filesDir, "bookinfo").apply { mkdirs() }
 
+    private fun writeDescription(id: String, description: String) {
+        runCatching { File(infoDir, "$id.json").writeText(org.json.JSONObject().put("v", 2).put("description", description).toString()) }
+    }
+
+    private fun cachedDescription(id: String): String? = runCatching {
+        val cache = File(infoDir, "$id.json")
+        if (!cache.exists()) return@runCatching null
+        val j = org.json.JSONObject(cache.readText())
+        if (j.optInt("v") >= 2 || j.optString("description").isNotBlank()) j.optString("description") else null
+    }.getOrNull()
+
     suspend fun info(book: Book): BookInfo = withContext(Dispatchers.IO) {
-        if (book.paper || (book.isPdf && !book.pdfText)) return@withContext BookInfo()
-        val cache = File(infoDir, "${book.id}.json")
-        runCatching { if (cache.exists()) return@withContext BookInfo.fromJson(org.json.JSONObject(cache.readText())) }
-        val info = runCatching {
+        val current = _books.value.firstOrNull { it.id == book.id } ?: book
+        fun pack(description: String) = BookInfo(description, current.fact(BookFacts.Publisher), current.fact(BookFacts.Year), current.fact(BookFacts.Language))
+        if (book.paper || (book.isPdf && !book.pdfText)) return@withContext pack("")
+        cachedDescription(book.id)?.let { return@withContext pack(it) }
+        val meta = runCatching {
             val publication = readium.open(bookFile(book)).getOrThrow()
             try {
-                val m = publication.metadata
-                val raw = m.description.orEmpty()
-                val text = runCatching { android.text.Html.fromHtml(raw, android.text.Html.FROM_HTML_MODE_LEGACY).toString() }.getOrDefault(raw)
-                    .replace(Regex("[ \\t\\u00A0]+"), " ")
-                    .replace(Regex("\\s*\\n\\s*\\n\\s*"), "\n\n")
-                    .trim()
-                BookInfo(
-                    description = text,
-                    publisher = m.publishers.joinToString(", ") { it.name },
-                    year = m.published?.toString()?.take(4).orEmpty(),
-                    language = m.languages.firstOrNull()?.let { code ->
-                        java.util.Locale.forLanguageTag(code).getDisplayLanguage(java.util.Locale("ru")).replaceFirstChar { it.uppercase() }
-                    }.orEmpty(),
-                )
+                BookMetaReader.read(publication, bookFile(book))
             } finally {
                 publication.close()
             }
-        }.getOrDefault(BookInfo())
-        runCatching { cache.writeText(info.toJson().toString()) }
-        info
+        }.getOrNull() ?: return@withContext pack("")
+        writeDescription(book.id, meta.description)
+        pack(meta.description)
+    }
+
+    suspend fun ensureScan() = withContext(Dispatchers.IO) {
+        val pending = _books.value.filter { it.scan < BookMetaReader.Version }
+        pending.chunked(12).forEach { chunk ->
+            val found = HashMap<String, FileMeta?>()
+            for (book in chunk) {
+                found[book.id] = if (book.paper || (book.isPdf && !book.pdfText)) {
+                    FileMeta()
+                } else {
+                    runCatching {
+                        val file = bookFile(book)
+                        val publication = readium.open(file).getOrThrow()
+                        try {
+                            BookMetaReader.read(publication, file)
+                        } finally {
+                            publication.close()
+                        }
+                    }.getOrNull()
+                }
+                found[book.id]?.description?.takeIf { it.isNotBlank() }?.let { writeDescription(book.id, it) }
+                kotlinx.coroutines.yield()
+            }
+            update { list ->
+                list.map { b ->
+                    if (b.id !in found) b
+                    else {
+                        val meta = found[b.id]
+                        b.copy(
+                            facts = meta?.facts.orEmpty() + b.facts,
+                            series = b.series.ifEmpty { meta?.series.orEmpty() },
+                            scan = BookMetaReader.Version,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    suspend fun editDetails(bookId: String, facts: Map<String, String>, series: List<BookSeries>) = editMeta(bookId) { b ->
+        b.copy(facts = b.facts + facts.mapValues { it.value.trim() }, series = series.filter { it.name.isNotBlank() }.distinctBy { it.name.lowercase() })
+    }
+
+    suspend fun fillDetails(bookId: String, description: String?, facts: Map<String, String>, series: List<BookSeries>) = editMeta(bookId) { b ->
+        val missing = facts.filter { (k, v) -> v.isNotBlank() && b.fact(k).isBlank() }
+        val hasDescription = !b.customDescription.isNullOrBlank() || !cachedDescription(b.id).isNullOrBlank()
+        b.copy(
+            facts = b.facts + missing,
+            series = b.series.ifEmpty { series },
+            customDescription = if (!hasDescription && !description.isNullOrBlank()) description.trim() else b.customDescription,
+        )
+    }
+
+    suspend fun setTags(bookId: String, tags: List<String>) = editMeta(bookId) { b ->
+        b.copy(tags = tags.map { it.trim().trimStart('#').trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() })
+    }
+
+    suspend fun renameTag(from: String, to: String?) {
+        val now = System.currentTimeMillis()
+        update { list ->
+            list.map { b ->
+                if (b.tags.none { it.equals(from, true) }) b
+                else b.copy(
+                    tags = b.tags.mapNotNull { if (it.equals(from, true)) to?.trim()?.takeIf { t -> t.isNotEmpty() } else it }.distinctBy { it.lowercase() },
+                    metaChangedAt = now,
+                )
+            }
+        }
     }
 
     suspend fun ensureFingerprints() = withContext(Dispatchers.IO) {

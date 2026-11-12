@@ -307,10 +307,11 @@ fun BookSheet(
     onRead: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
+    onOpenBook: ((Book) -> Unit)? = null,
 ) {
     val app = LocalContext.current.applicationContext as App
     val scope = rememberCoroutineScope()
-    var showStats by remember { mutableStateOf(false) }
+    var showStats by remember(book.id) { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var rating by remember { mutableStateOf(false) }
     var editPaper by remember { mutableStateOf(false) }
@@ -370,7 +371,7 @@ fun BookSheet(
                     BookMainContent(app, book, onRead = {
                         close()
                         onRead()
-                    }, onStats = { showStats = true }, onRate = { rating = true }, onDelete = { confirmDelete = true }, onEdit = { editPaper = true })
+                    }, onStats = { showStats = true }, onRate = { rating = true }, onDelete = { confirmDelete = true }, onEdit = { editPaper = true }, onOpenBook = onOpenBook)
                 }
             }
         }
@@ -427,12 +428,14 @@ private fun ColumnScope.BookMainContent(
     onRate: () -> Unit,
     onDelete: () -> Unit,
     onEdit: () -> Unit,
+    onOpenBook: ((Book) -> Unit)?,
 ) {
     val scope = rememberCoroutineScope()
     if (book.paper) {
         PaperMain(book, onEdit)
         BookStatusRow(app, book)
         RateRow(book, onRate)
+        BookAboutCard(app, book, onOpenBook)
         SettingsNavRow(AppIcons.Chart, "Статистика книги", "Время по дням, вклад в цели") { onStats() }
         DeleteRow("Удалить книгу", onDelete)
         return
@@ -466,7 +469,7 @@ private fun ColumnScope.BookMainContent(
     BookStatusRow(app, book)
 
     RateRow(book, onRate)
-    BookAbout(app, book)
+    BookAboutCard(app, book, onOpenBook)
 
     SettingsNavRow(AppIcons.Chart, "Статистика книги", "Время, скорость, остаток") { onStats() }
 
@@ -497,47 +500,6 @@ private fun DeleteRow(label: String, onDelete: () -> Unit) {
             .border(1.dp, Danger.copy(alpha = 0.45f), shape),
         contentAlignment = Alignment.Center,
     ) { ActionLabel(label, Danger, fontSize = 14.sp, iconSize = 21.dp, icon = AppIcons.Trash) }
-}
-
-@Composable
-private fun BookAbout(app: App, book: Book) {
-    val info by androidx.compose.runtime.produceState<com.flerty.wikiflerty.data.BookInfo?>(null, book.id) { value = app.library.info(book) }
-    val loaded = info ?: return
-    val data = book.customDescription?.let { loaded.copy(description = it) } ?: loaded
-    val facts = listOfNotNull(
-        data.publisher.takeIf { it.isNotBlank() },
-        data.year.takeIf { it.isNotBlank() },
-        data.language.takeIf { it.isNotBlank() },
-        book.positions.takeIf { it > 0 }?.let { "$it стр." },
-    )
-    if (data.description.isBlank() && facts.isEmpty()) return
-    var expanded by remember { mutableStateOf(false) }
-    SettingsGroup("О книге") {
-        Column(Modifier.padding(vertical = 10.dp).animateContentSize(Motion.tween(260)), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (data.description.isNotBlank()) {
-                Text(
-                    data.description,
-                    color = AppColors.Text,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
-                    maxLines = if (expanded) Int.MAX_VALUE else 5,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (data.description.length > 260) {
-                    Text(
-                        if (expanded) "Свернуть" else "Читать полностью",
-                        color = AppColors.Accent,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.liveClick(appCorner(8), sound = FeedbackSound.Toggle) { expanded = !expanded }.padding(vertical = 2.dp),
-                    )
-                }
-            }
-            if (facts.isNotEmpty()) {
-                Text(facts.joinToString(" · "), color = AppColors.Faint, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-        }
-    }
 }
 
 @Composable
@@ -636,16 +598,17 @@ fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
                     LibrarySort.Added -> AppIcons.Plus
                     LibrarySort.Title -> AppIcons.TextSize
                     LibrarySort.Author -> AppIcons.Pencil
+                    LibrarySort.Series -> AppIcons.Series
                     LibrarySort.Progress -> AppIcons.Chart
                 }
                 SheetOptionRow(PickerOption(sort.id, sort.title, icon = icon), sort == prefs.sort) {
                     app.libraryPrefs.update {
-                        val names = sort == LibrarySort.Title || sort == LibrarySort.Author
+                        val names = sort == LibrarySort.Title || sort == LibrarySort.Author || sort == LibrarySort.Series
                         it.copy(sort = sort, descending = if (it.sort == sort) it.descending else !names)
                     }
                 }
             }
-            val names = prefs.sort == LibrarySort.Title || prefs.sort == LibrarySort.Author
+            val names = prefs.sort == LibrarySort.Title || prefs.sort == LibrarySort.Author || prefs.sort == LibrarySort.Series
             val options = when {
                 names -> listOf("А → Я", "Я → А")
                 prefs.sort == LibrarySort.Progress -> listOf("Больше", "Меньше")
@@ -687,6 +650,11 @@ fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
                 SettingSegmented("Размер обложек", listOf("Мелкие", "Средние", "Крупные"), prefs.coverSize) { i ->
                     app.libraryPrefs.update { it.copy(coverSize = i) }
                 }
+            }
+        }
+        SettingsGroup(null) {
+            SettingSwitch("Сведения из интернета", prefs.autoInfo, hint = "Серия, издательство и жанры новых книг", icon = AppIcons.Globe) { v ->
+                app.libraryPrefs.update { it.copy(autoInfo = v) }
             }
         }
     }
