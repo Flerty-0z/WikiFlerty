@@ -330,7 +330,7 @@ private fun HandleDot(point: androidx.compose.ui.geometry.Offset, start: Boolean
                 .padding(top = 2.dp)
                 .size(20.dp),
         ) {
-            drawSelectionHandle(style, start, color, androidx.compose.ui.geometry.Offset(if (start) size.width else 0f, 0f), density)
+            drawSelectionHandle(style, start, color, androidx.compose.ui.geometry.Offset(if (start) size.width else 0f, 0f), 1.dp.toPx())
         }
     }
 }
