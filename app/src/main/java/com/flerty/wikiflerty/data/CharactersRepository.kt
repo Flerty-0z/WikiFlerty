@@ -13,6 +13,19 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
+enum class CharacterRole(val id: String, val title: String) {
+    Main("main", "Главный герой"),
+    Love("love", "Любовный интерес"),
+    Villain("villain", "Антагонист"),
+    Support("support", "Второстепенный"),
+    Other("other", "Другое");
+
+    companion object {
+        fun of(id: String): CharacterRole? = entries.firstOrNull { it.id == id }
+        fun title(role: String): String = of(role)?.title ?: role
+    }
+}
+
 data class BookCharacter(
     val id: String,
     val bookId: String,
@@ -20,7 +33,17 @@ data class BookCharacter(
     val note: String,
     val createdAt: Long,
     val updatedAt: Long,
+    val role: String = "",
+    val looks: String = "",
+    val ties: String = "",
+    val fate: String = "",
+    val fateHidden: Boolean = true,
+    val quotes: List<String> = emptyList(),
+    val books: List<String> = emptyList(),
+    val avatarAt: Long = 0,
 ) {
+    val filled: Int get() = listOf(note, looks, ties, fate).count { it.isNotBlank() } + if (quotes.isNotEmpty()) 1 else 0
+
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id)
         put("bookId", bookId)
@@ -28,9 +51,20 @@ data class BookCharacter(
         put("note", note)
         put("createdAt", createdAt)
         put("updatedAt", updatedAt)
+        put("role", role)
+        put("looks", looks)
+        put("ties", ties)
+        put("fate", fate)
+        put("fateHidden", fateHidden)
+        put("quotes", JSONArray(quotes))
+        put("books", JSONArray(books))
+        put("avatarAt", avatarAt)
     }
 
     companion object {
+        private fun strings(json: JSONObject, name: String): List<String> =
+            json.optJSONArray(name)?.let { a -> (0 until a.length()).map { a.optString(it).trim() }.filter { it.isNotEmpty() } }.orEmpty()
+
         fun fromJson(json: JSONObject): BookCharacter = BookCharacter(
             id = json.getString("id"),
             bookId = json.getString("bookId"),
@@ -38,12 +72,73 @@ data class BookCharacter(
             note = json.optString("note"),
             createdAt = json.optLong("createdAt"),
             updatedAt = json.optLong("updatedAt"),
+            role = json.optString("role"),
+            looks = json.optString("looks"),
+            ties = json.optString("ties"),
+            fate = json.optString("fate"),
+            fateHidden = json.optBoolean("fateHidden", true),
+            quotes = strings(json, "quotes"),
+            books = strings(json, "books"),
+            avatarAt = json.optLong("avatarAt"),
         )
     }
 }
 
-class CharactersRepository(context: Context) {
+class CharactersRepository(private val context: Context) {
     private val file = File(context.filesDir, "characters.json")
+    private val images = File(context.filesDir, "characters_img").apply { mkdirs() }
+
+    fun avatar(id: String): File = File(images, "$id.jpg")
+
+    fun avatars(): List<Pair<String, File>> = images.listFiles().orEmpty().filter { it.name.endsWith(".jpg") }.map { it.name.removeSuffix(".jpg") to it }
+
+    suspend fun setAvatar(id: String, uri: android.net.Uri): Boolean = withContext(Dispatchers.IO) {
+        val ok = runCatching {
+            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+            var sample = 1
+            while (minOf(bounds.outWidth, bounds.outHeight) / sample > 900) sample *= 2
+            val bitmap = context.contentResolver.openInputStream(uri)?.use {
+                android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+            } ?: return@runCatching false
+            val side = minOf(bitmap.width, bitmap.height)
+            val square = android.graphics.Bitmap.createBitmap(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 4, side, side)
+            val scaled = if (side > 360) android.graphics.Bitmap.createScaledBitmap(square, 360, 360, true) else square
+            avatar(id).outputStream().use { scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, it) }
+            true
+        }.getOrDefault(false)
+        if (ok) edit(id) { it.copy(avatarAt = System.currentTimeMillis()) }
+        ok
+    }
+
+    suspend fun removeAvatar(id: String) {
+        withContext(Dispatchers.IO) { runCatching { avatar(id).delete() } }
+        edit(id) { it.copy(avatarAt = System.currentTimeMillis()) }
+    }
+
+    fun applyAvatar(id: String, bytes: ByteArray, at: Long) {
+        runCatching {
+            val target = avatar(id)
+            target.writeBytes(bytes)
+            target.setLastModified(at)
+        }
+        _characters.value = _characters.value.map { if (it.id == id) it.copy(avatarAt = at) else it }
+    }
+
+    suspend fun edit(id: String, change: (BookCharacter) -> BookCharacter): BookCharacter? {
+        val now = System.currentTimeMillis()
+        var result: BookCharacter? = null
+        update { list ->
+            list.map { c ->
+                if (c.id != id) c else change(c).copy(id = c.id, bookId = c.bookId, createdAt = c.createdAt, updatedAt = now).also { result = it }
+            }
+        }
+        return result
+    }
+
+    fun visibleIn(bookId: String, statsKey: String?): List<BookCharacter> =
+        _characters.value.filter { it.bookId == bookId || (statsKey != null && statsKey in it.books) }.sortedBy { it.name.lowercase() }
+
     private val mutex = Mutex()
 
     private val _characters = MutableStateFlow(load())
@@ -66,6 +161,7 @@ class CharactersRepository(context: Context) {
     suspend fun delete(ids: List<String>) {
         if (ids.isEmpty()) return
         update { list -> list.filterNot { it.id in ids } }
+        ids.forEach { runCatching { avatar(it).delete() } }
         onDeleted?.invoke(ids)
     }
 

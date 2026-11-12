@@ -298,6 +298,13 @@ object Backup {
                     }
                 }
             }
+            app.characters.avatars().forEach { (id, file) ->
+                if (app.characters.characters.value.any { it.id == id }) {
+                    zip.putNextEntry(ZipEntry("people/$id.jpg"))
+                    file.inputStream().use { it.copyTo(zip) }
+                    zip.closeEntry()
+                }
+            }
             if (includeBooks) {
                 app.library.books.value.forEach { book ->
                     val file = if (book.isPdf) app.library.pdfFile(book) else app.library.bookFile(book)
@@ -315,6 +322,7 @@ object Backup {
         var backup: JSONObject? = null
         var booksAdded = 0
         val avatars = mutableMapOf<Pair<String, String>, ByteArray>()
+        val faces = mutableMapOf<String, ByteArray>()
         try {
             val input = context.contentResolver.openInputStream(source) ?: throw IllegalStateException("Не удалось открыть файл")
             val bytes = input.use { it.readBytes() }
@@ -326,6 +334,9 @@ object Backup {
                         val entry = zip.nextEntry ?: break
                         when {
                             entry.name == "backup.json" -> backup = JSONObject(zip.readBytes().toString(Charsets.UTF_8))
+                            entry.name.startsWith("people/") && entry.name.endsWith(".jpg") -> {
+                                faces[entry.name.removePrefix("people/").removeSuffix(".jpg")] = zip.readBytes()
+                            }
                             entry.name.startsWith("heroes/") && entry.name.endsWith(".jpg") -> {
                                 val parts = entry.name.removePrefix("heroes/").removeSuffix(".jpg").split('/')
                                 if (parts.size == 2) avatars[parts[0] to parts[1]] = zip.readBytes()
@@ -349,6 +360,9 @@ object Backup {
                     val bookId = idByFp[key.first] ?: (FOREIGN + key.first)
                     val file = app.heroes.avatar(bookId, key.second)
                     if (!file.exists()) runCatching { file.writeBytes(bytes) }
+                }
+                faces.forEach { (id, bytes) ->
+                    if (!app.characters.avatar(id).exists()) app.characters.applyAvatar(id, bytes, System.currentTimeMillis())
                 }
             }
         } finally {

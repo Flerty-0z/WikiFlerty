@@ -906,7 +906,64 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     if (ui.person?.id == id) ui.person = null
                 }
             },
+            onUpdate = { changed ->
+                lifecycleScope.launch {
+                    app.characters.edit(changed.id) { changed }
+                }
+            },
+            onAvatar = { id, uri ->
+                lifecycleScope.launch {
+                    if (uri == null) app.characters.removeAvatar(id) else app.characters.setAvatar(id, uri)
+                }
+            },
+            onAi = { id -> fillPerson(id) },
         )
+    }
+
+    private fun fillPerson(id: String) {
+        if (ui.personAi != null) return
+        val person = peopleNow.firstOrNull { it.id == id } ?: return
+        val provider = app.ai.current()
+        if (provider == null) {
+            ui.personAiError = "Подключи нейросеть в настройках ИИ"
+            return
+        }
+        ui.personAi = id
+        ui.personAiError = null
+        lifecycleScope.launch {
+            try {
+                val text = bookTextSoFar(3_000_000)
+                val passages = withContext(Dispatchers.Default) { PersonPassages.pick(text, person.name) }
+                if (passages.isBlank()) throw AiException("В прочитанном «${person.name}» пока не встречается")
+                val model = app.ai.settings.value.modelFor(provider)
+                val answer = StringBuilder()
+                app.ai.chat(
+                    provider,
+                    model,
+                    "Ты помогаешь читателю вести досье на персонажей книги. Отвечай только JSON.",
+                    listOf(ChatMessage(true, AiPrompts.characterProfile(person.name, bookTitle, bookAuthor, passages))),
+                ).collect { answer.append(it) }
+                val found = PersonPassages.parse(answer.toString()) ?: throw AiException("ИИ ответил не по форме. Попробуй ещё раз")
+                val refresh = person.filled >= 4
+                app.characters.edit(id) { c ->
+                    fun merge(mine: String, theirs: String) = if (theirs.isNotBlank() && (refresh || mine.isBlank())) theirs else mine
+                    c.copy(
+                        role = c.role.ifBlank { found.role },
+                        note = merge(c.note, found.who),
+                        looks = merge(c.looks, found.looks),
+                        ties = merge(c.ties, found.ties),
+                        fate = merge(c.fate, found.fate),
+                        quotes = (c.quotes + found.quotes).distinctBy { it.lowercase() }.take(12),
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                ui.personAiError = e.message ?: "Не удалось заполнить профиль"
+            } finally {
+                ui.personAi = null
+            }
+        }
     }
 
     private fun seekTo(fraction: Double) {
@@ -1459,8 +1516,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val bookMarks = app.bookmarks.bookmarks.map { list ->
             list.filter { it.bookId == session.bookId }.sortedBy { it.progression }
         }
+        val peopleKey = app.library.books.value.firstOrNull { it.id == session.bookId }?.statsKey
         val bookPeople = app.characters.characters.map { list ->
-            list.filter { it.bookId == session.bookId }.sortedBy { it.name.lowercase() }
+            list.filter { it.bookId == session.bookId || (peopleKey != null && peopleKey in it.books) }.sortedBy { it.name.lowercase() }
         }
         lifecycleScope.launch {
             bookPeople.distinctUntilChanged().collect { list ->

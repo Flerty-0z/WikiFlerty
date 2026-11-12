@@ -83,6 +83,9 @@ data class PersonDraft(val id: String?, val name: String, val note: String)
 class PeopleActions(
     val onSave: (PersonDraft) -> Unit,
     val onDelete: (String) -> Unit,
+    val onUpdate: (BookCharacter) -> Unit = {},
+    val onAvatar: (String, android.net.Uri?) -> Unit = { _, _ -> },
+    val onAi: (String) -> Unit = {},
 )
 
 @Composable
@@ -141,14 +144,15 @@ private fun PersonCard(person: BookCharacter, focused: Boolean, onClick: () -> U
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Icon(AppIcons.Person, null, tint = AppColors.Accent, modifier = Modifier.padding(top = 1.dp).size(20.dp))
+        PersonAvatar(person, 42.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(person.name, color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            RoleBadge(person.role)
             if (person.note.isNotBlank()) {
                 Text(person.note, color = AppColors.Text.copy(alpha = 0.82f), fontSize = 14.sp, lineHeight = 20.sp, maxLines = if (focused) 12 else 4, overflow = TextOverflow.Ellipsis)
             }
         }
-        Icon(AppIcons.Pencil, null, tint = AppColors.Faint, modifier = Modifier.padding(top = 3.dp).size(15.dp))
+        Icon(AppIcons.Chevron, null, tint = AppColors.Faint, modifier = Modifier.padding(top = 3.dp).size(16.dp))
     }
 }
 
@@ -164,17 +168,19 @@ internal fun PersonPopup(person: BookCharacter, onEdit: () -> Unit, onClose: () 
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(AppIcons.Person, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
-            Text(
-                person.name,
-                color = AppColors.Text,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).padding(start = 8.dp),
-            )
-            RoundIconButton(AppIcons.Pencil, "Изменить", sound = FeedbackSound.Open, onClick = onEdit)
+            PersonAvatar(person, 40.dp)
+            Column(Modifier.weight(1f).padding(start = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    person.name,
+                    color = AppColors.Text,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                RoleBadge(person.role)
+            }
+            RoundIconButton(AppIcons.Person, "Профиль", sound = FeedbackSound.Open, onClick = onEdit)
             RoundIconButton(AppIcons.Close, "Закрыть", sound = FeedbackSound.Close, onClick = onClose)
         }
         if (person.note.isNotBlank()) {

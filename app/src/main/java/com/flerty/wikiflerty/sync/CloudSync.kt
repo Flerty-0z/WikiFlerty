@@ -440,6 +440,11 @@ class CloudSync(private val app: App) {
                 )
             }
         }
+        val known = app.characters.characters.value.map { it.id }.toSet()
+        app.characters.avatars().forEach { (id, file) ->
+            if (id !in known) return@forEach
+            out["p|$id"] = LocalImage(JSONObject().put("kind", "p").put("fp", "p").put("person", id).put("at", seconds(file.lastModified())), file)
+        }
         return out
     }
 
@@ -476,6 +481,14 @@ class CloudSync(private val app: App) {
                     if (at <= current) return@forEach
                     val bytes = download(space, key, imageName(code, k, at)) ?: return@forEach
                     app.library.applyCover(book.id, bytes, at)
+                }
+                "p" -> {
+                    val id = entry.optString("person").ifBlank { return@forEach }
+                    val file = app.characters.avatar(id)
+                    val current = if (file.exists()) seconds(file.lastModified()) else -1L
+                    if (at <= current) return@forEach
+                    val bytes = download(space, key, imageName(code, k, at)) ?: return@forEach
+                    app.characters.applyAvatar(id, bytes, at)
                 }
                 "a" -> {
                     val bookId = idByFp[fp] ?: "fp:$fp"

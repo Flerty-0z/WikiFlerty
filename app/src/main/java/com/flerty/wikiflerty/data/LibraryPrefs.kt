@@ -44,6 +44,7 @@ data class LibraryPrefs(
     val liveShelf: Boolean = true,
     val shelfBehavior: Boolean = true,
     val autoInfo: Boolean = true,
+    val aura: Boolean = true,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("filter", filter)
@@ -61,6 +62,7 @@ data class LibraryPrefs(
         put("liveShelf", liveShelf)
         put("shelfBehavior", shelfBehavior)
         put("autoInfo", autoInfo)
+        put("aura", aura)
     }
 
     companion object {
@@ -78,6 +80,7 @@ data class LibraryPrefs(
             liveShelf = j.optBoolean("liveShelf", true),
             shelfBehavior = j.optBoolean("shelfBehavior", true),
             autoInfo = j.optBoolean("autoInfo", true),
+            aura = j.optBoolean("aura", true),
             shelves = j.optJSONArray("shelves")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
         )
     }

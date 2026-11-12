@@ -223,6 +223,8 @@ class ReaderUiState {
     var person by mutableStateOf<com.flerty.wikiflerty.data.BookCharacter?>(null)
     var personDraft by mutableStateOf<PersonDraft?>(null)
     var peopleFocus by mutableStateOf<String?>(null)
+    var personAi by mutableStateOf<String?>(null)
+    var personAiError by mutableStateOf<String?>(null)
     var translate by mutableStateOf<TranslateInfo?>(null)
     var returnTo by mutableStateOf<org.readium.r2.shared.publication.Locator?>(null)
     var feedPull by mutableStateOf<FeedPull?>(null)
@@ -828,8 +830,23 @@ fun ReaderOverlay(
 
     val draft = state.personDraft
     if (draft != null && peopleActions != null) {
-        androidx.compose.runtime.key(draft) {
-            PersonSheet(draft, onDismiss = { state.personDraft = null }, actions = peopleActions)
+        val known = draft.id?.let { id -> people.firstOrNull { it.id == id } }
+        androidx.compose.runtime.key(draft.id ?: draft) {
+            if (known != null) {
+                PersonProfileSheet(
+                    person = known,
+                    homeBookId = known.bookId,
+                    aiBusy = state.personAi == known.id,
+                    aiError = state.personAiError,
+                    actions = peopleActions,
+                    onDismiss = {
+                        state.personDraft = null
+                        state.personAiError = null
+                    },
+                )
+            } else if (draft.id == null) {
+                PersonSheet(draft, onDismiss = { state.personDraft = null }, actions = peopleActions)
+            }
         }
     }
 

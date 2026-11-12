@@ -1,6 +1,8 @@
 package com.flerty.wikiflerty.ui
 
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.graphics.Brush
@@ -114,9 +116,13 @@ fun AppSheet(
     title: String? = null,
     aboveHeight: androidx.compose.ui.unit.Dp = 0.dp,
     above: (@Composable androidx.compose.foundation.layout.BoxScope.() -> Unit)? = null,
+    aura: List<Color>? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val auraShown = remember { arrayOf<List<Color>?>(null) }
+    if (aura != null) auraShown[0] = aura
+    val auraGlow by androidx.compose.animation.core.animateFloatAsState(if (aura != null) 1f else 0f, Motion.tween(620), label = "sheet-aura")
     val scope = rememberCoroutineScope()
     val latest by androidx.compose.runtime.rememberUpdatedState(onDismiss)
     val close: () -> Unit = remember {
@@ -154,6 +160,17 @@ fun AppSheet(
                     mod.height(sheetHeight()).graphicsLayer {
                         alpha = 0.35f + 0.65f * enter.value
                         translationY = (1f - enter.value) * 22f * density
+                    }.drawBehind {
+                        val colors = auraShown[0]
+                        if (colors != null && auraGlow > 0.01f) {
+                            val a = auraGlow * (if (AppStyle.light) 0.24f else 0.42f)
+                            drawRect(
+                                Brush.radialGradient(listOf(colors[0].copy(alpha = a), Color.Transparent), center = androidx.compose.ui.geometry.Offset(size.width * 0.16f, 72.dp.toPx()), radius = size.width * 0.9f),
+                            )
+                            drawRect(
+                                Brush.radialGradient(listOf(colors[1].copy(alpha = a * 0.62f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(size.width, 0f), radius = size.width * 0.72f),
+                            )
+                        }
                     },
                 ) {
                     if (title != null) Box(Modifier.padding(horizontal = 16.dp)) { SheetHeader(title, close) }
@@ -317,11 +334,17 @@ fun BookSheet(
     var editPaper by remember { mutableStateOf(false) }
     var editInfo by remember { mutableStateOf(false) }
     val inPages = book.paper || app.libraryPrefs.prefs.value.progressInPages
+    val aura by rememberCoverAura(coverFile, app.libraryPrefs.prefs.value.aura)
 
-    AppSheet(onDismiss) {
+    AppSheet(onDismiss, aura = aura) {
         val close = sheetClose(onDismiss)
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(Modifier.size(width = 84.dp, height = 126.dp)) {
+            val halo = aura?.firstOrNull()
+            Box(
+                Modifier
+                    .size(width = 84.dp, height = 126.dp)
+                    .then(if (halo != null) Modifier.shadow(20.dp, appCorner(8), clip = false, ambientColor = halo, spotColor = halo) else Modifier),
+            ) {
                 SmallCover(coverFile, Modifier.matchParentSize(), title = book.title, author = book.author)
                 Box(
                     Modifier
@@ -653,6 +676,10 @@ fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
             }
         }
         SettingsGroup(null) {
+            SettingSwitch("Свечение карточки", prefs.aura, hint = "Карточка книги в цветах обложки", icon = AppIcons.Sparkle) { v ->
+                app.libraryPrefs.update { it.copy(aura = v) }
+            }
+            ListDivider()
             SettingSwitch("Сведения из интернета", prefs.autoInfo, hint = "Серия, издательство и жанры новых книг", icon = AppIcons.Globe) { v ->
                 app.libraryPrefs.update { it.copy(autoInfo = v) }
             }
