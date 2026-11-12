@@ -150,6 +150,7 @@ data class ReaderSettings(
     val soundVolume: Double = 0.35,
     val haptics: Boolean = true,
     val markerColor: Long = 0xFFE9C84A,
+    val handleStyle: String = "drop",
     val noteColors: List<Long> = com.flerty.wikiflerty.data.NoteColors.presets.map { it.second },
     val ttsEngine: String = "",
     val ttsVoice: String = "",
@@ -245,6 +246,7 @@ data class ReaderSettings(
         put("soundVolume", soundVolume)
         put("haptics", haptics)
         put("markerColor", String.format("#%08X", markerColor))
+        put("handleStyle", handleStyle)
         put("noteColors", JSONArray(noteColors.map { String.format("#%08X", it) }))
         put("ttsEngine", ttsEngine)
         put("ttsVoice", ttsVoice)
@@ -321,6 +323,7 @@ data class ReaderSettings(
                 haptics = json.optBoolean("haptics", d.haptics),
                 markerColor = runCatching { json.getString("markerColor").removePrefix("#").toLong(16) }
                     .getOrDefault(d.markerColor),
+                handleStyle = json.optString("handleStyle", d.handleStyle).ifBlank { d.handleStyle },
                 noteColors = json.optJSONArray("noteColors")?.let { arr ->
                     (0 until arr.length()).mapNotNull { i ->
                         runCatching { arr.getString(i).removePrefix("#").toLong(16) }.getOrNull()

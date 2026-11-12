@@ -301,6 +301,8 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
     val scope = rememberCoroutineScope()
     var customAccent by remember { mutableStateOf(false) }
     var copying by remember { mutableStateOf(false) }
+    var tuneKit by remember { mutableStateOf<Kit?>(null) }
+    tuneKit?.let { kit -> KitTuneSheet(kit) { tuneKit = null } }
 
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -354,13 +356,34 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
                 val spot = androidx.compose.runtime.remember { arrayOf<Offset?>(null) }
                 Box(Modifier.onGloballyPositioned { c -> spot[0] = c.positionInWindow() + Offset(c.size.width / 2f, c.size.height / 2f) }) {
                     KitCard(kit, selected = kit == current) {
-                        if (kit == current) return@KitCard
+                        if (kit == current) {
+                            tuneKit = kit
+                            return@KitCard
+                        }
                         ThemeSwap.run(spot[0]) {
                             store.update { st ->
                                 val mode = if (st.kit != kit.id && ThemeMode.of(st.mode) != ThemeMode.System) (if (kit.lightFirst) ThemeMode.Light else ThemeMode.Dark).id else st.mode
                                 val light = when (ThemeMode.of(mode)) { ThemeMode.Light -> true; ThemeMode.Dark -> false; ThemeMode.System -> !AppStyle.systemDark }
                                 kit.applyTo(st, light).copy(mode = mode)
                             }
+                        }
+                    }
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = kit == current,
+                        modifier = Modifier.align(Alignment.Center),
+                        enter = androidx.compose.animation.scaleIn(androidx.compose.animation.core.spring(dampingRatio = 0.5f, stiffness = 420f), initialScale = 0.3f) + androidx.compose.animation.fadeIn(Motion.fade(200)),
+                        exit = androidx.compose.animation.scaleOut(Motion.tween(160), targetScale = 0.5f) + androidx.compose.animation.fadeOut(Motion.fade(140)),
+                    ) {
+                        val spin = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(-120f) }
+                        androidx.compose.runtime.LaunchedEffect(Unit) { spin.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 200f)) }
+                        Box(
+                            Modifier
+                                .size(48.dp)
+                                .panelSurface(CircleShape, elevation = 10.dp)
+                                .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.86f) { tuneKit = kit },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(AppIcons.Options, "Настроить шаблон", tint = AppColors.Accent, modifier = Modifier.size(23.dp).graphicsLayer { rotationZ = spin.value })
                         }
                     }
                 }
@@ -378,12 +401,6 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
                 val after = when (modes[idx]) { ThemeMode.Light -> true; ThemeMode.Dark -> false; ThemeMode.System -> !AppStyle.systemDark }
                 if (before == after) store.update { it.copy(mode = modes[idx].id) }
                 else ThemeSwap.run(at) { store.update { it.copy(mode = modes[idx].id) } }
-            }
-        }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.PanelBorder))
-        Box(Modifier.padding(horizontal = 14.dp)) {
-            SettingSwitch("Время суток и сезоны", style.living, hint = null, icon = AppIcons.Sun) { v ->
-                store.update { it.copy(living = v) }
             }
         }
     }

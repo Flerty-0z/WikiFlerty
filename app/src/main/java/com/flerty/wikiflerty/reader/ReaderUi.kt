@@ -258,12 +258,13 @@ data class ChapterMark(val at: Float, val item: TocItem)
 data class SelectionHandles(val start: androidx.compose.ui.geometry.Offset?, val end: androidx.compose.ui.geometry.Offset?, val more: Boolean = false)
 
 @Composable
-private fun SelectionHandleLayer(state: ReaderUiState) {
+private fun SelectionHandleLayer(state: ReaderUiState, handleStyle: String) {
     val h = state.handles ?: return
     if (state.sheet != null) return
     val color = Color(state.handleColor)
-    h.start?.let { HandleDot(it, true, color, state) }
-    h.end?.let { HandleDot(it, false, color, state) }
+    val style = HandleStyle.of(handleStyle)
+    h.start?.let { HandleDot(it, true, color, state, style) }
+    h.end?.let { HandleDot(it, false, color, state, style) }
     val end = h.end
     val last = remember { arrayOf<androidx.compose.ui.geometry.Offset?>(null) }
     if (end != null && h.more) last[0] = end
@@ -295,7 +296,7 @@ private fun SelectionHandleLayer(state: ReaderUiState) {
 }
 
 @Composable
-private fun HandleDot(point: androidx.compose.ui.geometry.Offset, start: Boolean, color: Color, state: ReaderUiState) {
+private fun HandleDot(point: androidx.compose.ui.geometry.Offset, start: Boolean, color: Color, state: ReaderUiState, style: HandleStyle) {
     val density = androidx.compose.ui.platform.LocalDensity.current
     val box = with(density) { 44.dp.toPx() }
     val dot = with(density) { 20.dp.toPx() }
@@ -323,14 +324,14 @@ private fun HandleDot(point: androidx.compose.ui.geometry.Offset, start: Boolean
                 )
             },
     ) {
-        Box(
+        androidx.compose.foundation.Canvas(
             Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 2.dp)
-                .size(20.dp)
-                .shadow(3.dp, if (start) RoundedCornerShape(50, 0, 50, 50) else RoundedCornerShape(0, 50, 50, 50))
-                .background(color, if (start) RoundedCornerShape(50, 0, 50, 50) else RoundedCornerShape(0, 50, 50, 50)),
-        )
+                .size(20.dp),
+        ) {
+            drawSelectionHandle(style, start, color, androidx.compose.ui.geometry.Offset(if (start) size.width else 0f, 0f), density)
+        }
     }
 }
 
@@ -823,7 +824,7 @@ fun ReaderOverlay(
         }
     }
 
-    SelectionHandleLayer(state)
+    SelectionHandleLayer(state, settings.handleStyle)
 
     val selection = state.selection
     AnimatedVisibility(
@@ -2167,6 +2168,17 @@ private fun PanelOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSet
 @Composable
 private fun SelectionOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit) {
     val (main, more) = settings.selectionLayout()
+    Group("Капли выделения", icon = AppIcons.Select) {
+        androidx.compose.foundation.lazy.LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 2.dp, vertical = 2.dp),
+        ) {
+            items(HandleStyle.entries.size) { i ->
+                val style = HandleStyle.entries[i]
+                HandleStyleTile(style, selected = style.id == settings.handleStyle) { onSettingsChange { it.copy(handleStyle = style.id) } }
+            }
+        }
+    }
     Group("В меню · ${main.size}/${SelectionButton.MAX}", icon = AppIcons.Select) {
         SelectionButtonList(main, settings.markerColor, toMain = false, canMove = true,
             onUp = { b -> onSettingsChange { s -> val (m, o) = s.selectionLayout(); s.withSelection(m.moveUp(b), o) } },
@@ -2185,6 +2197,43 @@ private fun SelectionOptions(settings: ReaderSettings, onSettingsChange: ((Reade
         options = Translator.languages.map { PickerOption(it.code, it.title) },
         selectedId = settings.translateTo,
     ) { code -> onSettingsChange { it.copy(translateTo = code) } }
+}
+
+@Composable
+private fun HandleStyleTile(style: HandleStyle, selected: Boolean, onClick: () -> Unit) {
+    val shape = appCorner(14)
+    val edge by androidx.compose.animation.animateColorAsState(if (selected) AppColors.Accent else AppColors.PanelBorder, Motion.fade(200), label = "handle-edge")
+    val fill by androidx.compose.animation.animateColorAsState(if (selected) AppColors.AccentTintStrong else AppColors.Field, Motion.fade(200), label = "handle-fill")
+    val lift by animateFloatAsState(if (selected) 1f else 0f, androidx.compose.animation.core.spring(dampingRatio = 0.5f, stiffness = 500f), label = "handle-lift")
+    val ink = AppColors.Faint
+    val mark = Color(0xFF8FB3FF)
+    Column(
+        Modifier
+            .width(96.dp)
+            .clip(shape)
+            .background(fill)
+            .border(if (selected) 1.5.dp else 1.dp, edge, shape)
+            .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.94f, onClick = onClick)
+            .padding(top = 10.dp, bottom = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        androidx.compose.foundation.Canvas(Modifier.size(width = 80.dp, height = 46.dp).graphicsLayer { val k = 1f + 0.06f * lift; scaleX = k; scaleY = k }) {
+            val u = density * 0.8f
+            val lineH = 9f * u
+            val y1 = 8f * u
+            val y2 = y1 + 15f * u
+            drawRoundRect(ink.copy(alpha = 0.5f), androidx.compose.ui.geometry.Offset(4f * u, y1), androidx.compose.ui.geometry.Size(size.width - 8f * u, lineH), androidx.compose.ui.geometry.CornerRadius(2f * u))
+            drawRoundRect(ink.copy(alpha = 0.5f), androidx.compose.ui.geometry.Offset(4f * u, y2), androidx.compose.ui.geometry.Size(size.width * 0.7f, lineH), androidx.compose.ui.geometry.CornerRadius(2f * u))
+            val sx = size.width * 0.32f
+            val ex = size.width * 0.55f
+            drawRect(mark.copy(alpha = 0.45f), androidx.compose.ui.geometry.Offset(sx, y1 - 1.5f * u), androidx.compose.ui.geometry.Size(size.width - 4f * u - sx, lineH + 3f * u))
+            drawRect(mark.copy(alpha = 0.45f), androidx.compose.ui.geometry.Offset(4f * u, y2 - 1.5f * u), androidx.compose.ui.geometry.Size(ex - 4f * u, lineH + 3f * u))
+            drawSelectionHandle(style, true, mark, androidx.compose.ui.geometry.Offset(sx, y1 + lineH + 1.5f * u), u)
+            drawSelectionHandle(style, false, mark, androidx.compose.ui.geometry.Offset(ex, y2 + lineH + 1.5f * u), u)
+        }
+        Text(style.title, color = if (selected) AppColors.Text else AppColors.Muted, fontSize = 11.5.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1)
+    }
 }
 
 private fun List<SelectionButton>.moveUp(b: SelectionButton): List<SelectionButton> {

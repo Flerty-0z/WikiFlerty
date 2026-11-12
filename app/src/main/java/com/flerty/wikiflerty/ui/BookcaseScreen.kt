@@ -82,48 +82,67 @@ class PlankSpec(val key: String, val name: String?, val books: List<Book>, val o
 
 private class PlankRow(val key: String, val name: String?, val units: List<ShelfUnit>, val onEdit: (() -> Unit)?, val scroll: Boolean)
 
-private fun arrange(books: List<Book>, onAdd: (() -> Unit)?, live: Boolean, decor: Decor = Decor.None, seed: String = "", behave: Boolean = true): List<ShelfUnit> {
+internal fun <T> placeProps(content: List<T>, tune: KitTune, seed: String, prop: (Int) -> T): List<T> {
+    val base = seed.hashCode() and 0x7FFFFFFF
+    var placed = 0
+    fun next(): T = prop(placed).also { placed++ }
+    if (content.isEmpty()) return listOf(next())
+    val n = tune.propEvery.coerceIn(1, 6)
+    val out = mutableListOf<T>()
+    when (PropPlace.of(tune.propPlace)) {
+        PropPlace.Between -> {
+            content.forEachIndexed { i, u ->
+                out += u
+                if ((i + 1) % n == 0 || (content.size < n && i == content.lastIndex)) out += next()
+            }
+        }
+        PropPlace.Scatter -> {
+            val r = kotlin.random.Random(base)
+            content.forEachIndexed { i, u ->
+                if (i > 0 && r.nextInt(n + 1) == 0) out += next()
+                out += u
+            }
+            if (placed == 0) out.add(r.nextInt(out.size + 1), next())
+        }
+        PropPlace.Edges -> {
+            out += next()
+            out += content
+            out += next()
+        }
+        PropPlace.Start -> {
+            out += next()
+            out += content
+        }
+        PropPlace.End -> {
+            out += content
+            out += next()
+        }
+    }
+    return out
+}
+
+private fun withProps(content: List<ShelfUnit>, tune: KitTune, seed: String): List<ShelfUnit> {
+    val base = seed.hashCode() and 0x7FFFFFFF
+    return placeProps(content, tune, seed) { k -> ShelfUnit.Prop(base + k * 7, "p:$seed:$k") }
+}
+
+private fun arrange(books: List<Book>, onAdd: (() -> Unit)?, live: Boolean, decor: Decor = Decor.None, seed: String = "", behave: Boolean = true, tune: KitTune = KitTune()): List<ShelfUnit> {
     if (!live) {
         val units = books.map<Book, ShelfUnit> { ShelfUnit.Standing(it, lean = false) }.toMutableList()
         if (onAdd != null) units += ShelfUnit.Add(onAdd)
         return units
     }
-    if (!behave) {
-        val units = mutableListOf<ShelfUnit>()
-        val props = propCount(decor) > 0
-        val base = seed.hashCode() and 0x7FFFFFFF
-        var placed = 0
-        books.forEachIndexed { i, b ->
-            units += ShelfUnit.Standing(b, lean = false)
-            if (props && (i % 2 == 1 || books.size == 1)) {
-                units += ShelfUnit.Prop(base + placed * 7, "p:$seed:$placed")
-                placed++
-            }
-        }
-        if (props && placed == 0) units += ShelfUnit.Prop(base, "p:$seed:0")
-        if (onAdd != null) units += ShelfUnit.Add(onAdd)
-        return units
+    val props = tune.props && propCount(decor) > 0
+    val content: List<ShelfUnit> = if (!behave) {
+        books.map { ShelfUnit.Standing(it, lean = false) }
+    } else {
+        val standing = books.filter { it.status != ReadStatus.Finished }
+            .sortedWith(compareBy<Book> { if (it.status == ReadStatus.Reading) 0 else 1 }.thenByDescending { it.lastReadAt ?: it.addedAt })
+        val lying = books.filter { it.status == ReadStatus.Finished }.sortedByDescending { it.finishedAt ?: it.addedAt }
+        standing.mapIndexed { i, b -> ShelfUnit.Standing(b, lean = standing.size >= 3 && i == standing.lastIndex) } +
+            lying.chunked(4).map { ShelfUnit.Stack(it) }
     }
-    val standing = books.filter { it.status != ReadStatus.Finished }
-        .sortedWith(compareBy<Book> { if (it.status == ReadStatus.Reading) 0 else 1 }.thenByDescending { it.lastReadAt ?: it.addedAt })
-    val lying = books.filter { it.status == ReadStatus.Finished }.sortedByDescending { it.finishedAt ?: it.addedAt }
-    val units = mutableListOf<ShelfUnit>()
-    val props = propCount(decor) > 0
-    val base = seed.hashCode() and 0x7FFFFFFF
-    var placed = 0
-    fun prop() {
-        units += ShelfUnit.Prop(base + placed * 7, "p:$seed:$placed")
-        placed++
-    }
-    standing.forEachIndexed { i, b ->
-        units += ShelfUnit.Standing(b, lean = standing.size >= 3 && i == standing.lastIndex)
-        if (props && (i % 2 == 1 || standing.size == 1)) prop()
-    }
-    lying.chunked(4).forEachIndexed { i, chunk ->
-        units += ShelfUnit.Stack(chunk)
-        if (props && i == 0 && standing.size % 2 == 0) prop()
-    }
-    if (props && placed == 0) prop()
+    val units = (if (props) withProps(content, tune, seed) else content).toMutableList()
     if (onAdd != null) units += ShelfUnit.Add(onAdd)
     return units
 }
@@ -135,8 +154,8 @@ private fun unitWidth(u: ShelfUnit): Float = when (u) {
     is ShelfUnit.Prop -> 65f
 }
 
-private fun rows(planks: List<PlankSpec>, width: Float, live: Boolean, decor: Decor, behave: Boolean): List<PlankRow> = planks.flatMap { p ->
-    val units = arrange(p.books, p.onAdd, live, decor, p.key, behave)
+private fun rows(planks: List<PlankSpec>, width: Float, live: Boolean, decor: Decor, behave: Boolean, tune: KitTune): List<PlankRow> = planks.flatMap { p ->
+    val units = arrange(p.books, p.onAdd, live, decor, p.key, behave, tune)
     if (!p.wrap) return@flatMap listOf(PlankRow(p.key, p.name, units, p.onEdit, scroll = true))
     val out = mutableListOf<MutableList<ShelfUnit>>(mutableListOf())
     var used = 0f
@@ -166,7 +185,8 @@ fun BookcaseView(
     androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxSize().bookcaseWall()) {
         val width = maxWidth.value - 44f
         val decor = AppStyle.kit.decor
-        val list = remember(planks, width, live, decor, behave) { rows(planks, width, live, decor, behave) }
+        val tune = AppStyle.current.tune()
+        val list = remember(planks, width, live, decor, behave, tune) { rows(planks, width, live, decor, behave, tune) }
         val listStateHolder = rememberLazyListState()
         val plankOrder = planks.map { it.key }
         val lastOrder = remember { arrayOf<List<String>?>(null) }
@@ -943,7 +963,7 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
         val moment = LocalKitMoment.current
         if (moment != null && decor != Decor.None && moment.season != Season.Summer) {
             val seed = remember(name) { (name ?: "shelf").hashCode() }
-            val falling = moment.season == Season.Autumn || moment.season == Season.Spring
+            val falling = (moment.season == Season.Autumn || moment.season == Season.Spring) && AppStyle.current.tune().particles
             val tick = throttledClock(falling, 3600)
             val motion = Motion.enabled
             androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().padding(horizontal = 10.dp).height(0.dp)) {

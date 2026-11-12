@@ -248,7 +248,12 @@ data class UiStyle(
     val kit: String = Kit.Library.id,
     val mode: String = ThemeMode.Dark.id,
     val living: Boolean = true,
+    val tunes: Map<String, KitTune> = emptyMap(),
 ) {
+    fun tune(id: String = kit): KitTune = tunes[id] ?: KitTune(living = living)
+
+    fun withTune(id: String, tune: KitTune?): UiStyle = copy(tunes = if (tune == null) tunes - id else tunes + (id to tune))
+
     fun toJson(): JSONObject = JSONObject().apply {
         put("version", 3)
         put("base", base)
@@ -273,6 +278,7 @@ data class UiStyle(
         put("kit", kit)
         put("mode", mode)
         put("living", living)
+        put("tunes", JSONObject().apply { tunes.forEach { (id, t) -> put(id, t.toJson()) } })
     }
 
     companion object {
@@ -314,10 +320,55 @@ data class UiStyle(
                 kit = json.optString("kit", d.kit),
                 mode = json.optString("mode", d.mode),
                 living = json.optBoolean("living", d.living),
+                tunes = json.optJSONObject("tunes")?.let { obj ->
+                    obj.keys().asSequence().mapNotNull { id -> obj.optJSONObject(id)?.let { id to KitTune.fromJson(it) } }.toMap()
+                }.orEmpty(),
                 press = json.optString(
                     "press",
                     if (json.has("pressEffect") && !json.optBoolean("pressEffect", true)) PressStrength.Off.id else d.press,
                 ),
+            )
+        }
+    }
+}
+
+enum class PropPlace(val id: String, val title: String) {
+    Between("between", "Между книгами"),
+    Scatter("scatter", "Вразброс"),
+    Edges("edges", "По краям"),
+    Start("start", "В начале"),
+    End("end", "В конце"),
+    ;
+
+    companion object {
+        fun of(id: String) = entries.firstOrNull { it.id == id } ?: Between
+    }
+}
+
+data class KitTune(
+    val living: Boolean = true,
+    val particles: Boolean = true,
+    val props: Boolean = true,
+    val propPlace: String = PropPlace.Between.id,
+    val propEvery: Int = 2,
+) {
+    fun toJson(): JSONObject = JSONObject().apply {
+        put("living", living)
+        put("particles", particles)
+        put("props", props)
+        put("propPlace", propPlace)
+        put("propEvery", propEvery)
+    }
+
+    companion object {
+        fun fromJson(json: JSONObject): KitTune {
+            val d = KitTune()
+            return KitTune(
+                living = json.optBoolean("living", d.living),
+                particles = json.optBoolean("particles", d.particles),
+                props = json.optBoolean("props", d.props),
+                propPlace = json.optString("propPlace", d.propPlace),
+                propEvery = json.optInt("propEvery", d.propEvery).coerceIn(1, 6),
             )
         }
     }

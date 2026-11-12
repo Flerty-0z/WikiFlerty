@@ -53,7 +53,7 @@ data class KitMoment(val season: Season, val part: DayPart) {
 
 @Composable
 fun rememberKitMoment(): KitMoment? {
-    if (!AppStyle.current.living) return null
+    if (!AppStyle.current.tune().living) return null
     val state = produceState(KitMoment.now()) {
         while (true) {
             delay(60_000)
@@ -76,7 +76,7 @@ internal val SummerLeafColors = listOf(Color(0xFF7FA84E), Color(0xFF9CC06A), Col
 private val WeedColors = listOf(Color(0xFF4E8A5A), Color(0xFF6E9A4A), Color(0xFF3E7A6A), Color(0xFF7A8A3A))
 
 @Composable
-fun KitSeasonLayer(decor: Decor, light: Boolean, moment: KitMoment, modifier: Modifier = Modifier) {
+fun KitSeasonLayer(decor: Decor, light: Boolean, moment: KitMoment, modifier: Modifier = Modifier, particles: Boolean = true) {
     if (decor == Decor.None) return
     val time = throttledClock(true, 3600)
     val specks = remember { flakes(97, 16) }
@@ -84,7 +84,7 @@ fun KitSeasonLayer(decor: Decor, light: Boolean, moment: KitMoment, modifier: Mo
     Canvas(modifier.graphicsLayer()) {
         val t = time.value
         dayPart(decor, light, moment.part, t, stars)
-        seasonParticles(decor, light, moment, t, specks)
+        if (particles) seasonParticles(decor, light, moment, t, specks)
     }
 }
 

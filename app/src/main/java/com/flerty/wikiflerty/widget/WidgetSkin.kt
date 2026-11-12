@@ -35,7 +35,7 @@ class WidgetSkin(
     val decor: Decor get() = kit.decor
 
     fun panel(context: Context, wDp: Int, hDp: Int, veil: Float? = null): Bitmap? = runCatching {
-        val season = if (AppStyle.current.living) KitMoment.now().season else null
+        val season = if (AppStyle.current.tune().living) KitMoment.now().season else null
         renderKitPanel(context, kit, light, (wDp * density).toInt(), (hDp * density).toInt(), density, season, veil)
     }.getOrNull()
 
