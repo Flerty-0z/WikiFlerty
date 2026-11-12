@@ -7,7 +7,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import java.io.File
 
 object CoverCache {
-    private val cache = object : LruCache<String, ImageBitmap>(24 * 1024 * 1024) {
+    private val budget = (Runtime.getRuntime().maxMemory() / 6).coerceIn(24L * 1024 * 1024, 96L * 1024 * 1024).toInt()
+
+    private val cache = object : LruCache<String, ImageBitmap>(budget) {
         override fun sizeOf(key: String, value: ImageBitmap): Int = value.width * value.height * 4
     }
 
@@ -30,7 +32,7 @@ object CoverCache {
         return bitmap
     }
 
-    private val latest = object : LruCache<String, ImageBitmap>(16 * 1024 * 1024) {
+    private val latest = object : LruCache<String, ImageBitmap>(budget) {
         override fun sizeOf(key: String, value: ImageBitmap): Int = value.width * value.height * 4
     }
 
