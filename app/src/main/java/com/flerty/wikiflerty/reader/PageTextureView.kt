@@ -88,6 +88,35 @@ class PageTextureView @JvmOverloads constructor(context: Context, attrs: Attribu
                 }
                 paint.shader = null
             }
+            Decor.Frost -> {
+                val ice = if (light) 0xFF7FA3B8.toInt() else 0xFFCFEFFF.toInt()
+                val a = if (light) 0.16f else 0.1f
+                for ((cx, cy) in listOf(0f to 0f, 1f to 0f, 0f to 1f, 1f to 1f)) {
+                    paint.shader = RadialGradient(w * cx, h * cy, w * 0.55f, tint(ice, a), Color.TRANSPARENT, Shader.TileMode.CLAMP)
+                    canvas.drawRect(0f, 0f, w, h, paint)
+                }
+                paint.shader = null
+                val r = Random(19)
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = 0.9f * d
+                paint.strokeCap = Paint.Cap.ROUND
+                paint.color = tint(ice, if (light) 0.3f else 0.2f)
+                for (i in 0 until 16) {
+                    val edge = r.nextInt(4)
+                    val along = r.nextFloat()
+                    val depth = r.nextFloat() * 0.09f
+                    val x = when (edge) { 0 -> w * along; 1 -> w * along; 2 -> w * depth; else -> w * (1f - depth) }
+                    val y = when (edge) { 0 -> h * depth * 0.6f; 1 -> h * (1f - depth * 0.6f); else -> h * along }
+                    val s = (3f + r.nextFloat() * 4f) * d
+                    for (k in 0 until 3) {
+                        val ang = Math.PI * k / 3.0 + Math.PI / 6.0
+                        val ox = (Math.cos(ang) * s).toFloat()
+                        val oy = (Math.sin(ang) * s).toFloat()
+                        canvas.drawLine(x - ox, y - oy, x + ox, y + oy, paint)
+                    }
+                }
+                paint.style = Paint.Style.FILL
+            }
             Decor.None -> Unit
         }
     }

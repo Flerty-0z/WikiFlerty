@@ -194,6 +194,14 @@ enum class UiBase(
         "clay_dark", "Пластилин", 0xFF2A2442, 0xFF352E54, 0xFF3D355F, 0xFF2F2849, 0xFF463D6E, 0xFF554A82, 0xFF312A4E, 0xFF433A69,
         text = 0xFFF3EEFF, muted = 0xFFBDB3DE, faint = 0xFF8A80AE,
     ),
+    FrostDark(
+        "frost_dark", "Новогодняя сказка", 0xFF0E1C1B, 0xFF172A27, 0xFF1D332F, 0xFF142522, 0xFF2E4B44, 0xFF4F7468, 0xFF132320, 0xFF2A443D,
+        text = 0xFFF2F6F0, muted = 0xFFABC4B8, faint = 0xFF7B968A,
+    ),
+    FrostLight(
+        "frost_light", "Новогодняя сказка", 0xFFE8F0F4, 0xFFF8FBFD, 0xFFFFFFFF, 0xFFF0F5F8, 0xFFC8D7DE, 0xFFFFFFFF, 0xFFF3F8FA, 0xFFD3E0E6,
+        light = true, text = 0xFF1D3932, muted = 0xFF55756B, faint = 0xFF89A299,
+    ),
     ;
 
     companion object {
@@ -412,7 +420,7 @@ enum class ThemeMode(val id: String, val title: String) {
     }
 }
 
-enum class Decor { None, Library, Zen, Comic, News, Sea, Clay }
+enum class Decor { None, Library, Zen, Comic, News, Sea, Clay, Frost }
 
 enum class Kit(
     val id: String,
@@ -433,6 +441,7 @@ enum class Kit(
     News("news", "Утренняя газета", UiBase.NewsDark, UiBase.NewsLight, 0xFFFF4A4A, 0xFFC8102E, 0f, ButtonLook.Filled, MotionStyle.Strict, Decor.News, lightFirst = true),
     Sea("sea", "Подводный мир", UiBase.SeaDark, UiBase.SeaLight, 0xFF45E6CF, 0xFF0A8F87, 1.2f, ButtonLook.Soft, MotionStyle.Soft, Decor.Sea),
     Clay("clay", "Пластилин", UiBase.ClayDark, UiBase.ClayLight, 0xFFFF8FB6, 0xFFF0508A, 1.7f, ButtonLook.Filled, MotionStyle.Bouncy, Decor.Clay, lightFirst = true),
+    NewYear("newyear", "Новогодняя сказка", UiBase.FrostDark, UiBase.FrostLight, 0xFFF25C5C, 0xFFCF2F3A, 1f, ButtonLook.Filled, MotionStyle.Soft, Decor.Frost),
     ;
 
     fun applyTo(style: UiStyle, light: Boolean) = style.copy(

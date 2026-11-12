@@ -30,6 +30,8 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
+val frostShadow: Color get() = if (AppStyle.light) Color(0x668AA6B5) else Color(0xFF02080A)
+
 fun Modifier.panelSurface(shape: Shape, elevation: Dp = 14.dp): Modifier = when (AppStyle.kit.decor) {
     Decor.Comic -> this.hardShadow(shape, 5.dp).clip(shape).background(AppColors.Panel).border(2.5.dp, AppColors.PanelBorder, shape)
     Decor.News -> this.clip(shape).background(AppColors.Panel).border(2.dp, AppColors.PanelBorder, shape)
@@ -37,6 +39,9 @@ fun Modifier.panelSurface(shape: Shape, elevation: Dp = 14.dp): Modifier = when 
         .background(Brush.verticalGradient(listOf(AppColors.PanelTop.copy(alpha = 0.88f), AppColors.PanelBottom.copy(alpha = 0.88f))))
         .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = if (AppStyle.light) 0.95f else 0.3f), AppColors.PanelBorder)), shape)
     Decor.Clay -> this.shadow(elevation, shape, ambientColor = clayShadow, spotColor = clayShadow).clip(shape).background(AppColors.Panel).clayBevel(shape)
+    Decor.Frost -> this.shadow(elevation, shape, ambientColor = frostShadow, spotColor = frostShadow).clip(shape)
+        .background(Brush.verticalGradient(listOf(AppColors.PanelTop, AppColors.PanelBottom)))
+        .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = if (AppStyle.light) 1f else 0.3f), AppColors.PanelBorder)), shape)
     else -> this.basePanelSurface(shape, elevation)
 }
 
@@ -74,6 +79,7 @@ fun Modifier.kitCover(shape: Shape): Modifier = when (AppStyle.kit.decor) {
     Decor.News -> this.border(1.5.dp, AppColors.Text, shape)
     Decor.Clay -> this.shadow(10.dp, shape, ambientColor = clayShadow, spotColor = clayShadow).clayBevelOver(shape)
     Decor.Sea -> this.shadow(10.dp, shape, ambientColor = AppColors.Accent.copy(alpha = 0.5f), spotColor = AppColors.Accent.copy(alpha = 0.5f)).border(1.dp, Color.White.copy(alpha = 0.3f), shape)
+    Decor.Frost -> this.shadow(8.dp, shape, ambientColor = frostShadow, spotColor = frostShadow).border(1.dp, Color.White.copy(alpha = if (AppStyle.light) 0.9f else 0.28f), shape)
     else -> this
 }
 
@@ -87,6 +93,8 @@ fun Modifier.fieldSurface(shape: Shape, selected: Boolean = false, accent: Color
         .border(if (selected) 2.dp else 1.dp, if (selected) SolidColor(accent) else Brush.verticalGradient(listOf(Color.White.copy(alpha = if (AppStyle.light) 0.9f else 0.22f), AppColors.PanelBorder)), shape)
     Decor.Clay -> this.shadow(if (AppStyle.light) 6.dp else 4.dp, shape, ambientColor = clayShadow, spotColor = clayShadow).clip(shape).background(AppColors.Field).clayBevel(shape, 4.dp)
         .then(if (selected) Modifier.border(2.dp, accent, shape) else Modifier)
+    Decor.Frost -> this.clip(shape).background(AppColors.Field)
+        .border(if (selected) 2.dp else 1.dp, if (selected) SolidColor(accent) else Brush.verticalGradient(listOf(Color.White.copy(alpha = if (AppStyle.light) 1f else 0.2f), AppColors.PanelBorder)), shape)
     else -> this.baseFieldSurface(shape, selected, accent)
 }
 

@@ -3086,6 +3086,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         com.flerty.wikiflerty.ui.Kit.News -> ChapterShiftView.Kind.News
         com.flerty.wikiflerty.ui.Kit.Sea -> ChapterShiftView.Kind.Sea
         com.flerty.wikiflerty.ui.Kit.Clay -> ChapterShiftView.Kind.Clay
+        com.flerty.wikiflerty.ui.Kit.NewYear -> ChapterShiftView.Kind.Library
     }
 
     private fun feedJump(forward: Boolean, force: Boolean = false): Boolean {

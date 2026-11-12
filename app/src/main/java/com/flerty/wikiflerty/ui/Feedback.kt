@@ -51,6 +51,7 @@ class Feedback(context: Context, private val settings: StateFlow<ReaderSettings>
         Decor.News to listOf(R.raw.prop_news_0_pick to R.raw.prop_news_0_place, R.raw.prop_news_1_pick to R.raw.prop_news_1_place, R.raw.prop_news_2_pick to R.raw.prop_news_2_place),
         Decor.Sea to listOf(R.raw.prop_sea_0_pick to R.raw.prop_sea_0_place, R.raw.prop_sea_1_pick to R.raw.prop_sea_1_place, R.raw.prop_sea_2_pick to R.raw.prop_sea_2_place, R.raw.prop_sea_3_pick to R.raw.prop_sea_3_place),
         Decor.Clay to listOf(R.raw.prop_clay_0_pick to R.raw.prop_clay_0_place, R.raw.prop_clay_1_pick to R.raw.prop_clay_1_place, R.raw.prop_clay_2_pick to R.raw.prop_clay_2_place),
+        Decor.Frost to listOf(R.raw.prop_frost_0_pick to R.raw.prop_frost_0_place, R.raw.prop_frost_1_pick to R.raw.prop_frost_1_place, R.raw.prop_frost_2_pick to R.raw.prop_frost_2_place, R.raw.prop_frost_3_pick to R.raw.prop_frost_3_place),
     )
     private val propIds = HashMap<Int, Int>()
     private val appContext = context.applicationContext

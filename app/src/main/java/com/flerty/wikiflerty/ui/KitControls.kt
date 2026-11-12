@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.lerp
@@ -170,6 +171,18 @@ fun KitSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Mo
                     drawOval(Color.White.copy(alpha = 0.6f), Offset(x - 6 * d, cy - 8 * d), Size(7 * d, 4 * d))
                 }
             }
+            Decor.Frost -> {
+                val th = 24 * d
+                val top = cy - th / 2
+                val r = CornerRadius(th / 2)
+                drawRoundRect(if (light) Color(0xFFD5E2E9) else Color(0xFF24403A), Offset(2 * d, top), Size(w - 4 * d, th), r)
+                if (k > 0.02f) candy(2 * d, top, w - 4 * d, th, accent, k)
+                drawRoundRect(Color.White.copy(alpha = if (light) 0.95f else 0.35f), Offset(2 * d, top), Size(w - 4 * d, th), r, style = Stroke(1.2f * d))
+                val x = 14 * d + (w - 28 * d) * p
+                drawCircle(Color.Black.copy(alpha = 0.22f), 10 * d, Offset(x, cy + 2 * d))
+                drawCircle(Brush.radialGradient(listOf(Color.White, Color(0xFFD9E6F0)), center = Offset(x - 3 * d, cy - 3 * d), radius = 13 * d), 10 * d, Offset(x, cy))
+                rotate(60f * k, Offset(x, cy)) { flake6(Offset(x, cy), 5.5f * d, lerp(Color(0xFF9DB7C6), accent, k), 1.3f * d) }
+            }
             Decor.None -> {
                 val th = 26 * d
                 val top = cy - th / 2
@@ -179,6 +192,28 @@ fun KitSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Mo
                 drawCircle(lerp(faint, onAccent, k), (7 + 3 * k) * d, Offset(x, cy))
             }
         }
+    }
+}
+
+private fun DrawScope.candy(left: Float, top: Float, width: Float, height: Float, base: Color, alpha: Float) {
+    if (width <= 0f || height <= 0f) return
+    val d = density
+    val clip = Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(left, top, left + width, top + height, CornerRadius(height / 2))) }
+    clipPath(clip) {
+        drawRect(base, Offset(left, top), Size(width, height), alpha = alpha)
+        var sx = left - height
+        while (sx < left + width) {
+            val stripe = Path().apply {
+                moveTo(sx, top + height)
+                lineTo(sx + 5 * d, top + height)
+                lineTo(sx + 5 * d + height, top)
+                lineTo(sx + height, top)
+                close()
+            }
+            drawPath(stripe, Color.White.copy(alpha = 0.6f * alpha))
+            sx += 12 * d
+        }
+        drawRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.35f * alpha), Color.Transparent, Color.Black.copy(alpha = 0.14f * alpha)), startY = top, endY = top + height), Offset(left, top), Size(width, height))
     }
 }
 
@@ -194,6 +229,7 @@ private fun thumbSize(decor: Decor): Pair<Dp, Dp> = when (decor) {
     Decor.News -> 10.dp to 26.dp
     Decor.Sea -> 24.dp to 24.dp
     Decor.Clay -> 28.dp to 28.dp
+    Decor.Frost -> 24.dp to 24.dp
     Decor.None -> 20.dp to 20.dp
 }
 
@@ -305,6 +341,12 @@ private fun DrawScope.sliderTrack(decor: Decor, x: Float, accent: Color, line: C
                 drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.4f), Color.Transparent, Color.Black.copy(alpha = 0.12f)), startY = cy - 7 * d, endY = cy + 7 * d), Offset(0f, cy - 7 * d), Size(x, 14 * d), r)
             }
         }
+        Decor.Frost -> {
+            val th = 10 * d
+            drawRoundRect(if (light) Color(0xFFD5E2E9) else Color(0xFF24403A), Offset(0f, cy - th / 2), Size(w, th), CornerRadius(th / 2))
+            if (x > th) candy(0f, cy - th / 2, x, th, accent, 1f)
+            drawRoundRect(Color.White.copy(alpha = if (light) 0.9f else 0.28f), Offset(0f, cy - th / 2), Size(w, th), CornerRadius(th / 2), style = Stroke(1 * d))
+        }
         Decor.None -> {
             drawRoundRect(line, Offset(0f, cy - 2 * d), Size(w, 4 * d), CornerRadius(2 * d))
             drawRoundRect(accent, Offset(0f, cy - 2 * d), Size(x, 4 * d), CornerRadius(2 * d))
@@ -355,6 +397,16 @@ private fun DrawScope.sliderThumb(decor: Decor, accent: Color, text: Color, fiel
             drawCircle(blob, 12 * d, c)
             drawCircle(Brush.linearGradient(ClayShine, start = Offset(c.x - 10 * d, c.y - 10 * d), end = Offset(c.x + 10 * d, c.y + 10 * d)), 12 * d, c)
             drawOval(Color.White.copy(alpha = 0.65f), Offset(c.x - 7 * d, c.y - 8.5f * d), Size(8 * d, 4.5f * d))
+        }
+        Decor.Frost -> {
+            val r = 10 * d
+            val cc = Offset(c.x, c.y + 1.5f * d)
+            drawCircle(Color.Black.copy(alpha = 0.25f), r, Offset(cc.x, cc.y + 1.5f * d))
+            drawCircle(Brush.radialGradient(listOf(lerp(accent, Color.White, 0.45f), accent, lerp(accent, Color.Black, 0.3f)), center = Offset(cc.x - 3 * d, cc.y - 4 * d), radius = r * 1.6f), r, cc)
+            drawOval(Color.White.copy(alpha = 0.7f), Offset(cc.x - 6 * d, cc.y - 7 * d), Size(5 * d, 3 * d))
+            val gold = Color(0xFFE8C46A)
+            drawRoundRect(gold, Offset(c.x - 3 * d, cc.y - r - 2.5f * d), Size(6 * d, 4 * d), CornerRadius(1 * d))
+            drawRoundRect(lerp(gold, Color.Black, 0.35f), Offset(c.x - 3 * d, cc.y - r - 2.5f * d), Size(6 * d, 4 * d), CornerRadius(1 * d), style = Stroke(0.7f * d))
         }
         Decor.None -> {
             drawCircle(text, 9 * d, c)
@@ -441,6 +493,10 @@ fun KitSpinner(modifier: Modifier = Modifier.size(20.dp), color: Color = AppColo
                     drawOval(Color.White.copy(alpha = 0.6f), Offset(c.x - r * 0.6f, y - r * 0.7f), Size(r * 0.6f, r * 0.35f))
                 }
             }
+            Decor.Frost -> {
+                rotate(t * 360f, c) { flake6(c, s * 0.44f, color, s * 0.09f) }
+                drawCircle(color, s * 0.07f, c)
+            }
             Decor.None -> Unit
         }
     }
@@ -457,6 +513,7 @@ fun KitLinearProgress(modifier: Modifier = Modifier, color: Color = AppColors.Ac
         Decor.Comic -> 8.dp
         Decor.Clay -> 8.dp
         Decor.Sea -> 8.dp
+        Decor.Frost -> 10.dp
         Decor.Zen -> 6.dp
         else -> 4.dp
     }
@@ -518,6 +575,18 @@ fun KitLinearProgress(modifier: Modifier = Modifier, color: Color = AppColors.Ac
                 if (right - left > h) {
                     drawRoundRect(color, Offset(left, 0f), Size(right - left, h), r)
                     drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.45f), Color.Transparent, Color.Black.copy(alpha = 0.12f))), Offset(left, 0f), Size(right - left, h), r)
+                }
+            }
+            Decor.Frost -> {
+                drawLine(line, Offset(0f, cy), Offset(w, cy), 1 * d)
+                val n = (w / (16 * d)).toInt().coerceAtLeast(4)
+                for (i in 0..n) {
+                    val bx = w * i / n
+                    val behind = ((t * (n + 1) - i) % (n + 1) + (n + 1)) % (n + 1)
+                    val lit = (1f - behind / 4f).coerceIn(0f, 1f)
+                    val bulb = FrostLights[i % FrostLights.size]
+                    if (lit > 0.05f) drawCircle(bulb.copy(alpha = 0.3f * lit), 5f * d * lit, Offset(bx, cy))
+                    drawCircle(lerp(line, bulb, 0.25f + 0.75f * lit), (2f + 1.2f * lit) * d, Offset(bx, cy))
                 }
             }
             Decor.None -> {

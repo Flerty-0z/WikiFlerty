@@ -794,7 +794,8 @@ private fun KitCard(kit: Kit, selected: Boolean, onClick: () -> Unit) {
                     Modifier.fillMaxWidth().height(if (kit.decor == Decor.News) 2.dp else 6.dp)
                         .clip(RoundedCornerShape(if (kit.decor == Decor.Clay) 3.dp else 1.dp))
                         .background(plank)
-                        .then(if (kit.decor == Decor.Comic) Modifier.border(1.dp, Color(0xFF111111)) else Modifier),
+                        .then(if (kit.decor == Decor.Comic) Modifier.border(1.dp, Color(0xFF111111)) else Modifier)
+                        .then(if (kit.decor == Decor.Frost) Modifier.drawBehind { drawRect(Color.White, size = androidx.compose.ui.geometry.Size(size.width, size.height * 0.45f)) } else Modifier),
                 )
             }
             Spacer(Modifier.weight(1f))

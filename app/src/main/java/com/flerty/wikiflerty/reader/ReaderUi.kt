@@ -3041,7 +3041,7 @@ private fun SelectionNextBar(handle: Color, modifier: Modifier = Modifier, onCli
         com.flerty.wikiflerty.ui.Decor.Library -> gold
         com.flerty.wikiflerty.ui.Decor.Zen, com.flerty.wikiflerty.ui.Decor.News -> text
         com.flerty.wikiflerty.ui.Decor.Comic -> ink
-        com.flerty.wikiflerty.ui.Decor.Sea, com.flerty.wikiflerty.ui.Decor.Clay -> Color.White
+        com.flerty.wikiflerty.ui.Decor.Sea, com.flerty.wikiflerty.ui.Decor.Clay, com.flerty.wikiflerty.ui.Decor.Frost -> Color.White
         com.flerty.wikiflerty.ui.Decor.None -> Color.White
     }
     val shape = when (decor) {
@@ -3098,6 +3098,13 @@ private fun SelectionNextBar(handle: Color, modifier: Modifier = Modifier, onCli
                         drawRoundRect(Color.Black.copy(alpha = 0.18f), Offset(0f, 4 * d), size, androidx.compose.ui.geometry.CornerRadius(h / 2))
                         drawRoundRect(accent, cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2))
                         drawRoundRect(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.45f), Color.Transparent, Color.Black.copy(alpha = 0.12f))), cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2))
+                    }
+                    com.flerty.wikiflerty.ui.Decor.Frost -> {
+                        drawRoundRect(Color.Black.copy(alpha = 0.25f), Offset(0f, 2.5f * d), size, androidx.compose.ui.geometry.CornerRadius(h / 2))
+                        drawRoundRect(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.lerp(accent, Color.White, 0.2f), accent, androidx.compose.ui.graphics.lerp(accent, Color.Black, 0.18f))), cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2))
+                        drawRoundRect(Color.White.copy(alpha = 0.75f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2), style = androidx.compose.ui.graphics.drawscope.Stroke(1.3f * d))
+                        drawCircle(Color.White.copy(alpha = 0.85f), 1.6f * d, Offset(9 * d, 9 * d + move * 1.5f * d))
+                        drawCircle(Color.White.copy(alpha = 0.6f), 1.1f * d, Offset(w - 9 * d, h - 9 * d - move * 1.5f * d))
                     }
                     com.flerty.wikiflerty.ui.Decor.None -> {
                         drawRoundRect(Color.Black.copy(alpha = 0.2f), Offset(0f, 2 * d), size, androidx.compose.ui.geometry.CornerRadius(h / 2))

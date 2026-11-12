@@ -103,6 +103,7 @@ internal object TextSelection {
               case "news": return svg("<rect x='0' y='5' width='180' height='3' fill='" + f + "'/><rect x='0' y='11' width='180' height='1' fill='" + f + "'/>");
               case "sea": return svg("<path d='M22 10q8.5-8 17 0t17 0 17 0 17 0 17 0 17 0 17 0 17 0' stroke='" + a + "' stroke-width='1.9' fill='none' stroke-linecap='round'/>");
               case "clay": return svg("<circle cx='68' cy='10' r='5.5' fill='" + a + "'/><circle cx='90' cy='10' r='5.5' fill='#B48CFF'/><circle cx='112' cy='10' r='5.5' fill='#8AD09A'/><circle cx='66' cy='8' r='1.6' fill='#fff' opacity='.7'/><circle cx='88' cy='8' r='1.6' fill='#fff' opacity='.7'/><circle cx='110' cy='8' r='1.6' fill='#fff' opacity='.7'/>");
+              case "newyear": return svg("<path d='M14 10H70M110 10H166' stroke='" + f + "' stroke-width='1' opacity='.45'/><g stroke='" + a + "' stroke-width='1.6' stroke-linecap='round'><path d='M90 2.5v15M83.5 6.25l13 7.5M83.5 13.75l13-7.5'/><path d='M87.6 4.2L90 6.2l2.4-2M87.6 15.8L90 13.8l2.4 2'/></g><circle cx='76' cy='10' r='2' fill='" + a + "'/><circle cx='104' cy='10' r='2' fill='" + a + "'/>");
               default: return svg("<path d='M12 10H72M108 10H168' stroke='" + a + "' stroke-width='1.2'/><path d='M90 3l7 7-7 7-7-7z' fill='" + a + "'/><circle cx='78' cy='10' r='1.7' fill='" + a + "'/><circle cx='102' cy='10' r='1.7' fill='" + a + "'/>");
             }
           }
@@ -123,6 +124,9 @@ internal object TextSelection {
                 break;
               case "clay":
                 cap = "font-family:'Arial Rounded MT Bold','Nunito',sans-serif;font-weight:900;font-size:3.4em;color:" + a + ";text-shadow:0 .05em 0 " + o.deep + ",0 .1em .12em rgba(0,0,0,.22);margin:.02em .12em 0 0;line-height:.86";
+                break;
+              case "newyear":
+                cap = "font-family:Georgia,'Noto Serif',serif;font-weight:700;font-size:3.3em;color:" + a + ";text-shadow:0 -.035em 0 #fff,0 .04em .1em rgba(0,0,0,.25);margin:.04em .13em 0 0;line-height:.86";
                 break;
               default:
                 cap = "font-family:Georgia,'Noto Serif',serif;font-weight:700;font-size:3.1em;color:" + a + ";background:" + a + "1A;border:1px solid " + a + "99;border-radius:3px;padding:.08em .14em .03em;margin:.06em .16em 0 0;line-height:.9;text-shadow:0 1px 0 rgba(0,0,0,.2)";

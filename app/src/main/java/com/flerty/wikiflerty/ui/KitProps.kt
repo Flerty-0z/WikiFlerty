@@ -44,7 +44,7 @@ private val PropHeight = 76.dp
 
 fun propCount(decor: Decor): Int = when (decor) {
     Decor.Library, Decor.Zen, Decor.Comic, Decor.News, Decor.Clay -> 3
-    Decor.Sea -> 4
+    Decor.Sea, Decor.Frost -> 4
     Decor.None -> 0
 }
 
@@ -117,6 +117,12 @@ fun ShelfProp(decor: Decor, index: Int, modifier: Modifier = Modifier) {
                     1 -> mushroom(d, w, h, stage)
                     else -> cactus(t, d, w, h, stage, sad)
                 }
+                Decor.Frost -> when (kind) {
+                    0 -> xmasTree(t, d, w, h, stage, sad)
+                    1 -> snowman(t, d, w, h, life.today, accent)
+                    2 -> gifts(d, w, h, stage)
+                    else -> cocoa(t, d, w, h, life.today)
+                }
                 Decor.None -> Unit
             }
             if (layered) {
@@ -137,6 +143,7 @@ private fun propRole(decor: Decor, kind: Int): PropRole = when (decor) {
     Decor.News -> listOf(PropRole.Today, PropRole.Streak, PropRole.Books)[kind.coerceIn(0, 2)]
     Decor.Sea -> listOf(PropRole.Streak, PropRole.Today, PropRole.Books, PropRole.Streak)[kind.coerceIn(0, 3)]
     Decor.Clay -> listOf(PropRole.Today, PropRole.Books, PropRole.Streak)[kind.coerceIn(0, 2)]
+    Decor.Frost -> listOf(PropRole.Streak, PropRole.Today, PropRole.Books, PropRole.Today)[kind.coerceIn(0, 3)]
     Decor.None -> PropRole.Today
 }
 
@@ -897,6 +904,183 @@ private fun DrawScope.cactus(t: Float, d: Float, w: Float, h: Float, stage: Int,
     drawPath(smile, Color(0xFF3B2F5C), style = Stroke(1.2f * d, cap = StrokeCap.Round))
 }
 
+private fun DrawScope.xmasTree(t: Float, d: Float, w: Float, h: Float, stage: Int, sad: Boolean) {
+    val cx = w / 2
+    val tones = if (sad) listOf(Color(0xFF4A6656), Color(0xFF58786A), Color(0xFF668A78)) else listOf(Color(0xFF1F6B45), Color(0xFF2A8454), Color(0xFF379A63))
+    drawOval(Color.Black.copy(alpha = 0.18f), Offset(cx - 17 * d, h - 4 * d), Size(34 * d, 5 * d))
+    drawRect(Color(0xFF7A4E2A), Offset(cx - 3 * d, h - 10 * d), Size(6 * d, 9 * d))
+    drawRect(Color(0xFF5E3A1C), Offset(cx + 1 * d, h - 10 * d), Size(2 * d, 9 * d))
+    val tiers = listOf(Triple(h - 9 * d, 20f, 22f), Triple(h - 23 * d, 16f, 20f), Triple(h - 36 * d, 12f, 18f))
+    tiers.forEachIndexed { i, tier ->
+        val by = tier.first
+        val half = tier.second * d
+        val top = by - tier.third * d
+        val p = Path().apply {
+            moveTo(cx - half, by)
+            quadraticTo(cx, by + 4 * d, cx + half, by)
+            lineTo(cx, top)
+            close()
+        }
+        drawPath(p, tones[i])
+        val shade = Path().apply {
+            moveTo(cx, top)
+            lineTo(cx + half, by)
+            quadraticTo(cx + half * 0.5f, by + 3 * d, cx + 2 * d, by + 2 * d)
+            close()
+        }
+        drawPath(shade, Color.Black.copy(alpha = 0.12f))
+        drawOval(Color.White.copy(alpha = 0.92f), Offset(cx - half * 0.78f, by - 5 * d), Size(half * 0.5f, 3.6f * d))
+        drawOval(Color.White.copy(alpha = 0.85f), Offset(cx + half * 0.2f, by - 7.5f * d), Size(half * 0.42f, 3.2f * d))
+    }
+    val spots = listOf(Offset(-9f, 13f), Offset(8f, 16f), Offset(-5f, 28f), Offset(6f, 30f), Offset(0f, 42f), Offset(-13f, 11f))
+    val shown = (stage + 1).coerceIn(1, spots.size)
+    for (i in 0 until shown) {
+        val c = Offset(cx + spots[i].x * d, h - spots[i].y * d)
+        if (sad) {
+            drawCircle(Color(0xFF9AA8A0), 2.2f * d, c)
+        } else {
+            val color = FrostLights[i % FrostLights.size]
+            val lit = if (Motion.enabled) 0.6f + 0.4f * sin(t * 3f + i * 1.7f) else 1f
+            drawCircle(color.copy(alpha = 0.28f * lit), 5 * d, c)
+            drawCircle(color, 2.3f * d, c)
+            drawCircle(Color.White.copy(alpha = 0.8f), 0.8f * d, Offset(c.x - 0.7f * d, c.y - 0.8f * d))
+        }
+    }
+    if (stage >= 2) {
+        val star = Offset(cx, h - 56 * d)
+        val gold = if (sad) Color(0xFFB8AE8A) else Color(0xFFFFD166)
+        if (stage >= 4 && !sad) glowAt(gold, 0.5f, star, 13 * d)
+        sparkle(star, 6 * d, gold)
+        drawCircle(Color.White.copy(alpha = 0.85f), 1.2f * d, star)
+    } else {
+        drawOval(Color.White.copy(alpha = 0.95f), Offset(cx - 3.5f * d, h - 56 * d), Size(7 * d, 5 * d))
+    }
+}
+
+private fun DrawScope.snowman(t: Float, d: Float, w: Float, h: Float, awake: Boolean, accent: Color) {
+    val cx = w / 2
+    val white = Color(0xFFFBFDFF)
+    val shade = Color(0xFFC9D9E8)
+    val coal = Color(0xFF2B2F36)
+    drawOval(Color.Black.copy(alpha = 0.16f), Offset(cx - 16 * d, h - 4 * d), Size(32 * d, 5 * d))
+    val balls = listOf(Triple(h - 13 * d, 13f, 0f), Triple(h - 31 * d, 9.5f, 0f), Triple(h - 45 * d, 7f, 0f))
+    val wave = if (awake && Motion.enabled) sin(t * 4f) * 0.35f else 0f
+    val twig = Color(0xFF6B4322)
+    val leftTip = Offset(cx - 20 * d, h - 36 * d)
+    drawLine(twig, Offset(cx - 8 * d, h - 32 * d), leftTip, 1.4f * d, cap = StrokeCap.Round)
+    drawLine(twig, Offset(cx - 16 * d, h - 35 * d), Offset(cx - 18 * d, h - 40 * d), 1.1f * d, cap = StrokeCap.Round)
+    val ang = (if (awake) -0.95f else 0.25f) + wave
+    val rightTip = Offset(cx + 8 * d + cos(ang) * 13 * d, h - 32 * d + sin(ang) * 13 * d)
+    drawLine(twig, Offset(cx + 8 * d, h - 32 * d), rightTip, 1.4f * d, cap = StrokeCap.Round)
+    drawLine(twig, rightTip, Offset(rightTip.x + cos(ang - 0.7f) * 4 * d, rightTip.y + sin(ang - 0.7f) * 4 * d), 1.1f * d, cap = StrokeCap.Round)
+    balls.forEach { b ->
+        val c = Offset(cx, b.first)
+        val r = b.second * d
+        drawCircle(shade, r, c)
+        drawCircle(white, r * 0.92f, Offset(c.x - r * 0.1f, c.y - r * 0.1f))
+    }
+    drawCircle(coal, 1.2f * d, Offset(cx, h - 34 * d))
+    drawCircle(coal, 1.2f * d, Offset(cx, h - 28.5f * d))
+    val sway = if (awake && Motion.enabled) sin(t * 2.2f) * 1.5f * d else 0f
+    drawRoundRect(accent, Offset(cx - 8 * d, h - 41.5f * d), Size(16 * d, 4.2f * d), CornerRadius(2 * d))
+    val tail = Path().apply {
+        moveTo(cx + 3 * d, h - 38.5f * d)
+        lineTo(cx + 7 * d, h - 38.5f * d)
+        lineTo(cx + 8 * d + sway, h - 29 * d)
+        lineTo(cx + 4 * d + sway, h - 29 * d)
+        close()
+    }
+    drawPath(tail, accent)
+    drawLine(Color.White.copy(alpha = 0.7f), Offset(cx + 4.5f * d + sway, h - 31 * d), Offset(cx + 7.5f * d + sway, h - 31 * d), 0.9f * d)
+    drawRoundRect(coal, Offset(cx - 5.5f * d, h - 60 * d), Size(11 * d, 9 * d), CornerRadius(1.2f * d))
+    drawRoundRect(coal, Offset(cx - 8 * d, h - 52.5f * d), Size(16 * d, 2.4f * d), CornerRadius(1.2f * d))
+    drawRect(accent, Offset(cx - 5.5f * d, h - 55 * d), Size(11 * d, 2 * d))
+    val ey = h - 47 * d
+    if (awake) {
+        drawCircle(coal, 1.1f * d, Offset(cx - 2.6f * d, ey))
+        drawCircle(coal, 1.1f * d, Offset(cx + 2.6f * d, ey))
+        val smile = Path().apply { moveTo(cx - 3 * d, ey + 4 * d); quadraticTo(cx, ey + 6.4f * d, cx + 3 * d, ey + 4 * d) }
+        drawPath(smile, coal, style = Stroke(1f * d, cap = StrokeCap.Round))
+    } else {
+        for (side in listOf(-1f, 1f)) {
+            val lid = Path().apply { moveTo(cx + side * 2.6f * d - 1.4f * d, ey); quadraticTo(cx + side * 2.6f * d, ey + 1.4f * d, cx + side * 2.6f * d + 1.4f * d, ey) }
+            drawPath(lid, coal, style = Stroke(1f * d, cap = StrokeCap.Round))
+        }
+        sleepZ(t, d, cx + 11 * d, h - 54 * d, Color(0xFF8EA6C2))
+    }
+    val nose = Path().apply { moveTo(cx, ey + 1.2f * d); lineTo(cx + 6.5f * d, ey + 2.4f * d); lineTo(cx, ey + 3.4f * d); close() }
+    drawPath(nose, Color(0xFFFF9A3C))
+}
+
+private fun DrawScope.giftBox(x: Float, y: Float, bw: Float, bh: Float, d: Float, color: Color, ribbon: Color) {
+    drawRoundRect(color, Offset(x, y), Size(bw, bh), CornerRadius(1.6f * d))
+    drawRect(Color.Black.copy(alpha = 0.14f), Offset(x + bw * 0.62f, y), Size(bw * 0.38f, bh))
+    drawRoundRect(color, Offset(x - 1.2f * d, y - 1 * d), Size(bw + 2.4f * d, 4.6f * d), CornerRadius(1.4f * d))
+    drawRect(Color.White.copy(alpha = 0.22f), Offset(x - 1.2f * d, y - 1 * d), Size(bw + 2.4f * d, 1.3f * d))
+    drawRect(ribbon, Offset(x + bw / 2 - 1.6f * d, y - 1 * d), Size(3.2f * d, bh + 1 * d))
+    val top = Offset(x + bw / 2, y - 1 * d)
+    for (side in listOf(-1f, 1f)) {
+        val loop = Path().apply {
+            moveTo(top.x, top.y)
+            cubicTo(top.x + side * 2 * d, top.y - 6 * d, top.x + side * 7.5f * d, top.y - 5 * d, top.x + side * 5 * d, top.y - 1 * d)
+            close()
+        }
+        drawPath(loop, ribbon)
+    }
+    drawCircle(ribbon, 1.5f * d, top)
+}
+
+private fun DrawScope.gifts(d: Float, w: Float, h: Float, stage: Int) {
+    val cx = w / 2
+    val gold = Color(0xFFFFD166)
+    drawOval(Color.Black.copy(alpha = 0.16f), Offset(cx - 22 * d, h - 4 * d), Size(44 * d, 5 * d))
+    if (stage <= 0) {
+        giftBox(cx - 9 * d, h - 15 * d, 18 * d, 14 * d, d, Color(0xFFD9434A), gold)
+        return
+    }
+    if (stage >= 2) giftBox(cx + 3 * d, h - 16 * d, 17 * d, 15 * d, d, Color(0xFF2F8F5B), Color(0xFFFBFDFF))
+    giftBox(cx - 20 * d, h - 22 * d, 23 * d, 21 * d, d, Color(0xFFD9434A), gold)
+    if (stage >= 3) giftBox(cx - 15 * d, h - 35 * d, 14 * d, 11 * d, d, Color(0xFF3F7FC2), Color(0xFFFBFDFF))
+    if (stage >= 4) giftBox(cx + 6 * d, h - 27 * d, 11 * d, 9 * d, d, gold, Color(0xFFD9434A))
+    if (stage >= 5) {
+        sparkle(Offset(cx + 2 * d, h - 42 * d), 4 * d, gold)
+        sparkle(Offset(cx + 16 * d, h - 36 * d), 2.6f * d, Color.White)
+    }
+}
+
+private fun DrawScope.cocoa(t: Float, d: Float, w: Float, h: Float, hot: Boolean) {
+    val cx = w / 2
+    val x = cx - 15 * d
+    val y = h - 27 * d
+    val red = Color(0xFFD9434A)
+    drawOval(Color.Black.copy(alpha = 0.16f), Offset(cx - 18 * d, h - 4 * d), Size(36 * d, 5 * d))
+    val cane = Path().apply {
+        moveTo(x + 20 * d, y + 6 * d)
+        lineTo(x + 24 * d, y - 12 * d)
+        cubicTo(x + 25 * d, y - 19 * d, x + 33 * d, y - 18 * d, x + 31 * d, y - 11 * d)
+    }
+    drawPath(cane, Color.White, style = Stroke(3.4f * d, cap = StrokeCap.Round))
+    drawPath(cane, red, style = Stroke(3.4f * d, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(3 * d, 4 * d), 2 * d)))
+    val handle = Path().apply { moveTo(x + 27 * d, y + 7 * d); cubicTo(x + 37 * d, y + 7 * d, x + 37 * d, y + 20 * d, x + 26 * d, y + 20 * d) }
+    drawPath(handle, red, style = Stroke(3.2f * d, cap = StrokeCap.Round))
+    val cup = Path().apply {
+        moveTo(x + 1 * d, y + 3 * d); lineTo(x + 29 * d, y + 3 * d); lineTo(x + 28 * d, y + 18 * d)
+        cubicTo(x + 27 * d, y + 25 * d, x + 22 * d, y + 26 * d, x + 15 * d, y + 26 * d)
+        cubicTo(x + 8 * d, y + 26 * d, x + 3 * d, y + 25 * d, x + 2 * d, y + 18 * d); close()
+    }
+    drawPath(cup, red)
+    drawPath(cup, Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.22f), Color.Transparent, Color.Black.copy(alpha = 0.2f)), startX = x, endX = x + 30 * d))
+    drawRect(Color.White.copy(alpha = 0.92f), Offset(x + 2.4f * d, y + 12 * d), Size(25.4f * d, 6 * d))
+    for (i in 0 until 4) flake6(Offset(x + (6 + i * 6) * d, y + 15 * d), 2 * d, red, 0.8f * d, barbs = false)
+    drawOval(Color(0xFFF2E9DC), Offset(x, y), Size(30 * d, 6.4f * d))
+    drawOval(if (hot) Color(0xFF6B3F22) else Color(0xFF4A2E1C), Offset(x + 2 * d, y + 1 * d), Size(26 * d, 4.4f * d))
+    if (hot) {
+        drawRoundRect(Color.White, Offset(x + 6 * d, y - 0.6f * d), Size(6 * d, 4.4f * d), CornerRadius(1.6f * d))
+        drawRoundRect(Color(0xFFFFE3EA), Offset(x + 13 * d, y + 0.2f * d), Size(5.4f * d, 4 * d), CornerRadius(1.6f * d))
+        steam(t, d, x + 9 * d, y - 3 * d, Color.White.copy(alpha = 0.75f))
+    }
+}
+
 fun Modifier.kitFrame(): Modifier = when (AppStyle.kit.decor) {
     Decor.Library -> this.drawWithContent {
         drawContent()
@@ -971,6 +1155,11 @@ fun KitDivider() {
                     up = !up
                 }
                 drawPath(p, accent.copy(alpha = 0.75f), style = Stroke(3.5f * density, cap = StrokeCap.Round))
+            }
+            Decor.Frost -> {
+                drawLine(line, Offset(0f, cy), Offset(w / 2 - 10 * density, cy), 1f * density)
+                drawLine(line, Offset(w / 2 + 10 * density, cy), Offset(w, cy), 1f * density)
+                flake6(Offset(w / 2, cy), 3.6f * density, accent.copy(alpha = 0.8f), 1f * density, barbs = false)
             }
             Decor.None -> drawRect(line)
         }

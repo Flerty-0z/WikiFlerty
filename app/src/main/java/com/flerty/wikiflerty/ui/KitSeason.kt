@@ -53,14 +53,17 @@ data class KitMoment(val season: Season, val part: DayPart) {
 
 @Composable
 fun rememberKitMoment(): KitMoment? {
-    if (!AppStyle.current.tune().living) return null
+    val frost = AppStyle.decor == Decor.Frost
+    val living = AppStyle.current.tune().living
+    if (!living && !frost) return null
+    if (!living) return KitMoment(Season.Winter, DayPart.Day)
     val state = produceState(KitMoment.now()) {
         while (true) {
             delay(60_000)
             value = KitMoment.now()
         }
     }
-    return state.value
+    return if (frost) state.value.copy(season = Season.Winter) else state.value
 }
 
 private class Flake(val x: Float, val y: Float, val size: Float, val phase: Float, val speed: Float)
@@ -245,6 +248,15 @@ private fun DrawScope.snow(c: Offset, r: Float, alpha: Float, decor: Decor, ligh
             drawCircle(Color(0xFFE8EEFF).copy(alpha = alpha), r * 0.5f, Offset(c.x + r * 0.35f, c.y + r * 0.35f))
         }
         Decor.News -> drawRect((if (light) Color(0xFF141414) else Color(0xFFECE6D8)).copy(alpha = alpha * 0.35f), Offset(c.x - r * 0.5f, c.y - r * 0.5f), Size(r, r))
+        Decor.Frost -> {
+            val color = if (light) Color(0xFF7E9DB4) else Color.White
+            if (r > 2.9f * density) {
+                flake6(c, r * 1.7f, color.copy(alpha = alpha * (if (light) 0.8f else 0.9f)), 1f * density, barbs = false)
+            } else {
+                drawCircle(color.copy(alpha = alpha * 0.22f), r * 2f, c)
+                drawCircle(color.copy(alpha = alpha * (if (light) 0.8f else 0.9f)), r, c)
+            }
+        }
         else -> {
             val color = if (light) Color(0xFF8EA6C2) else Color.White
             radial(color, alpha * 0.35f, c, r * 2.6f)
@@ -319,6 +331,42 @@ private fun DrawScope.seasonParticles(decor: Decor, light: Boolean, moment: KitM
 
 val LocalKitMoment = androidx.compose.runtime.staticCompositionLocalOf<KitMoment?> { null }
 
+fun DrawScope.plankGarland(t: Float, seed: Int, light: Boolean) {
+    val d = density
+    val w = size.width
+    val count = max(1, (w / (72 * d)).toInt())
+    val seg = w / count
+    val sag = 9 * d
+    val wire = Path().apply {
+        moveTo(0f, 0f)
+        for (i in 0 until count) quadraticTo(seg * (i + 0.5f), sag * 2, seg * (i + 1), 0f)
+    }
+    drawPath(wire, if (light) Color(0xFF35564E) else Color(0xFF07100E), style = Stroke(1.1f * d))
+    val per = 5
+    var n = seed and 3
+    for (i in 0 until count) {
+        for (k in 0 until per) {
+            val u = (k + 0.5f) / per
+            val x = seg * (i + u)
+            val y = 4f * u * (1f - u) * sag
+            val color = FrostLights[n % FrostLights.size]
+            val lit = 0.5f + 0.5f * sin(t * 2.4f + n * PI.toFloat() + (n % 4) * 0.6f)
+            val c = Offset(x, y + 4.2f * d)
+            drawCircle(color.copy(alpha = 0.08f + 0.22f * lit), 7.5f * d, c)
+            drawCircle(color.copy(alpha = 0.1f + 0.2f * lit), 4.6f * d, c)
+            drawRect(if (light) Color(0xFF35564E) else Color(0xFF1B2B27), Offset(x - 1.3f * d, y), Size(2.6f * d, 2 * d))
+            val bulb = Color(
+                red = color.red * (0.45f + 0.55f * lit),
+                green = color.green * (0.45f + 0.55f * lit),
+                blue = color.blue * (0.45f + 0.55f * lit),
+            )
+            drawOval(bulb, Offset(x - 2.2f * d, y + 1.6f * d), Size(4.4f * d, 5.6f * d))
+            drawOval(Color.White.copy(alpha = 0.35f + 0.4f * lit), Offset(x - 1.2f * d, y + 2.4f * d), Size(1.5f * d, 2 * d))
+            n++
+        }
+    }
+}
+
 fun DrawScope.plankSeason(decor: Decor, season: Season, light: Boolean, seed: Int, plank: Float) {
     val d = density
     val w = size.width
@@ -347,7 +395,7 @@ fun DrawScope.plankSeason(decor: Decor, season: Season, light: Boolean, seed: In
                 Decor.Clay -> drawPath(cap, Brush.verticalGradient(listOf(Color.White, Color(0xFFD8E2F4)), startY = -8 * d, endY = 4 * d))
                 else -> drawLine(shade.copy(alpha = 0.55f), Offset(2 * d, 4 * d), Offset(w - 2 * d, 4 * d), 1 * d)
             }
-            if (decor != Decor.News && decor != Decor.Sea) {
+            if (decor != Decor.News && decor != Decor.Sea && decor != Decor.Frost) {
                 val bottom = plank
                 val count = (w / (70 * d)).toInt().coerceIn(2, 7)
                 for (i in 0 until count) {

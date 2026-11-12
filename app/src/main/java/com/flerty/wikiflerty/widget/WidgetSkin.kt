@@ -171,6 +171,30 @@ class WidgetSkin(
                 p.color = withAlpha(Color.WHITE, 0.45f)
                 c.drawRoundRect(RectF(3 * d, cy - 3 * d, (w * v - 3 * d).coerceAtLeast(4 * d), cy - 1.5f * d), 1 * d, 1 * d, p)
             }
+            Decor.Frost -> {
+                p.color = track
+                c.drawRoundRect(RectF(0f, cy - 4 * d, w.toFloat(), cy + 4 * d), 4 * d, 4 * d, p)
+                val end = (w * v).coerceAtLeast(8 * d)
+                val clip = android.graphics.Path().apply { addRoundRect(RectF(0f, cy - 4 * d, end, cy + 4 * d), 4 * d, 4 * d, android.graphics.Path.Direction.CW) }
+                c.save()
+                c.clipPath(clip)
+                p.color = accent
+                c.drawRect(0f, cy - 4 * d, end, cy + 4 * d, p)
+                p.color = withAlpha(Color.WHITE, 0.6f)
+                var sx = -8 * d
+                while (sx < end) {
+                    val stripe = android.graphics.Path().apply {
+                        moveTo(sx, cy + 4 * d)
+                        lineTo(sx + 4 * d, cy + 4 * d)
+                        lineTo(sx + 12 * d, cy - 4 * d)
+                        lineTo(sx + 8 * d, cy - 4 * d)
+                        close()
+                    }
+                    c.drawPath(stripe, p)
+                    sx += 10 * d
+                }
+                c.restore()
+            }
             Decor.None -> {
                 p.color = track
                 c.drawRoundRect(RectF(0f, cy - 2 * d, w.toFloat(), cy + 2 * d), 2 * d, 2 * d, p)

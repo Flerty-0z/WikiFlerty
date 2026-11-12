@@ -39,6 +39,7 @@ private val ComicHues = listOf(0xFFFFCC00, 0xFF7AD3FF, 0xFFFF6B6B, 0xFF7DE38B, 0
 private val NewsHues = listOf(0xFFF6F1E6, 0xFFEFE9DC, 0xFFF2EEE4)
 private val SeaHues = listOf(0xFF0A5C6E, 0xFF0F4A6B, 0xFF14606A, 0xFF1A4F7A, 0xFF0D6B5E)
 private val ClayHues = listOf(0xFFFFB5C8, 0xFFB9E4C9, 0xFFFFD9A0, 0xFFC9B8EE, 0xFFA8DCF0, 0xFFFFC9A8)
+private val FrostHues = listOf(0xFF8E2A2F, 0xFF1F5A44, 0xFF1E3F66, 0xFF7A1F3A, 0xFF2D6470, 0xFF5A3A22)
 private val PlainHues = listOf(0xFF3B5F7A, 0xFF8A3B2B, 0xFF5F7A4E, 0xFF7A4FA0, 0xFF2C2F5A, 0xFFB2763A, 0xFF1F6F8B, 0xFF6E2F3F)
 
 private fun pick(list: List<Long>, seed: Int) = Color(list[(seed and 0x7FFFFFFF) % list.size])
@@ -57,6 +58,7 @@ fun GeneratedCover(title: String, author: String, modifier: Modifier = Modifier)
         Decor.News -> pick(NewsHues, seed)
         Decor.Sea -> pick(SeaHues, seed)
         Decor.Clay -> pick(ClayHues, seed)
+        Decor.Frost -> pick(FrostHues, seed)
         Decor.None -> pick(PlainHues, seed)
     }
     val ink = when (decor) {
@@ -66,6 +68,7 @@ fun GeneratedCover(title: String, author: String, modifier: Modifier = Modifier)
         Decor.News -> Color(0xFF141414)
         Decor.Sea -> Color(0xFFEAFBFF)
         Decor.Clay -> Color(0xFF3B2F5C)
+        Decor.Frost -> Color(0xFFF8F1DD)
         Decor.None -> if (bg.lum() > 0.6f) Color(0xFF1A1A1A) else Color(0xFFF7F2E8)
     }
     val family = when (decor) {
@@ -221,6 +224,29 @@ private fun DrawScope.coverArt(decor: Decor, bg: Color, ink: Color, accent: Colo
             drawCircle(lerp(bg, Color.Black, 0.12f), 6 * u, Offset(w * 0.24f, h * 0.88f))
             drawCircle(Color(0xFFB48CFF).copy(alpha = 0.8f), 4 * u, Offset(w * 0.5f, h * 0.9f))
             drawCircle(Color(0xFF8AD09A).copy(alpha = 0.9f), 5 * u, Offset(w * 0.74f, h * 0.88f))
+        }
+        Decor.Frost -> {
+            drawRect(Brush.verticalGradient(listOf(lerp(bg, Color.White, 0.1f), bg, lerp(bg, Color.Black, 0.28f))))
+            drawRect(Brush.horizontalGradient(listOf(Color.Black.copy(alpha = 0.3f), Color.Transparent), endX = w * 0.1f), size = Size(w * 0.1f, h))
+            val knit = ink.copy(alpha = 0.6f)
+            for (band in 0 until 2) {
+                val y = if (band == 0) 9 * u else h - 9 * u
+                drawLine(knit, Offset(7 * u, y - 4 * u), Offset(w - 7 * u, y - 4 * u), 0.7f * u)
+                drawLine(knit, Offset(7 * u, y + 4 * u), Offset(w - 7 * u, y + 4 * u), 0.7f * u)
+                val zig = Path()
+                var x = 7 * u
+                var up = true
+                zig.moveTo(x, y + 2.4f * u)
+                while (x < w - 7 * u) {
+                    x = (x + 5 * u).coerceAtMost(w - 7 * u)
+                    zig.lineTo(x, if (up) y - 2.4f * u else y + 2.4f * u)
+                    up = !up
+                }
+                drawPath(zig, knit, style = Stroke(0.9f * u))
+            }
+            flake6(Offset(w / 2, h - 22 * u), 5 * u, ink.copy(alpha = 0.75f), 0.9f * u)
+            drawCircle(accent.copy(alpha = 0.9f), 1.6f * u, Offset(w / 2 - 12 * u, h - 22 * u))
+            drawCircle(accent.copy(alpha = 0.9f), 1.6f * u, Offset(w / 2 + 12 * u, h - 22 * u))
         }
         Decor.None -> {
             drawRect(Brush.verticalGradient(listOf(lerp(bg, Color.White, 0.12f), bg, lerp(bg, Color.Black, 0.25f))))

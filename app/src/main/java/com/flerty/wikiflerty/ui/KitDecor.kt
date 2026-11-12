@@ -72,6 +72,7 @@ private fun DrawScope.kitStatic(decor: Decor, base: UiBase, accent: Color, fiber
             seaExtras(light)
         }
         Decor.Clay -> clayExtras(light, accent)
+        Decor.Frost -> frostStatic(light, base)
         else -> Unit
     }
 }
@@ -117,6 +118,7 @@ fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = 
     val measurer = androidx.compose.ui.text.rememberTextMeasurer()
     val columns = remember { specks(53, 120) }
     val bubbles = remember { specks(83, 26) }
+    val lights = remember { specks(67, 9) }
     val light = base.light
     Box(modifier) {
         if (staticLayer) {
@@ -155,6 +157,7 @@ fun KitBackdrop(decor: Decor, base: UiBase, accent: Color, modifier: Modifier = 
                         seaLife(t, light)
                     }
                     Decor.Clay -> clayLive(t, light)
+                    Decor.Frost -> frostLive(t, light, lights)
                     else -> Unit
                 }
             }
@@ -543,6 +546,72 @@ private fun DrawScope.clayExtras(light: Boolean, accent: Color) {
     drawPath(rope, accent.copy(alpha = if (light) 0.45f else 0.35f), style = androidx.compose.ui.graphics.drawscope.Stroke(7 * d, cap = StrokeCap.Round))
 }
 
+internal val FrostLights = listOf(Color(0xFFFF6B6B), Color(0xFFFFD166), Color(0xFF6BD68A), Color(0xFF6BB8FF))
+
+internal fun DrawScope.flake6(c: Offset, r: Float, color: Color, width: Float, barbs: Boolean = true) {
+    for (k in 0 until 3) {
+        val a = PI.toFloat() * k / 3f + PI.toFloat() / 6f
+        val o = Offset(cos(a) * r, sin(a) * r)
+        drawLine(color, c - o, c + o, width, cap = StrokeCap.Round)
+        if (barbs && r > 3.5f * density) {
+            for (end in listOf(-1f, 1f)) {
+                val p = c + o * (end * 0.62f)
+                for (side in listOf(-1f, 1f)) {
+                    val b = a + (if (end > 0) 0f else PI.toFloat()) + side * 0.9f
+                    drawLine(color, p, p + Offset(cos(b), sin(b)) * (r * 0.32f), width * 0.85f, cap = StrokeCap.Round)
+                }
+            }
+        }
+    }
+}
+
+private fun DrawScope.frostFern(origin: Offset, angle: Float, length: Float, color: Color) {
+    val stroke = 1f * density
+    for (k in -2..2) {
+        val a = (angle + k * 17f) * PI.toFloat() / 180f
+        val len = length * (1f - kotlin.math.abs(k) * 0.18f)
+        val dir = Offset(cos(a), sin(a))
+        drawLine(color, origin, origin + dir * len, stroke * 1.2f, cap = StrokeCap.Round)
+        var s = len * 0.2f
+        while (s < len * 0.95f) {
+            val p = origin + dir * s
+            val barb = (len - s) * 0.22f + 3 * density
+            for (side in listOf(-1f, 1f)) {
+                val b = a + side * 0.85f
+                drawLine(color, p, p + Offset(cos(b), sin(b)) * barb, stroke, cap = StrokeCap.Round)
+            }
+            s += len * 0.13f
+        }
+    }
+}
+
+private fun DrawScope.frostStatic(light: Boolean, base: UiBase) {
+    val d = density
+    val w = size.width
+    val h = size.height
+    drawRect(Brush.verticalGradient(if (light) listOf(Color(0xFFD9E9F2), Color(base.background), Color(0xFFF7FAFC)) else listOf(Color(0xFF12272D), Color(base.background), Color(0xFF0A1514))))
+    val ice = if (light) Color(0xFF7FA3B8) else Color(0xFFCFEFFF)
+    frostFern(Offset(0f, 0f), 45f, 120 * d, ice.copy(alpha = if (light) 0.2f else 0.11f))
+    frostFern(Offset(w, h), 225f, 140 * d, ice.copy(alpha = if (light) 0.18f else 0.1f))
+    val r = Random(57)
+    repeat(14) {
+        flake6(Offset(r.nextFloat() * w, r.nextFloat() * h), (3f + r.nextFloat() * 5f) * d, ice.copy(alpha = if (light) 0.16f else 0.08f), 0.8f * d)
+    }
+}
+
+private fun DrawScope.frostLive(t: Float, light: Boolean, lights: List<Speck>) {
+    val d = density
+    lights.forEachIndexed { i, s ->
+        val c = Offset(s.x * size.width, s.y * size.height * 0.92f)
+        val r = (16f + s.size * 26f) * d
+        val tw = 0.55f + 0.45f * sin(t * (0.5f + s.speed * 0.7f) + s.phase)
+        val color = FrostLights[i % FrostLights.size]
+        val a = (if (light) 0.07f else 0.09f) * tw
+        drawCircle(color.copy(alpha = a), r, c)
+        drawCircle(color.copy(alpha = a * 0.9f), r, c, style = androidx.compose.ui.graphics.drawscope.Stroke(1.2f * d))
+    }
+}
+
 fun renderKitPanel(context: android.content.Context, kit: Kit, light: Boolean, widthPx: Int, heightPx: Int, density: Float, season: Season? = null, veil: Float? = null): android.graphics.Bitmap {
     val bitmap = android.graphics.Bitmap.createBitmap(widthPx.coerceAtLeast(1), heightPx.coerceAtLeast(1), android.graphics.Bitmap.Config.ARGB_8888)
     val base = if (light) kit.light else kit.dark
@@ -604,6 +673,11 @@ fun renderKitPanel(context: android.content.Context, kit: Kit, light: Boolean, w
             }
             Decor.Clay -> {
                 drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.45f), Color.Transparent, Color.Black.copy(alpha = 0.16f))), Offset.Zero, Size(w, h), androidx.compose.ui.geometry.CornerRadius(radius), style = androidx.compose.ui.graphics.drawscope.Stroke(4 * d))
+            }
+            Decor.Frost -> {
+                drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = if (light) 0.95f else 0.34f), Color(base.border))), Offset(0.5f * d, 0.5f * d), Size(w - d, h - d), androidx.compose.ui.geometry.CornerRadius(radius), style = androidx.compose.ui.graphics.drawscope.Stroke(1.2f * d))
+                drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = if (light) 0.5f else 0.07f), Color.Transparent), endY = h * 0.3f), Offset.Zero, Size(w, h * 0.3f), androidx.compose.ui.geometry.CornerRadius(radius))
+                flake6(Offset(w - 16 * d, h - 16 * d), 6 * d, accent.copy(alpha = 0.55f), 1.1f * d)
             }
             Decor.None -> drawRoundRect(Color(base.border), Offset(0.5f * d, 0.5f * d), Size(w - d, h - d), androidx.compose.ui.geometry.CornerRadius(radius), style = androidx.compose.ui.graphics.drawscope.Stroke(1 * d))
         }

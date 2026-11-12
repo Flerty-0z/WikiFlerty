@@ -62,6 +62,7 @@ internal fun FeedBadge(pull: FeedPull, settings: ReaderSettings, modifier: Modif
             Kit.News -> news(k, ready, bg, fg, accent)
             Kit.Sea -> sea(k, ready, time, bg, accent)
             Kit.Clay -> clay(k, ready, bg, accent)
+            Kit.NewYear -> frost(k, ready, time, bg, accent)
         }
     }
 }
@@ -117,6 +118,31 @@ private fun DrawScope.zen(k: Float, ready: Float, bg: Color, fg: Color, accent: 
     )
     val dot = 6.dp.toPx() * ready.coerceIn(0f, 1.3f)
     if (dot > 0.2f) drawCircle(accent, dot)
+}
+
+private fun DrawScope.frost(k: Float, ready: Float, time: Float, bg: Color, accent: Color) {
+    val r = size.minDimension / 2f - 4.dp.toPx()
+    drawCircle(bg, r + 3.dp.toPx())
+    drawCircle(accent.copy(alpha = 0.25f), r + 3.dp.toPx(), style = Stroke(1.dp.toPx()))
+    val arm = r * (0.35f + 0.5f * k)
+    val spin = time * 60f * ready
+    for (i in 0 until 6) {
+        val a = (i * 60f + spin) * PI.toFloat() / 180f
+        val dir = Offset(kotlin.math.cos(a), sin(a))
+        val tip = center + dir * arm
+        drawLine(accent, center, tip, 2.dp.toPx(), cap = StrokeCap.Round)
+        if (k > 0.45f) {
+            val mid = center + dir * (arm * 0.62f)
+            val side = arm * 0.3f * ((k - 0.45f) / 0.55f).coerceIn(0f, 1f)
+            for (s in listOf(-1f, 1f)) {
+                val b = a + s * 0.9f
+                drawLine(accent, mid, mid + Offset(kotlin.math.cos(b), sin(b)) * side, 1.6.dp.toPx(), cap = StrokeCap.Round)
+            }
+        }
+    }
+    val dot = 3.dp.toPx() * (0.6f + 0.6f * ready)
+    drawCircle(Color.White, dot)
+    drawCircle(accent, dot, style = Stroke(1.2.dp.toPx()))
 }
 
 private fun DrawScope.comic(k: Float, ready: Float, time: Float, down: Boolean, accent: Color) {
