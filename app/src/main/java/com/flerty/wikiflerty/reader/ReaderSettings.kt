@@ -306,7 +306,7 @@ data class ReaderSettings(
                 flagClock = json.optBoolean("flagClock", d.flagClock),
                 flagBattery = json.optBoolean("flagBattery", d.flagBattery),
                 flagAlign = json.optString("flagAlign", d.flagAlign).ifBlank { d.flagAlign },
-                flagSize = (json.optDouble("flagSize", d.flagSize).takeUnless { it.isNaN() }?.coerceIn(0.8, 1.4) ?: d.flagSize)
+                flagSize = (json.optDouble("flagSize", d.flagSize).takeUnless { it.isNaN() }?.coerceIn(0.8, 1.0) ?: d.flagSize)
                     .let { if (json.optInt("flagRev", 0) < 1 && it == 1.0) 0.8 else it },
                 flagBackground = json.optBoolean("flagBackground", d.flagBackground),
                 progressInPages = json.optBoolean("progressInPages", d.progressInPages),

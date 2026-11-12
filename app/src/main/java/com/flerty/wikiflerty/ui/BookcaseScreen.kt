@@ -235,6 +235,8 @@ fun BookcaseView(
         val decor = AppStyle.kit.decor
         val tune = AppStyle.current.tune()
         val drag = remember { ShelfDrag() }
+        val propFeedback = LocalFeedback.current
+        androidx.compose.runtime.LaunchedEffect(decor, live) { if (live) propFeedback?.preloadProps(decor) }
         val effective = drag.preview?.let { tune.copy(propPlace = PropPlace.Custom.id, pins = it) } ?: tune
         val list = remember(planks, width, live, decor, behave, effective) { rows(planks, width, live, decor, behave, effective) }
         drag.layout = {
@@ -245,36 +247,73 @@ fun BookcaseView(
         val styleStore = (androidx.compose.ui.platform.LocalContext.current.applicationContext as App).style
         drag.onPropDrop = { pins -> styleStore.update { st -> st.withTune(st.kit, st.tune().copy(propPlace = PropPlace.Custom.id, pins = pins)) } }
         val slack = with(androidx.compose.ui.platform.LocalDensity.current) { 30.dp.toPx() }
+        val keepMargin = with(androidx.compose.ui.platform.LocalDensity.current) { 22.dp.toPx() }
         val tickFeedback = LocalFeedback.current
+        val rowOf = remember(list) {
+            val m = HashMap<String, Int>()
+            list.forEachIndexed { i, r -> r.units.forEach { m[it.key] = i } }
+            m
+        }
+        val listStateHolder = rememberLazyListState()
+        drag.slotAt = slotAt@{
+            val unit = drag.prop ?: return@slotAt null
+            val p = drag.pointer ?: return@slotAt null
+            val plank = drag.target(drag.lastSlot?.first, keepMargin) ?: return@slotAt null
+            val seq = drag.layout()[plank]?.filter { it.key != unit.key } ?: return@slotAt null
+            val first = listStateHolder.firstVisibleItemIndex
+            var idx = 0
+            seq.forEach { u ->
+                val r = drag.slots[u.key]?.takeIf { it.first == plank }?.second
+                if (r == null) {
+                    if ((rowOf[u.key] ?: Int.MAX_VALUE) < first) idx++
+                    return@forEach
+                }
+                val sameRow = p.y >= r.top - slack && p.y <= r.bottom + slack
+                if (if (sameRow) r.center.x < p.x else r.bottom < p.y) idx++
+            }
+            plank to idx
+        }
+        drag.applySlot = applySlot@{ slot ->
+            val unit = drag.prop ?: return@applySlot false
+            if (drag.lastSlot == slot) return@applySlot false
+            val base = drag.preview ?: return@applySlot false
+            drag.lastSlot = slot
+            val lay = drag.layout()
+            val (plank, idx) = slot
+            val seq = lay[plank]?.filter { it.key != unit.key } ?: return@applySlot false
+            val next = HashMap(base)
+            lay.entries.firstOrNull { e -> e.key != plank && e.value.any { it.key == unit.key } }?.let { from ->
+                next[from.key] = pinsOf(from.value.filter { it.key != unit.key })
+            }
+            next[plank] = pinsOf(seq.toMutableList().apply { add(idx.coerceIn(0, size), unit) })
+            if (next == base) return@applySlot false
+            drag.preview = next
+            drag.appliedAt = System.currentTimeMillis()
+            tickFeedback?.play(FeedbackSound.Tick)
+            true
+        }
         androidx.compose.runtime.LaunchedEffect(drag) {
-            androidx.compose.runtime.snapshotFlow { drag.pointer }.collect { p ->
-                val unit = drag.prop ?: return@collect
-                if (drag.phase != 1 || p == null) return@collect
-                val plank = drag.target() ?: return@collect
-                val lay = drag.layout()
-                val seq = lay[plank]?.filter { it.key != unit.key } ?: return@collect
-                var idx = 0
-                seq.forEach { u ->
-                    val r = drag.slots[u.key]?.takeIf { it.first == plank }?.second ?: return@forEach
-                    val sameRow = p.y >= r.top - slack && p.y <= r.bottom + slack
-                    if (if (sameRow) r.center.x < p.x else r.bottom < p.y) idx++
-                }
-                if (drag.lastSlot == plank to idx) return@collect
-                drag.lastSlot = plank to idx
-                val base = drag.preview ?: return@collect
-                val next = HashMap(base)
-                lay.entries.firstOrNull { e -> e.key != plank && e.value.any { it.key == unit.key } }?.let { from ->
-                    next[from.key] = pinsOf(from.value.filter { it.key != unit.key })
-                }
-                val placed = seq.toMutableList().apply { add(idx.coerceIn(0, size), unit) }
-                next[plank] = pinsOf(placed)
-                if (next != base) {
-                    drag.preview = next
-                    tickFeedback?.play(FeedbackSound.Tick)
+            while (true) {
+                androidx.compose.runtime.snapshotFlow { drag.phase == 1 && drag.prop != null }.first { it }
+                var cand: Pair<String, Int>? = null
+                var candAt = 0L
+                while (drag.phase == 1 && drag.prop != null) {
+                    val now = androidx.compose.runtime.withFrameMillis { it }
+                    if (drag.autoscroll) {
+                        cand = null
+                        continue
+                    }
+                    val c = drag.slotAt()
+                    if (c != cand) {
+                        cand = c
+                        candAt = now
+                        continue
+                    }
+                    if (c == null || now - candAt < 70 || System.currentTimeMillis() - drag.appliedAt < 170) continue
+                    drag.applySlot(c)
                 }
             }
         }
-        val listStateHolder = rememberLazyListState()
         val plankOrder = planks.map { it.key }
         val lastOrder = remember { arrayOf<List<String>?>(null) }
         if (lastOrder[0] != null && lastOrder[0] != plankOrder && lastOrder[0]!!.toSet() == plankOrder.toSet()) {
@@ -298,41 +337,49 @@ fun BookcaseView(
         val density = androidx.compose.ui.platform.LocalDensity.current
         val zone = with(density) { 44.dp.toPx() }
         val bottomInset = with(density) { 92.dp.toPx() }
-        val maxStep = with(density) { 6.dp.toPx() }
+        val maxSpeed = with(density) { 0.42.dp.toPx() }
         androidx.compose.runtime.LaunchedEffect(drag, listState) {
-            var armed = false
-            var speed = 0f
-            var since = 0L
-            var lastDir = 0
             while (true) {
-                val now = androidx.compose.runtime.withFrameMillis { it }
-                val p = drag.pointer
-                val r = drag.root
-                if (drag.phase != 1 || p == null || r == null || !r.isAttached) {
-                    armed = false
-                    speed = 0f
-                    lastDir = 0
-                    continue
+                androidx.compose.runtime.snapshotFlow { drag.phase }.first { it == 1 }
+                var armed = false
+                var speed = 0f
+                var since = 0L
+                var lastDir = 0
+                var last = 0L
+                val delay = if (drag.prop != null) 420L else 280L
+                while (drag.phase == 1) {
+                    val now = androidx.compose.runtime.withFrameMillis { it }
+                    val dt = if (last == 0L) 16f else (now - last).coerceIn(1L, 48L).toFloat()
+                    last = now
+                    val p = drag.pointer
+                    val r = drag.root
+                    if (p == null || r == null || !r.isAttached) {
+                        speed = 0f
+                        drag.autoscroll = false
+                        continue
+                    }
+                    val local = r.windowToLocal(p)
+                    val top = zone
+                    val bottom = r.size.height - bottomInset - zone
+                    val want = when {
+                        local.y < top -> -((top - local.y) / zone).coerceIn(0.15f, 1f)
+                        local.y > bottom -> ((local.y - bottom) / zone).coerceIn(0.15f, 1f)
+                        else -> 0f
+                    }
+                    val dir = kotlin.math.sign(want).toInt()
+                    if (dir == 0) armed = true
+                    if (dir != lastDir) {
+                        since = now
+                        lastDir = dir
+                    }
+                    val ramp = ((now - since - delay).coerceAtLeast(0L) / 600f).coerceAtMost(1f)
+                    val goal = if (armed && dir != 0) want * kotlin.math.abs(want) * maxSpeed * ramp else 0f
+                    speed += (goal - speed) * (1f - kotlin.math.exp(-dt / 110f))
+                    val step = speed * dt
+                    val moved = if (kotlin.math.abs(step) > 0.2f) listState.dispatchRawDelta(step) else 0f
+                    drag.autoscroll = kotlin.math.abs(moved) > 0.1f
                 }
-                val local = r.windowToLocal(p)
-                val top = zone
-                val bottom = r.size.height - bottomInset - zone
-                val want = when {
-                    local.y < top -> -((top - local.y) / zone).coerceIn(0.15f, 1f)
-                    local.y > bottom -> ((local.y - bottom) / zone).coerceIn(0.15f, 1f)
-                    else -> 0f
-                }
-                val dir = kotlin.math.sign(want).toInt()
-                if (dir == 0) armed = true
-                if (dir != lastDir) {
-                    since = now
-                    lastDir = dir
-                }
-                val held = now - since
-                val ramp = ((held - 280L).coerceAtLeast(0L) / 500f).coerceAtMost(1f)
-                val goal = if (armed && dir != 0) want * kotlin.math.abs(want) * maxStep * ramp else 0f
-                speed += (goal - speed) * 0.12f
-                if (kotlin.math.abs(speed) > 0.3f) listState.dispatchRawDelta(speed)
+                drag.autoscroll = false
             }
         }
         androidx.compose.runtime.key(animationKey, live) {
@@ -418,14 +465,21 @@ private class ShelfDrag {
     var snapshot: Map<String, List<PropPin>>? = null
     var lastSlot: Pair<String, Int>? = null
     val slots = HashMap<String, Pair<String, androidx.compose.ui.geometry.Rect>>()
+    val owners = HashMap<String, Any>()
+    var autoscroll = false
+    var appliedAt = 0L
+    var slotAt: () -> Pair<String, Int>? = { null }
+    var applySlot: (Pair<String, Int>) -> Boolean = { false }
     var layout: () -> Map<String, List<ShelfUnit>> = { emptyMap() }
     var onPropDrop: (Map<String, List<PropPin>>) -> Unit = {}
 
-    fun target(): String? {
+    fun target(keep: String? = null, margin: Float = 0f): String? {
         val p = pointer ?: return null
+        if (keep != null && planks.any { (key, r) -> key.substringBefore('#') == keep && p.y >= r.top - margin && p.y <= r.bottom + margin }) return keep
         var best: String? = null
         var dist = Float.MAX_VALUE
-        planks.forEach { (key, r) ->
+        planks.forEach { (row, r) ->
+            val key = row.substringBefore('#')
             val d = when {
                 p.y < r.top -> r.top - p.y
                 p.y > r.bottom -> p.y - r.bottom
@@ -442,6 +496,7 @@ private class ShelfDrag {
     fun finish() {
         if (prop != null) {
             if (phase != 1) return
+            slotAt()?.let { c -> if (autoscroll || System.currentTimeMillis() - appliedAt >= 170) applySlot(c) }
             val next = preview
             if (next != null && next != snapshot) onPropDrop(next)
             dest = null
@@ -470,8 +525,21 @@ private val LocalShelfDrag = androidx.compose.runtime.staticCompositionLocalOf<S
 
 private fun Modifier.slot(key: String, plank: String): Modifier = composed {
     val drag = LocalShelfDrag.current ?: return@composed this
-    androidx.compose.runtime.DisposableEffect(key) { onDispose { drag.slots.remove(key) } }
-    this.onGloballyPositioned { c -> if (c.isAttached) drag.slots[key] = plank to c.boundsInWindow() }
+    val owner = remember { Any() }
+    androidx.compose.runtime.DisposableEffect(key) {
+        onDispose {
+            if (drag.owners[key] === owner) {
+                drag.owners.remove(key)
+                drag.slots.remove(key)
+            }
+        }
+    }
+    this.onGloballyPositioned { c ->
+        if (c.isAttached) {
+            drag.slots[key] = plank to c.boundsInWindow()
+            drag.owners[key] = owner
+        }
+    }
 }
 
 @Composable
@@ -484,10 +552,12 @@ private fun Modifier.propDraggable(unit: ShelfUnit.Prop, plank: String): Modifie
     val was = remember(unit.key) { booleanArrayOf(false) }
     if (dragging) was[0] = true
     val settle = remember(unit.key) { androidx.compose.animation.core.Animatable(1f) }
+    val decor = AppStyle.kit.decor
+    val kind = propCount(decor).coerceAtLeast(1).let { n -> ((unit.index % n) + n) % n }
     androidx.compose.runtime.LaunchedEffect(dragging) {
         if (!dragging && was[0]) {
             was[0] = false
-            feedback?.play(FeedbackSound.Place)
+            feedback?.prop(decor, kind, place = true)
             settle.snapTo(0.84f)
             settle.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.4f, stiffness = 620f))
         }
@@ -506,7 +576,7 @@ private fun Modifier.propDraggable(unit: ShelfUnit.Prop, plank: String): Modifie
             detectDragGesturesAfterLongPress(
                 onDragStart = { offset ->
                     val c = coords[0] ?: return@detectDragGesturesAfterLongPress
-                    if (drag.phase != 0) return@detectDragGesturesAfterLongPress
+                    if (drag.phase != 0 || drag.scrolling()) return@detectDragGesturesAfterLongPress
                     val snap = drag.layout().mapValues { pinsOf(it.value) }
                     drag.snapshot = snap
                     drag.preview = snap
@@ -518,7 +588,7 @@ private fun Modifier.propDraggable(unit: ShelfUnit.Prop, plank: String): Modifie
                     drag.prop = unit
                     drag.phase = 1
                     haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                    feedback?.play(FeedbackSound.Pick)
+                    feedback?.prop(decor, kind, place = false)
                 },
                 onDragEnd = { drag.finish() },
                 onDragCancel = {},
@@ -537,6 +607,7 @@ private fun PropGhost(drag: ShelfDrag) {
     val lift = remember(unit.key) { androidx.compose.animation.core.Animatable(0f) }
     val held = remember(unit.key) { arrayOf(Offset.Zero) }
     val flying = remember(unit.key) { booleanArrayOf(false) }
+    val fade = remember(unit.key) { androidx.compose.animation.core.Animatable(1f) }
     val sway = androidx.compose.animation.core.rememberInfiniteTransition(label = "prop-sway")
     val t by sway.animateFloat(
         0f,
@@ -555,16 +626,49 @@ private fun PropGhost(drag: ShelfDrag) {
         if (phase == 2) {
             pos.snapTo(held[0])
             flying[0] = true
-            val dest = drag.slots[unit.key]?.second
-            val r = drag.root
-            if (dest != null && r != null && r.isAttached) {
-                val local = r.windowToLocal(dest.topLeft)
+            androidx.compose.runtime.withFrameNanos { }
+            androidx.compose.runtime.withFrameNanos { }
+            fun destLocal(): Offset? {
+                val d = drag.slots[unit.key]?.second ?: return null
+                val r = drag.root?.takeIf { it.isAttached } ?: return null
+                val box = r.boundsInWindow()
+                if (d.bottom < box.top || d.top > box.bottom) return null
+                return r.windowToLocal(d.topLeft)
+            }
+            val first = destLocal()
+            if (first != null && !drag.scrolling()) {
+                val spec = androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 520f, visibilityThreshold = Offset(1f, 1f))
                 kotlinx.coroutines.coroutineScope {
-                    launch { pos.animateTo(local, androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 520f, visibilityThreshold = Offset(1f, 1f))) }
-                    launch { lift.animateTo(0f, Motion.tween(220)) }
+                    val flight = launch {
+                        kotlinx.coroutines.coroutineScope {
+                            launch { lift.animateTo(0f, Motion.tween(220)) }
+                            var target: Offset = first
+                            var job = launch { pos.animateTo(target, spec) }
+                            val until = System.nanoTime() + 900_000_000L
+                            while (job.isActive && System.nanoTime() < until) {
+                                androidx.compose.runtime.withFrameNanos { }
+                                val d = destLocal() ?: break
+                                if ((d - target).getDistance() > 1f) {
+                                    target = d
+                                    job.cancel()
+                                    job = launch { pos.animateTo(target, spec) }
+                                }
+                            }
+                            job.join()
+                        }
+                    }
+                    val watch = launch {
+                        androidx.compose.runtime.snapshotFlow { drag.scrolling() }.first { it }
+                        flight.cancel()
+                    }
+                    flight.join()
+                    watch.cancel()
                 }
             } else {
-                lift.animateTo(0f, Motion.tween(180))
+                kotlinx.coroutines.coroutineScope {
+                    launch { lift.animateTo(0f, Motion.tween(200)) }
+                    launch { fade.animateTo(0f, Motion.tween(200)) }
+                }
             }
             drag.phase = 0
             drag.prop = null
@@ -586,6 +690,7 @@ private fun PropGhost(drag: ShelfDrag) {
             translationX = at.x
             translationY = at.y + if (bob) kotlin.math.sin(t * 2f) * 3.dp.toPx() * lift.value else 0f
             val sc = 1f + 0.16f * lift.value
+            alpha = fade.value
             scaleX = sc
             scaleY = sc
             rotationZ = kotlin.math.sin(t * speed) * amp * lift.value
@@ -834,7 +939,7 @@ private fun Shelf(row: PlankRow, index: Int, onBook: (Book) -> Unit) {
     val plank = row.key.substringBefore('#')
     val target = drag?.book != null && drag.phase == 1 && drag.target() == plank && drag.from != plank
     val glow by androidx.compose.animation.core.animateFloatAsState(if (target) 1f else 0f, Motion.tween(180), label = "plank-target")
-    if (drag != null) androidx.compose.runtime.DisposableEffect(plank) { onDispose { drag.planks.remove(plank) } }
+    if (drag != null) androidx.compose.runtime.DisposableEffect(row.key) { onDispose { drag.planks.remove(row.key) } }
     val accent = AppColors.Accent
     val seenRows = LocalShelfSeen.current
     val freshRow = remember(row.key) { ("row:" + row.key) !in seenRows && (drag == null || drag.phase == 0) }
@@ -843,7 +948,7 @@ private fun Shelf(row: PlankRow, index: Int, onBook: (Book) -> Unit) {
         Modifier
             .fillMaxWidth()
             .then(if (freshRow) Modifier.scrollReveal() else Modifier)
-            .onGloballyPositioned { c -> if (drag != null) drag.planks[plank] = c.boundsInWindow() }
+            .onGloballyPositioned { c -> if (drag != null) drag.planks[row.key] = c.boundsInWindow() }
             .drawBehind {
                 if (glow > 0f) {
                     drawRoundRect(

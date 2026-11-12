@@ -957,7 +957,7 @@ private fun progressText(state: ReaderUiState, settings: ReaderSettings): String
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun ProgressFlag(info: FlagInfo, settings: ReaderSettings, onClick: (() -> Unit)?, modifier: Modifier) {
-    val k = settings.flagSize.toFloat().coerceIn(0.8f, 1.4f)
+    val k = settings.flagSize.toFloat().coerceIn(0.8f, 1.0f)
     val shape = appCorner(12)
     val bg = settings.flagBackground
     val shadow = if (bg) null else androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.45f), androidx.compose.ui.geometry.Offset(0f, 1f), 3f)
@@ -1133,9 +1133,9 @@ private fun FlagOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSett
     StepSlider(
         label = "Размер",
         icon = AppIcons.TextSize,
-        value = settings.flagSize,
-        range = 0.8..1.4,
-        step = 0.1,
+        value = settings.flagSize.coerceIn(0.8, 1.0),
+        range = 0.8..1.0,
+        step = 0.05,
         enabled = settings.showFlag,
         format = { "${(it * 100).roundToInt()}%" },
         onCommit = { v -> onSettingsChange { it.copy(flagSize = v) } },

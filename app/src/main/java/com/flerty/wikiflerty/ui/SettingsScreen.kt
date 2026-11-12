@@ -8,8 +8,7 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.blur
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.graphics.luminance
@@ -370,53 +369,6 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
                                 val light = when (ThemeMode.of(mode)) { ThemeMode.Light -> true; ThemeMode.Dark -> false; ThemeMode.System -> !AppStyle.systemDark }
                                 kit.applyTo(st, light).copy(mode = mode)
                             }
-                        }
-                    }
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = kit == current,
-                        modifier = Modifier.align(Alignment.Center),
-                        enter = androidx.compose.animation.scaleIn(androidx.compose.animation.core.spring(dampingRatio = 0.5f, stiffness = 420f), initialScale = 0.3f) + androidx.compose.animation.fadeIn(Motion.fade(200)),
-                        exit = androidx.compose.animation.scaleOut(Motion.tween(160), targetScale = 0.5f) + androidx.compose.animation.fadeOut(Motion.fade(140)),
-                    ) {
-                        val spin = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(-120f) }
-                        androidx.compose.runtime.LaunchedEffect(Unit) { spin.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 200f)) }
-                        val thumb by rememberKitThumb(kit, AppStyle.light, 124.dp, 176.dp)
-                        val frost = androidx.compose.runtime.remember(thumb) {
-                            thumb?.let { image ->
-                                runCatching {
-                                    val src = image.asAndroidBitmap()
-                                    val side = (src.width * 0.5f).toInt().coerceAtLeast(2)
-                                    val crop = android.graphics.Bitmap.createBitmap(src, (src.width - side) / 2, (src.height - side) / 2, side, side)
-                                    val tiny = android.graphics.Bitmap.createScaledBitmap(crop, 7, 7, true)
-                                    android.graphics.Bitmap.createScaledBitmap(tiny, 56, 56, true).asImageBitmap()
-                                }.getOrNull()
-                            }
-                        }
-                        Box(
-                            Modifier
-                                .size(62.dp)
-                                .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.86f) { tuneKit = kit }
-                                .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
-                                .drawWithContent {
-                                    frost?.let { img ->
-                                        drawImage(img, dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt()), filterQuality = androidx.compose.ui.graphics.FilterQuality.High)
-                                    }
-                                    drawRect(Color.Black.copy(alpha = 0.16f))
-                                    drawRect(
-                                        androidx.compose.ui.graphics.Brush.radialGradient(
-                                            0f to Color.Black,
-                                            0.62f to Color.Black,
-                                            1f to Color.Transparent,
-                                            center = center,
-                                            radius = size.minDimension / 2f,
-                                        ),
-                                        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
-                                    )
-                                    drawContent()
-                                },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(AppIcons.Options, "Настроить шаблон", tint = Color.White, modifier = Modifier.size(24.dp).graphicsLayer { rotationZ = spin.value; shadowElevation = 0f })
                         }
                     }
                 }
@@ -785,11 +737,15 @@ private fun KitCard(kit: Kit, selected: Boolean, onClick: () -> Unit) {
     val base = if (light) kit.light else kit.dark
     val accent = Color(if (light) kit.accentLight else kit.accent)
     val shape = appCorner(18)
+    val strip = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(if (selected) 1f else 0f) }
+    androidx.compose.runtime.LaunchedEffect(selected) {
+        strip.animateTo(if (selected) 1f else 0f, if (selected) androidx.compose.animation.core.spring(dampingRatio = 0.72f, stiffness = 340f) else Motion.tween(180))
+    }
     Box(
         Modifier
             .width(124.dp)
             .height(176.dp)
-            .liveClick(shape, sound = FeedbackSound.Toggle, onClick = onClick)
+            .liveClick(shape, sound = if (selected) FeedbackSound.Open else FeedbackSound.Toggle, onClick = onClick)
             .border(if (selected) 2.dp else 1.dp, if (selected) accent else AppColors.PanelBorder, shape),
     ) {
         val thumb by rememberKitThumb(kit, light, 124.dp, 176.dp)
@@ -842,19 +798,54 @@ private fun KitCard(kit: Kit, selected: Boolean, onClick: () -> Unit) {
                 )
             }
             Spacer(Modifier.weight(1f))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    kit.title,
-                    color = Color(base.text),
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    lineHeight = 13.sp,
-                    fontSize = 11.5.sp,
-                    modifier = Modifier.weight(1f),
-                )
-                if (selected) {
-                    Box(Modifier.size(18.dp).clip(CircleShape).background(accent), contentAlignment = Alignment.Center) {
-                        Icon(AppIcons.Check, null, tint = if (accent.luminance() > 0.4f) Color(0xFF0D1424) else Color.White, modifier = Modifier.size(12.dp))
+            Text(
+                kit.title,
+                color = Color(base.text),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                lineHeight = 13.sp,
+                fontSize = 11.5.sp,
+                modifier = Modifier.graphicsLayer { alpha = 1f - strip.value },
+            )
+        }
+        if (strip.value > 0.001f) {
+            val ink = if (accent.luminance() > 0.45f) Color(0xFF15120C) else Color.White
+            Box(Modifier.matchParentSize().clip(shape), contentAlignment = Alignment.BottomCenter) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .graphicsLayer {
+                            translationY = (1f - strip.value) * size.height
+                            alpha = strip.value.coerceIn(0f, 1f)
+                        }
+                        .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.lerp(accent, Color.White, 0.18f), accent)))
+                        .drawBehind { drawRect(Color.White.copy(alpha = 0.35f), size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx())) }
+                        .padding(start = 10.dp, end = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        kit.title,
+                        color = ink,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        lineHeight = 12.sp,
+                        fontSize = 11.sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Box(
+                        Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(ink.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            AppIcons.Options,
+                            "Настроить шаблон",
+                            tint = ink,
+                            modifier = Modifier.size(17.dp).graphicsLayer { rotationZ = -150f * (1f - strip.value) },
+                        )
                     }
                 }
             }

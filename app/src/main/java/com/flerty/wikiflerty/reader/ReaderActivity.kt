@@ -2905,7 +2905,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val density = resources.displayMetrics.density
         val params = bookArea.layoutParams as ViewGroup.MarginLayoutParams
         val top = systemBars.top + (20 * density).toInt()
-        val bottom = systemBars.bottom + ((if (s.showFlag) 22 + 24 * s.flagSize.coerceIn(0.8, 1.4) else 18.0) * density).toInt()
+        val bottom = systemBars.bottom + ((if (s.showFlag) 22 + 24 * s.flagSize.coerceIn(0.8, 1.0) else 18.0) * density).toInt()
         if (params.topMargin != top || params.bottomMargin != bottom) {
             params.topMargin = top
             params.bottomMargin = bottom
