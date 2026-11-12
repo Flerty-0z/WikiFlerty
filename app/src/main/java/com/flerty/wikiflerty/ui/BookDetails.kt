@@ -70,8 +70,6 @@ fun tagTitle(tag: String): String = "#" + tag.removePrefix(SpoilerMark)
 
 fun tagSpoiler(tag: String): Boolean = tag.startsWith(SpoilerMark)
 
-}
-
 @Composable
 private fun InfoChip(
     text: String,
