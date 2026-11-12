@@ -139,7 +139,7 @@ data class ReaderSettings(
     val flagClock: Boolean = false,
     val flagBattery: Boolean = false,
     val flagAlign: String = "center",
-    val flagSize: Double = 1.0,
+    val flagSize: Double = 0.8,
     val flagBackground: Boolean = true,
     val progressInPages: Boolean = false,
     val quickButtons: List<String> = QuickButton.defaults.map { it.id },
@@ -234,6 +234,7 @@ data class ReaderSettings(
         put("flagBattery", flagBattery)
         put("flagAlign", flagAlign)
         put("flagSize", flagSize)
+        put("flagRev", 1)
         put("flagBackground", flagBackground)
         put("progressInPages", progressInPages)
         put("quickButtons", JSONArray(quickButtons))
@@ -303,7 +304,8 @@ data class ReaderSettings(
                 flagClock = json.optBoolean("flagClock", d.flagClock),
                 flagBattery = json.optBoolean("flagBattery", d.flagBattery),
                 flagAlign = json.optString("flagAlign", d.flagAlign).ifBlank { d.flagAlign },
-                flagSize = json.optDouble("flagSize", d.flagSize).takeUnless { it.isNaN() }?.coerceIn(0.8, 1.4) ?: d.flagSize,
+                flagSize = (json.optDouble("flagSize", d.flagSize).takeUnless { it.isNaN() }?.coerceIn(0.8, 1.4) ?: d.flagSize)
+                    .let { if (json.optInt("flagRev", 0) < 1 && it == 1.0) 0.8 else it },
                 flagBackground = json.optBoolean("flagBackground", d.flagBackground),
                 progressInPages = json.optBoolean("progressInPages", d.progressInPages),
                 quickButtons = quick,

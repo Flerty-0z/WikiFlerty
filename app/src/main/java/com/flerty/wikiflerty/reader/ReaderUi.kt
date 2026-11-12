@@ -43,6 +43,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -192,6 +193,7 @@ class ReaderUiState {
     var progression by mutableStateOf(0.0)
     var position by mutableStateOf<Int?>(null)
     var totalPositions by mutableIntStateOf(0)
+    var chapterMarks by mutableStateOf<List<ChapterMark>>(emptyList())
     var chapter by mutableStateOf<String?>(null)
     var brightnessHint by mutableStateOf<Int?>(null)
     var selection by mutableStateOf<SelectionInfo?>(null)
@@ -250,6 +252,8 @@ class ReaderUiState {
 }
 
 data class TocItem(val title: String, val depth: Int, val link: Link)
+
+data class ChapterMark(val at: Float, val item: TocItem)
 
 data class SelectionHandles(val start: androidx.compose.ui.geometry.Offset?, val end: androidx.compose.ui.geometry.Offset?, val more: Boolean = false)
 
@@ -532,20 +536,34 @@ fun ReaderOverlay(
 
         AnimatedVisibility(
             visible = state.panelsVisible,
-            enter = fadeIn(Motion.fade(220)) + slideInVertically(Motion.tween(260)) { -it / 2 },
-            exit = fadeOut(Motion.fade(180)) + slideOutVertically(Motion.tween(220)) { -it / 2 },
+            enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { -it },
+            exit = fadeOut(Motion.fade(200)) + slideOutVertically(Motion.tween(240, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { -it },
             modifier = Modifier.align(Alignment.TopCenter).onGloballyPositioned { state.topPanelBottom = it.boundsInWindow().bottom },
         ) {
             TopPanel(
                 title = title,
                 cover = cover,
+                chapter = state.chapter,
                 progression = state.progression,
                 progressText = progressText,
                 totalPositions = state.totalPositions,
+                marks = state.chapterMarks,
                 onBack = onBack,
                 onListen = { state.sheet = ReaderSheet.Listen },
                 onSearch = { state.sheet = ReaderSheet.Search },
+                onToc = { state.sheet = ReaderSheet.Toc },
                 onSeek = onSeek,
+                onChapter = { dir ->
+                    val p = state.progression.toFloat()
+                    val marks = state.chapterMarks
+                    val target = if (dir > 0) {
+                        marks.firstOrNull { it.at > p + 0.0005f }
+                    } else {
+                        val current = marks.lastOrNull { it.at <= p + 0.0005f }
+                        if (current != null && p - current.at > 0.004f) current else marks.lastOrNull { it.at < (current?.at ?: p) - 0.0001f }
+                    }
+                    target?.let { onTocSelect(it.item) }
+                },
                 bookmarked = state.bookmarked,
                 onBookmark = bookmarkActions.onToggle,
                 onJump = { state.sheet = ReaderSheet.Jump },
@@ -682,7 +700,14 @@ fun ReaderOverlay(
             state.translate == null && state.person == null && !state.panelsVisible,
         enter = fadeIn(Motion.fade(200)) + scaleIn(Motion.tween(260), initialScale = 0.85f),
         exit = fadeOut(Motion.fade(160)) + scaleOut(Motion.tween(200), targetScale = 0.9f),
-        modifier = Modifier.align(Alignment.BottomEnd).windowInsetsPadding(WindowInsets.systemBars).padding(end = 16.dp, bottom = MiniBottom),
+        modifier = Modifier.align(Alignment.BottomEnd).windowInsetsPadding(WindowInsets.systemBars).padding(
+            end = 16.dp,
+            bottom = if (settings.showFlag && state.flagHeight > 0) {
+                maxOf(MiniBottom, with(androidx.compose.ui.platform.LocalDensity.current) { state.flagHeight.toDp() } + 26.dp)
+            } else {
+                MiniBottom
+            },
+        ),
     ) {
         ReturnPill(onReturn = onReturn, onDismiss = { state.returnTo = null })
     }
@@ -1112,71 +1137,155 @@ private fun FlagOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSett
 internal fun TopPanel(
     title: String,
     cover: ImageBitmap?,
+    chapter: String?,
     progression: Double,
     progressText: String,
     totalPositions: Int,
+    marks: List<ChapterMark>,
     onBack: () -> Unit,
     onListen: () -> Unit,
     onSearch: () -> Unit,
+    onToc: () -> Unit,
     onSeek: (Double) -> Unit,
+    onChapter: (Int) -> Unit,
     bookmarked: Boolean,
     onBookmark: () -> Unit,
     onJump: () -> Unit,
 ) {
     var preview by remember { mutableStateOf<Double?>(null) }
-    Row(
-        modifier = Modifier
-            .padding(start = 12.dp, end = 12.dp, top = PanelGap)
-            .widthIn(max = PanelMaxWidth)
-            .fillMaxWidth()
-            .height(76.dp)
-            .panelSurface(appCorner(22))
-            .blockTaps()
-            .padding(start = 4.dp, end = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        RoundIconButton(AppIcons.Back, "Назад в библиотеку", sound = FeedbackSound.Close, onClick = onBack)
-        Box(
+    var menu by remember { mutableStateOf(false) }
+    val r = (22 * com.flerty.wikiflerty.ui.AppStyle.current.corners).dp
+    val shape = RoundedCornerShape(bottomStart = r, bottomEnd = r)
+    val page = { f: Double -> if (totalPositions > 0) "${(f * (totalPositions - 1)).roundToInt() + 1}/$totalPositions" else "${(f * 100).roundToInt()}%" }
+    Box {
+        Column(
             Modifier
-                .size(width = 32.dp, height = 46.dp)
-                .clip(appCorner(5))
-                .background(AppColors.Line)
-                .border(1.dp, Color(0x33FFFFFF), appCorner(5)),
-            contentAlignment = Alignment.Center,
+                .fillMaxWidth()
+                .panelSurface(shape)
+                .blockTaps()
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 8.dp),
         ) {
-            if (cover != null) {
-                Image(cover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            } else {
-                Text(title.take(1), color = AppColors.Text, fontFamily = FontFamily.Serif, fontSize = 16.sp)
+            Row(
+                Modifier.fillMaxWidth().height(58.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RoundIconButton(AppIcons.Back, "Назад в библиотеку", sound = FeedbackSound.Close, onClick = onBack)
+                Row(
+                    Modifier
+                        .weight(1f)
+                        .height(52.dp)
+                        .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onToc)
+                        .padding(horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        Modifier
+                            .size(width = 32.dp, height = 46.dp)
+                            .clip(appCorner(5))
+                            .background(AppColors.Line)
+                            .border(1.dp, Color(0x33FFFFFF), appCorner(5)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (cover != null) {
+                            Image(cover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        } else {
+                            Text(title.take(1), color = AppColors.Text, fontFamily = FontFamily.Serif, fontSize = 16.sp)
+                        }
+                    }
+                    Column(Modifier.weight(1f).padding(start = 10.dp, end = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        MarqueeText(title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        val sub = listOfNotNull(chapter?.takeIf { it.isNotBlank() }, progressText.takeIf { it.isNotBlank() }).joinToString(" · ")
+                        if (sub.isNotEmpty()) {
+                            Text(sub, color = AppColors.Muted, fontSize = 11.5.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+                BookmarkButton(bookmarked, onBookmark)
+                RoundIconButton(AppIcons.Search, "Поиск по книге", sound = FeedbackSound.Open, onClick = onSearch)
+                Box {
+                    RoundIconButton(AppIcons.More, "Ещё", sound = FeedbackSound.Open) { menu = true }
+                    androidx.compose.material3.DropdownMenu(
+                        expanded = menu,
+                        onDismissRequest = { menu = false },
+                        shape = appCorner(16),
+                        containerColor = AppColors.Panel,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.PanelBorder),
+                    ) {
+                        listOf(
+                            Triple(AppIcons.Toc, "Оглавление", onToc),
+                            Triple(AppIcons.Pages, "Перейти к странице", onJump),
+                            Triple(AppIcons.Headphones, "Слушать", onListen),
+                        ).forEach { (icon, label, action) ->
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(label, color = AppColors.Text, fontSize = 14.sp) },
+                                leadingIcon = { Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp)) },
+                                onClick = {
+                                    menu = false
+                                    action()
+                                },
+                            )
+                        }
+                    }
+                }
             }
-        }
-        Column(Modifier.weight(1f).padding(start = 8.dp, end = 2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            MarqueeText(title, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                Modifier.fillMaxWidth().height(38.dp).padding(horizontal = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Box(
+                    Modifier.size(34.dp).liveClick(CircleShape, sound = FeedbackSound.Page, pressedScale = 0.85f) { onChapter(-1) },
+                    contentAlignment = Alignment.Center,
+                ) { Icon(AppIcons.SkipPrev, "Прошлая глава", tint = AppColors.Muted, modifier = Modifier.size(17.dp)) }
                 SeekBar(
                     progression = progression,
                     onPreview = { preview = it },
                     onSeek = onSeek,
+                    marks = marks.filter { it.item.depth == 0 }.map { it.at },
                     modifier = Modifier.weight(1f),
                 )
-                val label = preview?.let { f ->
-                    if (totalPositions > 0) "${(f * (totalPositions - 1)).roundToInt() + 1}/$totalPositions" else "${(f * 100).roundToInt()}%"
-                } ?: progressText
+                Box(
+                    Modifier.size(34.dp).liveClick(CircleShape, sound = FeedbackSound.Page, pressedScale = 0.85f) { onChapter(1) },
+                    contentAlignment = Alignment.Center,
+                ) { Icon(AppIcons.SkipNext, "Следующая глава", tint = AppColors.Muted, modifier = Modifier.size(17.dp)) }
                 Text(
-                    label,
+                    "${((preview ?: progression) * 100).roundToInt().coerceIn(0, 100)}%",
                     color = if (preview != null) AppColors.Accent else AppColors.Muted,
                     fontSize = 12.sp,
                     fontWeight = if (preview != null) FontWeight.SemiBold else FontWeight.Normal,
                     maxLines = 1,
                     modifier = Modifier
+                        .widthIn(min = 40.dp)
                         .liveClick(appCorner(8), sound = FeedbackSound.Open, pressedScale = 0.9f, onClick = onJump)
                         .padding(horizontal = 4.dp, vertical = 6.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End,
                 )
             }
         }
-        BookmarkButton(bookmarked, onBookmark)
-        RoundIconButton(AppIcons.Search, "Поиск по книге", sound = FeedbackSound.Open, onClick = onSearch)
+        val shownPreview = remember { doubleArrayOf(0.0) }
+        preview?.let { shownPreview[0] = it }
+        AnimatedVisibility(
+            visible = preview != null,
+            enter = fadeIn(Motion.fade(140)) + scaleIn(Motion.tween(180), initialScale = 0.9f),
+            exit = fadeOut(Motion.fade(160)),
+            modifier = Modifier.align(Alignment.BottomCenter).offset(y = 48.dp),
+        ) {
+            val f = shownPreview[0]
+            val name = marks.lastOrNull { it.at <= f.toFloat() + 0.0001f }?.item?.title
+            Column(
+                Modifier
+                    .widthIn(max = 300.dp)
+                    .panelSurface(appCorner(14), elevation = 10.dp)
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                if (!name.isNullOrBlank()) {
+                    Text(name, color = AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+                Text("стр. ${page(f)}", color = AppColors.Accent, fontSize = 12.sp, maxLines = 1)
+            }
+        }
     }
 }
 
@@ -1212,6 +1321,7 @@ private fun SeekBar(
     onPreview: (Double?) -> Unit,
     onSeek: (Double) -> Unit,
     modifier: Modifier,
+    marks: List<Float> = emptyList(),
 ) {
     var drag by remember { mutableStateOf<Float?>(null) }
     var pending by remember { mutableStateOf<Float?>(null) }
@@ -1282,6 +1392,17 @@ private fun SeekBar(
         contentAlignment = Alignment.CenterStart,
     ) {
         val width = maxWidth
+        if (marks.isNotEmpty()) {
+            val tick = AppColors.Faint
+            androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(12.dp)) {
+                marks.forEach { m ->
+                    if (m > 0.004f && m < 0.996f) {
+                        val x = size.width * m
+                        drawLine(tick, androidx.compose.ui.geometry.Offset(x, 0f), androidx.compose.ui.geometry.Offset(x, size.height), strokeWidth = 1.2f * density)
+                    }
+                }
+            }
+        }
         Box(Modifier.fillMaxWidth().height(if (active) 6.dp else 4.dp).clip(appCorner(3)).background(AppColors.Line)) {
             if (fraction > 0f) {
                 Box(

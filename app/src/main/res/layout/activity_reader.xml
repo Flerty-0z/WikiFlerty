@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:background="@color/background">
 
-    <FrameLayout
+    <com.flerty.wikiflerty.reader.StableFrameLayout
         android:id="@+id/book_area"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -53,7 +53,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:importantForAccessibility="no" />
-    </FrameLayout>
+    </com.flerty.wikiflerty.reader.StableFrameLayout>
 
     <androidx.compose.ui.platform.ComposeView
         android:id="@+id/reader_overlay"

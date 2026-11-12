@@ -1283,6 +1283,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             .ifBlank { raw.trim() }
         if (cleaned.isBlank()) return
         ui.panelsVisible = false
+        ui.person = null
+        ui.translate = null
         ui.footnote = FootnoteInfo(cleaned, url)
     }
 
@@ -1544,6 +1546,17 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 runCatching { session.publication.positions() }.getOrDefault(emptyList())
             }
             ui.totalPositions = positions.size
+            ui.chapterMarks = withContext(Dispatchers.Default) {
+                val firstAt = HashMap<String, Float>()
+                positions.forEach { loc ->
+                    val key = loc.href.toString().substringBefore('#')
+                    if (key !in firstAt) firstAt[key] = (loc.locations.totalProgression ?: 0.0).toFloat()
+                }
+                toc.mapNotNull { item ->
+                    val key = item.link.href.toString().substringBefore('#')
+                    firstAt[key]?.let { ChapterMark(it, item) }
+                }.distinctBy { it.at to it.item.depth }.sortedBy { it.at }
+            }
             val total = ui.totalPositions
             app.appScope.launch { app.library.setPositions(session.bookId, total) }
         }

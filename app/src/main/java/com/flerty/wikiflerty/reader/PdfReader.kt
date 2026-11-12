@@ -1297,28 +1297,34 @@ private fun PdfReaderScreen(host: PdfReaderActivity, state: PdfUiState) {
 
         val count = doc?.count ?: 0
 
-        Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)) {
+        Box(Modifier.fillMaxSize()) {
             AnimatedVisibility(
                 visible = state.ui && doc != null,
-                enter = fadeIn(Motion.fade(220)) + slideInVertically(Motion.tween(260)) { -it / 2 },
-                exit = fadeOut(Motion.fade(180)) + slideOutVertically(Motion.tween(220)) { -it / 2 },
+                enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(300)) { -it },
+                exit = fadeOut(Motion.fade(200)) + slideOutVertically(Motion.tween(240)) { -it },
                 modifier = Modifier.align(Alignment.TopCenter),
             ) {
                 TopPanel(
                     title = state.title,
                     cover = cover,
+                    chapter = null,
                     progression = if (count > 1) state.page.toDouble() / (count - 1) else 0.0,
                     progressText = "${state.page + 1}/$count",
                     totalPositions = count,
+                    marks = emptyList(),
                     onBack = { host.finish() },
                     onListen = { },
                     onSearch = { if (doc?.textSupported == true) state.sheet = ReaderSheet.Search else host.searchUnavailable() },
+                    onToc = { state.sheet = ReaderSheet.Toc },
                     onSeek = { f -> state.jump = (f * (count - 1)).roundToInt().coerceIn(0, (count - 1).coerceAtLeast(0)) },
+                    onChapter = { dir -> state.jump = (state.page + dir).coerceIn(0, (count - 1).coerceAtLeast(0)) },
                     bookmarked = state.page in bookmarkedPages,
                     onBookmark = { host.toggleBookmark(marks) },
                     onJump = { state.goTo = true },
                 )
             }
+        }
+        Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)) {
             AnimatedVisibility(
                 visible = state.ui && doc != null && state.sheet == null,
                 enter = fadeIn(Motion.fade(220)) + slideInVertically(Motion.tween(260)) { it / 2 },
