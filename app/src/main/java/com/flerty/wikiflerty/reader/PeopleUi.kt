@@ -57,6 +57,9 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.sp
 import com.flerty.wikiflerty.data.BookCharacter
 import com.flerty.wikiflerty.ui.ActionLabel
@@ -203,44 +206,23 @@ internal fun PersonSheet(draft: PersonDraft, onDismiss: () -> Unit, actions: Peo
     var confirmDelete by remember { mutableStateOf(false) }
     val nameFocus = remember { FocusRequester() }
     val noteFocus = remember { FocusRequester() }
-    val focusManager = LocalFocusManager.current
-    val keyboard = LocalSoftwareKeyboardController.current
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-    val latest by rememberUpdatedState(onDismiss)
-    var closing by remember { mutableStateOf(false) }
-    val close: () -> Unit = {
-        if (!closing) {
-            closing = true
-            focusManager.clearFocus(force = true)
-            keyboard?.hide()
-            scope.launch {
-                delay(Motion.ms(120).toLong())
-                runCatching { sheetState.hide() }
-            }.invokeOnCompletion { latest() }
+    val hideInput = remember { arrayOfNulls<() -> Unit>(1) }
+    val corner = (26 * AppStyle.current.corners).dp
+    com.flerty.wikiflerty.ui.SheetWindow(onDismiss, onClosing = { hideInput[0]?.invoke() }) { control ->
+        val close = control.close
+        val innerFocus = LocalFocusManager.current
+        val innerKeyboard = LocalSoftwareKeyboardController.current
+        hideInput[0] = {
+            innerFocus.clearFocus(force = true)
+            innerKeyboard?.hide()
         }
-    }
-    LaunchedEffect(Unit) {
-        delay(Motion.ms(300).toLong())
-        runCatching { if (draft.name.isBlank() || draft.id != null && draft.note.isNotBlank()) nameFocus.requestFocus() else noteFocus.requestFocus() }
-    }
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        sheetGesturesEnabled = false,
-        dragHandle = null,
-        properties = ModalBottomSheetProperties(
-            isAppearanceLightStatusBars = AppStyle.light,
-            isAppearanceLightNavigationBars = AppStyle.light,
-        ),
-        containerColor = AppColors.Panel,
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(
-            topStart = (26 * AppStyle.current.corners).dp,
-            topEnd = (26 * AppStyle.current.corners).dp,
-        ),
-        contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
-    ) {
-        KeepHostBars()
+        LaunchedEffect(Unit) {
+            androidx.compose.runtime.withFrameNanos { }
+            runCatching {
+                if (draft.name.isBlank() || draft.id != null && draft.note.isNotBlank()) nameFocus.requestFocus() else noteFocus.requestFocus()
+                innerKeyboard?.show()
+            }
+        }
         val ready = name.text.isNotBlank()
         val save = {
             if (ready) {
@@ -251,9 +233,11 @@ internal fun PersonSheet(draft: PersonDraft, onDismiss: () -> Unit, actions: Peo
         Column(
             Modifier
                 .fillMaxWidth()
-                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = corner, topEnd = corner))
+                .background(AppColors.Panel)
+                .navigationBarsPadding()
                 .padding(horizontal = 16.dp)
-                .padding(bottom = 16.dp),
+                .padding(top = 16.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             SheetHeader(if (draft.id == null) "Новый персонаж" else "Персонаж", close)

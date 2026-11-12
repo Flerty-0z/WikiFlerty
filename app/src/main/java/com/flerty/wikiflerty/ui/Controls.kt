@@ -423,31 +423,25 @@ fun PickerSheet(
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     val shown = options.filter { query.isBlank() || it.title.contains(query, true) }
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = (options.indexOfFirst { it.id == selectedId } - 2).coerceAtLeast(0),
     )
-    val close: () -> Unit = { scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() } }
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        sheetGesturesEnabled = false,
-        dragHandle = null,
-        properties = androidx.compose.material3.ModalBottomSheetProperties(
-            isAppearanceLightStatusBars = AppStyle.light,
-            isAppearanceLightNavigationBars = AppStyle.light,
-        ),
-        containerColor = AppColors.Panel,
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(
-            topStart = (26 * AppStyle.current.corners).dp,
-            topEnd = (26 * AppStyle.current.corners).dp,
-        ),
-    ) {
-        KeepHostBars()
-        Column(Modifier.height(sheetHeight()).padding(horizontal = 16.dp).navigationBarsPadding().padding(bottom = 12.dp)) {
+    val picked = remember { arrayOfNulls<String>(1) }
+    val corner = (26 * AppStyle.current.corners).dp
+    SheetWindow(onDismiss = { picked[0]?.let(onSelect) ?: onDismiss() }) { control ->
+        val close = control.close
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = corner, topEnd = corner))
+                .background(AppColors.Panel)
+                .height(sheetHeight())
+                .padding(horizontal = 16.dp)
+                .navigationBarsPadding()
+                .padding(top = 16.dp, bottom = 12.dp),
+        ) {
             SheetHeader(title, close)
             Spacer(Modifier.height(12.dp))
             if (searchable) {
@@ -481,7 +475,8 @@ fun PickerSheet(
                             if (index > 0) ListDivider()
                             Reveal {
                                 SheetOptionRow(option, option.id == selectedId, icon) {
-                                    scope.launch { sheetState.hide() }.invokeOnCompletion { onSelect(option.id) }
+                                    picked[0] = option.id
+                                    close()
                                 }
                             }
                         }
@@ -677,44 +672,23 @@ fun TextInputSheet(
 ) {
     var text by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(initial, androidx.compose.ui.text.TextRange(initial.length))) }
     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
-    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
-    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-    val latest by androidx.compose.runtime.rememberUpdatedState(onDismiss)
-    var closing by remember { mutableStateOf(false) }
-    val close: () -> Unit = {
-        if (!closing) {
-            closing = true
-            focusManager.clearFocus(force = true)
-            keyboard?.hide()
-            scope.launch {
-                kotlinx.coroutines.delay(Motion.ms(120).toLong())
-                runCatching { sheetState.hide() }
-            }.invokeOnCompletion { latest() }
+    val corner = (26 * AppStyle.current.corners).dp
+    val hideInput = remember { arrayOfNulls<() -> Unit>(1) }
+    SheetWindow(onDismiss, onClosing = { hideInput[0]?.invoke() }) { control ->
+        val close = control.close
+        val innerFocus = androidx.compose.ui.platform.LocalFocusManager.current
+        val innerKeyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+        hideInput[0] = {
+            innerFocus.clearFocus(force = true)
+            innerKeyboard?.hide()
         }
-    }
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(Motion.ms(300).toLong())
-        runCatching { focus.requestFocus() }
-    }
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        sheetGesturesEnabled = false,
-        dragHandle = null,
-        properties = androidx.compose.material3.ModalBottomSheetProperties(
-            isAppearanceLightStatusBars = AppStyle.light,
-            isAppearanceLightNavigationBars = AppStyle.light,
-        ),
-        containerColor = AppColors.Panel,
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(
-            topStart = (26 * AppStyle.current.corners).dp,
-            topEnd = (26 * AppStyle.current.corners).dp,
-        ),
-        contentWindowInsets = { androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0) },
-    ) {
-        KeepHostBars()
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            androidx.compose.runtime.withFrameNanos { }
+            runCatching {
+                focus.requestFocus()
+                innerKeyboard?.show()
+            }
+        }
         val save = {
             onDone(text.text.trim())
             close()
@@ -722,9 +696,11 @@ fun TextInputSheet(
         Column(
             Modifier
                 .fillMaxWidth()
-                .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.ime.union(androidx.compose.foundation.layout.WindowInsets.navigationBars))
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = corner, topEnd = corner))
+                .background(AppColors.Panel)
+                .navigationBarsPadding()
                 .padding(horizontal = 16.dp)
-                .padding(bottom = 16.dp),
+                .padding(top = 16.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             SheetHeader(title, close)

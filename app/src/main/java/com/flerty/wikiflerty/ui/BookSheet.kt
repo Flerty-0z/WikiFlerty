@@ -119,48 +119,18 @@ fun AppSheet(
     aura: List<Color>? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val auraShown = remember { arrayOf<List<Color>?>(null) }
     if (aura != null) auraShown[0] = aura
     val auraGlow by androidx.compose.animation.core.animateFloatAsState(if (aura != null) 1f else 0f, Motion.tween(620), label = "sheet-aura")
-    val scope = rememberCoroutineScope()
-    val latest by androidx.compose.runtime.rememberUpdatedState(onDismiss)
-    val close: () -> Unit = remember {
-        {
-            if (!Motion.enabled) {
-                latest()
-            } else {
-                scope.launch { runCatching { state.hide() } }.invokeOnCompletion { latest() }
-            }
-        }
-    }
     val corner = (26 * AppStyle.current.corners).dp
     val sheetShape = RoundedCornerShape(topStart = corner, topEnd = corner)
-    val floating = above != null
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = state,
-        sheetGesturesEnabled = false,
-        dragHandle = null,
-        properties = androidx.compose.material3.ModalBottomSheetProperties(
-            isAppearanceLightStatusBars = AppStyle.light,
-            isAppearanceLightNavigationBars = AppStyle.light,
-        ),
-        containerColor = if (floating) Color.Transparent else AppColors.Panel,
-        tonalElevation = 0.dp,
-        shape = if (floating) androidx.compose.ui.graphics.RectangleShape else sheetShape,
-    ) {
-        KeepHostBars()
-        val enter = remember { androidx.compose.animation.core.Animatable(if (Motion.enabled) 0f else 1f) }
-        LaunchedEffect(Unit) { enter.animateTo(1f, Motion.tween(340, 60)) }
+    SheetWindow(onDismiss) { control ->
+        val close = control.close
         val viewport = remember { RevealViewport() }
         androidx.compose.runtime.CompositionLocalProvider(LocalSheetClose provides close, LocalRevealViewport provides viewport) {
             val body: @Composable (Modifier) -> Unit = { mod ->
                 Column(
-                    mod.height(sheetHeight()).graphicsLayer {
-                        alpha = 0.35f + 0.65f * enter.value
-                        translationY = (1f - enter.value) * 22f * density
-                    }.drawBehind {
+                    mod.height(sheetHeight()).drawBehind {
                         val colors = auraShown[0]
                         if (colors != null && auraGlow > 0.01f) {
                             val a = auraGlow * (if (AppStyle.light) 0.24f else 0.42f)
@@ -182,20 +152,16 @@ fun AppSheet(
                     }
                 }
             }
-            if (above == null) {
-                body(Modifier)
-            } else {
-                Box(Modifier.fillMaxWidth().height(sheetHeight() + aboveHeight)) {
-                    Box(Modifier.fillMaxWidth().height(aboveHeight + corner).padding(horizontal = 16.dp), content = above)
-                    Box(
-                        Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .height(sheetHeight())
-                            .background(AppColors.Panel, sheetShape)
-                            .clip(sheetShape),
-                    ) { body(Modifier) }
-                }
+            Box(Modifier.fillMaxWidth().height(sheetHeight() + aboveHeight)) {
+                if (above != null) Box(Modifier.fillMaxWidth().height(aboveHeight + corner).padding(horizontal = 16.dp), content = above)
+                Box(
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(sheetHeight())
+                        .clip(sheetShape)
+                        .background(AppColors.Panel),
+                ) { body(Modifier) }
             }
         }
     }

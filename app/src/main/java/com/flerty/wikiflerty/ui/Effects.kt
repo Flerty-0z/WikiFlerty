@@ -335,7 +335,7 @@ fun Modifier.sheetReveal(): Modifier = composed {
     val viewport = LocalRevealViewport.current
     val late = remember { viewport != null && android.os.SystemClock.uptimeMillis() - viewport.since > 700 }
     if (viewport == null || !Motion.enabled || late) return@composed this
-    revealCore(80f, 24f)
+    revealCore(80f, 0f)
 }
 
 @Composable
