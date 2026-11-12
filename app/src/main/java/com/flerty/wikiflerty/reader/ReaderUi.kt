@@ -16,6 +16,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.animation.slideInVertically
@@ -265,22 +266,24 @@ private fun SelectionHandleLayer(state: ReaderUiState) {
     val density = androidx.compose.ui.platform.LocalDensity.current
     val screenW = with(density) { androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp.toPx() }
     val screenH = with(density) { androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp.toPx() }
-    val barW = minOf(screenW - with(density) { 32.dp.toPx() }, with(density) { 460.dp.toPx() })
-    val barH = with(density) { 48.dp.toPx() }
+    val pillW = remember { floatArrayOf(with(density) { 104.dp.toPx() }) }
+    val pillH = with(density) { 34.dp.toPx() }
     androidx.compose.animation.AnimatedVisibility(
         visible = h.more && end != null,
-        enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(260)) { it / 2 },
-        exit = fadeOut(Motion.fade(150)) + slideOutVertically(Motion.tween(200)) { it / 2 },
+        enter = fadeIn(Motion.fade(180)) + scaleIn(androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 520f), initialScale = 0.7f),
+        exit = fadeOut(Motion.fade(140)) + scaleOut(Motion.tween(160), targetScale = 0.8f),
         modifier = Modifier.offset {
             val p = last[0] ?: androidx.compose.ui.geometry.Offset.Zero
-            val floor = (if (state.flagTop > 0f) state.flagTop else screenH - 64.dp.toPx()) - 8.dp.toPx()
-            val below = p.y + 28.dp.toPx()
-            val y = if (below + barH <= floor) below else floor - barH
-            androidx.compose.ui.unit.IntOffset(((screenW - barW) / 2f).roundToInt(), y.roundToInt())
+            val floor = (if (state.flagTop > 0f) state.flagTop else screenH - 64.dp.toPx()) - 6.dp.toPx()
+            val below = p.y + 26.dp.toPx()
+            val y = if (below + pillH <= floor) below else floor - pillH
+            val edge = 12.dp.toPx()
+            val x = (p.x + 16.dp.toPx() - pillW[0]).coerceIn(edge, maxOf(edge, screenW - pillW[0] - edge))
+            androidx.compose.ui.unit.IntOffset(x.roundToInt(), y.roundToInt())
         },
     ) {
         val nextFeedback = com.flerty.wikiflerty.ui.LocalFeedback.current
-        SelectionNextBar(color, with(density) { barW.toDp() }) {
+        SelectionNextBar(color, Modifier.onSizeChanged { pillW[0] = it.width.toFloat() }) {
             nextFeedback?.play(FeedbackSound.Page)
             state.onSelectionNext?.invoke()
         }
@@ -2803,7 +2806,7 @@ private fun ReaderCoach(scroll: Boolean, leftForward: Boolean, onDone: () -> Uni
 }
 
 @Composable
-private fun SelectionNextBar(handle: Color, width: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
+private fun SelectionNextBar(handle: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val decor = com.flerty.wikiflerty.ui.AppStyle.kit.decor
     val accent = com.flerty.wikiflerty.ui.AppColors.Accent
     val text = com.flerty.wikiflerty.ui.AppColors.Text
@@ -2819,7 +2822,7 @@ private fun SelectionNextBar(handle: Color, width: androidx.compose.ui.unit.Dp, 
         label = "next-nudge",
     )
     val move = if (Motion.enabled) nudge else 0f
-    val label = if (decor == com.flerty.wikiflerty.ui.Decor.News || decor == com.flerty.wikiflerty.ui.Decor.Comic) "ДАЛЕЕ НА СЛЕДУЮЩЕЙ СТРАНИЦЕ" else "Продолжить на следующей странице"
+    val label = if (decor == com.flerty.wikiflerty.ui.Decor.News || decor == com.flerty.wikiflerty.ui.Decor.Comic) "ДАЛЕЕ" else "Далее"
     val labelColor = when (decor) {
         com.flerty.wikiflerty.ui.Decor.Library -> gold
         com.flerty.wikiflerty.ui.Decor.Zen, com.flerty.wikiflerty.ui.Decor.News -> text
@@ -2835,10 +2838,9 @@ private fun SelectionNextBar(handle: Color, width: androidx.compose.ui.unit.Dp, 
         else -> RoundedCornerShape(50)
     }
     Box(
-        Modifier
-            .width(width)
-            .height(48.dp)
-            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.96f, onClick = onClick)
+        modifier
+            .height(34.dp)
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.92f, onClick = onClick)
             .semantics { contentDescription = "Продолжить выделение на следующей странице" }
             .drawBehind {
                 val d = density
@@ -2848,20 +2850,20 @@ private fun SelectionNextBar(handle: Color, width: androidx.compose.ui.unit.Dp, 
                     com.flerty.wikiflerty.ui.Decor.Library -> {
                         drawRoundRect(Color.Black.copy(alpha = 0.35f), Offset(0f, 2 * d), size, androidx.compose.ui.geometry.CornerRadius(12 * d))
                         drawRoundRect(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF4A2C1A), Color(0xFF2B190E))), cornerRadius = androidx.compose.ui.geometry.CornerRadius(12 * d))
-                        drawRoundRect(gold.copy(alpha = 0.85f), Offset(3 * d, 3 * d), androidx.compose.ui.geometry.Size(w - 6 * d, h - 6 * d), androidx.compose.ui.geometry.CornerRadius(9 * d), style = androidx.compose.ui.graphics.drawscope.Stroke(1.2f * d))
-                        drawRoundRect(gold.copy(alpha = 0.35f), Offset(6 * d, 6 * d), androidx.compose.ui.geometry.Size(w - 12 * d, h - 12 * d), androidx.compose.ui.geometry.CornerRadius(6 * d), style = androidx.compose.ui.graphics.drawscope.Stroke(0.7f * d))
+                        drawRoundRect(gold.copy(alpha = 0.85f), Offset(2.5f * d, 2.5f * d), androidx.compose.ui.geometry.Size(w - 5 * d, h - 5 * d), androidx.compose.ui.geometry.CornerRadius(9.5f * d), style = androidx.compose.ui.graphics.drawscope.Stroke(1.1f * d))
+                        drawRoundRect(gold.copy(alpha = 0.3f), Offset(5 * d, 5 * d), androidx.compose.ui.geometry.Size(w - 10 * d, h - 10 * d), androidx.compose.ui.geometry.CornerRadius(7 * d), style = androidx.compose.ui.graphics.drawscope.Stroke(0.6f * d))
                     }
                     com.flerty.wikiflerty.ui.Decor.Zen -> {
                         drawRoundRect(panel.copy(alpha = 0.96f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4 * d))
                         val stroke = androidx.compose.ui.graphics.Path().apply {
-                            moveTo(14 * d, h - 11 * d)
-                            cubicTo(w * 0.3f, h - 14 * d, w * 0.6f, h - 8 * d, w - 66 * d, h - 12 * d)
+                            moveTo(10 * d, h - 7 * d)
+                            cubicTo(w * 0.25f, h - 9 * d, w * 0.4f, h - 5 * d, w - 46 * d, h - 8 * d)
                         }
-                        drawPath(stroke, text.copy(alpha = 0.75f), style = androidx.compose.ui.graphics.drawscope.Stroke(3.2f * d, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                        drawRect(accent, Offset(w - 54 * d, 8 * d), androidx.compose.ui.geometry.Size(36 * d, h - 16 * d))
+                        drawPath(stroke, text.copy(alpha = 0.7f), style = androidx.compose.ui.graphics.drawscope.Stroke(2.4f * d, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                        drawRect(accent, Offset(w - 38 * d, 5 * d), androidx.compose.ui.geometry.Size(30 * d, h - 10 * d))
                     }
                     com.flerty.wikiflerty.ui.Decor.Comic -> {
-                        drawRoundRect(ink, Offset(4 * d, 4 * d), size, androidx.compose.ui.geometry.CornerRadius(10 * d))
+                        drawRoundRect(ink, Offset(3 * d, 3 * d), size, androidx.compose.ui.geometry.CornerRadius(10 * d))
                         drawRoundRect(Color(0xFFFFD43B), cornerRadius = androidx.compose.ui.geometry.CornerRadius(10 * d))
                         drawRoundRect(ink, cornerRadius = androidx.compose.ui.geometry.CornerRadius(10 * d), style = androidx.compose.ui.graphics.drawscope.Stroke(2.6f * d))
                     }
@@ -2875,8 +2877,8 @@ private fun SelectionNextBar(handle: Color, width: androidx.compose.ui.unit.Dp, 
                         drawRoundRect(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(accent.copy(alpha = 0.55f), accent.copy(alpha = 0.3f))), cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2))
                         drawRoundRect(Color.White.copy(alpha = 0.55f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2), style = androidx.compose.ui.graphics.drawscope.Stroke(1.3f * d))
                         drawRoundRect(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.25f), Color.Transparent), endY = h * 0.5f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2))
-                        drawCircle(Color.White.copy(alpha = 0.5f), 2.4f * d, Offset(w * 0.18f, 10 * d - move * 3 * d))
-                        drawCircle(Color.White.copy(alpha = 0.35f), 1.6f * d, Offset(w * 0.24f, 15 * d - move * 2 * d))
+                        drawCircle(Color.White.copy(alpha = 0.5f), 2f * d, Offset(10 * d, 9 * d - move * 2 * d))
+                        drawCircle(Color.White.copy(alpha = 0.35f), 1.3f * d, Offset(15 * d, 13 * d - move * 1.5f * d))
                     }
                     com.flerty.wikiflerty.ui.Decor.Clay -> {
                         drawRoundRect(Color.Black.copy(alpha = 0.18f), Offset(0f, 4 * d), size, androidx.compose.ui.geometry.CornerRadius(h / 2))
@@ -2892,7 +2894,7 @@ private fun SelectionNextBar(handle: Color, width: androidx.compose.ui.unit.Dp, 
         contentAlignment = Alignment.Center,
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+            Modifier.padding(start = 14.dp, end = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -2903,16 +2905,13 @@ private fun SelectionNextBar(handle: Color, width: androidx.compose.ui.unit.Dp, 
                 letterSpacing = if (decor == com.flerty.wikiflerty.ui.Decor.News) 1.sp else 0.sp,
                 maxLines = 1,
                 softWrap = false,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 13.sp, stepSize = 0.5.sp),
-                modifier = Modifier.weight(1f),
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(if (decor == com.flerty.wikiflerty.ui.Decor.Zen) 10.dp else 4.dp))
             val arrowColor = when (decor) {
                 com.flerty.wikiflerty.ui.Decor.Zen -> Color.White
                 else -> labelColor
             }
-            androidx.compose.foundation.Canvas(Modifier.size(width = 36.dp, height = 18.dp).padding(horizontal = 6.dp).graphicsLayer { translationX = move * 3.dp.toPx() }) {
+            androidx.compose.foundation.Canvas(Modifier.size(width = 28.dp, height = 14.dp).padding(horizontal = 5.dp).graphicsLayer { translationX = move * 2.dp.toPx() }) {
                 val d = density
                 val y = size.height / 2f
                 val head = size.height * 0.42f

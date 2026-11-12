@@ -388,9 +388,10 @@ private fun DragGhost(drag: ShelfDrag) {
                     val flight = launch {
                         kotlinx.coroutines.coroutineScope {
                             launch {
-                                pos.animateTo(local, androidx.compose.animation.core.spring(dampingRatio = 0.86f, stiffness = 300f))
+                                pos.animateTo(local, androidx.compose.animation.core.spring(dampingRatio = 0.92f, stiffness = 560f, visibilityThreshold = Offset(1.5f, 1.5f)))
                                 var last = local
-                                while (true) {
+                                val until = System.nanoTime() + 120_000_000L
+                                while (System.nanoTime() < until) {
                                     val now = drag.dest?.let { d -> drag.root?.takeIf { it.isAttached }?.windowToLocal(d) } ?: break
                                     if ((now - last).getDistance() < 0.5f) break
                                     last = now
@@ -398,8 +399,8 @@ private fun DragGhost(drag: ShelfDrag) {
                                     androidx.compose.runtime.withFrameNanos { }
                                 }
                             }
-                            launch { lift.animateTo(0f, Motion.tween(320, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
-                            launch { form.animateTo(if (lying) 0f else 1f, Motion.tween(if (lying) 380 else 200, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
+                            launch { lift.animateTo(0f, Motion.tween(240, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
+                            launch { form.animateTo(if (lying) 0f else 1f, Motion.tween(if (lying) 300 else 160, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
                         }
                     }
                     val watch = launch {
@@ -409,7 +410,6 @@ private fun DragGhost(drag: ShelfDrag) {
                     flight.join()
                     watch.cancel()
                 }
-                androidx.compose.runtime.withFrameNanos { }
             } else {
                 kotlinx.coroutines.coroutineScope {
                     launch { lift.animateTo(0f, Motion.tween(220)) }
@@ -498,8 +498,8 @@ private fun Modifier.shelfDraggable(book: Book, plank: String, spec: LyingSpec? 
                 dimAnim.snapTo(1f)
                 wasLanding[0] = false
                 feedback?.play(FeedbackSound.Place)
-                settle.snapTo(0.9f)
-                settle.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.42f, stiffness = 520f))
+                settle.snapTo(0.94f)
+                settle.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.5f, stiffness = 900f))
             }
             else -> dimAnim.animateTo(target, Motion.tween(if (hidden) 160 else 220))
         }
