@@ -351,12 +351,7 @@ private fun ProviderCard(
                         searchable = models.size > 8,
                     ) { id -> ai.store.update { it.copy(models = it.models + (provider.id to id)) } }
                     if (!loadedModels && !provider.custom) {
-                        Text(
-                            "Полный список — после «Проверить ключ»",
-                            color = AppColors.Faint,
-                            fontSize = 12.sp,
-                            lineHeight = 16.sp,
-                        )
+                        HintNote("Полный список — после «Проверить ключ»", AppIcons.Info)
                     }
                 }
             }
@@ -690,7 +685,7 @@ private fun LocalCard(ai: AiManager, kind: LocalKind, expanded: Boolean, onExpan
                     }
                 }
                 error?.let { Text(it, color = Bad, fontSize = 13.sp, lineHeight = 18.sp) }
-                Text(kind.hint, color = AppColors.Faint, fontSize = 12.sp, lineHeight = 16.sp)
+                HintNote(kind.hint, AppIcons.Info)
             }
         }
     }

@@ -61,13 +61,7 @@ fun KitTuneSheet(kit: Kit, onDismiss: () -> Unit) {
         TabbedFrame("Атмосфера", icon = AppIcons.Sun) {
             Column(Modifier.padding(horizontal = 14.dp)) {
                 SettingSwitch("Время суток и сезоны", tune.living, icon = AppIcons.Sun) { v -> set(tune.copy(living = v)) }
-                AnimatedVisibility(
-                    visible = tune.living,
-                    enter = expandVertically(Motion.tween(240)) + fadeIn(Motion.fade(200)),
-                    exit = shrinkVertically(Motion.tween(200)) + fadeOut(Motion.fade(150)),
-                ) {
-                    SettingSwitch("Листья, снег и искры", tune.particles, icon = AppIcons.Snow) { v -> set(tune.copy(particles = v)) }
-                }
+                SettingSwitch("Листья, снег и искры", tune.particles, enabled = tune.living, icon = AppIcons.Snow) { v -> set(tune.copy(particles = v)) }
             }
         }
         if (propCount(kit.decor) > 0) {
@@ -75,28 +69,21 @@ fun KitTuneSheet(kit: Kit, onDismiss: () -> Unit) {
                 Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     ShelfPreview(tune)
                     SettingSwitch("Предметы на полках", tune.props, icon = AppIcons.Fire) { v -> set(tune.copy(props = v)) }
-                    AnimatedVisibility(
-                        visible = tune.props,
-                        enter = expandVertically(Motion.tween(260)) + fadeIn(Motion.fade(220)),
-                        exit = shrinkVertically(Motion.tween(220)) + fadeOut(Motion.fade(160)),
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                contentPadding = PaddingValues(horizontal = 2.dp),
-                            ) {
-                                itemsIndexed(PropPlace.entries) { _, place ->
-                                    PlaceTile(place, selected = place.id == tune.propPlace) { set(tune.copy(propPlace = place.id)) }
-                                }
+                    val on = tune.props
+                    val dim by animateFloatAsState(if (on) 1f else 0.4f, Motion.fade(220), label = "props-dim")
+                    Column(Modifier.graphicsLayer { alpha = dim }, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(horizontal = 2.dp),
+                        ) {
+                            itemsIndexed(PropPlace.entries) { _, place ->
+                                PlaceTile(place, selected = place.id == tune.propPlace, enabled = on) { set(tune.copy(propPlace = place.id)) }
                             }
-                            val stepped = PropPlace.of(tune.propPlace).let { it == PropPlace.Between || it == PropPlace.Scatter }
-                            AnimatedVisibility(
-                                visible = stepped,
-                                enter = expandVertically(Motion.tween(220)) + fadeIn(Motion.fade(180)),
-                                exit = shrinkVertically(Motion.tween(200)) + fadeOut(Motion.fade(140)),
-                            ) {
-                                EveryStepper(tune.propEvery) { v -> set(tune.copy(propEvery = v)) }
-                            }
+                        }
+                        val stepped = on && PropPlace.of(tune.propPlace).let { it == PropPlace.Between || it == PropPlace.Scatter }
+                        val stepDim by animateFloatAsState(if (stepped || !on) 1f else 0.45f, Motion.fade(220), label = "step-dim")
+                        Box(Modifier.graphicsLayer { alpha = stepDim }) {
+                            EveryStepper(tune.propEvery, enabled = stepped) { v -> set(tune.copy(propEvery = v)) }
                         }
                     }
                 }
@@ -171,7 +158,7 @@ private fun DrawScope.prop(color: Color) {
 }
 
 @Composable
-private fun PlaceTile(place: PropPlace, selected: Boolean, onClick: () -> Unit) {
+private fun PlaceTile(place: PropPlace, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val shape = appCorner(14)
     val edge by animateColorAsState(if (selected) AppColors.Accent else AppColors.PanelBorder, Motion.fade(200), label = "place-edge")
     val fill by animateColorAsState(if (selected) AppColors.AccentTintStrong else AppColors.Field, Motion.fade(200), label = "place-fill")
@@ -183,7 +170,7 @@ private fun PlaceTile(place: PropPlace, selected: Boolean, onClick: () -> Unit) 
             .clip(shape)
             .background(fill)
             .border(if (selected) 1.5.dp else 1.dp, edge, shape)
-            .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.94f, onClick = onClick)
+            .liveClick(shape, sound = FeedbackSound.Toggle, enabled = enabled, pressedScale = 0.94f, onClick = onClick)
             .padding(vertical = 10.dp, horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -219,7 +206,7 @@ private fun PlaceTile(place: PropPlace, selected: Boolean, onClick: () -> Unit) 
 }
 
 @Composable
-private fun EveryStepper(value: Int, onChange: (Int) -> Unit) {
+private fun EveryStepper(value: Int, enabled: Boolean, onChange: (Int) -> Unit) {
     val shape = appCorner(12)
     Row(
         Modifier
@@ -252,14 +239,14 @@ private fun EveryStepper(value: Int, onChange: (Int) -> Unit) {
             }
         }
         Box(
-            Modifier.size(36.dp).liveClick(shape, sound = FeedbackSound.Tick, enabled = value > 1) { onChange(value - 1) }.border(1.dp, AppColors.PanelBorder, shape),
+            Modifier.size(36.dp).liveClick(shape, sound = FeedbackSound.Tick, enabled = enabled && value > 1) { onChange(value - 1) }.border(1.dp, AppColors.PanelBorder, shape),
             contentAlignment = Alignment.Center,
         ) {
             val tint = if (value > 1) AppColors.Accent else AppColors.Faint
             Canvas(Modifier.size(14.dp)) { drawLine(tint, Offset(0f, size.height / 2), Offset(size.width, size.height / 2), strokeWidth = 2.2f * density) }
         }
         Box(
-            Modifier.size(36.dp).liveClick(shape, sound = FeedbackSound.Tick, enabled = value < 6) { onChange(value + 1) }.border(1.dp, AppColors.PanelBorder, shape),
+            Modifier.size(36.dp).liveClick(shape, sound = FeedbackSound.Tick, enabled = enabled && value < 6) { onChange(value + 1) }.border(1.dp, AppColors.PanelBorder, shape),
             contentAlignment = Alignment.Center,
         ) { Icon(AppIcons.Plus, null, tint = if (value < 6) AppColors.Accent else AppColors.Faint, modifier = Modifier.size(16.dp)) }
     }

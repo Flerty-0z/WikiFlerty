@@ -392,6 +392,13 @@ fun ReaderOverlay(
     onCoachDone: () -> Unit = {},
 ) {
     val progressText = progressText(state, settings)
+    val flagSpace = if (settings.showFlag && state.flagHeight > 0) {
+        with(androidx.compose.ui.platform.LocalDensity.current) { state.flagHeight.toDp() } + 22.dp
+    } else {
+        0.dp
+    }
+    val panelGap = maxOf(PanelGap, flagSpace)
+    val miniGap = maxOf(MiniBottom, flagSpace + 4.dp)
     val feedback = LocalFeedback.current
     val view = LocalView.current
 
@@ -492,7 +499,7 @@ fun ReaderOverlay(
             visible = state.ttsActive && !state.ttsCollapsed && state.sheet == null && !state.panelsVisible,
             enter = fadeIn(Motion.fade(220)) + slideInVertically(Motion.tween(260)) { it / 2 },
             exit = fadeOut(Motion.fade(180)) + slideOutVertically(Motion.tween(220)) { it / 2 },
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = PanelGap),
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = panelGap),
         ) {
             TtsBar(state.ttsPlaying, settings.ttsSpeed, tts, onHide = { state.ttsCollapsed = true })
         }
@@ -500,7 +507,7 @@ fun ReaderOverlay(
             visible = state.ttsActive && state.ttsCollapsed && state.sheet == null && !state.panelsVisible,
             enter = fadeIn(Motion.fade(200)) + slideInHorizontally(Motion.tween(260)) { -it },
             exit = fadeOut(Motion.fade(160)) + slideOutHorizontally(Motion.tween(220)) { -it },
-            modifier = Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = MiniBottom),
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = miniGap),
         ) {
             TtsMini(state.ttsPlaying) { state.ttsCollapsed = false }
         }
@@ -510,7 +517,7 @@ fun ReaderOverlay(
             visible = problem != null && state.sheet == null,
             enter = fadeIn(Motion.fade(220)),
             exit = fadeOut(Motion.fade(160)),
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = PanelGap + 80.dp),
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = panelGap + 80.dp),
         ) {
             val last = remember { arrayOf<com.flerty.wikiflerty.tts.ReadAloud.Problem?>(null) }
             problem?.let { last[0] = it }
@@ -521,7 +528,7 @@ fun ReaderOverlay(
             visible = state.askFinished && state.sheet == null && !state.panelsVisible,
             enter = fadeIn(Motion.fade(260)) + slideInVertically(Motion.tween(300)) { it / 2 },
             exit = fadeOut(Motion.fade(180)),
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = FlagBottom + 44.dp, start = 16.dp, end = 16.dp),
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = maxOf(FlagBottom + 44.dp, flagSpace + 8.dp), start = 16.dp, end = 16.dp),
         ) {
             FinishedPrompt(onMark = onMarkFinished, onDismiss = { state.askFinished = false })
         }
@@ -613,6 +620,7 @@ fun ReaderOverlay(
                     }
                 },
                 onOptions = { state.sheet = ReaderSheet.Options },
+                bottom = panelGap,
             )
         }
 
@@ -736,7 +744,7 @@ fun ReaderOverlay(
         visible = state.autoActive && state.autoCollapsed && state.sheet == null && state.footnote == null && state.selection == null,
         enter = fadeIn(Motion.fade(200)) + slideInHorizontally(Motion.tween(260)) { -it },
         exit = fadeOut(Motion.fade(160)) + slideOutHorizontally(Motion.tween(220)) { -it },
-        modifier = Modifier.align(Alignment.BottomStart).windowInsetsPadding(WindowInsets.systemBars).padding(start = 16.dp, bottom = MiniBottom),
+        modifier = Modifier.align(Alignment.BottomStart).windowInsetsPadding(WindowInsets.systemBars).padding(start = 16.dp, bottom = miniGap),
     ) {
         AutoMini(
             paused = state.autoPaused,
@@ -1432,10 +1440,11 @@ internal fun BottomPanel(
     buttons: List<QuickButton>,
     onButton: (QuickButton) -> Unit,
     onOptions: () -> Unit,
+    bottom: androidx.compose.ui.unit.Dp = PanelGap,
 ) {
     Row(
         modifier = Modifier
-            .padding(start = 12.dp, end = 12.dp, bottom = PanelGap)
+            .padding(start = 12.dp, end = 12.dp, bottom = bottom)
             .widthIn(max = PanelMaxWidth)
             .fillMaxWidth()
             .height(68.dp)

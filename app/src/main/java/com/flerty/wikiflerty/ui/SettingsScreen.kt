@@ -7,6 +7,9 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.draw.blur
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.graphics.luminance
@@ -378,33 +381,42 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
                         val spin = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(-120f) }
                         androidx.compose.runtime.LaunchedEffect(Unit) { spin.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 200f)) }
                         val thumb by rememberKitThumb(kit, AppStyle.light, 124.dp, 176.dp)
-                        val ring = Color(if (AppStyle.light) kit.accentLight else kit.accent)
+                        val frost = androidx.compose.runtime.remember(thumb) {
+                            thumb?.let { image ->
+                                runCatching {
+                                    val src = image.asAndroidBitmap()
+                                    val side = (src.width * 0.5f).toInt().coerceAtLeast(2)
+                                    val crop = android.graphics.Bitmap.createBitmap(src, (src.width - side) / 2, (src.height - side) / 2, side, side)
+                                    val tiny = android.graphics.Bitmap.createScaledBitmap(crop, 7, 7, true)
+                                    android.graphics.Bitmap.createScaledBitmap(tiny, 56, 56, true).asImageBitmap()
+                                }.getOrNull()
+                            }
+                        }
                         Box(
                             Modifier
-                                .size(52.dp)
-                                .clip(CircleShape)
-                                .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.86f) { tuneKit = kit },
+                                .size(62.dp)
+                                .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.86f) { tuneKit = kit }
+                                .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                                .drawWithContent {
+                                    frost?.let { img ->
+                                        drawImage(img, dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt()), filterQuality = androidx.compose.ui.graphics.FilterQuality.High)
+                                    }
+                                    drawRect(Color.Black.copy(alpha = 0.16f))
+                                    drawRect(
+                                        androidx.compose.ui.graphics.Brush.radialGradient(
+                                            0f to Color.Black,
+                                            0.62f to Color.Black,
+                                            1f to Color.Transparent,
+                                            center = center,
+                                            radius = size.minDimension / 2f,
+                                        ),
+                                        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+                                    )
+                                    drawContent()
+                                },
                             contentAlignment = Alignment.Center,
                         ) {
-                            thumb?.let { image ->
-                                androidx.compose.foundation.Image(
-                                    image,
-                                    contentDescription = null,
-                                    contentScale = androidx.compose.ui.layout.ContentScale.None,
-                                    alignment = Alignment.Center,
-                                    modifier = Modifier
-                                        .matchParentSize()
-                                        .graphicsLayer { scaleX = 1.15f; scaleY = 1.15f }
-                                        .then(if (android.os.Build.VERSION.SDK_INT >= 31) Modifier.blur(9.dp) else Modifier),
-                                )
-                            }
-                            Box(
-                                Modifier
-                                    .matchParentSize()
-                                    .background(Color.Black.copy(alpha = if (android.os.Build.VERSION.SDK_INT >= 31) 0.18f else 0.38f))
-                                    .border(1.5.dp, ring.copy(alpha = 0.85f), CircleShape),
-                            )
-                            Icon(AppIcons.Options, "Настроить шаблон", tint = Color.White, modifier = Modifier.size(23.dp).graphicsLayer { rotationZ = spin.value })
+                            Icon(AppIcons.Options, "Настроить шаблон", tint = Color.White, modifier = Modifier.size(24.dp).graphicsLayer { rotationZ = spin.value; shadowElevation = 0f })
                         }
                     }
                 }

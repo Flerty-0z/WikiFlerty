@@ -801,7 +801,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 feedJump(false)
             }
             else -> when {
-                type.startsWith("person:") -> showPerson(type.removePrefix("person:"))
+                type.startsWith("person:") -> {
+                    app.feedback.play(FeedbackSound.Open)
+                    showPerson(type.removePrefix("person:"))
+                }
                 type.startsWith("feed:") -> onFeedPull(type.removePrefix("feed:"))
             }
         }
