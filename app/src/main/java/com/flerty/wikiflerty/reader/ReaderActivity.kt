@@ -47,6 +47,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
@@ -2367,6 +2368,54 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         return image
     }
 
+    private fun shareIllustration(open: IllustrationOpen, strokes: List<com.flerty.wikiflerty.data.InkStroke>) {
+        lifecycleScope.launch {
+            val uri = withContext(Dispatchers.Default) {
+                runCatching {
+                    val bmp = open.image.asAndroidBitmap().copy(Bitmap.Config.ARGB_8888, true)
+                    val canvas = android.graphics.Canvas(bmp)
+                    val w = bmp.width.toFloat()
+                    val h = bmp.height.toFloat()
+                    strokes.forEach { s ->
+                        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                            color = s.color.toInt()
+                            alpha = (255 * 0.9f).toInt()
+                            style = android.graphics.Paint.Style.STROKE
+                            strokeWidth = (s.width * w).coerceAtLeast(1f)
+                            strokeCap = android.graphics.Paint.Cap.ROUND
+                            strokeJoin = android.graphics.Paint.Join.ROUND
+                        }
+                        val p = s.points
+                        if (p.size == 2) {
+                            paint.style = android.graphics.Paint.Style.FILL
+                            canvas.drawCircle(p[0] * w, p[1] * h, paint.strokeWidth / 2f, paint)
+                        } else if (p.size >= 4) {
+                            val path = android.graphics.Path()
+                            path.moveTo(p[0] * w, p[1] * h)
+                            var i = 2
+                            while (i + 2 < p.size) {
+                                path.quadTo(p[i] * w, p[i + 1] * h, (p[i] + p[i + 2]) / 2f * w, (p[i + 1] + p[i + 3]) / 2f * h)
+                                i += 2
+                            }
+                            path.lineTo(p[p.size - 2] * w, p[p.size - 1] * h)
+                            canvas.drawPath(path, paint)
+                        }
+                    }
+                    val dir = java.io.File(cacheDir, "share").apply { mkdirs() }
+                    val file = java.io.File(dir, "illustration.jpg")
+                    file.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 92, it) }
+                    androidx.core.content.FileProvider.getUriForFile(this@ReaderActivity, "$packageName.files", file)
+                }.getOrNull()
+            } ?: return@launch
+            val intent = android.content.Intent(android.content.Intent.ACTION_SEND)
+                .setType("image/jpeg")
+                .putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            intent.clipData = ClipData.newRawUri("illustration", uri)
+            runCatching { startActivity(android.content.Intent.createChooser(intent, "Поделиться")) }
+        }
+    }
+
     private fun openImage(src: String) {
         if (ui.illustration != null) return
         lifecycleScope.launch {
@@ -2375,7 +2424,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             if (ui.selection != null) endSelection()
             ui.hideAll()
             app.feedback.play(FeedbackSound.Open)
-            ui.illustration = IllustrationOpen(href, image, ui.chapter, navigator.currentLocator.value.toJSON().toString(), fromGallery = false)
+            ui.illustration = IllustrationOpen(href, image, ui.chapter, navigator.currentLocator.value.toJSON().toString(), fromGallery = false, title = publication?.metadata?.title)
         }
     }
 
@@ -2396,9 +2445,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         return@launch
                     }
                     app.feedback.play(FeedbackSound.Open)
-                    ui.illustration = IllustrationOpen(item.href, image, item.chapter, item.locatorJson, fromGallery = true)
+                    ui.illustration = IllustrationOpen(item.href, image, item.chapter, item.locatorJson, fromGallery = true, title = publication?.metadata?.title)
                 }
             },
+            onShare = { open, strokes -> shareIllustration(open, strokes) },
             onGoTo = { open ->
                 val locator = open.locatorJson?.let { runCatching { org.readium.r2.shared.publication.Locator.fromJSON(org.json.JSONObject(it)) }.getOrNull() }
                 ui.illustration = null

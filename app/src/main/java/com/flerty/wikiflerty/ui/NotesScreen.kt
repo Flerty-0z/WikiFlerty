@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -56,6 +59,7 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
     var exporting by remember { mutableStateOf(false) }
     var bookFilter by remember { mutableStateOf<String?>(null) }
     var bookSheet by remember { mutableStateOf(false) }
+    var kind by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableIntStateOf(1) }
 
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.flerty.wikiflerty.App
     val synced by app.sync.store.state.collectAsStateWithLifecycle()
@@ -73,6 +77,7 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
     val choices = noteBooks.map { id -> BookChoice(id, titles[id], notes.count { it.bookId == id }) }
     val filtered = notes
         .filter { bookFilter == null || it.bookId == bookFilter }
+        .filter { kind == 1 || (kind == 0) == it.note.isNotBlank() }
         .filter { colorFilter == null || it.color == colorFilter }
         .filter {
             query.isBlank() ||
@@ -105,9 +110,10 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
         return
     }
 
+    Box(modifier) {
     LazyColumn(
-        modifier = modifier,
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 32.dp),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item(key = "search") {
@@ -223,6 +229,9 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
         }
     }
 
+    NotesKindCapsule(kind, Modifier.align(Alignment.BottomCenter).padding(bottom = 40.dp)) { kind = it }
+    }
+
     if (bookSheet) {
         BookPickerSheet(
             title = "Книги",
@@ -281,5 +290,57 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
             onConfirm = { viewModel.deleteNote(note) },
             onDismiss = { toDelete = null },
         )
+    }
+}
+
+
+@Composable
+private fun NotesKindCapsule(kind: Int, modifier: Modifier, onKind: (Int) -> Unit) {
+    val items = listOf(Triple(AppIcons.Note, "Заметки", 0), Triple(AppIcons.ListView, "Все", 1), Triple(AppIcons.Ink, "Отметки", 2))
+    val shape = appCorner(22)
+    Box(modifier) {
+    Row(
+        Modifier
+            .panelSurface(shape, elevation = 12.dp)
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        items.forEach { (icon, label, id) ->
+            val on = id == kind
+            val bg by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent.copy(alpha = 0.22f) else Color.Transparent, Motion.tween(240), label = "kind-bg")
+            val tint by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent else AppColors.Muted, Motion.tween(240), label = "kind-tint")
+            Box(
+                Modifier
+                    .size(width = 46.dp, height = 40.dp)
+                    .clip(appCorner(18))
+                    .background(bg)
+                    .liveClick(appCorner(18), sound = FeedbackSound.Toggle, pressedScale = 0.88f) { if (!on) onKind(id) }
+                    .semantics { contentDescription = label },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
+            }
+        }
+    }
+        val step = 50.dp
+        val shift by androidx.compose.animation.core.animateDpAsState(step * (kind - 1), Motion.tween(300), label = "kind-shift")
+        androidx.compose.animation.AnimatedContent(
+            items[kind].second,
+            transitionSpec = {
+                (androidx.compose.animation.fadeIn(Motion.fade(200)) + androidx.compose.animation.slideInVertically(Motion.tween(260)) { it / 2 }) togetherWith
+                    androidx.compose.animation.fadeOut(Motion.fade(120)) using androidx.compose.animation.SizeTransform(clip = false)
+            },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(x = shift, y = (-34).dp),
+            label = "kind-label",
+        ) { label ->
+            Box(
+                Modifier
+                    .clip(appCorner(10))
+                    .background(AppColors.Accent)
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            ) { Text(label, color = AppColors.OnAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
+        }
     }
 }

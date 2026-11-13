@@ -67,6 +67,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.SizeTransform
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -94,6 +100,7 @@ class IllustrationOpen(
     val chapter: String?,
     val locatorJson: String?,
     val fromGallery: Boolean,
+    val title: String? = null,
 )
 
 class IllustrationActions(
@@ -102,9 +109,10 @@ class IllustrationActions(
     val onStrokes: (IllustrationOpen, List<InkStroke>) -> Unit,
     val onOpen: (Illustration) -> Unit,
     val onGoTo: (IllustrationOpen) -> Unit,
+    val onShare: (IllustrationOpen, List<InkStroke>) -> Unit = { _, _ -> },
 )
 
-private val InkWidths = listOf(0.005f, 0.011f, 0.022f)
+private fun inkWidth(k: Float): Float = 0.003f + 0.027f * k * k
 
 private class Fit(val left: Float, val top: Float, val width: Float, val height: Float)
 
@@ -163,7 +171,7 @@ fun IllustrationViewer(
     val live = remember { mutableStateListOf<Float>() }
     var drawing by remember { mutableStateOf(false) }
     var color by remember { mutableLongStateOf(palette.firstOrNull() ?: 0xFFEF6B6BL) }
-    var level by remember { mutableIntStateOf(1) }
+    var thick by remember { mutableFloatStateOf(0.45f) }
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     val drop = remember { Animatable(0f) }
@@ -269,7 +277,7 @@ fun IllustrationViewer(
                             }
                         }
                         if (drawing && !multi && pts.size >= 2) {
-                            strokes.add(InkStroke(color, InkWidths[level] / scale, pts.toFloatArray()))
+                            strokes.add(InkStroke(color, inkWidth(thick) / scale, pts.toFloatArray()))
                             commit()
                         }
                         live.clear()
@@ -303,92 +311,118 @@ fun IllustrationViewer(
                     },
             ) {
                 Image(open.image, null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
-                InkLayer(strokes, live, color, InkWidths[level] / scale, iw, ih, Modifier.fillMaxSize())
+                InkLayer(strokes, live, color, inkWidth(thick) / scale, iw, ih, Modifier.fillMaxSize())
             }
         }
 
-        Row(
+        val shade = Color.Black.copy(alpha = 0.75f)
+        Box(
             Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
+                .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(shade, Color.Transparent)))
                 .windowInsetsPadding(WindowInsets.systemBars)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 28.dp),
         ) {
-            ViewerButton(AppIcons.Close, "Закрыть", false, FeedbackSound.Close) { onClose() }
-            Box(Modifier.weight(1f))
-            val beat = remember { Animatable(1f) }
-            LaunchedEffect(favorite) {
-                if (favorite) {
-                    beat.snapTo(0.7f)
-                    beat.animateTo(1f, spring(dampingRatio = 0.35f, stiffness = 600f))
+            androidx.compose.animation.AnimatedContent(
+                drawing,
+                transitionSpec = { fadeIn(Motion.fade(220)) togetherWith fadeOut(Motion.fade(140)) },
+                label = "viewer-top",
+            ) { draw ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (draw) {
+                        ViewerButton(AppIcons.Trash, "Стереть всё", false, FeedbackSound.Close, enabled = strokes.isNotEmpty()) {
+                            strokes.clear()
+                            commit()
+                        }
+                        Text("Рисование", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 1)
+                        ViewerButton(AppIcons.Undo, "Отменить", false, FeedbackSound.Tap, enabled = strokes.isNotEmpty()) {
+                            if (strokes.isNotEmpty()) {
+                                strokes.removeAt(strokes.lastIndex)
+                                commit()
+                            }
+                        }
+                        ViewerButton(AppIcons.Check, "Готово", true, FeedbackSound.Toggle, filled = true) { drawing = false }
+                    } else {
+                        ViewerButton(AppIcons.Close, "Закрыть", false, FeedbackSound.Close) { onClose() }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(open.chapter ?: "Иллюстрация", color = Color.White, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            open.title?.let { Text(it, color = Color.White.copy(alpha = 0.6f), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                        }
+                    }
                 }
             }
-            ViewerButton(
-                if (favorite) AppIcons.HeartFilled else AppIcons.Heart,
-                if (favorite) "Убрать из избранного" else "В избранное",
-                favorite,
-                FeedbackSound.Toggle,
-                iconModifier = Modifier.graphicsLayer { scaleX = beat.value; scaleY = beat.value },
-            ) { actions.onFavorite(open, !favorite) }
-            ViewerButton(AppIcons.Pencil, "Рисовать", drawing, FeedbackSound.Toggle) { drawing = !drawing }
         }
 
-        Column(
+        Box(
             Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.systemBars)
-                .padding(start = 12.dp, end = 12.dp, bottom = 14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .padding(start = 12.dp, end = 12.dp, bottom = 16.dp),
+            contentAlignment = Alignment.BottomCenter,
         ) {
-            AnimatedVisibility(
-                visible = drawing,
-                enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(280)) { it / 2 },
-                exit = fadeOut(Motion.fade(160)) + slideOutVertically(Motion.tween(220)) { it / 2 },
-            ) {
-                InkTools(
-                    palette = palette,
-                    color = color,
-                    level = level,
-                    canUndo = strokes.isNotEmpty(),
-                    onColor = { color = it },
-                    onLevel = { level = it },
-                    onUndo = {
-                        if (strokes.isNotEmpty()) {
-                            strokes.removeAt(strokes.lastIndex)
-                            commit()
+            androidx.compose.animation.AnimatedContent(
+                drawing,
+                transitionSpec = {
+                    (fadeIn(Motion.fade(220)) + slideInVertically(Motion.tween(300)) { it / 2 }) togetherWith
+                        (fadeOut(Motion.fade(140)) + slideOutVertically(Motion.tween(220)) { it / 2 }) using
+                        androidx.compose.animation.SizeTransform(clip = false)
+                },
+                contentAlignment = Alignment.BottomCenter,
+                label = "viewer-bottom",
+            ) { draw ->
+                if (draw) {
+                    InkTools(palette, color, thick, onColor = { color = it }, onThick = { thick = it })
+                } else {
+                    val beat = remember { Animatable(1f) }
+                    LaunchedEffect(favorite) {
+                        if (favorite) {
+                            beat.snapTo(0.7f)
+                            beat.animateTo(1f, spring(dampingRatio = 0.35f, stiffness = 600f))
                         }
-                    },
-                    onClear = {
-                        if (strokes.isNotEmpty()) {
-                            strokes.clear()
-                            commit()
+                    }
+                    Row(
+                        Modifier
+                            .panelSurface(appCorner(24), elevation = 12.dp)
+                            .padding(5.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        DockButton(
+                            if (favorite) AppIcons.HeartFilled else AppIcons.Heart,
+                            if (favorite) "Убрать из избранного" else "В избранное",
+                            favorite,
+                            iconModifier = Modifier.graphicsLayer { scaleX = beat.value; scaleY = beat.value },
+                        ) { actions.onFavorite(open, !favorite) }
+                        DockButton(AppIcons.Pencil, "Рисовать", false) { drawing = true }
+                        DockButton(AppIcons.Fullscreen, "Масштаб", scale > 1.1f) {
+                            feedback?.play(FeedbackSound.Tick)
+                            zoomTo(if (scale > 1.1f) 1f else 2.6f, center)
                         }
-                    },
-                )
-            }
-            AnimatedVisibility(
-                visible = !drawing && open.fromGallery && open.locatorJson != null,
-                enter = fadeIn(Motion.fade(200)),
-                exit = fadeOut(Motion.fade(160)),
-            ) {
-                Row(
-                    Modifier
-                        .height(46.dp)
-                        .panelSurface(appCorner(23), elevation = 10.dp)
-                        .liveClick(appCorner(23), sound = FeedbackSound.Open) { actions.onGoTo(open) }
-                        .padding(horizontal = 18.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Icon(AppIcons.Book, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
-                    Text("К месту в книге", color = AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        DockButton(AppIcons.Share, "Поделиться", false) { actions.onShare(open, strokes.toList()) }
+                        if (open.fromGallery && open.locatorJson != null) {
+                            DockButton(AppIcons.Book, "К месту в книге", false) { actions.onGoTo(open) }
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun DockButton(icon: ImageVector, description: String, active: Boolean, iconModifier: Modifier = Modifier, onClick: () -> Unit) {
+    val bg by androidx.compose.animation.animateColorAsState(if (active) AppColors.Accent.copy(alpha = 0.2f) else Color.Transparent, Motion.tween(220), label = "dock-bg")
+    val tint by androidx.compose.animation.animateColorAsState(if (active) AppColors.Accent else AppColors.Text, Motion.tween(220), label = "dock-tint")
+    Box(
+        Modifier
+            .size(width = 52.dp, height = 46.dp)
+            .clip(appCorner(18))
+            .background(bg)
+            .liveClick(appCorner(18), sound = FeedbackSound.Toggle, pressedScale = 0.86f, onClick = onClick)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, null, tint = tint, modifier = iconModifier.size(21.dp)) }
 }
 
 @Composable
@@ -397,21 +431,22 @@ private fun ViewerButton(
     description: String,
     active: Boolean,
     sound: FeedbackSound,
-    iconModifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    filled: Boolean = false,
     onClick: () -> Unit,
 ) {
-    val on by animateFloatAsState(if (active) 1f else 0f, Motion.tween(220), label = "viewer-btn")
+    val alpha by animateFloatAsState(if (enabled) 1f else 0.4f, Motion.tween(200), label = "viewer-btn")
     Box(
         Modifier
-            .size(44.dp)
+            .size(42.dp)
+            .graphicsLayer { this.alpha = alpha }
             .clip(CircleShape)
-            .background(Color.Black.copy(alpha = 0.45f))
-            .background(AppColors.Accent.copy(alpha = 0.22f * on))
-            .border(1.dp, if (active) AppColors.Accent.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.16f), CircleShape)
-            .liveClick(CircleShape, sound = sound, pressedScale = 0.88f, onClick = onClick),
+            .background(if (filled) AppColors.Accent else Color.White.copy(alpha = 0.12f))
+            .liveClick(CircleShape, sound = sound, pressedScale = 0.88f, enabled = enabled, onClick = onClick)
+            .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, description, tint = if (active) AppColors.Accent else Color.White, modifier = iconModifier.size(20.dp))
+        Icon(icon, null, tint = if (filled) AppColors.OnAccent else Color.White, modifier = Modifier.size(19.dp))
     }
 }
 
@@ -419,16 +454,13 @@ private fun ViewerButton(
 private fun InkTools(
     palette: List<Long>,
     color: Long,
-    level: Int,
-    canUndo: Boolean,
+    thick: Float,
     onColor: (Long) -> Unit,
-    onLevel: (Int) -> Unit,
-    onUndo: () -> Unit,
-    onClear: () -> Unit,
+    onThick: (Float) -> Unit,
 ) {
     Column(
-        Modifier.fillMaxWidth().panelSurface(appCorner(22), elevation = 12.dp).padding(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        Modifier.fillMaxWidth().panelSurface(appCorner(22), elevation = 12.dp).padding(vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 10.dp),
@@ -439,7 +471,7 @@ private fun InkTools(
                 val on by animateFloatAsState(if (c == color) 1f else 0f, Motion.tween(200), label = "ink-color")
                 Box(
                     Modifier
-                        .size(36.dp)
+                        .size(38.dp)
                         .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.86f) { onColor(c) }
                         .border((2f * on).dp, AppColors.Text.copy(alpha = on), CircleShape)
                         .padding(5.dp)
@@ -450,28 +482,49 @@ private fun InkTools(
             }
         }
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 10.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            InkWidths.indices.forEach { i ->
-                val on = i == level
-                Box(
-                    Modifier
-                        .size(40.dp)
-                        .clip(appCorner(12))
-                        .background(if (on) AppColors.AccentSoft else Color.Transparent)
-                        .liveClick(appCorner(12), sound = FeedbackSound.Toggle, pressedScale = 0.88f) { onLevel(i) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Box(Modifier.size((5 + i * 5).dp).clip(CircleShape).background(if (on) AppColors.Accent else AppColors.Muted))
-                }
-            }
-            Box(Modifier.weight(1f))
-            ToolIcon(AppIcons.Undo, "Отменить", canUndo, onUndo)
-            ToolIcon(AppIcons.Trash, "Стереть всё", canUndo, onClear)
+            Box(Modifier.size(6.dp).clip(CircleShape).background(AppColors.Muted))
+            ThickSlider(thick, Color(color), onThick, Modifier.weight(1f))
+            Box(Modifier.size(16.dp).clip(CircleShape).background(AppColors.Muted))
         }
     }
+}
+
+@Composable
+private fun ThickSlider(value: Float, color: Color, onChange: (Float) -> Unit, modifier: Modifier) {
+    val track = AppColors.Line
+    val accent = AppColors.Accent
+    var width by remember { mutableFloatStateOf(1f) }
+    Box(
+        modifier
+            .height(32.dp)
+            .onSizeChanged { width = it.width.toFloat().coerceAtLeast(1f) }
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    onChange((down.position.x / width).coerceIn(0f, 1f))
+                    while (true) {
+                        val e = awaitPointerEvent()
+                        val c = e.changes.firstOrNull() ?: break
+                        if (!c.pressed) break
+                        onChange((c.position.x / width).coerceIn(0f, 1f))
+                        c.consume()
+                    }
+                }
+            }
+            .drawBehind {
+                val y = size.height / 2f
+                val h = 4.dp.toPx()
+                drawRoundRect(track, Offset(0f, y - h / 2f), androidx.compose.ui.geometry.Size(size.width, h), androidx.compose.ui.geometry.CornerRadius(h / 2f))
+                drawRoundRect(accent, Offset(0f, y - h / 2f), androidx.compose.ui.geometry.Size(size.width * value, h), androidx.compose.ui.geometry.CornerRadius(h / 2f))
+                val r = 5.dp.toPx() + 6.dp.toPx() * value
+                drawCircle(Color.White, r + 2.dp.toPx(), Offset(size.width * value, y))
+                drawCircle(color, r, Offset(size.width * value, y))
+            },
+    )
 }
 
 @Composable
