@@ -779,6 +779,7 @@ fun actionIcon(label: String): ImageVector? {
         starts("выбрать", "картинк") -> AppIcons.Image
         starts("qr") -> AppIcons.Qr
         starts("показать") -> AppIcons.Eye
+        starts("отметь") -> AppIcons.Hash
         starts("открыть", "к словарю", "читать") -> AppIcons.Book
         starts("назад") -> AppIcons.Back
         starts("далее", "дальше") -> AppIcons.Forward

@@ -496,7 +496,13 @@ fun BookcaseView(
 
 private object ShelfSeenStore {
     private val sets = HashMap<String, MutableSet<Any>>()
-    fun of(key: String): MutableSet<Any> = sets.getOrPut(key) { java.util.Collections.synchronizedSet(HashSet()) }
+    private var last: String? = null
+    fun of(key: String): MutableSet<Any> {
+        val set = sets.getOrPut(key) { java.util.Collections.synchronizedSet(HashSet()) }
+        if (last != null && last != key) set.clear()
+        last = key
+        return set
+    }
 }
 
 private class ShelfDrag {

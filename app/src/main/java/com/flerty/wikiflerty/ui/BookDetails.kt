@@ -642,6 +642,8 @@ fun SeriesSheet(name: String, currentId: String?, onOpenBook: ((Book) -> Unit)?,
         if (numbers.size < 2) emptyList() else (1..numbers.max()).filter { it !in numbers }
     }
     val done = items.count { it.first.status == ReadStatus.Finished }
+    val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
+    val pinned = prefs.seriesShelves.any { it.equals(name, true) }
     AppSheet(onDismiss, title = "Серия") {
         val close = sheetClose(onDismiss)
         Column(Modifier.fillMaxWidth().sheetReveal().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -651,6 +653,13 @@ fun SeriesSheet(name: String, currentId: String?, onOpenBook: ((Book) -> Unit)?,
                 val part by androidx.compose.animation.core.animateFloatAsState(if (items.isEmpty()) 0f else done.toFloat() / items.size, Motion.tween(600), label = "series-part")
                 Box(Modifier.weight(1f).height(4.dp).clip(appCorner(2)).background(AppColors.Line)) {
                     Box(Modifier.fillMaxWidth(part).height(4.dp).background(if (done == items.size && items.isNotEmpty()) AppColors.Good else AppColors.Accent))
+                }
+            }
+        }
+        SettingsGroup(null) {
+            SettingSwitch("Полка в шкафу", pinned, hint = null, icon = AppIcons.Shelf) { v ->
+                app.libraryPrefs.update { p ->
+                    p.copy(seriesShelves = if (v) (p.seriesShelves + name).distinctBy { it.lowercase() } else p.seriesShelves.filterNot { it.equals(name, true) })
                 }
             }
         }

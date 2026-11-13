@@ -246,6 +246,7 @@ fun LibraryScreen(
     var showRandom by remember { mutableStateOf(false) }
     var showTags by remember { mutableStateOf(false) }
     var showSeries by remember { mutableStateOf(false) }
+    var seriesPlank by remember { mutableStateOf<String?>(null) }
     var manageTags by remember { mutableStateOf(false) }
     val tagTotal = remember(books) { books.flatMap { b -> b.tags.map { it.removePrefix(SpoilerMark).lowercase() } }.distinct().size }
     val seriesTotal = remember(books) { books.flatMap { b -> b.series.map { it.name.trim().lowercase() } }.filter { it.isNotEmpty() }.distinct().size }
@@ -307,12 +308,17 @@ fun LibraryScreen(
         ) { layout ->
             val lgrid = layout.view == LibraryView.Grid
                 if (layout.view == LibraryView.Shelves) {
-                val planks = remember(books, shelves, active, q, shown, prefs.tagShelves) { if (active.id == "all" && q.isEmpty()) {
+                val planks = remember(books, shelves, active, q, shown, prefs.tagShelves, prefs.seriesShelves) { if (active.id == "all" && q.isEmpty()) {
                     val named = shelves.map { name ->
                         PlankSpec("shelf:$name", name, books.filter { name in it.shelves }, { controls.shelfDialog = ShelfDialog.Edit(name) }, { controls.shelfDialog = ShelfDialog.Edit(name) }, wrap = false)
                     } + prefs.tagShelves.distinctBy { it.lowercase() }.mapNotNull { tag ->
                         val tagged = books.filter { it.hasTag(tag) }
                         if (tagged.isEmpty()) null else PlankSpec(TagFilterPrefix + tag, "#$tag", tagged, null, { manageTags = true }, wrap = false)
+                    } + prefs.seriesShelves.distinctBy { it.lowercase() }.mapNotNull { name ->
+                        val parts = books.mapNotNull { b -> b.series.firstOrNull { it.name.equals(name, true) }?.let { b to (it.number ?: Double.MAX_VALUE) } }
+                            .sortedWith(compareBy<Pair<Book, Double>> { it.second }.thenBy { it.first.title })
+                            .map { it.first }
+                        if (parts.isEmpty()) null else PlankSpec("series:$name", name, parts, null, { seriesPlank = name }, wrap = false)
                     }
                     val rest = books.filter { b -> b.shelves.none { it in shelves } }
                     named + if (rest.isNotEmpty() || named.isEmpty()) listOf(PlankSpec("rest", if (named.isEmpty()) null else "Без полки", rest, { addBook() }, null, wrap = named.isEmpty())) else emptyList()
@@ -328,8 +334,9 @@ fun LibraryScreen(
                     live = prefs.liveShelf,
                     behave = prefs.shelfBehavior,
                     stacks = active.id != ReadStatus.Finished.id,
-                    onMove = if (active.id == "all" && q.isEmpty() && (shelves.isNotEmpty() || prefs.tagShelves.isNotEmpty())) { book, from, to ->
-                        if (to.startsWith(TagFilterPrefix)) {
+                    onMove = if (active.id == "all" && q.isEmpty() && (shelves.isNotEmpty() || prefs.tagShelves.isNotEmpty() || prefs.seriesShelves.isNotEmpty())) { book, from, to ->
+                        if (to.startsWith("series:")) {
+                        } else if (to.startsWith(TagFilterPrefix)) {
                             app.appScope.launch { app.library.addTag(book.id, to.removePrefix(TagFilterPrefix)) }
                         } else {
                             val src = from.removePrefix("shelf:").takeIf { from.startsWith("shelf:") }
@@ -410,6 +417,7 @@ fun LibraryScreen(
             )
         }
         if (showSeries) SeriesListSheet(onOpenBook = { menuBookId = it.id }) { showSeries = false }
+        seriesPlank?.let { name -> SeriesSheet(name, null, { menuBookId = it.id }) { seriesPlank = null } }
     }
     LaunchedEffect(showFilterSheet) {
         if (!showFilterSheet) {
