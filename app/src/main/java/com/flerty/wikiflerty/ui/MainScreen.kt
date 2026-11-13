@@ -219,7 +219,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 },
                 bottomBar = {
                     if (bottomNav) {
-                        BottomNav(section, addMenu, onSelect = { section = it }, onAdd = { addMenu = !addMenu })
+                        BottomNav(section, false, onSelect = { section = it }, onAdd = { addMenu = true })
                     }
                 },
                 floatingActionButton = {
@@ -263,9 +263,8 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 }
                 }
             }
-            AddFan(
-                open = addMenu,
-                onClose = { addMenu = false },
+            if (addMenu) AddBookSheet(
+                onDismiss = { addMenu = false },
                 onFile = { pickBook.launch(arrayOf("*/*")) },
                 onScan = {
                     section = Section.Library
@@ -705,46 +704,92 @@ private fun BottomItem(item: Section, label: String, current: Section, onSelect:
 private fun AddBookSheet(onDismiss: () -> Unit, onFile: () -> Unit, onScan: () -> Unit, onPaper: () -> Unit) {
     AppSheet(onDismiss = onDismiss, title = "Добавить книгу") {
         val close = sheetClose(onDismiss)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            AddChoice(AppIcons.Book, "Файл", Modifier.weight(1f)) {
-                close()
-                onFile()
-            }
-            AddChoice(AppIcons.FolderSearch, "Скан", Modifier.weight(1f)) {
-                close()
-                onScan()
-            }
-            AddChoice(AppIcons.Pages, "Бумажная", Modifier.weight(1f)) {
-                close()
-                onPaper()
-            }
-        }
-    }
-}
-
-@Composable
-private fun AddChoice(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, modifier: Modifier, onClick: () -> Unit) {
-    val shape = appCorner(20)
-    Column(
-        modifier
-            .height(112.dp)
-            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.95f, onClick = onClick)
-            .fieldSurface(shape)
-            .padding(12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
-    ) {
-        Box(Modifier.size(46.dp).clip(CircleShape).background(AppColors.AccentSoft), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(24.dp))
-        }
-        Text(
-            title,
-            color = AppColors.Text,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            softWrap = false,
-            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 14.sp, stepSize = 0.5.sp),
+        val scope = rememberCoroutineScope()
+        var picked by remember { mutableStateOf(-1) }
+        data class Spine(val icon: androidx.compose.ui.graphics.vector.ImageVector, val title: String, val from: Long, val to: Long, val height: Int, val tilt: Float, val action: () -> Unit)
+        val spines = listOf(
+            Spine(AppIcons.Book, "Файл", 0xFF6E8EFF, 0xFF4C63D9, 168, -3f, onFile),
+            Spine(AppIcons.FolderSearch, "Скан", 0xFF5EEAD4, 0xFF1FA392, 146, 0f, onScan),
+            Spine(AppIcons.Pages, "Бумажная", 0xFFF49AC1, 0xFFD45A93, 156, 4f, onPaper),
         )
+        Column(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(
+                Modifier.fillMaxWidth().height(188.dp).padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                spines.forEachIndexed { i, sp ->
+                    val rise = remember { androidx.compose.animation.core.Animatable(0f) }
+                    LaunchedEffect(Unit) {
+                        kotlinx.coroutines.delay(Motion.ms(60 + i * 70).toLong())
+                        rise.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.62f, stiffness = 380f))
+                    }
+                    val lift by androidx.compose.animation.core.animateFloatAsState(
+                        if (picked == i) 1f else 0f,
+                        androidx.compose.animation.core.spring(dampingRatio = 0.55f, stiffness = 420f),
+                        label = "spine-lift",
+                    )
+                    val dim by androidx.compose.animation.core.animateFloatAsState(if (picked >= 0 && picked != i) 0.45f else 1f, Motion.tween(200), label = "spine-dim")
+                    val shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .widthIn(max = 104.dp)
+                            .height(sp.height.dp)
+                            .graphicsLayer {
+                                val r = rise.value
+                                translationY = (1f - r) * 60.dp.toPx() - lift * 26.dp.toPx()
+                                alpha = r.coerceIn(0f, 1f) * dim
+                                rotationZ = sp.tilt * (1f - lift)
+                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+                            }
+                            .shadow(10.dp, shape, ambientColor = Color(sp.to), spotColor = Color(sp.to))
+                            .clip(shape)
+                            .background(Brush.horizontalGradient(listOf(Color(sp.to), Color(sp.from), Color(sp.from), Color(sp.to))))
+                            .border(1.dp, Color.White.copy(alpha = 0.16f), shape)
+                            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.96f) {
+                                if (picked >= 0) return@liveClick
+                                picked = i
+                                scope.launch {
+                                    kotlinx.coroutines.delay(Motion.ms(220).toLong())
+                                    close()
+                                    sp.action()
+                                }
+                            }
+                            .padding(vertical = 14.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Box(Modifier.width(44.dp).height(2.dp).clip(appCorner(1)).background(Color.White.copy(alpha = 0.45f)))
+                        Icon(sp.icon, null, tint = Color.White, modifier = Modifier.size(28.dp))
+                        Text(
+                            sp.title,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false,
+                            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 14.sp, stepSize = 0.5.sp),
+                            modifier = Modifier.padding(horizontal = 6.dp),
+                        )
+                        Box(Modifier.width(44.dp).height(2.dp).clip(appCorner(1)).background(Color.White.copy(alpha = 0.45f)))
+                    }
+                }
+            }
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(10.dp)
+                    .clip(appCorner(3))
+                    .background(Brush.verticalGradient(listOf(AppColors.PanelBorder, AppColors.Panel))),
+            )
+            Text(
+                "EPUB · FB2 · TXT · PDF",
+                color = AppColors.Faint,
+                fontSize = 11.sp,
+                letterSpacing = 1.sp,
+                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+            )
+        }
     }
 }
 
