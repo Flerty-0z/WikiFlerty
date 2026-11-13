@@ -357,6 +357,8 @@ fun BookcaseView(
         val zone = with(density) { 44.dp.toPx() }
         val bottomInset = with(density) { 92.dp.toPx() }
         val maxSpeed = with(density) { 0.42.dp.toPx() }
+        val sideZone = with(density) { 48.dp.toPx() }
+        val sideMax = with(density) { 0.55.dp.toPx() }
         androidx.compose.runtime.LaunchedEffect(drag, listState) {
             while (true) {
                 androidx.compose.runtime.snapshotFlow { drag.phase }.first { it == 1 }
@@ -365,6 +367,11 @@ fun BookcaseView(
                 var since = 0L
                 var lastDir = 0
                 var last = 0L
+                var sideKey: String? = null
+                var sideArmed = false
+                var sideSpeed = 0f
+                var sideSince = 0L
+                var sideDir = 0
                 val delay = if (drag.prop != null) 420L else 280L
                 while (drag.phase == 1) {
                     val now = androidx.compose.runtime.withFrameMillis { it }
@@ -396,7 +403,34 @@ fun BookcaseView(
                     speed += (goal - speed) * (1f - kotlin.math.exp(-dt / 110f))
                     val step = speed * dt
                     val moved = if (kotlin.math.abs(step) > 0.2f) listState.dispatchRawDelta(step) else 0f
-                    drag.autoscroll = kotlin.math.abs(moved) > 0.1f
+                    var sideMoved = 0f
+                    val side = if (drag.prop != null) drag.sideScrolls.entries.firstOrNull { (_, v) -> p.y >= v.second.top && p.y <= v.second.bottom } else null
+                    if (side?.key != sideKey) {
+                        sideKey = side?.key
+                        sideArmed = false
+                        sideSpeed = 0f
+                        sideDir = 0
+                    }
+                    if (side != null) {
+                        val box = side.value.second
+                        val sideWant = when {
+                            p.x < box.left + sideZone -> -((box.left + sideZone - p.x) / sideZone).coerceIn(0.15f, 1f)
+                            p.x > box.right - sideZone -> ((p.x - (box.right - sideZone)) / sideZone).coerceIn(0.15f, 1f)
+                            else -> 0f
+                        }
+                        val d = kotlin.math.sign(sideWant).toInt()
+                        if (d == 0) sideArmed = true
+                        if (d != sideDir) {
+                            sideSince = now
+                            sideDir = d
+                        }
+                        val sideRamp = ((now - sideSince - 260L).coerceAtLeast(0L) / 500f).coerceAtMost(1f)
+                        val sideGoal = if (sideArmed && d != 0) sideWant * kotlin.math.abs(sideWant) * sideMax * sideRamp else 0f
+                        sideSpeed += (sideGoal - sideSpeed) * (1f - kotlin.math.exp(-dt / 110f))
+                        val sideStep = sideSpeed * dt
+                        sideMoved = if (kotlin.math.abs(sideStep) > 0.2f) side.value.first.dispatchRawDelta(sideStep) else 0f
+                    }
+                    drag.autoscroll = kotlin.math.abs(moved) > 0.1f || kotlin.math.abs(sideMoved) > 0.1f
                 }
                 drag.autoscroll = false
             }
@@ -486,6 +520,7 @@ private class ShelfDrag {
     val slots = HashMap<String, Pair<String, androidx.compose.ui.geometry.Rect>>()
     val owners = HashMap<String, Any>()
     var autoscroll = false
+    val sideScrolls = HashMap<String, Pair<androidx.compose.foundation.gestures.ScrollableState, androidx.compose.ui.geometry.Rect>>()
     var appliedAt = 0L
     var slotAt: () -> Pair<String, Int>? = { null }
     var applySlot: (Pair<String, Int>) -> Boolean = { false }
@@ -994,12 +1029,16 @@ private fun Shelf(row: PlankRow, index: Int, onBook: (Book) -> Unit) {
                 is ShelfUnit.Prop -> ShelfProp(AppStyle.kit.decor, unit.index, Modifier.dropIn(index, i, unit.key).propDraggable(unit, plank))
             }
         }
+        val sideKey = row.key
+        if (drag != null && row.scroll) androidx.compose.runtime.DisposableEffect(sideKey) { onDispose { drag.sideScrolls.remove(sideKey) } }
         if (row.scroll && row.units.size <= 80) {
+            val rowScroll = androidx.compose.foundation.rememberScrollState()
             Row(
                 Modifier
                     .fillMaxWidth()
                     .height(BookWidth * 1.5f + 14.dp)
-                    .horizontalScroll(androidx.compose.foundation.rememberScrollState())
+                    .onGloballyPositioned { c -> if (drag != null) drag.sideScrolls[sideKey] = rowScroll to c.boundsInWindow() }
+                    .horizontalScroll(rowScroll)
                     .padding(horizontal = 22.dp),
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
                 verticalAlignment = Alignment.Bottom,
@@ -1009,8 +1048,13 @@ private fun Shelf(row: PlankRow, index: Int, onBook: (Book) -> Unit) {
                 }
             }
         } else if (row.scroll) {
+            val rowList = rememberLazyListState()
             LazyRow(
-                modifier = Modifier.fillMaxWidth().height(BookWidth * 1.5f + 14.dp),
+                state = rowList,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(BookWidth * 1.5f + 14.dp)
+                    .onGloballyPositioned { c -> if (drag != null) drag.sideScrolls[sideKey] = rowList to c.boundsInWindow() },
                 contentPadding = PaddingValues(horizontal = 22.dp),
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
                 verticalAlignment = Alignment.Bottom,
