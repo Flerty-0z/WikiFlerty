@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -241,36 +242,93 @@ private fun TagRow(tag: TagCount, pinned: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
+private fun TagTile(tag: TagCount, bookIds: List<String>, pinned: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val shape = appCorner(16)
+    Column(
+        modifier
+            .height(112.dp)
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onClick = onClick)
+            .fieldSurface(shape, selected = pinned)
+            .padding(10.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            Box(Modifier.height(42.dp).weight(1f)) {
+                bookIds.asReversed().forEachIndexed { r, id ->
+                    val i = bookIds.size - 1 - r
+                    BookCover(id, 28.dp, Modifier.offset(x = (14 * i).dp))
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (pinned) Icon(AppIcons.Shelf, null, tint = AppColors.Accent, modifier = Modifier.size(13.dp))
+                Text("${tag.count}", color = AppColors.Faint, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            }
+        }
+        Text("#" + tag.name, color = AppColors.Text, fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun TagActionTile(icon: ImageVector, label: String, tint: androidx.compose.ui.graphics.Color, active: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val shape = appCorner(16)
+    val edge by animateColorAsState(if (active) AppColors.Accent.copy(alpha = 0.6f) else AppColors.PanelBorder, Motion.fade(220), label = "tag-edge")
+    val color by animateColorAsState(tint, Motion.fade(220), label = "tag-tint")
+    Column(
+        modifier
+            .height(84.dp)
+            .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.95f, onClick = onClick)
+            .fieldSurface(shape)
+            .border(1.dp, edge, shape),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+    ) {
+        Icon(icon, null, tint = color, modifier = Modifier.size(22.dp))
+        Text(label, color = color, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+    }
+}
+
+@Composable
 private fun TagActionsSheet(name: String, count: Int, onDismiss: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
     val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
     val pinned = prefs.tagShelves.any { it.equals(name, true) }
     var rename by remember { mutableStateOf(false) }
     var delete by remember { mutableStateOf(false) }
+    val books by app.library.books.collectAsStateWithLifecycle()
+    val tagged = remember(books, name) { books.filter { it.hasTag(name) }.sortedByDescending { it.lastReadAt ?: it.addedAt }.take(3) }
     AppSheet(onDismiss, title = "Тег") {
-        val close = sheetClose(onDismiss)
-        Row(
-            Modifier.fillMaxWidth().sheetReveal().fieldSurface(appCorner(16)).padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Box(Modifier.size(38.dp).clip(appCorner(12)).background(AppColors.AccentSoft), contentAlignment = Alignment.Center) {
-                Icon(AppIcons.Hash, null, tint = AppColors.Accent, modifier = Modifier.size(19.dp))
-            }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("#$name", color = AppColors.Text, fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text("$count ${booksWord(count)}", color = AppColors.Muted, fontSize = 12.5.sp, maxLines = 1)
-            }
-        }
-        SettingsGroup(null) {
-            SettingSwitch("Полка в шкафу", pinned, hint = null, icon = AppIcons.Shelf) { v ->
-                app.libraryPrefs.update { p ->
-                    p.copy(tagShelves = if (v) (p.tagShelves + name).distinctBy { it.lowercase() } else p.tagShelves.filterNot { it.equals(name, true) })
+        Column(Modifier.fillMaxWidth().sheetReveal(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (tagged.isNotEmpty()) {
+                val angles = listOf(-6f, 5f, -2f)
+                Box(Modifier.padding(top = 4.dp, bottom = 8.dp).height(92.dp).width((60 + 30 * (tagged.size - 1)).dp)) {
+                    tagged.asReversed().forEachIndexed { r, b ->
+                        val i = tagged.size - 1 - r
+                        BookCover(
+                            b.id,
+                            58.dp,
+                            Modifier
+                                .offset(x = (30 * i).dp, y = (4 * (i % 2)).dp)
+                                .graphicsLayer { rotationZ = if (tagged.size == 1) 0f else angles[i] },
+                        )
+                    }
+                }
+            } else {
+                Box(Modifier.size(56.dp).clip(appCorner(16)).background(AppColors.AccentSoft), contentAlignment = Alignment.Center) {
+                    Icon(AppIcons.Hash, null, tint = AppColors.Accent, modifier = Modifier.size(26.dp))
                 }
             }
+            Text("#$name", color = AppColors.Text, fontSize = 18.sp, lineHeight = 23.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            Text("$count ${booksWord(count)}", color = AppColors.Muted, fontSize = 12.5.sp, maxLines = 1)
         }
-        PaperField(name, "Название тега", AppIcons.Tag) { rename = true }
-        DeleteRow("Удалить тег") { delete = true }
+        Row(Modifier.fillMaxWidth().sheetReveal(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            TagActionTile(AppIcons.Pencil, "Имя", AppColors.Text, false, Modifier.weight(1f)) { rename = true }
+            TagActionTile(AppIcons.Shelf, "В шкафу", if (pinned) AppColors.Accent else AppColors.Text, pinned, Modifier.weight(1f)) {
+                app.libraryPrefs.update { p ->
+                    p.copy(tagShelves = if (!pinned) (p.tagShelves + name).distinctBy { it.lowercase() } else p.tagShelves.filterNot { it.equals(name, true) })
+                }
+            }
+            TagActionTile(AppIcons.Trash, "Удалить", AppColors.Bad, false, Modifier.weight(1f)) { delete = true }
+        }
         if (rename) {
             TextInputSheet("Название тега", name, "Название тега", onDismiss = { rename = false }, icon = AppIcons.Tag, maxLength = 40) { text ->
                 val clean = text.trim().trimStart('#').replace('|', ' ').trim()
@@ -316,7 +374,15 @@ fun TagManageSheet(onDismiss: () -> Unit) {
     var open by remember { mutableStateOf<TagCount?>(null) }
     AppSheet(onDismiss, title = "Управление тегами") {
         if (counts.isEmpty()) EmptyNote(AppIcons.Hash, "Тегов пока нет", "Добавь их в карточке книги")
-        counts.forEach { t -> TagRow(t, prefs.tagShelves.any { it.equals(t.name, true) }) { open = t } }
+        counts.chunked(2).forEach { pair ->
+            Row(Modifier.fillMaxWidth().sheetReveal(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                pair.forEach { t ->
+                    val ids = remember(books, t.name) { books.filter { it.hasTag(t.name) }.sortedByDescending { it.lastReadAt ?: it.addedAt }.take(3).map { it.id } }
+                    TagTile(t, ids, prefs.tagShelves.any { it.equals(t.name, true) }, Modifier.weight(1f)) { open = t }
+                }
+                if (pair.size == 1) Box(Modifier.weight(1f))
+            }
+        }
         open?.let { t -> TagActionsSheet(t.name, t.count) { open = null } }
     }
 }

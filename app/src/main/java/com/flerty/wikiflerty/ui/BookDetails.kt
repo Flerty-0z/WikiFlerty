@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PathEffect
@@ -641,51 +642,97 @@ fun SeriesSheet(name: String, currentId: String?, onOpenBook: ((Book) -> Unit)?,
         if (numbers.size < 2) emptyList() else (1..numbers.max()).filter { it !in numbers }
     }
     val done = items.count { it.first.status == ReadStatus.Finished }
-    AppSheet(onDismiss, title = name) {
+    AppSheet(onDismiss, title = "Серия") {
         val close = sheetClose(onDismiss)
-        Row(Modifier.fillMaxWidth().sheetReveal().fieldSurface(appCorner(16)).padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(AppIcons.Series, null, tint = AppColors.Accent, modifier = Modifier.size(22.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Прочитано $done из ${items.size}", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Box(Modifier.fillMaxWidth().height(6.dp).clip(appCorner(3)).background(AppColors.Line)) {
-                    Box(Modifier.fillMaxWidth(if (items.isEmpty()) 0f else done.toFloat() / items.size).height(6.dp).background(AppColors.Accent))
+        Column(Modifier.fillMaxWidth().sheetReveal().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(name, color = AppColors.Text, fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("прочитано $done из ${items.size}", color = AppColors.Muted, fontSize = 12.5.sp, maxLines = 1)
+                val part by androidx.compose.animation.core.animateFloatAsState(if (items.isEmpty()) 0f else done.toFloat() / items.size, Motion.tween(600), label = "series-part")
+                Box(Modifier.weight(1f).height(4.dp).clip(appCorner(2)).background(AppColors.Line)) {
+                    Box(Modifier.fillMaxWidth(part).height(4.dp).background(if (done == items.size && items.isNotEmpty()) AppColors.Good else AppColors.Accent))
                 }
             }
         }
-        items.forEach { (b, number) ->
-            val shape = appCorner(16)
-            val current = b.id == currentId
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .sheetReveal()
-                    .then(
-                        if (onOpenBook != null && !current) Modifier.liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) {
-                            close()
-                            onOpenBook(b)
-                        } else Modifier,
-                    )
-                    .fieldSurface(shape, selected = current)
-                    .padding(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                SmallCover(app.library.coverFile(b), Modifier.size(width = 40.dp, height = 60.dp), title = b.title, author = b.author)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text(b.title, color = AppColors.Text, fontSize = 14.5.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Icon(statusIcon(b.status), null, tint = if (b.status == ReadStatus.Finished) AppColors.Good else AppColors.Muted, modifier = Modifier.size(13.dp))
-                        Text(
-                            if (b.status == ReadStatus.Reading && b.progress > 0) "${(b.progress * 100).toInt()}%" else b.status.title,
-                            color = AppColors.Muted,
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                        )
+        val line = AppColors.Line
+        Column(Modifier.fillMaxWidth()) {
+            items.forEachIndexed { i, (b, number) ->
+                val shape = appCorner(16)
+                val current = b.id == currentId
+                val finished = b.status == ReadStatus.Finished
+                val reading = b.status == ReadStatus.Reading
+                val first = i == 0
+                val last = i == items.lastIndex
+                Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min).sheetReveal()) {
+                    Box(
+                        Modifier
+                            .width(40.dp)
+                            .fillMaxHeight()
+                            .drawBehind {
+                                val x = size.width / 2f
+                                val dash = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 5.dp.toPx()))
+                                val top = if (first) size.height / 2f else 0f
+                                val bottom = if (last) size.height / 2f else size.height
+                                drawLine(line, Offset(x, top), Offset(x, bottom), strokeWidth = 2.dp.toPx(), pathEffect = dash)
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        val fill = when {
+                            finished -> AppColors.Good
+                            reading || current -> AppColors.Accent
+                            else -> AppColors.Panel
+                        }
+                        val edge = when {
+                            finished -> AppColors.Good
+                            reading || current -> AppColors.Accent
+                            else -> AppColors.PanelBorder
+                        }
+                        Box(
+                            Modifier.size(30.dp).clip(CircleShape).background(fill).border(2.dp, edge, CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (finished) {
+                                Icon(AppIcons.Check, null, tint = AppColors.OnAccent, modifier = Modifier.size(15.dp))
+                            } else {
+                                Text(
+                                    number?.let { BookSeries(name, it).numberLabel }.orEmpty().ifEmpty { "${i + 1}" },
+                                    color = if (reading || current) AppColors.OnAccent else AppColors.Muted,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                )
+                            }
+                        }
                     }
-                }
-                if (number != null) {
-                    Box(Modifier.size(34.dp).clip(appCorner(11)).background(AppColors.AccentSoft), contentAlignment = Alignment.Center) {
-                        Text(BookSeries(name, number).numberLabel.orEmpty(), color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Row(
+                        Modifier
+                            .weight(1f)
+                            .padding(start = 6.dp, top = 5.dp, bottom = 5.dp)
+                            .then(
+                                if (onOpenBook != null && !current) Modifier.liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) {
+                                    close()
+                                    onOpenBook(b)
+                                } else Modifier,
+                            )
+                            .fieldSurface(shape, selected = current)
+                            .padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        SmallCover(app.library.coverFile(b), Modifier.size(width = 38.dp, height = 57.dp), title = b.title, author = b.author)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(b.title, color = AppColors.Text, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Icon(statusIcon(b.status), null, tint = if (finished) AppColors.Good else AppColors.Muted, modifier = Modifier.size(13.dp))
+                                Text(
+                                    if (reading && b.progress > 0) "${(b.progress * 100).toInt()}%" else b.status.title,
+                                    color = AppColors.Muted,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
                     }
                 }
             }

@@ -3,6 +3,9 @@ package com.flerty.wikiflerty.ui
 import androidx.compose.foundation.layout.statusBarsPadding
 
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.ui.graphics.graphicsLayer
 
 import androidx.compose.ui.graphics.RectangleShape
 
@@ -216,7 +219,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 },
                 bottomBar = {
                     if (bottomNav) {
-                        BottomNav(section, onSelect = { section = it }, onAdd = { addMenu = true })
+                        BottomNav(section, addMenu, onSelect = { section = it }, onAdd = { addMenu = !addMenu })
                     }
                 },
                 floatingActionButton = {
@@ -260,20 +263,19 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 }
                 }
             }
-            if (addMenu) {
-                AddBookSheet(
-                    onDismiss = { addMenu = false },
-                    onFile = { pickBook.launch(arrayOf("*/*")) },
-                    onScan = {
-                        section = Section.Library
-                        libraryControls.scanFolder = true
-                    },
-                    onPaper = {
-                        section = Section.Library
-                        paperSheet = true
-                    },
-                )
-            }
+            AddFan(
+                open = addMenu,
+                onClose = { addMenu = false },
+                onFile = { pickBook.launch(arrayOf("*/*")) },
+                onScan = {
+                    section = Section.Library
+                    libraryControls.scanFolder = true
+                },
+                onPaper = {
+                    section = Section.Library
+                    paperSheet = true
+                },
+            )
             if (paperSheet) PaperBookSheet(null) { paperSheet = false }
             OnboardingHost(
                 libraryEmpty = libraryBooks.isEmpty(),
@@ -556,7 +558,7 @@ private fun DrawerLogo() {
 }
 
 @Composable
-private fun BottomNav(section: Section, onSelect: (Section) -> Unit, onAdd: () -> Unit) {
+private fun BottomNav(section: Section, addOpen: Boolean, onSelect: (Section) -> Unit, onAdd: () -> Unit) {
     Box(Modifier.fillMaxWidth()) {
         Row(
             Modifier
@@ -584,7 +586,99 @@ private fun BottomNav(section: Section, onSelect: (Section) -> Unit, onAdd: () -
                 .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.88f, onClick = onAdd)
                 .background(AppColors.Accent),
             contentAlignment = Alignment.Center,
-        ) { Icon(AppIcons.Plus, "Добавить книгу", tint = AppColors.OnAccent, modifier = Modifier.size(28.dp)) }
+        ) {
+            val turn by androidx.compose.animation.core.animateFloatAsState(if (addOpen) 45f else 0f, Motion.tween(320), label = "fab-turn")
+            Icon(AppIcons.Plus, if (addOpen) "Закрыть" else "Добавить книгу", tint = AppColors.OnAccent, modifier = Modifier.size(28.dp).graphicsLayer { rotationZ = turn })
+        }
+    }
+}
+
+@Composable
+private fun AddFan(open: Boolean, onClose: () -> Unit, onFile: () -> Unit, onScan: () -> Unit, onPaper: () -> Unit) {
+    val progress = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(open) {
+        progress.animateTo(
+            if (open) 1f else 0f,
+            if (open) androidx.compose.animation.core.spring(dampingRatio = 0.62f, stiffness = 420f) else tween(Motion.ms(220)),
+        )
+    }
+    androidx.activity.compose.BackHandler(enabled = open) { onClose() }
+    if (!open && progress.value <= 0.001f) return
+    val p = progress.value
+    val inset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val fabCenter = inset + 57.dp
+    val accent = AppColors.Accent
+    Box(
+        Modifier
+            .fillMaxSize()
+            .graphicsLayer { alpha = p.coerceIn(0f, 1f) }
+            .drawBehind {
+                val c = Offset(size.width / 2f, size.height - fabCenter.toPx())
+                drawRect(Color.Black.copy(alpha = 0.55f))
+                drawCircle(
+                    Brush.radialGradient(listOf(accent.copy(alpha = 0.28f), Color.Transparent), center = c, radius = size.width * 0.75f),
+                    radius = size.width * 0.75f,
+                    center = c,
+                )
+            }
+            .pointerInput(open) { detectTapGestures { if (open) onClose() } },
+    )
+    data class Item(val icon: androidx.compose.ui.graphics.vector.ImageVector, val label: String, val from: Long, val to: Long, val dx: Float, val dy: Float, val action: () -> Unit)
+    val items = listOf(
+        Item(AppIcons.Book, "Файл", 0xFF6E8EFF, 0xFF4C63D9, -104f, -86f, onFile),
+        Item(AppIcons.FolderSearch, "Скан", 0xFF5EEAD4, 0xFF1FA392, 0f, -138f, onScan),
+        Item(AppIcons.Pages, "Бумажная", 0xFFF49AC1, 0xFFD45A93, 104f, -86f, onPaper),
+    )
+    Box(Modifier.fillMaxSize().padding(bottom = fabCenter), contentAlignment = Alignment.BottomCenter) {
+        items.forEachIndexed { i, item ->
+            val local = ((p - i * 0.08f) / (1f - 0.16f)).coerceIn(0f, 1.2f)
+            Column(
+                Modifier
+                    .offset(x = (item.dx * local).dp, y = (item.dy * local + 28f).dp)
+                    .graphicsLayer {
+                        val k = local.coerceIn(0f, 1.1f)
+                        scaleX = 0.3f + 0.7f * k
+                        scaleY = 0.3f + 0.7f * k
+                        alpha = local.coerceIn(0f, 1f)
+                    },
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Box(
+                    Modifier
+                        .size(58.dp)
+                        .shadow(14.dp, CircleShape, ambientColor = Color(item.to), spotColor = Color(item.to))
+                        .clip(CircleShape)
+                        .background(Brush.linearGradient(listOf(Color(item.from), Color(item.to))))
+                        .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.86f) {
+                            onClose()
+                            item.action()
+                        },
+                    contentAlignment = Alignment.Center,
+                ) { Icon(item.icon, item.label, tint = Color.White, modifier = Modifier.size(24.dp)) }
+                Box(
+                    Modifier
+                        .clip(appCorner(9))
+                        .background(AppColors.Panel.copy(alpha = 0.92f))
+                        .border(1.dp, AppColors.PanelBorder, appCorner(9))
+                        .padding(horizontal = 9.dp, vertical = 3.dp),
+                ) { Text(item.label, color = AppColors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
+            }
+        }
+    }    Box(Modifier.fillMaxSize().padding(bottom = fabCenter - 31.dp), contentAlignment = Alignment.BottomCenter) {
+        Box(
+            Modifier
+                .size(62.dp)
+                .graphicsLayer { alpha = p.coerceIn(0f, 1f) }
+                .clip(CircleShape)
+                .background(AppColors.Background)
+                .padding(4.dp)
+                .liveClick(CircleShape, sound = FeedbackSound.Close, pressedScale = 0.88f) { onClose() }
+                .background(AppColors.Accent),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(AppIcons.Plus, "Закрыть", tint = AppColors.OnAccent, modifier = Modifier.size(28.dp).graphicsLayer { rotationZ = 45f * p.coerceIn(0f, 1f) })
+        }
     }
 }
 
