@@ -27,19 +27,43 @@ internal object TextSelection {
     fun script(accent: String): String = SCRIPT.replace("__ACCENT__", accent) + "\n" + NOTES + "\n" + AUTO + "\n" + PEOPLE.replace("__ACCENT__", accent) + "\n" + FEED + "\n" + BIONIC + "\n" + KITBOOK
 
     fun peopleCall(people: List<com.flerty.wikiflerty.data.BookCharacter>): String {
-        val keys = org.json.JSONArray()
-        people.forEach { p ->
-            p.name.split(Regex("[\\s\\-]+")).map { it.trim('.', ',', '«', '»', '"', '\'', '(', ')') }
-                .filter { it.length >= 2 && it.first().isLetter() }
-                .forEach { word ->
-                    var stem = word.lowercase().replace('ё', 'е')
-                    val short = stem.length <= 3
-                    if (stem.length > 4 && stem.last() in "йь") stem = stem.dropLast(1)
-                    if (stem.length > 3 && stem.last() in "аеиоуыэюяy") stem = stem.dropLast(1)
-                    keys.put(org.json.JSONArray().put(stem).put(if (short) 0 else 3).put(p.id))
-                }
+        fun stem(word: String): Pair<String, Int> {
+            var stem = word.lowercase().replace('ё', 'е')
+            val short = stem.length <= 3
+            if (stem.length > 4 && stem.last() in "йь") stem = stem.dropLast(1)
+            if (stem.length > 3 && stem.last() in "аеиоуыэюяy") stem = stem.dropLast(1)
+            return stem to (if (short) 0 else 3)
         }
-        return "window.__wfPeople && window.__wfPeople($keys)"
+        val phrases = org.json.JSONArray()
+        val owners = HashMap<String, MutableSet<String>>()
+        val exact = HashMap<String, MutableSet<String>>()
+        val tolerance = HashMap<String, Int>()
+        people.forEach { p ->
+            p.name.split(Regex("\\s*[,;/()]\\s*|\\s+или\\s+")).map { it.trim() }.filter { it.isNotEmpty() }.forEach { variant ->
+                val words = variant.split(Regex("[\\s\\-\u2010\u2011]+")).map { it.trim('.', ',', '«', '»', '"', '\'', '(', ')') }
+                    .filter { it.length >= 2 && it.first().isLetter() }
+                    .map { stem(it) }
+                if (words.isEmpty()) return@forEach
+                if (words.size > 1) {
+                    val list = org.json.JSONArray()
+                    words.forEach { (st, t) -> list.put(org.json.JSONArray().put(st).put(t)) }
+                    phrases.put(org.json.JSONArray().put(list).put(p.id))
+                } else {
+                    exact.getOrPut(words[0].first) { mutableSetOf() } += p.id
+                }
+                words.forEach { (st, t) ->
+                    owners.getOrPut(st) { mutableSetOf() } += p.id
+                    tolerance[st] = maxOf(tolerance[st] ?: 0, t)
+                }
+            }
+        }
+        val singles = org.json.JSONArray()
+        owners.forEach { (st, ids) ->
+            val pick = exact[st] ?: ids
+            if (pick.size == 1) singles.put(org.json.JSONArray().put(st).put(tolerance[st] ?: 0).put(pick.first()))
+        }
+        val data = org.json.JSONObject().put("p", phrases).put("s", singles)
+        return "window.__wfPeople && window.__wfPeople($data)"
     }
 
     private val AUTO = """
@@ -321,9 +345,12 @@ internal object TextSelection {
             window.__wfPeopleLast = list;
             hits = [];
             try { if (window.CSS && CSS.highlights) CSS.highlights.delete("wf-hero"); } catch (x) {}
-            if (!document.body || !list || !list.length) { place(); return; }
-            var map = {};
-            list.forEach(function (k) { var o = map[k[0]]; if (!o || o.s < k[1]) map[k[0]] = { s: k[1], id: k[2] }; });
+            var singleList = (list && list.s) || [], phraseList = (list && list.p) || [];
+            if (!document.body || (!singleList.length && !phraseList.length)) { place(); return; }
+            var singles = {}, phrases = {};
+            singleList.forEach(function (k) { singles[k[0]] = { s: k[1], id: k[2] }; });
+            phraseList.forEach(function (ph) { var f = ph[0][0][0]; (phrases[f] = phrases[f] || []).push({ w: ph[0], id: ph[1] }); });
+            function fits(low, ws) { return low.indexOf(ws[0]) === 0 && low.length - ws[0].length <= ws[1]; }
             var BLOCK = "p,div,li,h1,h2,h3,h4,h5,h6,blockquote,td,th,dd,dt,section,article,figcaption,body";
             var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
               acceptNode: function (n) {
@@ -343,33 +370,54 @@ internal object TextSelection {
               var text = run.text;
               if (!text || text.length < 2) return;
               word.lastIndex = 0;
-              var m;
+              var m, tokens = [];
               while ((m = word.exec(text))) {
-                var w = m[2];
-                var low = w.toLowerCase().replace(/ё/g, "е");
-                var start = m.index + m[1].length;
-                for (var k = low.length; k >= Math.max(2, low.length - 3); k--) {
-                  var hit = map[low.slice(0, k)];
-                  if (hit && low.length - k <= hit.s) {
-                    var a = locate(run, start), b = locate(run, start + w.length);
-                    if (a && b) {
-                      var prev = run.last, gap = prev ? text.slice(prev.end, start) : null;
-                      if (prev && gap !== null && gap.length <= 3 && /^[\s\u00a0\-\u2010\u2011]*$/.test(gap)) {
-                        try { prev.r.setEnd(b.node, b.off); prev.end = start + w.length; } catch (x) {}
-                      } else {
-                        try {
-                          var r = document.createRange();
-                          r.setStart(a.node, a.off);
-                          r.setEnd(b.node, b.off);
-                          var h = { r: r, id: hit.id, end: start + w.length };
-                          hits.push(h);
-                          run.last = h;
-                        } catch (x) {}
-                      }
+                var st = m.index + m[1].length;
+                tokens.push({ low: m[2].toLowerCase().replace(/ё/g, "е"), start: st, end: st + m[2].length });
+              }
+              var prev = null;
+              for (var i = 0; i < tokens.length; i++) {
+                var t = tokens[i], best = null, size = 0;
+                for (var k = t.low.length; k >= Math.max(2, t.low.length - 3); k--) {
+                  var group = phrases[t.low.slice(0, k)];
+                  if (!group) continue;
+                  for (var g = 0; g < group.length; g++) {
+                    var ph = group[g];
+                    if (ph.w.length <= size || !fits(t.low, ph.w[0])) continue;
+                    var ok = true;
+                    for (var q = 1; q < ph.w.length; q++) {
+                      var u = tokens[i + q];
+                      if (!u) { ok = false; break; }
+                      var gap = text.slice(tokens[i + q - 1].end, u.start);
+                      if (gap.length > 3 || !/^[\s\u00a0\-\u2010\u2011]+$/.test(gap) || !fits(u.low, ph.w[q])) { ok = false; break; }
                     }
-                    break;
+                    if (ok) { best = ph.id; size = ph.w.length; }
                   }
                 }
+                if (!best) {
+                  for (var k2 = t.low.length; k2 >= Math.max(2, t.low.length - 3); k2--) {
+                    var one = singles[t.low.slice(0, k2)];
+                    if (one && t.low.length - k2 <= one.s) { best = one.id; size = 1; break; }
+                  }
+                }
+                if (!best) continue;
+                var startAt = t.start, endAt = tokens[i + size - 1].end;
+                var a = locate(run, startAt), b = locate(run, endAt);
+                if (a && b) {
+                  var between = prev ? text.slice(prev.end, startAt) : null;
+                  if (prev && prev.id === best && between !== null && between.length <= 3 && /^[\s\u00a0\-\u2010\u2011]*$/.test(between)) {
+                    try { prev.r.setEnd(b.node, b.off); prev.end = endAt; } catch (x) {}
+                  } else {
+                    try {
+                      var r = document.createRange();
+                      r.setStart(a.node, a.off);
+                      r.setEnd(b.node, b.off);
+                      prev = { r: r, id: best, end: endAt };
+                      hits.push(prev);
+                    } catch (x) {}
+                  }
+                }
+                i += size - 1;
               }
             }
             var run = null, n;

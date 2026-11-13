@@ -157,13 +157,49 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         getSharedPreferences("reader_screens", MODE_PRIVATE).edit().putString(bookId, json.toString()).apply()
     }
 
-    private fun bookScreens(href: String, cur: Int, count: Int) {
-        if (positions.isEmpty()) return
-        if (hrefOrder.isEmpty()) {
-            val order = LinkedHashMap<String, Int>()
-            positions.forEach { val k = it.href.toString().substringBefore('#'); order[k] = (order[k] ?: 0) + 1 }
-            hrefOrder = order.toList()
+    private var textWeights: List<Pair<String, Int>>? = null
+    private var weightsJob: Job? = null
+
+    private fun loadWeights() {
+        if (textWeights != null || weightsJob != null) return
+        val pub = publication ?: return
+        val book = bookId
+        weightsJob = lifecycleScope.launch {
+            val found = withContext(Dispatchers.IO) {
+                val prefs = getSharedPreferences("reader_textlen", MODE_PRIVATE)
+                val cached = prefs.getString(book, null)?.let { raw ->
+                    runCatching {
+                        val arr = org.json.JSONArray(raw)
+                        (0 until arr.length()).map { i -> arr.getJSONArray(i).let { it.getString(0) to it.getInt(1) } }
+                    }.getOrNull()
+                }
+                val order = pub.readingOrder.map { it.url().toString().substringBefore('#') }
+                if (cached != null && cached.map { it.first } == order) return@withContext cached
+                val list = pub.readingOrder.map { link ->
+                    val res = pub.get(link)
+                    val bytes = res?.let { r -> runCatching { r.read().getOrNull() }.getOrNull().also { runCatching { r.close() } } }
+                    val html = bytes?.toString(Charsets.UTF_8).orEmpty()
+                    val images = Regex("<(img|image|svg)\\b", RegexOption.IGNORE_CASE).findAll(html).count()
+                    val text = htmlToText(html).count { !it.isWhitespace() }
+                    link.url().toString().substringBefore('#') to (text + images * 700)
+                }
+                val arr = org.json.JSONArray()
+                list.forEach { (h, w) -> arr.put(org.json.JSONArray().put(h).put(w)) }
+                prefs.edit().putString(book, arr.toString()).apply()
+                list
+            }
+            textWeights = found
+            navigator.currentLocator.value.let { updatePageCount(it) }
         }
+    }
+
+    private fun bookScreens(href: String, cur: Int, count: Int) {
+        val weights = textWeights
+        if (weights == null) {
+            loadWeights()
+            return
+        }
+        if (hrefOrder.isEmpty()) hrefOrder = weights
         val key = screensLayoutKey()
         if (key != screensKey) loadScreens(key)
         if (screensByHref[href] != count) {
@@ -171,9 +207,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             saveScreens()
         }
         var measuredScreens = 0
-        var measuredPositions = 0
-        hrefOrder.forEach { (h, n) -> screensByHref[h]?.let { measuredScreens += it; measuredPositions += n } }
-        val ratio = if (measuredPositions > 0) measuredScreens.toDouble() / measuredPositions else return
+        var measuredWeight = 0L
+        hrefOrder.forEach { (h, n) -> screensByHref[h]?.let { if (n > 0) { measuredScreens += it; measuredWeight += n } } }
+        val ratio = if (measuredWeight > 0) measuredScreens.toDouble() / measuredWeight else return
         var total = 0
         var before = -1
         hrefOrder.forEach { (h, n) ->
