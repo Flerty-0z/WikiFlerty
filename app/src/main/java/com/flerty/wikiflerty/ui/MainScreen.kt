@@ -706,11 +706,13 @@ private fun AddBookSheet(onDismiss: () -> Unit, onFile: () -> Unit, onScan: () -
         val close = sheetClose(onDismiss)
         val scope = rememberCoroutineScope()
         var picked by remember { mutableStateOf(-1) }
-        data class Spine(val icon: androidx.compose.ui.graphics.vector.ImageVector, val title: String, val from: Long, val to: Long, val height: Int, val tilt: Float, val action: () -> Unit)
+        data class Spine(val icon: androidx.compose.ui.graphics.vector.ImageVector, val title: String, val from: Color, val to: Color, val ink: Color, val height: Int, val tilt: Float, val action: () -> Unit)
+        val accent = AppColors.Accent
+        val panel = AppColors.Panel
         val spines = listOf(
-            Spine(AppIcons.Book, "Файл", 0xFF6E8EFF, 0xFF4C63D9, 168, -3f, onFile),
-            Spine(AppIcons.FolderSearch, "Скан", 0xFF5EEAD4, 0xFF1FA392, 146, 0f, onScan),
-            Spine(AppIcons.Pages, "Бумажная", 0xFFF49AC1, 0xFFD45A93, 156, 4f, onPaper),
+            Spine(AppIcons.Book, "Файл", AppColors.AccentLight, accent, AppColors.OnAccent, 168, -3f, onFile),
+            Spine(AppIcons.FolderSearch, "Скан", accent.copy(alpha = 0.34f).compositeOver(panel), accent.copy(alpha = 0.2f).compositeOver(panel), AppColors.Text, 146, 0f, onScan),
+            Spine(AppIcons.Pages, "Бумажная", accent.copy(alpha = 0.62f).compositeOver(panel), accent.copy(alpha = 0.44f).compositeOver(panel), AppColors.Text, 156, 4f, onPaper),
         )
         Column(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(
@@ -743,10 +745,10 @@ private fun AddBookSheet(onDismiss: () -> Unit, onFile: () -> Unit, onScan: () -
                                 rotationZ = sp.tilt * (1f - lift)
                                 transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
                             }
-                            .shadow(10.dp, shape, ambientColor = Color(sp.to), spotColor = Color(sp.to))
+                            .shadow(10.dp, shape, ambientColor = AppColors.Shade.copy(alpha = 0.4f), spotColor = AppColors.Shade.copy(alpha = 0.4f))
                             .clip(shape)
-                            .background(Brush.horizontalGradient(listOf(Color(sp.to), Color(sp.from), Color(sp.from), Color(sp.to))))
-                            .border(1.dp, Color.White.copy(alpha = 0.16f), shape)
+                            .background(Brush.horizontalGradient(listOf(sp.to, sp.from, sp.from, sp.to)))
+                            .border(1.dp, accent.copy(alpha = 0.4f), shape)
                             .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.96f) {
                                 if (picked >= 0) return@liveClick
                                 picked = i
@@ -760,18 +762,18 @@ private fun AddBookSheet(onDismiss: () -> Unit, onFile: () -> Unit, onScan: () -
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        Box(Modifier.width(44.dp).height(2.dp).clip(appCorner(1)).background(Color.White.copy(alpha = 0.45f)))
-                        Icon(sp.icon, null, tint = Color.White, modifier = Modifier.size(28.dp))
+                        Box(Modifier.width(44.dp).height(2.dp).clip(appCorner(1)).background(sp.ink.copy(alpha = 0.4f)))
+                        Icon(sp.icon, null, tint = sp.ink, modifier = Modifier.size(28.dp))
                         Text(
                             sp.title,
-                            color = Color.White,
+                            color = sp.ink,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             softWrap = false,
                             autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 14.sp, stepSize = 0.5.sp),
                             modifier = Modifier.padding(horizontal = 6.dp),
                         )
-                        Box(Modifier.width(44.dp).height(2.dp).clip(appCorner(1)).background(Color.White.copy(alpha = 0.45f)))
+                        Box(Modifier.width(44.dp).height(2.dp).clip(appCorner(1)).background(sp.ink.copy(alpha = 0.4f)))
                     }
                 }
             }
