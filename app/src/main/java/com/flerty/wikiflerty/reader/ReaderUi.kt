@@ -23,6 +23,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.using
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -1012,66 +1013,114 @@ internal fun ProgressFlag(info: FlagInfo, settings: ReaderSettings, onClick: (()
         val book = settings.flagBookPages && info.bookPages > 0
         val chap = settings.flagChapterPages && info.chapterPages > 0
         when {
-            book && chap -> add("${info.bookPage}/${info.bookPages} (${info.chapterPage}/${info.chapterPages})")
-            book -> add("${info.bookPage}/${info.bookPages}")
-            chap -> add("${info.chapterPage}/${info.chapterPages}")
+            book && chap -> add("pages" to "${info.bookPage}/${info.bookPages} (${info.chapterPage}/${info.chapterPages})")
+            book -> add("pages" to "${info.bookPage}/${info.bookPages}")
+            chap -> add("pages" to "${info.chapterPage}/${info.chapterPages}")
         }
-        if (settings.flagPercent) add("${(info.progression * 100).roundToInt().coerceIn(0, 100)}%")
-        if (settings.flagTimeLeft) info.minutesLeft?.let { add(if (it < 1) "<1 мин" else "≈$it мин") }
-        if (settings.flagClock && clock.isNotEmpty()) add(clock)
+        if (settings.flagPercent) add("percent" to "${(info.progression * 100).roundToInt().coerceIn(0, 100)}%")
+        if (settings.flagTimeLeft) info.minutesLeft?.let { add("left" to if (it < 1) "<1 мин" else "≈$it мин") }
+        if (settings.flagClock && clock.isNotEmpty()) add("clock" to clock)
     }
     val showChapter = settings.flagChapter && !info.chapter.isNullOrBlank()
     val showBattery = settings.flagBattery && battery >= 0
     if (!showChapter && items.isEmpty() && !showBattery) return
+    var lastProgress by remember { mutableStateOf(info.progression) }
+    var up by remember { mutableStateOf(true) }
+    if (info.progression != lastProgress) {
+        up = info.progression > lastProgress
+        lastProgress = info.progression
+    }
+    val align = when (settings.flagAlign) {
+        "left" -> Alignment.Start
+        "right" -> Alignment.End
+        else -> Alignment.CenterHorizontally
+    }
+    val textAlign = when (settings.flagAlign) {
+        "left" -> androidx.compose.ui.text.style.TextAlign.Start
+        "right" -> androidx.compose.ui.text.style.TextAlign.End
+        else -> androidx.compose.ui.text.style.TextAlign.Center
+    }
+    val ease = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f)
     val surface = Modifier
+        .widthIn(max = PanelMaxWidth)
+        .fillMaxWidth()
         .clip(shape)
         .then(if (bg) Modifier.background(FlagBackground).border(1.dp, AppColors.PanelBorder, shape) else Modifier)
-        .then(if (onClick != null) Modifier.liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.94f, onClick = onClick) else Modifier)
+        .then(if (onClick != null) Modifier.liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onClick = onClick) else Modifier)
     val dot = @Composable { Box(Modifier.size((3 * k).dp).clip(CircleShape).background(AppColors.Faint)) }
+    val value = @Composable { id: String, text: String ->
+        AnimatedContent(
+            targetState = text,
+            transitionSpec = {
+                val d = if (up) 1 else -1
+                (fadeIn(tween(Motion.ms(240), easing = ease)) + slideInVertically(tween(Motion.ms(300), easing = ease)) { h -> h * d / 2 }) togetherWith
+                    (fadeOut(tween(Motion.ms(150))) + slideOutVertically(tween(Motion.ms(260), easing = ease)) { h -> -h * d / 2 }) using
+                    SizeTransform(clip = false) { _, _ -> tween(Motion.ms(300), easing = ease) }
+            },
+            contentAlignment = Alignment.Center,
+            label = "flag-$id",
+        ) { t -> Text(t, color = AppColors.Text, style = style, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false) }
+    }
     val stats: @Composable (Boolean) -> Unit = { lead ->
-        items.forEachIndexed { i, text ->
-            if (i > 0 || lead) dot()
-            Text(text, color = AppColors.Text, style = style, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+        items.forEachIndexed { i, (id, text) ->
+            key(id) {
+                if (i > 0 || lead) dot()
+                value(id, text)
+            }
         }
         if (showBattery) {
-            if (lead || items.isNotEmpty()) dot()
-            val tint = AppColors.Text
-            val low = AppColors.Bad
-            androidx.compose.foundation.Canvas(Modifier.size(width = (16 * k).dp, height = (9 * k).dp)) {
-                val sw = 1.2f * density
-                val bodyW = size.width - 2.5f * density
-                drawRoundRect(tint, size = androidx.compose.ui.geometry.Size(bodyW, size.height), cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f * density), style = androidx.compose.ui.graphics.drawscope.Stroke(sw))
-                drawRect(tint, topLeft = androidx.compose.ui.geometry.Offset(bodyW + 0.5f * density, size.height * 0.3f), size = androidx.compose.ui.geometry.Size(1.8f * density, size.height * 0.4f))
-                val fillW = (bodyW - 2 * sw - 2f) * (battery / 100f)
-                drawRect(if (battery <= 15) low else tint, topLeft = androidx.compose.ui.geometry.Offset(sw + 1f, sw + 1f), size = androidx.compose.ui.geometry.Size(fillW.coerceAtLeast(0f), size.height - 2 * sw - 2f))
+            key("battery") {
+                if (lead || items.isNotEmpty()) dot()
+                val tint = AppColors.Text
+                val low = AppColors.Bad
+                val level by animateFloatAsState(battery / 100f, tween(Motion.ms(500), easing = ease), label = "flag-battery")
+                androidx.compose.foundation.Canvas(Modifier.size(width = (16 * k).dp, height = (9 * k).dp)) {
+                    val sw = 1.2f * density
+                    val bodyW = size.width - 2.5f * density
+                    drawRoundRect(tint, size = androidx.compose.ui.geometry.Size(bodyW, size.height), cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f * density), style = androidx.compose.ui.graphics.drawscope.Stroke(sw))
+                    drawRect(tint, topLeft = androidx.compose.ui.geometry.Offset(bodyW + 0.5f * density, size.height * 0.3f), size = androidx.compose.ui.geometry.Size(1.8f * density, size.height * 0.4f))
+                    val fillW = (bodyW - 2 * sw - 2f) * level
+                    drawRect(if (battery <= 15) low else tint, topLeft = androidx.compose.ui.geometry.Offset(sw + 1f, sw + 1f), size = androidx.compose.ui.geometry.Size(fillW.coerceAtLeast(0f), size.height - 2 * sw - 2f))
+                }
+                value("battery", "$battery%")
             }
-            Text("$battery%", color = AppColors.Text, style = style, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
         }
     }
     val chapterText = @Composable { size: Float, mod: Modifier ->
-        Text(
-            info.chapter.orEmpty(),
-            color = AppColors.Muted,
-            style = style.copy(fontSize = (size * k).sp),
-            maxLines = 1,
-            softWrap = false,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = mod.basicMarquee(
-                iterations = Int.MAX_VALUE,
-                repeatDelayMillis = 1800,
-                initialDelayMillis = 1800,
-                spacing = MarqueeSpacing(28.dp),
-                velocity = 22.dp,
-            ),
-        )
+        AnimatedContent(
+            targetState = info.chapter.orEmpty(),
+            transitionSpec = {
+                fadeIn(tween(Motion.ms(320), delayMillis = Motion.ms(60), easing = ease)) togetherWith fadeOut(tween(Motion.ms(160))) using
+                    SizeTransform(clip = false) { _, _ -> tween(Motion.ms(320), easing = ease) }
+            },
+            contentAlignment = Alignment.Center,
+            modifier = mod,
+            label = "flag-chapter",
+        ) { title ->
+            Text(
+                title,
+                color = AppColors.Muted,
+                style = style.copy(fontSize = (size * k).sp),
+                maxLines = 1,
+                softWrap = false,
+                textAlign = textAlign,
+                modifier = Modifier.fillMaxWidth().basicMarquee(
+                    iterations = Int.MAX_VALUE,
+                    repeatDelayMillis = 1800,
+                    initialDelayMillis = 1800,
+                    spacing = MarqueeSpacing(28.dp),
+                    velocity = 22.dp,
+                ),
+            )
+        }
     }
+    val rowArrangement = Arrangement.spacedBy((7 * k).dp, align)
     if (showChapter && (items.isNotEmpty() || showBattery)) {
         Column(
             modifier = modifier
                 .then(surface)
-                .width(androidx.compose.foundation.layout.IntrinsicSize.Max)
                 .padding(horizontal = (12 * k).dp, vertical = (4 * k).dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            horizontalAlignment = align,
         ) {
             chapterText(10.5f, Modifier.fillMaxWidth())
             Box(
@@ -1086,22 +1135,22 @@ internal fun ProgressFlag(info: FlagInfo, settings: ReaderSettings, onClick: (()
                     ),
             )
             Row(
-                Modifier.height((16 * k).dp),
+                Modifier.fillMaxWidth().height((16 * k).dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy((7 * k).dp),
+                horizontalArrangement = rowArrangement,
             ) { stats(false) }
         }
         return
     }
     Row(
         modifier = modifier
-            .height((24 * k).dp)
             .then(surface)
+            .height((24 * k).dp)
             .padding(horizontal = (10 * k).dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy((7 * k).dp),
+        horizontalArrangement = rowArrangement,
     ) {
-        if (showChapter) chapterText(12f, Modifier.weight(1f, fill = false))
+        if (showChapter) chapterText(12f, Modifier.weight(1f))
         stats(showChapter)
     }
 }

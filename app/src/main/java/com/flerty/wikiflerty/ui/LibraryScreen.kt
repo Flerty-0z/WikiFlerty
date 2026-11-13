@@ -486,11 +486,28 @@ private fun RandomBookSheet(
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val feedback = LocalFeedback.current
     val gleam = remember { androidx.compose.animation.core.Animatable(1f) }
+    val spinJob = remember { arrayOfNulls<kotlinx.coroutines.Job>(1) }
+    fun land() {
+        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+        feedback?.play(FeedbackSound.Reveal)
+        spinning = false
+        scope.launch {
+            gleam.snapTo(0f)
+            gleam.animateTo(1f, Motion.tween(720, 120, androidx.compose.animation.core.FastOutSlowInEasing))
+        }
+    }
+    fun stop() {
+        if (!spinning) return
+        spinJob[0]?.cancel()
+        spinJob[0] = null
+        if (reel == null) reel = pool.randomOrNull()
+        land()
+    }
     fun spin() {
         if (pool.isEmpty() || spinning) return
         spinning = true
         persist()
-        scope.launch {
+        spinJob[0] = scope.launch {
             val previous = reel
             val final = pool.filter { it.id != previous?.id }.ifEmpty { pool }.random()
             if (pool.size > 1) {
@@ -504,11 +521,8 @@ private fun RandomBookSheet(
                 }
             }
             reel = final
-            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-            feedback?.play(FeedbackSound.Reveal)
-            spinning = false
-            gleam.snapTo(0f)
-            gleam.animateTo(1f, Motion.tween(720, 120, androidx.compose.animation.core.FastOutSlowInEasing))
+            spinJob[0] = null
+            land()
         }
     }
     val cardH = 128.dp
@@ -624,7 +638,7 @@ private fun RandomBookSheet(
                 Modifier
                     .weight(1f)
                     .height(52.dp)
-                    .liveClick(shape, sound = FeedbackSound.Toggle, enabled = pool.isNotEmpty() && !spinning) { spin() }
+                    .liveClick(shape, sound = FeedbackSound.Toggle, enabled = pool.isNotEmpty()) { if (spinning) stop() else spin() }
                     .then(
                         if (reelBook != null && !spinning) Modifier.border(1.dp, AppColors.Accent.copy(alpha = 0.4f), shape)
                         else Modifier.accentHighlight(shape),
@@ -635,12 +649,17 @@ private fun RandomBookSheet(
                 ActionLabel(
                     when {
                         pool.isEmpty() -> "Нет книг"
+                        spinning -> "Остановить"
                         reelBook != null -> "Ещё раз"
                         else -> "Выбрать книгу"
                     },
                     tint,
                     fontSize = 15.sp,
-                    icon = if (reelBook != null) AppIcons.Rotate else AppIcons.Dice,
+                    icon = when {
+                        spinning -> AppIcons.Stop
+                        reelBook != null -> AppIcons.Rotate
+                        else -> AppIcons.Dice
+                    },
                 )
             }
         }

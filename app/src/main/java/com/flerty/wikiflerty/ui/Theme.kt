@@ -586,6 +586,7 @@ fun appCorner(radius: Int): RoundedCornerShape = RoundedCornerShape((radius * Ap
 const val UI_FONT = "jetbrainsmono"
 
 @Composable
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 fun WikiFlertyTheme(content: @Composable () -> Unit) {
     val style = AppStyle.current
     val context = LocalContext.current
@@ -634,8 +635,27 @@ fun WikiFlertyTheme(content: @Composable () -> Unit) {
         LocalDensity provides Density(density.density, density.fontScale * style.textScale * fontFit),
         androidx.compose.foundation.LocalOverscrollFactory provides null,
     ) {
-        MaterialTheme(colorScheme = colors, typography = typography, content = content)
+        MaterialTheme(colorScheme = colors, typography = typography) {
+            CompositionLocalProvider(
+                androidx.compose.foundation.LocalIndication provides NoRipple,
+                androidx.compose.material3.LocalRippleConfiguration provides null,
+                content = content,
+            )
+        }
     }
+}
+
+private object NoRipple : androidx.compose.foundation.IndicationNodeFactory {
+    override fun create(interactionSource: androidx.compose.foundation.interaction.InteractionSource): androidx.compose.ui.node.DelegatableNode =
+        object : androidx.compose.ui.Modifier.Node(), androidx.compose.ui.node.DrawModifierNode {
+            override fun androidx.compose.ui.graphics.drawscope.ContentDrawScope.draw() {
+                drawContent()
+            }
+        }
+
+    override fun equals(other: Any?): Boolean = other === this
+
+    override fun hashCode(): Int = 7
 }
 
 private fun Typography.withFont(family: androidx.compose.ui.text.font.FontFamily?): Typography {

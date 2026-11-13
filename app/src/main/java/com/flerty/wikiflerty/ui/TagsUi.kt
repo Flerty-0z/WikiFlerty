@@ -162,11 +162,7 @@ fun TagCloudSheet(active: List<String>, onApply: (List<String>) -> Unit, onDismi
             EmptyNote(AppIcons.Hash, "Тегов пока нет", "Добавь их в карточке книги")
         } else {
             TabbedFrame("Облако", icon = AppIcons.Hash, trailing = { CountBadge(counts.size) }) {
-                FlowRow(
-                    Modifier.padding(vertical = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(7.dp),
-                    verticalArrangement = Arrangement.spacedBy(7.dp),
-                ) {
+                ChipsFold(Modifier.padding(vertical = 10.dp), spacing = 7.dp) {
                     counts.forEach { t ->
                         val selected = chosen.any { it.equals(t.name, true) }
                         CloudChip(t, if (top <= 1) 0f else (t.count - 1f) / (top - 1f), selected) {

@@ -334,7 +334,6 @@ private fun ChoiceBlock(
     Column(
         Modifier
             .fillMaxWidth()
-            .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
             .padding(vertical = 6.dp),
     ) {
         Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -346,7 +345,7 @@ private fun ChoiceBlock(
         }
         ListDivider(Modifier.padding(top = 10.dp))
         Row(
-            Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(top = 8.dp),
+            Modifier.fillMaxWidth().padding(top = 8.dp).liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick).heightIn(min = 44.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (icon != null) {

@@ -257,18 +257,14 @@ private fun TagChip(text: String, icon: ImageVector?, onClick: () -> Unit) {
 
 @Composable
 private fun TagStrip(tags: List<String>, hide: Boolean, onReveal: () -> Unit, onOpen: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(Modifier.size(32.dp).clip(appCorner(10)).background(AppColors.AccentSoft), contentAlignment = Alignment.Center) {
             Icon(AppIcons.Tag, null, tint = AppColors.Accent, modifier = Modifier.size(15.dp))
         }
         if (tags.isEmpty()) {
-            Text("Нет тегов", color = AppColors.Faint, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f))
+            Text("Нет тегов", color = AppColors.Faint, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f).padding(top = 7.dp))
         } else {
-            Row(
-                Modifier.weight(1f).horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            ChipsFold(Modifier.weight(1f)) {
                 tags.forEach { tag ->
                     val hidden = hide && tagSpoiler(tag)
                     TagChip(if (hidden) "#спойлер" else tagTitle(tag), if (hidden) AppIcons.EyeOff else null) { if (hidden) onReveal() else onOpen() }
@@ -308,16 +304,10 @@ fun BookAboutCard(app: App, book: Book, onOpenBook: ((Book) -> Unit)? = null) {
     val library by app.library.books.collectAsStateWithLifecycle()
     val sequel = remember(library, book.id, finished) { if (finished) nextInSeries(library, book) else null }
     val empty = description.isBlank() && facts.isEmpty() && book.series.isEmpty()
-    TabbedFrame("О книге", icon = AppIcons.Info, leading = {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            HeaderAction(AppIcons.Search, "Найти сведения") { lookup = true }
-            HeaderAction(AppIcons.Pencil, "Изменить") { editing = true }
-        }
-    }) {
+    TabbedFrame("О книге", icon = AppIcons.Info) {
         Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            var long by remember(description) { mutableStateOf(false) }
             if (description.isNotBlank()) {
-                var long by remember(description) { mutableStateOf(false) }
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     ExpandingText(
                         description,
                         expanded = expanded,
@@ -328,11 +318,15 @@ fun BookAboutCard(app: App, book: Book, onOpenBook: ((Book) -> Unit)? = null) {
                         modifier = Modifier.fillMaxWidth(),
                         onOverflow = { if (it) long = true },
                     )
+            }
+            Column {
+                ListDivider()
+                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (long) {
                         Row(
                             Modifier.liveClick(appCorner(8), sound = FeedbackSound.Toggle) {
                                 expanded = !expanded
-                            }.padding(vertical = 2.dp),
+                            }.padding(vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             androidx.compose.animation.AnimatedContent(
@@ -351,7 +345,13 @@ fun BookAboutCard(app: App, book: Book, onOpenBook: ((Book) -> Unit)? = null) {
                             Icon(AppIcons.Chevron, null, tint = AppColors.Accent, modifier = Modifier.padding(start = 4.dp).size(14.dp).graphicsLayer { rotationZ = turn })
                         }
                     }
+                    Box(Modifier.weight(1f))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        HeaderAction(AppIcons.Search, "Найти сведения") { lookup = true }
+                        HeaderAction(AppIcons.Pencil, "Изменить") { editing = true }
+                    }
                 }
+                ListDivider()
             }
             if (empty) {
                 CardButton("Найти сведения", AppIcons.Search, Modifier.fillMaxWidth()) { lookup = true }
@@ -614,10 +614,7 @@ fun BookTagsSheet(book: Book, onDismiss: () -> Unit) {
         }
         if (popular.isNotEmpty()) {
             TabbedFrame("Мои теги", icon = AppIcons.Hash, inset = false) {
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
+                ChipsFold(Modifier.padding(vertical = 12.dp), rowPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp)) {
                     popular.forEach { t -> InfoChip("#$t", AppIcons.Plus) { save(current.tags + t) } }
                 }
             }

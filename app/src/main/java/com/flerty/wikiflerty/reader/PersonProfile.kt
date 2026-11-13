@@ -10,6 +10,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +42,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -83,7 +85,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-fun roleIcon(role: String): ImageVector = when (CharacterRole.of(role)) {
+fun roleIcon(role: String): ImageVector = when (CharacterRole.of(role) ?: CharacterRole.entries.firstOrNull { it.title.equals(role, true) }) {
     CharacterRole.Main -> AppIcons.StarFilled
     CharacterRole.Love -> AppIcons.HeartFilled
     CharacterRole.Villain -> AppIcons.Fire
@@ -299,12 +301,19 @@ internal fun PersonProfileSheet(
                     when (page) {
                         0 -> {
                             ProfileLabel("Роль")
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                CharacterRole.entries.forEach { r ->
-                                    RoleChip(r.title, roleIcon(r.id), person.role == r.id) { actions.onUpdate(person.copy(role = if (person.role == r.id) "" else r.id)) }
+                            val current = CharacterRole.title(person.role)
+                            val roles = remember(people, person.role) {
+                                (listOf(person.role) + people.map { it.role }).filter { it.isNotBlank() }.map { CharacterRole.title(it) }.distinct().take(30)
+                            }
+                            Row(
+                                Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                RoleChip("Своя", AppIcons.Plus, false) { customRole = true }
+                                roles.forEach { r ->
+                                    val on = person.role.isNotBlank() && current == r
+                                    RoleChip(r, roleIcon(r), on) { actions.onUpdate(person.copy(role = if (on) "" else r)) }
                                 }
-                                val own = person.role.isNotBlank() && CharacterRole.of(person.role) == null
-                                RoleChip(if (own) person.role else "Своя", AppIcons.Pencil, own) { customRole = true }
                             }
                             ProfileText("Внешность", person.looks, "Как он выглядит") {
                                 field = ProfileField("Внешность", "Как он выглядит", person.looks, 2000, true) { c, v -> c.copy(looks = v) }
@@ -332,7 +341,9 @@ internal fun PersonProfileSheet(
                                 ProfileButton("Привязать книгу", AppIcons.Plus) { linking = true }
                             }
                             Row(
-                                Modifier.fillMaxWidth().padding(top = 4.dp).liveClick(appCorner(12), sound = FeedbackSound.Trash, pressedScale = 0.97f) { confirmDelete = true }.padding(vertical = 10.dp),
+                                Modifier.fillMaxWidth().padding(top = 4.dp).height(50.dp).liveClick(appCorner(14), sound = FeedbackSound.Trash, pressedScale = 0.97f) { confirmDelete = true }
+                                    .border(1.dp, AppColors.Bad.copy(alpha = 0.45f), appCorner(14)),
+                                verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.Center,
                             ) { ActionLabel("Удалить персонажа", AppColors.Bad, fontSize = 13.sp, iconSize = 18.dp, icon = AppIcons.Trash) }
                         }
@@ -372,8 +383,7 @@ internal fun PersonProfileSheet(
             }
         }
         if (customRole) {
-            val own = person.role.takeIf { CharacterRole.of(it) == null }.orEmpty()
-            TextInputSheet("Своя роль", own, "Например, наставник", onDismiss = { customRole = false }, icon = AppIcons.Pencil, maxLength = 40) { text ->
+            TextInputSheet("Своя роль", "", "Например, наставник", onDismiss = { customRole = false }, icon = AppIcons.Pencil, maxLength = 40) { text ->
                 actions.onUpdate(person.copy(role = text.trim()))
             }
         }
@@ -517,20 +527,20 @@ private fun ProfileText(label: String, text: String, hint: String, onClick: () -
 @Composable
 private fun FateText(fate: String, locked: Boolean, onClick: () -> Unit) {
     val blur by androidx.compose.animation.core.animateFloatAsState(if (locked) 1f else 0f, Motion.tween(420), label = "fate-blur")
-    Box(Modifier.fillMaxWidth().liveClick(appCorner(10), sound = FeedbackSound.Open, pressedScale = 0.99f, onClick = onClick).padding(vertical = 2.dp)) {
+    Box(Modifier.fillMaxWidth().liveClick(appCorner(10), sound = FeedbackSound.Open, pressedScale = 0.99f, onClick = onClick).then(if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) Modifier.animateContentSize(Motion.tween(380)) else Modifier).padding(vertical = 2.dp)) {
         when {
             fate.isBlank() -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(AppIcons.Plus, null, tint = AppColors.Muted, modifier = Modifier.size(14.dp))
                 Text("Что с ним стало", color = AppColors.Muted, fontSize = 14.sp, maxLines = 1)
             }
-            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S -> Text(
+            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S -> com.flerty.wikiflerty.ui.ExpandingText(
                 fate,
+                expanded = !locked,
+                lines = 2,
                 color = AppColors.Text,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
-                maxLines = if (locked) 2 else Int.MAX_VALUE,
-                overflow = TextOverflow.Clip,
-                modifier = Modifier.graphicsLayer {
+                modifier = Modifier.fillMaxWidth().graphicsLayer {
                     if (blur > 0.01f) {
                         val r = 9.dp.toPx() * blur
                         renderEffect = androidx.compose.ui.graphics.BlurEffect(r, r, androidx.compose.ui.graphics.TileMode.Decal)
@@ -662,7 +672,9 @@ object PersonPassages {
             else -> v.toString().trim()
         }
         val quotes = j.optJSONArray("quotes")?.let { a -> (0 until a.length()).map { a.optString(it).trim().trim('«', '»', '"') }.filter { it.length in 3..500 } }.orEmpty()
-        val role = text("role").lowercase().let { r -> CharacterRole.entries.firstOrNull { r.contains(it.id) }?.id.orEmpty() }
+        val role = text("role").trim().trim('.', '"', '«', '»').take(40).let { r ->
+            CharacterRole.entries.firstOrNull { r.equals(it.id, true) }?.title ?: r.replaceFirstChar { it.uppercase() }
+        }
         PersonFound(role, text("who"), text("looks"), text("ties"), text("fate"), quotes.take(3))
     }.getOrNull()
 }

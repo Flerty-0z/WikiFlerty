@@ -8,6 +8,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.using
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
@@ -126,4 +134,61 @@ fun ExpandingText(
                 }
             },
     )
+}
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+fun ChipsFold(
+    modifier: Modifier = Modifier,
+    spacing: androidx.compose.ui.unit.Dp = 6.dp,
+    rowPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp),
+    content: @Composable () -> Unit,
+) {
+    var open by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    val scroll = androidx.compose.foundation.rememberScrollState()
+    var overflow by remember { androidx.compose.runtime.mutableStateOf(false) }
+    if (!open && scroll.maxValue > 0) overflow = true
+    androidx.compose.foundation.layout.Column(modifier) {
+        androidx.compose.animation.AnimatedContent(
+            open,
+            transitionSpec = {
+                (androidx.compose.animation.fadeIn(tween(Motion.ms(260), delayMillis = Motion.ms(80))) togetherWith androidx.compose.animation.fadeOut(tween(Motion.ms(140)))) using
+                    androidx.compose.animation.SizeTransform(clip = true) { _, _ -> tween(Motion.ms(380), easing = ExpandEase) }
+            },
+            label = "chips-fold",
+        ) { expanded ->
+            if (expanded) {
+                androidx.compose.foundation.layout.FlowRow(
+                    Modifier.fillMaxWidth().padding(rowPadding),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(spacing),
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(spacing),
+                ) { content() }
+            } else {
+                androidx.compose.foundation.layout.Row(
+                    Modifier.fillMaxWidth().horizontalScroll(scroll).padding(rowPadding),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(spacing),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) { content() }
+            }
+        }
+        if (overflow) {
+            val turn by androidx.compose.animation.core.animateFloatAsState(if (open) -90f else 90f, tween(Motion.ms(320)), label = "chips-turn")
+            androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                androidx.compose.foundation.layout.Box(
+                    Modifier
+                        .padding(top = 6.dp)
+                        .size(width = 56.dp, height = 28.dp)
+                        .liveClick(appCorner(14), sound = FeedbackSound.Toggle, pressedScale = 0.9f) { open = !open },
+                    contentAlignment = androidx.compose.ui.Alignment.Center,
+                ) {
+                    androidx.compose.material3.Icon(
+                        AppIcons.Chevron,
+                        if (open) "Свернуть" else "Развернуть",
+                        tint = AppColors.Accent,
+                        modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = turn },
+                    )
+                }
+            }
+        }
+    }
 }
