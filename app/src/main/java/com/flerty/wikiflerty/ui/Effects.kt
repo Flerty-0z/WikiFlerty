@@ -246,7 +246,7 @@ fun Modifier.scrollReveal(delayMs: Int = 0): Modifier = composed {
 }
 
 @Composable
-private fun Modifier.revealCore(edgeDp: Float, liftDp: Float, delayMs: Int = 0): Modifier {
+private fun Modifier.revealCore(edgeDp: Float, liftDp: Float, delayMs: Int = 0, scaleFrom: Float = 0.95f): Modifier {
     val density = LocalDensity.current
     val edge = with(density) { edgeDp.dp.toPx() }
     val lift = with(density) { liftDp.dp.toPx() }
@@ -275,9 +275,11 @@ private fun Modifier.revealCore(edgeDp: Float, liftDp: Float, delayMs: Int = 0):
             val v = enter.value
             alpha = v * exit.floatValue
             translationY = (1f - v) * lift * (if (fromAbove.value) -1f else 1f)
-            val sc = 0.95f + 0.05f * v
-            scaleX = sc
-            scaleY = sc
+            if (scaleFrom < 1f) {
+                val sc = scaleFrom + (1f - scaleFrom) * v
+                scaleX = sc
+                scaleY = sc
+            }
         }
 }
 
@@ -335,7 +337,7 @@ fun Modifier.sheetReveal(): Modifier = composed {
     val viewport = LocalRevealViewport.current
     val late = remember { viewport != null && android.os.SystemClock.uptimeMillis() - viewport.since > 700 }
     if (viewport == null || !Motion.enabled || late) return@composed this
-    revealCore(80f, 0f)
+    revealCore(80f, 0f, scaleFrom = 1f)
 }
 
 @Composable
@@ -394,7 +396,7 @@ fun throttledClock(animated: Boolean, wrapSeconds: Int, shelf: Boolean = false):
                 androidx.compose.runtime.withFrameNanos { }
                 if (shelf) {
                     if (!SharedClock.held) time.floatValue = SharedClock.shelfSeconds(wrap)
-                } else {
+                } else if (!SharedClock.covered) {
                     time.floatValue = SharedClock.seconds(wrap)
                 }
             }
@@ -410,6 +412,22 @@ object SharedClock {
     private var holds = 0
 
     val held: Boolean get() = holds > 0
+
+    private var covers = 0
+
+    val covered: Boolean get() = covers > 0
+
+    fun cover() {
+        covers++
+        hold()
+    }
+
+    fun uncover() {
+        if (covers > 0) {
+            covers--
+            release()
+        }
+    }
 
     fun hold() {
         if (holds++ == 0) pausedAt = System.nanoTime()

@@ -208,7 +208,7 @@ private fun ProviderCard(
                     AppIcons.Chevron,
                     null,
                     tint = AppColors.Muted,
-                    modifier = Modifier.size(20.dp).rotate(if (expanded) 90f else 0f),
+                    modifier = Modifier.size(20.dp).rotate(androidx.compose.animation.core.animateFloatAsState(if (expanded) 90f else 0f, Motion.tween(260), label = "chev").value),
                 )
             }
         }
@@ -589,7 +589,7 @@ private fun CustomCard(ai: AiManager, expanded: Boolean, onExpand: () -> Unit) {
                 AppIcons.Chevron,
                 null,
                 tint = AppColors.Muted,
-                modifier = Modifier.size(20.dp).rotate(if (expanded) 90f else 0f),
+                modifier = Modifier.size(20.dp).rotate(androidx.compose.animation.core.animateFloatAsState(if (expanded) 90f else 0f, Motion.tween(260), label = "chev").value),
             )
         }
         AnimatedVisibility(visible = expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
@@ -661,7 +661,7 @@ private fun LocalCard(ai: AiManager, kind: LocalKind, expanded: Boolean, onExpan
                 AppIcons.Chevron,
                 null,
                 tint = AppColors.Muted,
-                modifier = Modifier.size(20.dp).rotate(if (expanded) 90f else 0f),
+                modifier = Modifier.size(20.dp).rotate(androidx.compose.animation.core.animateFloatAsState(if (expanded) 90f else 0f, Motion.tween(260), label = "chev").value),
             )
         }
         AnimatedVisibility(visible = expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {

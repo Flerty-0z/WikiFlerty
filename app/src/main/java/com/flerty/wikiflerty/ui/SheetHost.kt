@@ -104,6 +104,10 @@ fun SheetWindow(
         }
     }
     val control = remember { SheetControl(close) { shown.value } }
+    DisposableEffect(Unit) {
+        SharedClock.cover()
+        onDispose { SharedClock.uncover() }
+    }
     Dialog(
         onDismissRequest = close,
         properties = DialogProperties(
@@ -116,7 +120,11 @@ fun SheetWindow(
         DialogWindowSetup()
         KeepHostBars()
         LaunchedEffect(Unit) {
-            if (Motion.enabled) shown.animateTo(1f, tween(Motion.ms(380), easing = SheetEase))
+            if (Motion.enabled) {
+                androidx.compose.runtime.withFrameNanos { }
+                androidx.compose.runtime.withFrameNanos { }
+                shown.animateTo(1f, tween(Motion.ms(380), easing = SheetEase))
+            }
         }
         Box(Modifier.fillMaxSize()) {
             Box(

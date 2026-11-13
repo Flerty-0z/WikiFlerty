@@ -152,7 +152,7 @@ private fun PersonCard(person: BookCharacter, focused: Boolean, onClick: () -> U
             Text(person.name, color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             RoleBadge(person.role)
             if (person.note.isNotBlank()) {
-                Text(person.note, color = AppColors.Text.copy(alpha = 0.82f), fontSize = 14.sp, lineHeight = 20.sp, maxLines = if (focused) 12 else 4, overflow = TextOverflow.Ellipsis)
+                com.flerty.wikiflerty.ui.ExpandingText(person.note, expanded = focused, lines = 4, color = AppColors.Text.copy(alpha = 0.82f), fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.fillMaxWidth())
             }
         }
         Icon(AppIcons.Chevron, null, tint = AppColors.Faint, modifier = Modifier.padding(top = 3.dp).size(16.dp))

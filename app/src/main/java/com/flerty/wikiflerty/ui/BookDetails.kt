@@ -37,6 +37,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -312,25 +314,45 @@ fun BookAboutCard(app: App, book: Book, onOpenBook: ((Book) -> Unit)? = null) {
             HeaderAction(AppIcons.Pencil, "Изменить") { editing = true }
         }
     }) {
-        Column(Modifier.padding(vertical = 10.dp).animateContentSize(Motion.tween(260)), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (description.isNotBlank()) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
+                val bring = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+                val bringScope = rememberCoroutineScope()
+                var long by remember(description) { mutableStateOf(false) }
+                Column(Modifier.bringIntoViewRequester(bring), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    ExpandingText(
                         description,
+                        expanded = expanded,
+                        lines = 5,
                         color = AppColors.Text,
                         fontSize = 14.sp,
                         lineHeight = 20.sp,
-                        maxLines = if (expanded) Int.MAX_VALUE else 5,
-                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth(),
+                        onOverflow = { if (it) long = true },
                     )
-                    if (description.length > 260) {
-                        Text(
-                            if (expanded) "Свернуть" else "Читать полностью",
-                            color = AppColors.Accent,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.liveClick(appCorner(8), sound = FeedbackSound.Toggle) { expanded = !expanded }.padding(vertical = 2.dp),
-                        )
+                    if (long) {
+                        Row(
+                            Modifier.liveClick(appCorner(8), sound = FeedbackSound.Toggle) {
+                                expanded = !expanded
+                                if (!expanded) bringScope.launch { bring.bringIntoView() }
+                            }.padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            androidx.compose.animation.AnimatedContent(
+                                expanded,
+                                transitionSpec = { androidx.compose.animation.fadeIn(Motion.tween(220)) togetherWith androidx.compose.animation.fadeOut(Motion.tween(160)) },
+                                label = "about-more",
+                            ) { open ->
+                                Text(
+                                    if (open) "Свернуть" else "Читать полностью",
+                                    color = AppColors.Accent,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+                            val turn by androidx.compose.animation.core.animateFloatAsState(if (expanded) -90f else 90f, Motion.tween(320), label = "about-turn")
+                            Icon(AppIcons.Chevron, null, tint = AppColors.Accent, modifier = Modifier.padding(start = 4.dp).size(14.dp).graphicsLayer { rotationZ = turn })
+                        }
                     }
                 }
             }

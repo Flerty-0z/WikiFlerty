@@ -270,28 +270,30 @@ fun NoteCard(
         Column(
             Modifier
                 .weight(1f)
-                .animateContentSize(Motion.tween(260))
                 .padding(start = 12.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text(
+            com.flerty.wikiflerty.ui.ExpandingText(
                 "«${note.text}»",
+                expanded = pill && expanded,
+                lines = 3,
                 color = AppColors.Text,
                 fontSize = 15.sp,
                 lineHeight = 21.sp,
-                maxLines = if (pill && expanded) Int.MAX_VALUE else 3,
-                overflow = TextOverflow.Ellipsis,
-                onTextLayout = { if (!expanded && it.hasVisualOverflow) overflow = true },
+                modifier = Modifier.fillMaxWidth(),
+                onOverflow = { if (it) overflow = true },
             )
             if (note.note.isNotBlank()) {
-                Text(
-                    com.flerty.wikiflerty.ui.markdown(note.note),
+                val body = remember(note.note) { com.flerty.wikiflerty.ui.markdown(note.note) }
+                com.flerty.wikiflerty.ui.ExpandingText(
+                    body,
+                    expanded = pill && expanded,
+                    lines = 3,
                     color = AppColors.Text.copy(alpha = 0.82f),
                     fontSize = 14.sp,
                     lineHeight = 19.sp,
-                    maxLines = if (pill && expanded) Int.MAX_VALUE else 3,
-                    overflow = TextOverflow.Ellipsis,
-                    onTextLayout = { if (!expanded && it.hasVisualOverflow) overflow = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    onOverflow = { if (it) overflow = true },
                 )
             }
             val place = if (pages > 0) {
@@ -313,7 +315,11 @@ fun NoteCard(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        Text(if (expanded) "Свернуть" else "Развернуть", color = AppColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        androidx.compose.animation.AnimatedContent(
+                            expanded,
+                            transitionSpec = { androidx.compose.animation.fadeIn(Motion.tween(220)) togetherWith androidx.compose.animation.fadeOut(Motion.tween(160)) },
+                            label = "note-more-label",
+                        ) { open -> Text(if (open) "Свернуть" else "Развернуть", color = AppColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
                         val turn by animateFloatAsState(if (expanded) -90f else 90f, Motion.tween(240), label = "note-more")
                         Icon(AppIcons.Chevron, null, tint = AppColors.Accent, modifier = Modifier.size(14.dp).rotate(turn))
                     }
