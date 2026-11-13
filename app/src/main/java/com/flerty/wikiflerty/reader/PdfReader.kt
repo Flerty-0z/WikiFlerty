@@ -844,12 +844,14 @@ class PdfReaderActivity : ComponentActivity() {
                     state.sheet = ReaderSheet.NoteEditor
                 }
             },
-            onSelectionMarker = {
+            onSelectionMarker = { color ->
                 state.selection?.let { sel ->
                     val loc = selectionLocator(sel)
-                    val color = app.readerSettings.settings.value.markerColor
                     endSelection()
-                    lifecycleScope.launch { app.notes.create(bookId, loc, cleanText(sel.text), "", color, state.chapterAt(sel.page)) }
+                    lifecycleScope.launch {
+                        app.notes.create(bookId, loc, cleanText(sel.text), "", color, state.chapterAt(sel.page))
+                        if (color != app.readerSettings.settings.value.markerColor) app.readerSettings.update { it.copy(markerColor = color) }
+                    }
                     app.feedback.play(FeedbackSound.Toggle)
                 }
             },
@@ -1459,6 +1461,7 @@ private fun PdfReaderScreen(host: PdfReaderActivity, state: PdfUiState) {
                 }
                 SelectionMenu(
                     markerColor = settings.markerColor,
+                    palette = settings.noteColors,
                     actions = host.noteActions,
                     main = layout.first,
                     more = layout.second,

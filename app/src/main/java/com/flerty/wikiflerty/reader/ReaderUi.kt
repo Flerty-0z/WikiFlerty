@@ -913,6 +913,7 @@ fun ReaderOverlay(
             val shown by androidx.compose.animation.core.animateFloatAsState(if (placed) 1f else 0f, Motion.fade(160), label = "menu-in")
             SelectionMenu(
                 markerColor = settings.markerColor,
+                palette = settings.noteColors,
                 actions = noteActions,
                 main = layout.first,
                 more = layout.second,

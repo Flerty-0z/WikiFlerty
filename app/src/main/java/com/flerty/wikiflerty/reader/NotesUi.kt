@@ -17,6 +17,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.layout.layout
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -98,7 +100,7 @@ class NoteActions(
     val onDelete: (String) -> Unit,
     val onGoTo: (Note) -> Unit,
     val onSelectionNote: () -> Unit,
-    val onSelectionMarker: () -> Unit,
+    val onSelectionMarker: (Long) -> Unit,
     val onSelectionCopy: () -> Unit,
     val onSelectionAi: () -> Unit,
     val onSelectionClose: () -> Unit,
@@ -109,9 +111,29 @@ class NoteActions(
 )
 
 @Composable
-fun SelectionMenu(markerColor: Long, actions: NoteActions, main: List<SelectionButton>, more: List<SelectionButton>, modifier: Modifier = Modifier) {
+fun SelectionMenu(markerColor: Long, palette: List<Long>, actions: NoteActions, main: List<SelectionButton>, more: List<SelectionButton>, modifier: Modifier = Modifier) {
     var expanded by remember(main, more) { mutableStateOf(false) }
-    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+    var colors by remember(main, more) { mutableStateOf(false) }
+    val swatches = remember(palette, markerColor) { (palette + markerColor).distinct() }
+    Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier.layout { m, c ->
+                val p = m.measure(c.copy(minHeight = 0))
+                layout(p.width, 0) { p.place(0, -p.height - 8.dp.roundToPx()) }
+            },
+        ) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = colors,
+                enter = fadeIn(Motion.tween(200)) + androidx.compose.animation.scaleIn(Motion.tween(260), initialScale = 0.92f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)) +
+                    androidx.compose.animation.slideInVertically(Motion.tween(260)) { it / 4 },
+                exit = fadeOut(Motion.fade(140)) + androidx.compose.animation.scaleOut(Motion.tween(180), targetScale = 0.94f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)),
+            ) {
+                MarkerStrip(swatches, markerColor) { color ->
+                    colors = false
+                    actions.onSelectionMarker(color)
+                }
+            }
+        }
         Box(Modifier.panelSurface(appCorner(28), elevation = 16.dp).padding(5.dp)) {
             androidx.compose.animation.AnimatedContent(
                 targetState = expanded,
@@ -128,14 +150,14 @@ fun SelectionMenu(markerColor: Long, actions: NoteActions, main: List<SelectionB
                     horizontalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
                     if (open) {
-                        MenuAction("Назад", sound = FeedbackSound.Close, onClick = { expanded = false }) {
+                        MenuAction("Назад", sound = FeedbackSound.Close, onClick = { expanded = false; colors = false }) {
                             Icon(AppIcons.Back, null, tint = AppColors.Muted, modifier = Modifier.size(20.dp))
                         }
-                        more.forEach { SelectionAction(it, markerColor, actions) }
+                        more.forEach { SelectionAction(it, markerColor, actions, colors) { colors = !colors } }
                     } else {
-                        main.forEach { SelectionAction(it, markerColor, actions) }
+                        main.forEach { SelectionAction(it, markerColor, actions, colors) { colors = !colors } }
                         if (more.isNotEmpty()) {
-                            MenuAction("Ещё", sound = FeedbackSound.Toggle, onClick = { expanded = true }) {
+                            MenuAction("Ещё", sound = FeedbackSound.Toggle, onClick = { expanded = true; colors = false }) {
                                 Icon(AppIcons.More, null, tint = AppColors.Text, modifier = Modifier.size(22.dp))
                             }
                         }
@@ -147,10 +169,38 @@ fun SelectionMenu(markerColor: Long, actions: NoteActions, main: List<SelectionB
 }
 
 @Composable
-private fun SelectionAction(button: SelectionButton, markerColor: Long, actions: NoteActions) {
+private fun MarkerStrip(swatches: List<Long>, current: Long, onPick: (Long) -> Unit) {
+    Row(
+        Modifier
+            .widthIn(max = 320.dp)
+            .panelSurface(appCorner(24), elevation = 14.dp)
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 8.dp, vertical = 7.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        swatches.forEach { c ->
+            val on = c == current
+            val ring by androidx.compose.animation.core.animateFloatAsState(if (on) 1f else 0f, Motion.tween(220), label = "marker-ring")
+            Box(
+                Modifier
+                    .size(36.dp)
+                    .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.86f) { onPick(c) }
+                    .border((1.5f * ring).dp, AppColors.Text.copy(alpha = ring), CircleShape)
+                    .padding(5.dp)
+                    .clip(CircleShape)
+                    .background(Color(c))
+                    .border(1.dp, Color(0x55FFFFFF), CircleShape),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SelectionAction(button: SelectionButton, markerColor: Long, actions: NoteActions, colorsOpen: Boolean, onMarker: () -> Unit) {
     val click = when (button) {
         SelectionButton.Note -> actions.onSelectionNote
-        SelectionButton.Marker -> actions.onSelectionMarker
+        SelectionButton.Marker -> onMarker
         SelectionButton.Translate -> actions.onSelectionTranslate
         SelectionButton.Dictionary -> actions.onSelectionDictionary
         SelectionButton.Ai -> actions.onSelectionAi
@@ -160,7 +210,7 @@ private fun SelectionAction(button: SelectionButton, markerColor: Long, actions:
     }
     MenuAction(
         button.title,
-        highlighted = button == SelectionButton.Ai,
+        highlighted = button == SelectionButton.Ai || (button == SelectionButton.Marker && colorsOpen),
         sound = when (button) {
             SelectionButton.Marker -> FeedbackSound.Toggle
             SelectionButton.Copy -> FeedbackSound.Copy

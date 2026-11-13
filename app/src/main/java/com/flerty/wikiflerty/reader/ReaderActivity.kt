@@ -1114,12 +1114,13 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     )
                 }
             },
-            onSelectionMarker = {
+            onSelectionMarker = { color ->
                 val selection = ui.selection
                 if (selection != null) {
                     endSelection()
                     lifecycleScope.launch {
-                        app.notes.create(bookId, selection.locator, selection.text, "", settings.markerColor, ui.chapter)
+                        app.notes.create(bookId, selection.locator, selection.text, "", color, ui.chapter)
+                        if (color != settings.markerColor) app.readerSettings.update { it.copy(markerColor = color) }
                     }
                 }
             },
