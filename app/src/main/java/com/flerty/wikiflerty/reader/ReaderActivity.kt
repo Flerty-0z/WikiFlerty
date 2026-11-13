@@ -1528,7 +1528,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         val root = findViewById<View>(R.id.reader_root)
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
-            systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            systemBars = insets.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.systemBars())
             applyBookMargins(settings)
             insets
         }
@@ -2964,6 +2964,18 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         copyPage(onReady)
     }
 
+    private fun eraseFlag(bitmap: Bitmap, top: Int): Bitmap {
+        if (!settings.showFlag || settings.scroll) return bitmap
+        val y = (ui.flagTop - top).roundToInt()
+        if (y <= 0 || y >= bitmap.height) return bitmap
+        runCatching {
+            val canvas = android.graphics.Canvas(bitmap)
+            val paint = android.graphics.Paint().apply { color = settings.pageTheme.background.toInt() }
+            canvas.drawRect(0f, y.toFloat(), bitmap.width.toFloat(), bitmap.height.toFloat(), paint)
+        }
+        return bitmap
+    }
+
     private fun copyPage(onReady: (Bitmap?) -> Unit) {
         val view = bookArea
         if (view.width == 0 || view.height == 0) {
@@ -2980,7 +2992,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     window,
                     rect,
                     bitmap,
-                    { result -> onReady(if (result == PixelCopy.SUCCESS) bitmap else null) },
+                    { result -> onReady(if (result == PixelCopy.SUCCESS) eraseFlag(bitmap, location[1]) else null) },
                     Handler(Looper.getMainLooper()),
                 )
             } catch (e: IllegalArgumentException) {
@@ -3042,8 +3054,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         if (!::bookArea.isInitialized) return
         val density = resources.displayMetrics.density
         val params = bookArea.layoutParams as ViewGroup.MarginLayoutParams
-        val top = systemBars.top + (20 * density).toInt()
-        val bottom = systemBars.bottom + ((if (s.showFlag) 22 + 24 * s.flagSize.coerceIn(0.8, 1.0) else 18.0) * density).toInt()
+        val bars = if (s.fullscreen) Insets.NONE else systemBars
+        val top = bars.top + (20 * density).toInt()
+        val bottom = bars.bottom + ((if (s.showFlag) 22 + 24 * s.flagSize.coerceIn(0.8, 1.0) else 18.0) * density).toInt()
         if (params.topMargin != top || params.bottomMargin != bottom) {
             params.topMargin = top
             params.bottomMargin = bottom

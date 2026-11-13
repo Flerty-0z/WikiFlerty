@@ -33,6 +33,7 @@ import androidx.core.view.WindowCompat
 import kotlinx.coroutines.launch
 
 private val SheetEase = androidx.compose.animation.core.CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+private val SheetExit = androidx.compose.animation.core.CubicBezierEasing(0.3f, 0.35f, 0.55f, 1f)
 
 class SheetControl internal constructor(val close: () -> Unit, private val shown: () -> Float) {
     val progress: Float get() = shown()
@@ -97,7 +98,7 @@ fun SheetWindow(
                 closing[0] = true
                 closingHook()
                 scope.launch {
-                    if (Motion.enabled) runCatching { shown.animateTo(0f, tween(Motion.ms(230), easing = FastOutLinearInEasing)) }
+                    if (Motion.enabled) runCatching { shown.animateTo(0f, tween(Motion.ms(260), easing = SheetExit)) }
                     latest()
                 }
             }
