@@ -349,39 +349,38 @@ internal fun PersonProfileSheet(
                 .border(1.dp, danger.copy(alpha = 0.45f), dangerShape),
             contentAlignment = Alignment.Center,
         ) { ActionLabel("Удалить персонажа", danger, fontSize = 14.sp, iconSize = 21.dp, icon = AppIcons.Trash) }
-    }
-
-    field?.let { f ->
-        TextInputSheet(f.title, f.value, f.hint, onDismiss = { field = null }, maxLength = f.max, multiline = f.multiline) { text ->
-            actions.onUpdate(f.apply(person, text.trim()))
+        field?.let { f ->
+            TextInputSheet(f.title, f.value, f.hint, onDismiss = { field = null }, maxLength = f.max, multiline = f.multiline) { text ->
+                actions.onUpdate(f.apply(person, text.trim()))
+            }
         }
-    }
-    if (customRole) {
-        val own = person.role.takeIf { CharacterRole.of(it) == null }.orEmpty()
-        TextInputSheet("Своя роль", own, "Например, наставник", onDismiss = { customRole = false }, icon = AppIcons.Pencil, maxLength = 40) { text ->
-            actions.onUpdate(person.copy(role = text.trim()))
+        if (customRole) {
+            val own = person.role.takeIf { CharacterRole.of(it) == null }.orEmpty()
+            TextInputSheet("Своя роль", own, "Например, наставник", onDismiss = { customRole = false }, icon = AppIcons.Pencil, maxLength = 40) { text ->
+                actions.onUpdate(person.copy(role = text.trim()))
+            }
         }
-    }
-    if (linking) {
-        BookLinkSheet(
-            books = books.filter { it.id != person.bookId && it.statsKey !in person.books },
-            series = (home ?: books.firstOrNull { it.id == homeBookId })?.series?.map { it.name.lowercase() }.orEmpty(),
-            cover = { app.library.coverFile(it) },
-            onPick = { b -> actions.onUpdate(person.copy(books = (person.books + b.statsKey).distinct())) },
-            onDismiss = { linking = false },
-        )
-    }
-    if (confirmDelete) {
-        ConfirmSheet(
-            title = "Удалить персонажа?",
-            text = "Профиль и флажки в тексте исчезнут.",
-            confirm = "Удалить",
-            onConfirm = {
-                actions.onDelete(person.id)
-                onDismiss()
-            },
-            onDismiss = { confirmDelete = false },
-        )
+        if (linking) {
+            BookLinkSheet(
+                books = books.filter { it.id != person.bookId && it.statsKey !in person.books },
+                series = (home ?: books.firstOrNull { it.id == homeBookId })?.series?.map { it.name.lowercase() }.orEmpty(),
+                cover = { app.library.coverFile(it) },
+                onPick = { b -> actions.onUpdate(person.copy(books = (person.books + b.statsKey).distinct())) },
+                onDismiss = { linking = false },
+            )
+        }
+        if (confirmDelete) {
+            ConfirmSheet(
+                title = "Удалить персонажа?",
+                text = "Профиль и флажки в тексте исчезнут.",
+                confirm = "Удалить",
+                onConfirm = {
+                    actions.onDelete(person.id)
+                    onDismiss()
+                },
+                onDismiss = { confirmDelete = false },
+            )
+        }
     }
 }
 

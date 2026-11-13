@@ -443,9 +443,9 @@ private fun SeriesEditSheet(draft: SeriesDraft, onRemove: () -> Unit, onDismiss:
             onRemove()
             close()
         }
-    }
-    if (naming) {
-        TextInputSheet("Серия", draft.name, "Название серии", onDismiss = { naming = false }, icon = AppIcons.Series, maxLength = 120) { draft.name = it.trim() }
+        if (naming) {
+            TextInputSheet("Серия", draft.name, "Название серии", onDismiss = { naming = false }, icon = AppIcons.Series, maxLength = 120) { draft.name = it.trim() }
+        }
     }
 }
 
@@ -477,19 +477,19 @@ fun BookDetailsSheet(book: Book, onDismiss: () -> Unit) {
             app.appScope.launch { app.library.editDetails(book.id, facts, list) }
             close()
         }
-    }
-    field?.let { k ->
-        TextInputSheet(BookFacts.title(k), values[k].orEmpty(), BookFacts.title(k), onDismiss = { field = null }, icon = icons.getValue(k), number = k == BookFacts.Year, maxLength = 160) { values[k] = it.trim() }
-    }
-    open?.let { draft ->
-        SeriesEditSheet(
-            draft,
-            onRemove = { series.remove(draft) },
-            onDismiss = {
-                open = null
-                if (draft.name.isBlank()) series.remove(draft)
-            },
-        )
+        field?.let { k ->
+            TextInputSheet(BookFacts.title(k), values[k].orEmpty(), BookFacts.title(k), onDismiss = { field = null }, icon = icons.getValue(k), number = k == BookFacts.Year, maxLength = 160) { values[k] = it.trim() }
+        }
+        open?.let { draft ->
+            SeriesEditSheet(
+                draft,
+                onRemove = { series.remove(draft) },
+                onDismiss = {
+                    open = null
+                    if (draft.name.isBlank()) series.remove(draft)
+                },
+            )
+        }
     }
 }
 
@@ -622,11 +622,11 @@ fun BookTagsSheet(book: Book, onDismiss: () -> Unit) {
                 }
             }
         }
-    }
-    if (adding) {
-        TextInputSheet("Новый тег", "", "Например, Тёмное фэнтези", onDismiss = { adding = false }, icon = AppIcons.Tag, maxLength = 40) { text ->
-            val clean = text.trim().trimStart('#').trim()
-            if (clean.isNotEmpty() && clean.lowercase() !in have) save(current.tags + clean)
+        if (adding) {
+            TextInputSheet("Новый тег", "", "Например, Тёмное фэнтези", onDismiss = { adding = false }, icon = AppIcons.Tag, maxLength = 40) { text ->
+                val clean = text.trim().trimStart('#').trim()
+                if (clean.isNotEmpty() && clean.lowercase() !in have) save(current.tags + clean)
+            }
         }
     }
 }

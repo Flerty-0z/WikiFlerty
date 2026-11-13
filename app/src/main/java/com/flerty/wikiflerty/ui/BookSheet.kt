@@ -24,6 +24,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -73,6 +76,7 @@ import androidx.compose.animation.togetherWith
 private val Danger get() = AppColors.Bad
 
 val LocalSheetClose = androidx.compose.runtime.staticCompositionLocalOf<(() -> Unit)?> { null }
+val LocalSheetCloseAll = androidx.compose.runtime.staticCompositionLocalOf<(() -> Unit)?> { null }
 
 @Composable
 fun sheetClose(fallback: () -> Unit): () -> Unit = LocalSheetClose.current ?: fallback
@@ -119,17 +123,27 @@ fun AppSheet(
     aura: List<Color>? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val host = LocalSheetPages.current
+    if (host != null) {
+        SheetPageEntry(host, onDismiss, title, content)
+        return
+    }
     val auraShown = remember { arrayOf<List<Color>?>(null) }
     if (aura != null) auraShown[0] = aura
     val auraGlow by androidx.compose.animation.core.animateFloatAsState(if (aura != null) 1f else 0f, Motion.tween(620), label = "sheet-aura")
     val corner = (26 * AppStyle.current.corners).dp
     val sheetShape = RoundedCornerShape(topStart = corner, topEnd = corner)
-    SheetWindow(onDismiss) { control ->
+    val pages = remember { SheetPages() }
+    val dismissAll: () -> Unit = {
+        pages.stack.toList().asReversed().forEach { if (!it.leaving) it.onDismiss() }
+        onDismiss()
+    }
+    SheetWindow(dismissAll, onBack = { pages.back() }) { control ->
         val close = control.close
         val viewport = remember { RevealViewport() }
-        androidx.compose.runtime.CompositionLocalProvider(LocalSheetClose provides close, LocalRevealViewport provides viewport) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalSheetClose provides close, LocalSheetCloseAll provides close, LocalRevealViewport provides viewport, LocalSheetPages provides pages) {
             val body: @Composable (Modifier) -> Unit = { mod ->
-                Column(
+                Box(
                     mod.height(sheetHeight()).drawBehind {
                         val colors = auraShown[0]
                         if (colors != null && auraGlow > 0.01f) {
@@ -143,12 +157,17 @@ fun AppSheet(
                         }
                     },
                 ) {
-                    if (title != null) Box(Modifier.padding(horizontal = 16.dp)) { SheetHeader(title, close) }
-                    Column(
-                        Modifier.weight(1f).revealViewport(viewport).padding(horizontal = 16.dp).navigationBarsPadding().revealScroll(viewport).padding(top = if (title == null) 16.dp else 14.dp, bottom = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        content()
+                    Column(Modifier.fillMaxSize().pageDepth(pages, null)) {
+                        if (title != null) Box(Modifier.padding(horizontal = 16.dp)) { SheetHeader(title, close) }
+                        Column(
+                            Modifier.weight(1f).revealViewport(viewport).padding(horizontal = 16.dp).navigationBarsPadding().revealScroll(viewport).padding(top = if (title == null) 16.dp else 14.dp, bottom = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            content()
+                        }
+                    }
+                    pages.stack.forEach { page ->
+                        androidx.compose.runtime.key(page) { SheetPageLayer(pages, page, close) }
                     }
                 }
             }
@@ -164,6 +183,112 @@ fun AppSheet(
                 ) { body(Modifier) }
             }
         }
+    }
+}
+
+class SheetPage {
+    var title by androidx.compose.runtime.mutableStateOf<String?>(null)
+    var content by androidx.compose.runtime.mutableStateOf<(@Composable ColumnScope.() -> Unit)?>(null)
+    var onDismiss: () -> Unit = {}
+    var leaving by androidx.compose.runtime.mutableStateOf(false)
+    val enter = androidx.compose.animation.core.Animatable(0f)
+}
+
+class SheetPages {
+    val stack = androidx.compose.runtime.mutableStateListOf<SheetPage>()
+
+    fun back(): Boolean {
+        val top = stack.lastOrNull { !it.leaving } ?: return false
+        top.onDismiss()
+        return true
+    }
+
+    fun above(page: SheetPage?): SheetPage? {
+        val index = if (page == null) -1 else stack.indexOf(page)
+        return stack.getOrNull(index + 1)
+    }
+}
+
+val LocalSheetPages = androidx.compose.runtime.staticCompositionLocalOf<SheetPages?> { null }
+
+private val PageEase = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0.9f, 0.25f, 1f)
+
+@Composable
+private fun SheetPageEntry(host: SheetPages, onDismiss: () -> Unit, title: String?, content: @Composable ColumnScope.() -> Unit) {
+    val page = remember { SheetPage() }
+    androidx.compose.runtime.SideEffect {
+        page.title = title
+        page.content = content
+        page.onDismiss = onDismiss
+    }
+    DisposableEffect(page) {
+        page.title = title
+        page.content = content
+        page.onDismiss = onDismiss
+        host.stack.add(page)
+        onDispose { page.leaving = true }
+    }
+}
+
+private fun Modifier.pageDepth(pages: SheetPages, page: SheetPage?): Modifier = this.graphicsLayer {
+    val over = pages.above(page)
+    val v = over?.enter?.value ?: 0f
+    translationX = -size.width * 0.24f * v
+    alpha = (1f - v * 1.1f).coerceIn(0f, 1f)
+}
+
+@Composable
+private fun SheetPageLayer(pages: SheetPages, page: SheetPage, closeAll: () -> Unit) {
+    val leaving = page.leaving
+    LaunchedEffect(leaving) {
+        if (!leaving) {
+            page.enter.animateTo(1f, androidx.compose.animation.core.tween(Motion.ms(360), easing = PageEase))
+        } else {
+            page.enter.animateTo(0f, androidx.compose.animation.core.tween(Motion.ms(280), easing = PageEase))
+            pages.stack.remove(page)
+        }
+    }
+    val viewport = remember { RevealViewport() }
+    val back: () -> Unit = { if (!page.leaving) page.onDismiss() }
+    val title = page.title
+    androidx.compose.runtime.CompositionLocalProvider(LocalSheetClose provides back, LocalRevealViewport provides viewport) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    translationX = size.width * (1f - page.enter.value)
+                    shadowElevation = if (page.enter.value in 0.01f..0.99f) 18.dp.toPx() else 0f
+                }
+                .pageDepth(pages, page)
+                .background(AppColors.Panel)
+                .pointerInput(Unit) { detectTapGestures { } },
+        ) {
+            if (title != null) Box(Modifier.padding(horizontal = 16.dp)) { PageHeader(title, back, closeAll) }
+            Column(
+                Modifier.weight(1f).revealViewport(viewport).padding(horizontal = 16.dp).navigationBarsPadding().revealScroll(viewport).padding(top = if (title == null) 16.dp else 14.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                page.content?.invoke(this)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PageHeader(title: String, onBack: () -> Unit, onClose: () -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 12.dp), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.align(Alignment.CenterStart).size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onBack).background(AppColors.Field),
+                contentAlignment = Alignment.Center,
+            ) { Icon(AppIcons.Back, "Назад", tint = AppColors.Muted, modifier = Modifier.size(18.dp)) }
+            HeaderLabel(title, Modifier.padding(horizontal = 46.dp))
+            Box(
+                Modifier.align(Alignment.CenterEnd).size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onClose).background(AppColors.Field),
+                contentAlignment = Alignment.Center,
+            ) { Icon(AppIcons.Close, "Закрыть", tint = AppColors.Muted, modifier = Modifier.size(18.dp)) }
+        }
+        SheetDivider()
     }
 }
 
@@ -381,19 +506,18 @@ fun BookSheet(
                 }
             }
         }
-    }
-
-    if (rating) RatingSheet(book.id, celebrate = false) { rating = false }
-    if (editPaper) PaperBookSheet(book) { editPaper = false }
-    if (editInfo) BookEditSheet(book) { editInfo = false }
-    if (confirmDelete) {
-        ConfirmSheet(
-            title = "Удалить книгу?",
-            text = if (book.paper) "Книга и её сеансы удалятся. Статистика останется." else "Книга и заметки к ней удалятся. Словарь и статистика останутся.",
-            confirm = "Удалить",
-            onConfirm = onDelete,
-            onDismiss = { confirmDelete = false },
-        )
+        if (rating) RatingSheet(book.id, celebrate = false) { rating = false }
+        if (editPaper) PaperBookSheet(book) { editPaper = false }
+        if (editInfo) BookEditSheet(book) { editInfo = false }
+        if (confirmDelete) {
+            ConfirmSheet(
+                title = "Удалить книгу?",
+                text = if (book.paper) "Книга и её сеансы удалятся. Статистика останется." else "Книга и заметки к ней удалятся. Словарь и статистика останутся.",
+                confirm = "Удалить",
+                onConfirm = onDelete,
+                onDismiss = { confirmDelete = false },
+            )
+        }
     }
 }
 
@@ -824,20 +948,20 @@ fun ShelfDialogView(dialog: ShelfDialog, shelves: List<String>, onDismiss: () ->
                 ActionLabel("Удалить полку", Danger, fontSize = 14.sp, iconSize = 21.dp)
             }
         }
-    }
-    if (confirmDelete) {
-        ConfirmSheet(
-            title = "Удалить полку?",
-            text = "Книги останутся в библиотеке, удалится только полка «$original».",
-            confirm = "Удалить",
-            onConfirm = {
-                app.appScope.launch { app.library.renameShelf(original, null) }
-                app.libraryPrefs.update { p ->
-                    p.copy(shelves = p.shelves - original, filter = if (p.filter == "shelf:$original") "all" else p.filter)
-                }
-                onDismiss()
-            },
-            onDismiss = { confirmDelete = false },
-        )
+        if (confirmDelete) {
+            ConfirmSheet(
+                title = "Удалить полку?",
+                text = "Книги останутся в библиотеке, удалится только полка «$original».",
+                confirm = "Удалить",
+                onConfirm = {
+                    app.appScope.launch { app.library.renameShelf(original, null) }
+                    app.libraryPrefs.update { p ->
+                        p.copy(shelves = p.shelves - original, filter = if (p.filter == "shelf:$original") "all" else p.filter)
+                    }
+                    onDismiss()
+                },
+                onDismiss = { confirmDelete = false },
+            )
+        }
     }
 }

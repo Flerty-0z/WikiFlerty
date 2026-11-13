@@ -156,7 +156,8 @@ fun TagCloudSheet(active: List<String>, onApply: (List<String>) -> Unit, onDismi
     val matched = remember(books, chosen) { books.count { b -> chosen.all { b.hasTag(it) } } }
     val top = counts.maxOfOrNull { it.count } ?: 1
     AppSheet(onDismiss, title = "Теги") {
-        val close = sheetClose(onDismiss)
+        val back = sheetClose(onDismiss)
+        val close = LocalSheetCloseAll.current ?: back
         if (counts.isEmpty()) {
             EmptyNote(AppIcons.Hash, "Тегов пока нет", "Добавь их в карточке книги")
         } else {
@@ -195,8 +196,8 @@ fun TagCloudSheet(active: List<String>, onApply: (List<String>) -> Unit, onDismi
             }
             CardButton("Управление тегами", AppIcons.Pencil, Modifier.fillMaxWidth()) { manage = true }
         }
+        if (manage) TagManageSheet { manage = false }
     }
-    if (manage) TagManageSheet { manage = false }
 }
 
 private fun booksWord(n: Int): String {
@@ -271,39 +272,39 @@ private fun TagActionsSheet(name: String, count: Int, onDismiss: () -> Unit) {
         }
         PaperField(name, "Название тега", AppIcons.Tag) { rename = true }
         DeleteRow("Удалить тег") { delete = true }
-    }
-    if (rename) {
-        TextInputSheet("Название тега", name, "Название тега", onDismiss = { rename = false }, icon = AppIcons.Tag, maxLength = 40) { text ->
-            val clean = text.trim().trimStart('#').replace('|', ' ').trim()
-            if (clean.isNotEmpty() && clean != name) {
-                app.appScope.launch { app.library.renameTag(name, clean) }
-                app.libraryPrefs.update { p ->
-                    p.copy(
-                        tagShelves = p.tagShelves.map { if (it.equals(name, true)) clean else it }.distinctBy { it.lowercase() },
-                        filter = if (p.filter.startsWith(TagFilterPrefix)) "all" else p.filter,
-                    )
+        if (rename) {
+            TextInputSheet("Название тега", name, "Название тега", onDismiss = { rename = false }, icon = AppIcons.Tag, maxLength = 40) { text ->
+                val clean = text.trim().trimStart('#').replace('|', ' ').trim()
+                if (clean.isNotEmpty() && clean != name) {
+                    app.appScope.launch { app.library.renameTag(name, clean) }
+                    app.libraryPrefs.update { p ->
+                        p.copy(
+                            tagShelves = p.tagShelves.map { if (it.equals(name, true)) clean else it }.distinctBy { it.lowercase() },
+                            filter = if (p.filter.startsWith(TagFilterPrefix)) "all" else p.filter,
+                        )
+                    }
+                    onDismiss()
                 }
-                onDismiss()
             }
         }
-    }
-    if (delete) {
-        ConfirmSheet(
-            title = "Удалить тег?",
-            text = "#$name пропадёт у всех книг. Сами книги останутся.",
-            confirm = "Удалить",
-            onConfirm = {
-                app.appScope.launch { app.library.renameTag(name, null) }
-                app.libraryPrefs.update { p ->
-                    p.copy(
-                        tagShelves = p.tagShelves.filterNot { it.equals(name, true) },
-                        filter = if (p.filter.startsWith(TagFilterPrefix)) "all" else p.filter,
-                    )
-                }
-                onDismiss()
-            },
-            onDismiss = { delete = false },
-        )
+        if (delete) {
+            ConfirmSheet(
+                title = "Удалить тег?",
+                text = "#$name пропадёт у всех книг. Сами книги останутся.",
+                confirm = "Удалить",
+                onConfirm = {
+                    app.appScope.launch { app.library.renameTag(name, null) }
+                    app.libraryPrefs.update { p ->
+                        p.copy(
+                            tagShelves = p.tagShelves.filterNot { it.equals(name, true) },
+                            filter = if (p.filter.startsWith(TagFilterPrefix)) "all" else p.filter,
+                        )
+                    }
+                    onDismiss()
+                },
+                onDismiss = { delete = false },
+            )
+        }
     }
 }
 
@@ -317,8 +318,8 @@ fun TagManageSheet(onDismiss: () -> Unit) {
     AppSheet(onDismiss, title = "Управление тегами") {
         if (counts.isEmpty()) EmptyNote(AppIcons.Hash, "Тегов пока нет", "Добавь их в карточке книги")
         counts.forEach { t -> TagRow(t, prefs.tagShelves.any { it.equals(t.name, true) }) { open = t } }
+        open?.let { t -> TagActionsSheet(t.name, t.count) { open = null } }
     }
-    open?.let { t -> TagActionsSheet(t.name, t.count) { open = null } }
 }
 
 @Composable
@@ -351,8 +352,8 @@ fun SeriesListSheet(onOpenBook: ((Book) -> Unit)?, onDismiss: () -> Unit) {
                 Text("${s.done}/${s.books.size}", color = if (s.complete) AppColors.Good else AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
             }
         }
+        open?.let { name -> SeriesSheet(name, null, onOpenBook) { open = null } }
     }
-    open?.let { name -> SeriesSheet(name, null, onOpenBook) { open = null } }
 }
 
 @Composable

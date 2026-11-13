@@ -85,8 +85,10 @@ private fun DialogWindowSetup() {
 fun SheetWindow(
     onDismiss: () -> Unit,
     onClosing: () -> Unit = {},
+    onBack: (() -> Boolean)? = null,
     content: @Composable BoxScope.(SheetControl) -> Unit,
 ) {
+    val backHook by rememberUpdatedState(onBack)
     val latest by rememberUpdatedState(onDismiss)
     val closingHook by rememberUpdatedState(onClosing)
     val shown = remember { Animatable(if (Motion.enabled) 0f else 1f) }
@@ -105,8 +107,9 @@ fun SheetWindow(
         }
     }
     val control = remember { SheetControl(close) { shown.value } }
+    val back: () -> Unit = remember { { if (backHook?.invoke() != true) close() } }
     Dialog(
-        onDismissRequest = close,
+        onDismissRequest = back,
         properties = DialogProperties(
             dismissOnBackPress = true,
             dismissOnClickOutside = false,
@@ -129,7 +132,7 @@ fun SheetWindow(
                     .fillMaxSize()
                     .graphicsLayer { alpha = shown.value }
                     .background(Color.Black.copy(alpha = if (AppStyle.light) 0.32f else 0.48f))
-                    .pointerInput(Unit) { detectTapGestures { close() } },
+                    .pointerInput(Unit) { detectTapGestures { back() } },
             )
             Box(
                 Modifier

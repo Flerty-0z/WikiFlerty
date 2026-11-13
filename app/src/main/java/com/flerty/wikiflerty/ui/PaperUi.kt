@@ -170,14 +170,14 @@ fun PaperBookSheet(book: Book?, onDismiss: () -> Unit) {
         Appear(!ready && (title.isNotEmpty() || pages.isNotEmpty())) {
             Text("Нужны название и число страниц", color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
         }
-    }
-    if (searching) {
-        CoverSearchSheet(title, author, onDismiss = { searching = false }) { uri, _ -> cover = uri }
-    }
-    when (editing) {
-        0 -> TextInputSheet("Название", title, "Название книги", onDismiss = { editing = -1 }, icon = AppIcons.Book) { title = it }
-        1 -> TextInputSheet("Автор", author, "Автор книги", onDismiss = { editing = -1 }, icon = AppIcons.Pencil, maxLength = 120) { author = it }
-        2 -> TextInputSheet("Страниц в книге", pages, "Например, 320", onDismiss = { editing = -1 }, icon = AppIcons.Pages, number = true, maxLength = 5) { pages = it }
+        if (searching) {
+            CoverSearchSheet(title, author, onDismiss = { searching = false }) { uri, _ -> cover = uri }
+        }
+        when (editing) {
+            0 -> TextInputSheet("Название", title, "Название книги", onDismiss = { editing = -1 }, icon = AppIcons.Book) { title = it }
+            1 -> TextInputSheet("Автор", author, "Автор книги", onDismiss = { editing = -1 }, icon = AppIcons.Pencil, maxLength = 120) { author = it }
+            2 -> TextInputSheet("Страниц в книге", pages, "Например, 320", onDismiss = { editing = -1 }, icon = AppIcons.Pages, number = true, maxLength = 5) { pages = it }
+        }
     }
 }
 
@@ -635,51 +635,51 @@ private fun SessionSheet(book: Book, form: SessionForm, onSaved: (Boolean) -> Un
                 modifier = Modifier.fillMaxWidth().liveClick(appCorner(8), sound = FeedbackSound.Close) { confirmDelete = true }.padding(vertical = 8.dp),
             )
         }
-    }
-    if (pickDate) {
-        val state = rememberDatePickerState(initialSelectedDateMillis = start + ZoneId.systemDefault().rules.getOffset(Instant.ofEpochMilli(start)).totalSeconds * 1000L)
-        DatePickerDialog(
-            onDismissRequest = { pickDate = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    state.selectedDateMillis?.let { utc ->
-                        val day = Instant.ofEpochMilli(utc).atZone(ZoneId.of("UTC")).toLocalDate()
-                        val time = Instant.ofEpochMilli(start).atZone(ZoneId.systemDefault()).toLocalTime()
-                        start = LocalDateTime.of(day, time).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli().coerceAtMost(System.currentTimeMillis())
-                    }
-                    pickDate = false
-                }) { ActionLabel("Готово", AppColors.Accent) }
-            },
-            dismissButton = { TextButton(onClick = { pickDate = false }) { ActionLabel("Отмена", AppColors.Muted) } },
-        ) { DatePicker(state) }
-    }
-    if (pickTime) {
-        val at = Instant.ofEpochMilli(start).atZone(ZoneId.systemDefault())
-        val state = rememberTimePickerState(at.hour, at.minute, is24Hour = true)
-        AlertDialog(
-            onDismissRequest = { pickTime = false },
-            containerColor = AppColors.Panel,
-            confirmButton = {
-                TextButton(onClick = {
-                    start = at.withHour(state.hour).withMinute(state.minute).toInstant().toEpochMilli()
-                    pickTime = false
-                }) { ActionLabel("Готово", AppColors.Accent) }
-            },
-            dismissButton = { TextButton(onClick = { pickTime = false }) { ActionLabel("Отмена", AppColors.Muted) } },
-            text = { TimePicker(state) },
-        )
-    }
-    if (confirmDelete) {
-        ConfirmSheet(
-            title = "Удалить сеанс?",
-            text = "Страницы и время этого сеанса уберутся из прогресса и статистики.",
-            confirm = "Удалить",
-            onConfirm = {
-                form.session?.let { app.paper.delete(book, it) }
-                onDismiss()
-            },
-            onDismiss = { confirmDelete = false },
-        )
+        if (pickDate) {
+            val state = rememberDatePickerState(initialSelectedDateMillis = start + ZoneId.systemDefault().rules.getOffset(Instant.ofEpochMilli(start)).totalSeconds * 1000L)
+            DatePickerDialog(
+                onDismissRequest = { pickDate = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        state.selectedDateMillis?.let { utc ->
+                            val day = Instant.ofEpochMilli(utc).atZone(ZoneId.of("UTC")).toLocalDate()
+                            val time = Instant.ofEpochMilli(start).atZone(ZoneId.systemDefault()).toLocalTime()
+                            start = LocalDateTime.of(day, time).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli().coerceAtMost(System.currentTimeMillis())
+                        }
+                        pickDate = false
+                    }) { ActionLabel("Готово", AppColors.Accent) }
+                },
+                dismissButton = { TextButton(onClick = { pickDate = false }) { ActionLabel("Отмена", AppColors.Muted) } },
+            ) { DatePicker(state) }
+        }
+        if (pickTime) {
+            val at = Instant.ofEpochMilli(start).atZone(ZoneId.systemDefault())
+            val state = rememberTimePickerState(at.hour, at.minute, is24Hour = true)
+            AlertDialog(
+                onDismissRequest = { pickTime = false },
+                containerColor = AppColors.Panel,
+                confirmButton = {
+                    TextButton(onClick = {
+                        start = at.withHour(state.hour).withMinute(state.minute).toInstant().toEpochMilli()
+                        pickTime = false
+                    }) { ActionLabel("Готово", AppColors.Accent) }
+                },
+                dismissButton = { TextButton(onClick = { pickTime = false }) { ActionLabel("Отмена", AppColors.Muted) } },
+                text = { TimePicker(state) },
+            )
+        }
+        if (confirmDelete) {
+            ConfirmSheet(
+                title = "Удалить сеанс?",
+                text = "Страницы и время этого сеанса уберутся из прогресса и статистики.",
+                confirm = "Удалить",
+                onConfirm = {
+                    form.session?.let { app.paper.delete(book, it) }
+                    onDismiss()
+                },
+                onDismiss = { confirmDelete = false },
+            )
+        }
     }
 }
 

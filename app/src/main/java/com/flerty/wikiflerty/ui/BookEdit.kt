@@ -97,17 +97,17 @@ fun BookEditSheet(book: Book, onDismiss: () -> Unit) {
             }
             close()
         }
-    }
-    if (searching) {
-        CoverSearchSheet(title, author, onDismiss = { searching = false }) { uri, found ->
-            cover = uri
-            if (found != null && shownDescription.isBlank()) description = found
+        if (searching) {
+            CoverSearchSheet(title, author, onDismiss = { searching = false }) { uri, found ->
+                cover = uri
+                if (found != null && shownDescription.isBlank()) description = found
+            }
         }
-    }
-    when (editing) {
-        0 -> TextInputSheet("Название", title, "Название книги", onDismiss = { editing = -1 }, icon = AppIcons.Book) { if (it.isNotBlank()) title = it }
-        1 -> TextInputSheet("Автор", author, "Автор книги", onDismiss = { editing = -1 }, icon = AppIcons.Pencil, maxLength = 120) { author = it }
-        2 -> TextInputSheet("Описание", shownDescription, "О чём книга", onDismiss = { editing = -1 }, maxLength = 4000, multiline = true) { description = it }
+        when (editing) {
+            0 -> TextInputSheet("Название", title, "Название книги", onDismiss = { editing = -1 }, icon = AppIcons.Book) { if (it.isNotBlank()) title = it }
+            1 -> TextInputSheet("Автор", author, "Автор книги", onDismiss = { editing = -1 }, icon = AppIcons.Pencil, maxLength = 120) { author = it }
+            2 -> TextInputSheet("Описание", shownDescription, "О чём книга", onDismiss = { editing = -1 }, maxLength = 4000, multiline = true) { description = it }
+        }
     }
 }
 

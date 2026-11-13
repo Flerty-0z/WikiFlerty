@@ -400,15 +400,23 @@ fun LibraryScreen(
     if (controls.scanFolder) FolderScanSheet(onDismiss = { controls.scanFolder = false }, onImport = viewModel::importAll)
     if (controls.showViewSheet) LibraryViewSheet(prefs, onDismiss = { controls.showViewSheet = false })
 
-    if (showTags) {
-        TagCloudSheet(
-            active = tagFilterNames(prefs.filter),
-            onApply = { names -> app.libraryPrefs.update { it.copy(filter = if (names.isEmpty()) "all" else tagFilterId(names)) } },
-            onDismiss = { showTags = false },
-        )
+    val groupPages: @Composable () -> Unit = {
+        if (showTags) {
+            TagCloudSheet(
+                active = tagFilterNames(prefs.filter),
+                onApply = { names -> app.libraryPrefs.update { it.copy(filter = if (names.isEmpty()) "all" else tagFilterId(names)) } },
+                onDismiss = { showTags = false },
+            )
+        }
+        if (showSeries) SeriesListSheet(onOpenBook = { menuBookId = it.id }) { showSeries = false }
+    }
+    LaunchedEffect(showFilterSheet) {
+        if (!showFilterSheet) {
+            showTags = false
+            showSeries = false
+        }
     }
     if (manageTags) TagManageSheet { manageTags = false }
-    if (showSeries) SeriesListSheet(onOpenBook = { menuBookId = it.id }) { showSeries = false }
 
     if (showFilterSheet) {
         LibraryFilterSheet(
@@ -416,21 +424,13 @@ fun LibraryScreen(
             tags = tagTotal,
             series = seriesTotal,
             tagsActive = tagFilter != null,
-            onTags = {
-                showFilterSheet = false
-                showTags = true
-            },
-            onSeries = {
-                showFilterSheet = false
-                showSeries = true
-            },
+            onTags = { showTags = true },
+            onSeries = { showSeries = true },
+            pages = groupPages,
             counts = counts,
             coversFor = coversFor,
             selectedId = active.id,
-            onSelect = { id ->
-                app.libraryPrefs.update { it.copy(filter = id) }
-                showFilterSheet = false
-            },
+            onSelect = { id -> app.libraryPrefs.update { it.copy(filter = id) } },
             onEditShelf = { name -> controls.shelfDialog = ShelfDialog.Edit(name) },
             onReorder = { order -> app.libraryPrefs.update { it.copy(shelves = order) } },
             onNewShelf = {
@@ -747,11 +747,17 @@ private fun LibraryFilterSheet(
     tagsActive: Boolean = false,
     onTags: () -> Unit = {},
     onSeries: () -> Unit = {},
+    pages: @Composable () -> Unit = {},
 ) {
     AppSheet(onDismiss, title = "Показать") {
+        pages()
+        val close = sheetClose(onDismiss)
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             filters.filterNot { it.isShelf }.forEach { f ->
-                FilterRow(f, coversFor[f.id].orEmpty(), counts[f.id] ?: 0, f.id == selectedId, onEdit = null) { onSelect(f.id) }
+                FilterRow(f, coversFor[f.id].orEmpty(), counts[f.id] ?: 0, f.id == selectedId, onEdit = null) {
+                    onSelect(f.id)
+                    close()
+                }
             }
         }
         if (tags > 0 || series > 0) {
@@ -764,7 +770,10 @@ private fun LibraryFilterSheet(
         if (shelves.isNotEmpty()) {
             TabbedFrame("Полки", icon = AppIcons.Shelf, trailing = { CountBadge(shelves.size) }) {
                 ShelfOrderList(shelves, onReorder) { f, mod ->
-                    FilterRow(f, coversFor[f.id].orEmpty(), counts[f.id] ?: 0, f.id == selectedId, onEdit = { onEditShelf(f.title) }, modifier = mod) { onSelect(f.id) }
+                    FilterRow(f, coversFor[f.id].orEmpty(), counts[f.id] ?: 0, f.id == selectedId, onEdit = { onEditShelf(f.title) }, modifier = mod) {
+                        onSelect(f.id)
+                        close()
+                    }
                 }
             }
         }
