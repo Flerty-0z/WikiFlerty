@@ -665,7 +665,8 @@ private fun AddFan(open: Boolean, onClose: () -> Unit, onFile: () -> Unit, onSca
                 ) { Text(item.label, color = AppColors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
             }
         }
-    }    Box(Modifier.fillMaxSize().padding(bottom = fabCenter - 31.dp), contentAlignment = Alignment.BottomCenter) {
+    }
+    Box(Modifier.fillMaxSize().padding(bottom = fabCenter - 31.dp), contentAlignment = Alignment.BottomCenter) {
         Box(
             Modifier
                 .size(62.dp)
