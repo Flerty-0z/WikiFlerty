@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
@@ -326,29 +328,89 @@ fun SeriesListSheet(onOpenBook: ((Book) -> Unit)?, onDismiss: () -> Unit) {
     var open by remember { mutableStateOf<String?>(null) }
     AppSheet(onDismiss, title = "Серии") {
         if (list.isEmpty()) EmptyNote(AppIcons.Series, "Серий пока нет", "Укажи серию в карточке книги")
-        list.forEach { s ->
-            val shape = appCorner(16)
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .sheetReveal()
-                    .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) { open = s.name }
-                    .fieldSurface(shape)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                CoverStack(s.books.sortedBy { b -> b.series.firstOrNull { it.name.equals(s.name, true) }?.number ?: Double.MAX_VALUE }.map { it.id }, 24.dp)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(s.name, color = AppColors.Text, fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Box(Modifier.fillMaxWidth().height(5.dp).clip(appCorner(3)).background(AppColors.Line)) {
-                        Box(Modifier.fillMaxWidth(s.done.toFloat() / s.books.size.coerceAtLeast(1)).height(5.dp).background(if (s.complete) AppColors.Good else AppColors.Accent))
-                    }
-                }
-                Text("${s.done}/${s.books.size}", color = if (s.complete) AppColors.Good else AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+        list.chunked(2).forEach { pair ->
+            Row(Modifier.fillMaxWidth().sheetReveal(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                pair.forEach { s -> SeriesTile(s, Modifier.weight(1f)) { open = s.name } }
+                if (pair.size == 1) Box(Modifier.weight(1f))
             }
         }
         open?.let { name -> SeriesSheet(name, null, onOpenBook) { open = null } }
+    }
+}
+
+@Composable
+private fun SeriesTile(s: SeriesInfo, modifier: Modifier, onClick: () -> Unit) {
+    val app = LocalContext.current.applicationContext as App
+    val shape = appCorner(18)
+    val ordered = remember(s) { s.books.sortedBy { b -> b.series.firstOrNull { it.name.equals(s.name, true) }?.number ?: Double.MAX_VALUE } }
+    val front = ordered.firstOrNull { it.status != com.flerty.wikiflerty.data.ReadStatus.Finished } ?: ordered.firstOrNull()
+    val stack = remember(ordered, front) { (listOfNotNull(front) + ordered.filter { it.id != front?.id }).take(3) }
+    val aura by rememberCoverAura(remember(front) { front?.let { app.library.coverFile(it) } }, !EInk.on)
+    val tint by androidx.compose.animation.animateColorAsState(aura?.firstOrNull() ?: AppColors.Accent, Motion.tween(420), label = "series-tint")
+    val total = s.books.size.coerceAtLeast(1)
+    val doneColor = if (s.complete) AppColors.Good else AppColors.Accent
+    Column(
+        modifier
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onClick = onClick)
+            .fieldSurface(shape)
+            .clip(shape),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(112.dp)
+                .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(tint.copy(alpha = 0.32f), Color.Transparent))),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(Modifier.size(width = 56.dp + 20.dp, height = 84.dp + 8.dp).padding(top = 4.dp)) {
+                stack.asReversed().forEachIndexed { r, b ->
+                    val i = stack.size - 1 - r
+                    BookCover(
+                        b.id,
+                        56.dp,
+                        Modifier
+                            .offset(x = 10.dp * i, y = (8 - 4 * i).dp)
+                            .graphicsLayer { alpha = 1f - i * 0.28f },
+                    )
+                }
+            }
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .clip(appCorner(9))
+                    .background(AppColors.Background.copy(alpha = 0.82f))
+                    .border(1.dp, AppColors.PanelBorder, appCorner(9))
+                    .padding(horizontal = 7.dp, vertical = 2.dp),
+            ) {
+                Text("${s.done}/${s.books.size}", color = if (s.complete) AppColors.Good else AppColors.Text, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+            }
+        }
+        Text(
+            s.name,
+            color = AppColors.Text,
+            fontSize = 13.5.sp,
+            lineHeight = 17.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp).heightIn(min = 34.dp),
+        )
+        Row(
+            Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 12.dp).height(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            if (total <= 12) {
+                repeat(total) { k ->
+                    val on by androidx.compose.animation.animateColorAsState(if (k < s.done) doneColor else AppColors.Line, Motion.tween(320), label = "series-seg")
+                    Box(Modifier.weight(1f).fillMaxHeight().clip(appCorner(2)).background(on))
+                }
+            } else {
+                Box(Modifier.weight(1f).fillMaxHeight().clip(appCorner(2)).background(AppColors.Line)) {
+                    Box(Modifier.fillMaxWidth(s.done.toFloat() / total).fillMaxHeight().background(doneColor))
+                }
+            }
+        }
     }
 }
 
