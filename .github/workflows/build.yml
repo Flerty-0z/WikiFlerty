@@ -9,12 +9,17 @@ on:
         description: "Номер версии для всех пользователей. Пусто — тестовая сборка"
         required: false
         default: ""
+      store:
+        description: "Одна общая APK для RuStore, без релиза"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
 
 concurrency:
-  group: build-${{ github.ref }}-${{ inputs.public || 'test' }}
+  group: build-${{ github.ref }}-${{ inputs.public || 'test' }}-${{ inputs.store && 'store' || 'gh' }}
   cancel-in-progress: ${{ !inputs.public }}
 
 jobs:
@@ -70,7 +75,7 @@ jobs:
           PUBLIC_VERSION: ${{ inputs.public }}
         run: |
           set -o pipefail
-          ./gradlew assembleRelease --stacktrace 2>&1 | tee build.log
+          ./gradlew assembleRelease ${{ inputs.store && '-Puniversal=true' || '' }} --stacktrace 2>&1 | tee build.log
 
       - name: Report build errors
         if: failure()
@@ -79,7 +84,21 @@ jobs:
             [ -n "$line" ] && echo "::error::${line}"
           done
 
+      - name: Store APK
+        if: ${{ inputs.store }}
+        run: |
+          mkdir -p store
+          cp app/build/outputs/apk/release/app-universal-release.apk "store/WikiFlerty-0.1.${{ inputs.public || github.run_number }}.apk"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ inputs.store }}
+        with:
+          name: WikiFlerty-store
+          path: store/*.apk
+          retention-days: 7
+
       - name: Rename APK
+        if: ${{ !inputs.store }}
         run: |
           N="${{ inputs.public || github.run_number }}"
           mkdir -p out
@@ -87,6 +106,7 @@ jobs:
           cp app/build/outputs/apk/release/app-armeabi-v7a-release.apk "out/WikiFlerty-0.1.$N-x32.apk"
 
       - name: Publish release with the APK
+        if: ${{ !inputs.store }}
         env:
           GH_TOKEN: ${{ github.token }}
           PUBLIC: ${{ inputs.public }}
