@@ -125,11 +125,65 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private var selectionJob: Job? = null
     private var actionMode: ActionMode? = null
     private var bookId: String = ""
-    private var screensPerPosition = -1.0
     private val pageIntervals = ArrayDeque<Long>()
     private var lastPageKey = ""
     private var lastPageAt = 0L
     private var pageCountJob: Job? = null
+
+    private var hrefOrder: List<Pair<String, Int>> = emptyList()
+    private val screensByHref = HashMap<String, Int>()
+    private var screensKey = ""
+
+    private fun screensLayoutKey(): String {
+        val s = settings
+        val v = navigator.publicationView
+        return listOf(s.font, s.fontSize, s.lineHeight, s.margins, s.bold, s.columns, s.justify, s.hyphens, s.scroll, v.width / 8, v.height / 8).joinToString("|")
+    }
+
+    private fun loadScreens(key: String) {
+        screensByHref.clear()
+        screensKey = key
+        val raw = getSharedPreferences("reader_screens", MODE_PRIVATE).getString(bookId, null) ?: return
+        val json = runCatching { org.json.JSONObject(raw) }.getOrNull() ?: return
+        if (json.optString("key") != key) return
+        val map = json.optJSONObject("pages") ?: return
+        map.keys().forEach { k -> map.optInt(k).takeIf { it > 0 }?.let { screensByHref[k] = it } }
+    }
+
+    private fun saveScreens() {
+        val map = org.json.JSONObject()
+        screensByHref.forEach { (k, v) -> map.put(k, v) }
+        val json = org.json.JSONObject().put("key", screensKey).put("pages", map)
+        getSharedPreferences("reader_screens", MODE_PRIVATE).edit().putString(bookId, json.toString()).apply()
+    }
+
+    private fun bookScreens(href: String, cur: Int, count: Int) {
+        if (positions.isEmpty()) return
+        if (hrefOrder.isEmpty()) {
+            val order = LinkedHashMap<String, Int>()
+            positions.forEach { val k = it.href.toString().substringBefore('#'); order[k] = (order[k] ?: 0) + 1 }
+            hrefOrder = order.toList()
+        }
+        val key = screensLayoutKey()
+        if (key != screensKey) loadScreens(key)
+        if (screensByHref[href] != count) {
+            screensByHref[href] = count
+            saveScreens()
+        }
+        var measuredScreens = 0
+        var measuredPositions = 0
+        hrefOrder.forEach { (h, n) -> screensByHref[h]?.let { measuredScreens += it; measuredPositions += n } }
+        val ratio = if (measuredPositions > 0) measuredScreens.toDouble() / measuredPositions else return
+        var total = 0
+        var before = -1
+        hrefOrder.forEach { (h, n) ->
+            if (h == href) before = total
+            total += screensByHref[h] ?: (n * ratio).roundToInt().coerceAtLeast(1)
+        }
+        if (before < 0 || total <= 0) return
+        ui.bookPages = total
+        ui.bookPage = (before + cur).coerceIn(1, total)
+    }
 
     private fun updatePageCount(locator: org.readium.r2.shared.publication.Locator) {
         pageCountJob?.cancel()
@@ -142,18 +196,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             if (count <= 0) return@launch
             ui.chapterPage = cur.coerceIn(1, count)
             ui.chapterPages = count
-            val inResource = positions.count { it.href == locator.href }
-            if (inResource > 0) {
-                val r = count.toDouble() / inResource
-                screensPerPosition = if (screensPerPosition <= 0) r else screensPerPosition * 0.75 + r * 0.25
-                getSharedPreferences("reader_pages", MODE_PRIVATE).edit().putFloat(bookId, screensPerPosition.toFloat()).apply()
-            }
-            if (screensPerPosition > 0 && positions.isNotEmpty()) {
-                val total = (positions.size * screensPerPosition).roundToInt().coerceAtLeast(count)
-                val p = locator.locations.totalProgression ?: ui.progression
-                ui.bookPages = total
-                ui.bookPage = ((p * (total - 1)).roundToInt() + 1).coerceIn(1, total)
-            }
+            bookScreens(locator.href.toString().substringBefore('#'), cur.coerceIn(1, count), count)
             val key = "${locator.href}#$cur"
             val now = SystemClock.elapsedRealtime()
             if (key != lastPageKey) {
@@ -1421,7 +1464,6 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         if (app.library.books.value.firstOrNull { it.id == bookId }?.pdfText == true) {
             pdfMap = com.flerty.wikiflerty.data.convert.PdfPageMap.load(this, bookId)
         }
-        screensPerPosition = getSharedPreferences("reader_pages", MODE_PRIVATE).getFloat(bookId, -1f).toDouble()
         bookAuthor = session.publication.metadata.authors.joinToString(", ") { it.name }
         loadHeroes(session.bookId)
         val initial = settings
@@ -3113,8 +3155,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private fun goReturn() {
-        val target = ui.returnTo ?: return
+        val back = ui.returnTo ?: return
         ui.returnTo = null
+        val target = if (back.locations.progression != null) back.copy(text = org.readium.r2.shared.publication.Locator.Text()) else back
         lifecycleScope.launch {
             navigator.go(target, animated = false)
             resyncListening()

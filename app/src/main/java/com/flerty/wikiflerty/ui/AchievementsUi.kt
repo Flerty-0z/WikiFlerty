@@ -266,62 +266,30 @@ private fun AchievementBadge(
 val YearGoalChoices = listOf(0, 5, 8, 12, 16, 20)
 
 @Composable
-fun YearGoalCard(goal: Int, inPages: Boolean, finishedBooks: Int, pagesRead: Int, framed: Boolean = true, onGoal: (Int, Boolean) -> Unit) {
-    val today = LocalDate.now()
+fun YearGoalCard(goal: Int, inPages: Boolean, finishedBooks: Int, pagesRead: Int, framed: Boolean = true, bookIds: List<String> = emptyList(), onGoal: (Int, Boolean) -> Unit) {
     val finished = if (inPages) pagesRead else finishedBooks
-    fun word(n: Int) = if (inPages) "стр." else StatsCalc.plural(n, "книга", "книги", "книг")
     var lastGoal by remember { mutableStateOf(goal) }
     if (goal > 0) lastGoal = goal
-    Column(Modifier.fillMaxWidth().then(if (framed) Modifier.fieldSurface(appCorner(18)) else Modifier).animateContentSize(Motion.tween(380)).padding(horizontal = 14.dp, vertical = 10.dp)) {
+    var custom by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().then(if (framed) Modifier.fieldSurface(appCorner(18)) else Modifier).padding(horizontal = 14.dp, vertical = 12.dp)) {
+        GoalHeader(AppIcons.Trophy, if (goal > 0) "Год · $finished из $goal" + (if (inPages) " стр." else "") else "Год · без цели") { custom = true }
         GoalReveal(goal > 0) {
-            val goal = lastGoal
-            val fraction = (finished.toFloat() / goal).coerceIn(0f, 1f)
-            val expected = goal * today.dayOfYear.toDouble() / today.lengthOfYear()
-            val diff = floor(finished - expected).toInt()
-            val pace = when {
-                finished >= goal -> "Цель на год выполнена"
-                diff >= 1 -> "Опережаешь план на $diff" + if (inPages) " стр." else ""
-                finished + 1 < expected -> "Отстаёшь от плана на ${(expected - finished).toInt()}" + if (inPages) " стр." else ""
-                else -> "Идёшь по плану"
-            }
-            Row(
-                Modifier.padding(top = 6.dp, bottom = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Box(rememberStagger(0)) { YearRing(fraction, finished, goal, 76.dp) }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    RollingText("Прочитано $finished/$goal" + if (inPages) " стр." else "", rememberStagger(1)) {
-                        Text(it, color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    RollingText(pace, rememberStagger(2)) {
-                        Text(it, color = AppColors.Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    if (finished < goal) {
-                        val left = goal - finished
-                        RollingText("Ещё $left " + word(left) + " до конца года", rememberStagger(3)) {
-                            Text(it, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                }
-            }
+            Box(Modifier.padding(top = 12.dp)) { YearShelf(finished, lastGoal, inPages, bookIds) }
         }
-        var custom by remember { mutableStateOf(false) }
-        ValueRow("Цель на год", if (goal > 0) "$goal " + word(goal) else "Без цели", AppIcons.Trophy) { custom = true }
-        if (custom) {
-            val units = listOf(InputUnit("книг", 1..1000, 10), InputUnit("стр", 1..100000, 3000))
-            NumberInputSheet(
-                "Цель на год",
-                "книг",
-                goal.takeIf { it > 0 } ?: units[if (inPages) 1 else 0].default,
-                1..1000,
-                onDismiss = { custom = false },
-                onClear = if (goal > 0) ({ onGoal(0, inPages) }) else null,
-                units = units,
-                unit = if (inPages) 1 else 0,
-                onDoneUnit = { v, u -> onGoal(v, u == 1) },
-            ) { }
-        }
+    }
+    if (custom) {
+        val units = listOf(InputUnit("книг", 1..1000, 10), InputUnit("стр", 1..100000, 3000))
+        NumberInputSheet(
+            "Цель на год",
+            "книг",
+            goal.takeIf { it > 0 } ?: units[if (inPages) 1 else 0].default,
+            1..1000,
+            onDismiss = { custom = false },
+            onClear = if (goal > 0) ({ onGoal(0, inPages) }) else null,
+            units = units,
+            unit = if (inPages) 1 else 0,
+            onDoneUnit = { v, u -> onGoal(v, u == 1) },
+        ) { }
     }
 }
 

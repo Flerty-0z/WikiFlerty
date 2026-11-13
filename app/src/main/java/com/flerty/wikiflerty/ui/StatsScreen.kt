@@ -242,7 +242,8 @@ private fun StatsMain(modifier: Modifier, onAchievements: () -> Unit) {
                 GoalCard(prefs.dailyGoalMinutes, prefs.dailyGoalPages, perDay, framed = false) { v, pages -> app.libraryPrefs.update { it.copy(dailyGoalMinutes = v, dailyGoalPages = pages) } }
                 Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(1.dp).background(AppColors.PanelBorder))
                 val pagesThisYear = remember(perDay, today.year) { perDay.filterKeys { it.year == today.year }.values.sumOf { it.pages } }
-                YearGoalCard(prefs.yearGoalBooks, prefs.yearGoalPages, finishedThisYear, pagesThisYear, framed = false) { n, pages -> app.libraryPrefs.update { it.copy(yearGoalBooks = n, yearGoalPages = pages) } }
+                val shelfIds = remember(books, yearStart) { books.filter { it.status == ReadStatus.Finished && (it.finishedAt ?: 0) >= yearStart }.sortedBy { it.finishedAt ?: 0 }.map { it.id } }
+                YearGoalCard(prefs.yearGoalBooks, prefs.yearGoalPages, finishedThisYear, pagesThisYear, framed = false, bookIds = shelfIds) { n, pages -> app.libraryPrefs.update { it.copy(yearGoalBooks = n, yearGoalPages = pages) } }
             }
         }
         revealItem(key = "streak") { StreakCard(perDay, today) }
@@ -401,70 +402,31 @@ fun GoalRing(todayMs: Long, goalMinutes: Int, size: androidx.compose.ui.unit.Dp,
 @Composable
 private fun GoalCard(goalMinutes: Int, inPages: Boolean, perDay: Map<LocalDate, DayEntry>, framed: Boolean = true, onGoal: (Int, Boolean) -> Unit) {
     val today = LocalDate.now()
-    val todayMs = perDay[today]?.ms ?: 0L
-    val todayPages = perDay[today]?.pages ?: 0
     val unit = if (inPages) "стр." else "мин"
     var lastGoal by remember { mutableStateOf(goalMinutes) }
     if (goalMinutes > 0) lastGoal = goalMinutes
+    var custom by remember { mutableStateOf(false) }
     Column(
-        Modifier.fillMaxWidth().then(if (framed) Modifier.fieldSurface(appCorner(18)) else Modifier).animateContentSize(Motion.tween(380)).padding(horizontal = 14.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().then(if (framed) Modifier.fieldSurface(appCorner(18)) else Modifier).padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
+        GoalHeader(AppIcons.Target, if (goalMinutes > 0) "День · $goalMinutes $unit" else "День · без цели") { custom = true }
         GoalReveal(goalMinutes > 0) {
-            val goal = lastGoal
-            val done = if (inPages) todayPages >= goal else todayMs >= goal * 60_000L
-            val (streak, _) = remember(perDay, today, inPages, goal) { if (inPages) StatsCalc.streaks(perDay, today, minMs = 0L, minPages = goal) else StatsCalc.streaks(perDay, today, minMs = goal * 60_000L) }
-            val left = goal - if (inPages) todayPages else (todayMs / 60_000).toInt()
-            Row(
-                Modifier.padding(top = 6.dp, bottom = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Box(rememberStagger(0)) { GoalRing(todayMs, goal, 76.dp, pages = if (inPages) todayPages else null) }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    RollingText(
-                        if (done) "Цель выполнена" else "Ещё $left $unit до цели",
-                        rememberStagger(1),
-                    ) { label ->
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            if (done) Icon(AppIcons.Check, null, tint = AppColors.Accent, modifier = Modifier.size(17.dp))
-                            Text(
-                                label,
-                                color = AppColors.Text,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                softWrap = false,
-                                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 16.sp, stepSize = 0.25.sp),
-                            )
-                        }
-                    }
-                    RollingText("Цель: $goal $unit в день", rememberStagger(2)) {
-                        Text(it, color = AppColors.Muted, fontSize = 13.sp, maxLines = 1)
-                    }
-                    Appear(streak > 0) {
-                        Row(rememberStagger(3), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(AppIcons.Fire, null, tint = AppColors.Accent, modifier = Modifier.size(14.dp))
-                            Text("Выполняешь ${StatsCalc.days(streak)} подряд", color = AppColors.Faint, fontSize = 12.sp, maxLines = 1)
-                        }
-                    }
-                }
-            }
+            Box(Modifier.padding(top = 12.dp)) { WeekGoalBars(perDay, today, lastGoal, inPages) }
         }
-        var custom by remember { mutableStateOf(false) }
-        ValueRow("Цель на день", if (goalMinutes > 0) "$goalMinutes $unit" else "Без цели", AppIcons.Target) { custom = true }
-        if (custom) {
-            val units = listOf(InputUnit("мин", 1..1440, 25), InputUnit("стр", 1..2000, 20))
-            NumberInputSheet(
-                "Цель на день",
-                "мин",
-                goalMinutes.takeIf { it > 0 } ?: units[if (inPages) 1 else 0].default,
-                1..1440,
-                onDismiss = { custom = false },
-                onClear = if (goalMinutes > 0) ({ onGoal(0, inPages) }) else null,
-                units = units,
-                unit = if (inPages) 1 else 0,
-                onDoneUnit = { v, u -> onGoal(v, u == 1) },
-            ) { }
-        }
+    }
+    if (custom) {
+        val units = listOf(InputUnit("мин", 1..1440, 25), InputUnit("стр", 1..2000, 20))
+        NumberInputSheet(
+            "Цель на день",
+            "мин",
+            goalMinutes.takeIf { it > 0 } ?: units[if (inPages) 1 else 0].default,
+            1..1440,
+            onDismiss = { custom = false },
+            onClear = if (goalMinutes > 0) ({ onGoal(0, inPages) }) else null,
+            units = units,
+            unit = if (inPages) 1 else 0,
+            onDoneUnit = { v, u -> onGoal(v, u == 1) },
+        ) { }
     }
 }
 

@@ -143,10 +143,24 @@ class NeuralTts(
     private val _settings = MutableStateFlow(resolve(initialPreferences))
     override val settings: StateFlow<AndroidTtsSettings> = _settings.asStateFlow()
 
+    private val piperQueue = java.util.concurrent.LinkedBlockingDeque<String>()
+
     init {
         lastError = null
-        scope.launch {
-            for (group in groups) synthGroup(group)
+        if (engineId == NeuralVoices.PIPER) {
+            scope.launch {
+                while (isActive) {
+                    val text = piperQueue.pollFirst(400, java.util.concurrent.TimeUnit.MILLISECONDS) ?: continue
+                    val d = cache[text] ?: continue
+                    if (d.isCompleted) continue
+                    val result = runCatching { synthesize(text) }.recoverCatching { synthesize(text) }
+                    result.onSuccess { d.complete(it) }.onFailure { d.completeExceptionally(it) }
+                }
+            }
+        } else {
+            scope.launch {
+                for (group in groups) synthGroup(group)
+            }
         }
     }
 
@@ -172,7 +186,10 @@ class NeuralTts(
         val clean = sentences.filter { s -> s.any { it.isLetterOrDigit() } && !cache.containsKey(s) }
         if (clean.isEmpty()) return
         if (engineId == NeuralVoices.PIPER) {
-            clean.forEach { enqueue(listOf(it)) }
+            clean.forEach {
+                remember(it)
+                piperQueue.offerLast(it)
+            }
             return
         }
         val limit = if (firstGroup) 260 else 900
@@ -237,8 +254,12 @@ class NeuralTts(
         started = false
         val known = cache[text]
         val deferred = known ?: remember(text)
+        if (engineId == NeuralVoices.PIPER && !deferred.isCompleted) {
+            piperQueue.remove(text)
+            piperQueue.offerFirst(text)
+        }
         playing = scope.launch {
-            if (known == null || !kotlinx.coroutines.withTimeoutOrNull(2_500) { runCatching { deferred.await() }; true }.let { it == true }) {
+            if (engineId != NeuralVoices.PIPER && (known == null || !kotlinx.coroutines.withTimeoutOrNull(2_500) { runCatching { deferred.await() }; true }.let { it == true })) {
                 if (!deferred.isCompleted) {
                     scope.launch {
                         runCatching { synthesize(text) }
@@ -289,16 +310,39 @@ class NeuralTts(
         var written = 0
         var lastWord = -1
         val step = pcm.rate / 10
+        var lastHead = -1L
+        var stallSince = 0L
+        var padded = 0
+        val silence = ShortArray(step)
+        var broken = false
         while (scope.isActive && kotlinx.coroutines.currentCoroutineContext().isActive) {
             if (written < samples.size) {
                 val n = minOf(step, samples.size - written)
                 val r = t.write(samples, written, n)
-                if (r < 0) break
+                if (r < 0) {
+                    broken = true
+                    break
+                }
                 written += r
             } else {
                 delay(30)
             }
             val played = ((t.playbackHeadPosition.toLong() and 0xFFFFFFFFL) - startHead).coerceAtLeast(0)
+            val now = android.os.SystemClock.uptimeMillis()
+            if (played != lastHead) {
+                lastHead = played
+                stallSince = now
+            } else if (written >= samples.size) {
+                if (now - stallSince > 250 && padded < pcm.rate * 2) {
+                    if (t.playState != AudioTrack.PLAYSTATE_PLAYING) runCatching { t.play() }
+                    val r = t.write(silence, 0, silence.size, AudioTrack.WRITE_NON_BLOCKING)
+                    if (r > 0) padded += r
+                }
+                if (now - stallSince > 3_000) {
+                    broken = true
+                    break
+                }
+            }
             val fraction = (played.toDouble() / samples.size).coerceIn(0.0, 1.0)
             if (words.isNotEmpty()) {
                 val w = (fraction * words.size).toInt().coerceIn(0, words.lastIndex)
@@ -309,6 +353,11 @@ class NeuralTts(
                 }
             }
             if (written >= samples.size && played >= samples.size - pcm.rate / 50) break
+        }
+        if (broken) {
+            track?.runCatching { release() }
+            track = null
+            trackRate = 0
         }
         if (kotlinx.coroutines.currentCoroutineContext().isActive && currentId == id) {
             withContext(Dispatchers.Main) { listener?.onDone(id) }

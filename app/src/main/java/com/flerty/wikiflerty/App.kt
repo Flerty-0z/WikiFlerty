@@ -230,7 +230,8 @@ class App : Application() {
         val locator = startAt ?: book.locatorJson?.let {
             runCatching { Locator.fromJSON(JSONObject(it)) }.getOrNull()
         }
-        readerSession = ReaderSession(book.id, publication, locator)
+        val start = locator?.let { if (it.locations.progression != null) it.copy(text = Locator.Text()) else it }
+        readerSession = ReaderSession(book.id, publication, start)
         library.markOpened(book.id)
         return Result.success(Unit)
     }

@@ -554,7 +554,8 @@ private fun Modifier.slot(key: String, plank: String): Modifier = composed {
     }
     this.onGloballyPositioned { c ->
         if (c.isAttached) {
-            drag.slots[key] = plank to c.boundsInWindow()
+            val at = c.positionInWindow()
+            drag.slots[key] = plank to androidx.compose.ui.geometry.Rect(at.x, at.y, at.x + c.size.width, at.y + c.size.height)
             drag.owners[key] = owner
         }
     }

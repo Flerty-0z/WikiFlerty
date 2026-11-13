@@ -12,6 +12,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -212,88 +213,98 @@ fun FreezeSheet(onDismiss: () -> Unit) {
 private fun FreezePicker(today: LocalDate, onFreeze: (LocalDate, Int) -> Unit) {
     var days by remember { mutableIntStateOf(1) }
     var start by remember { mutableStateOf(today) }
-    FreezeFrame("Сколько дней") {
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        (1..StreakFreezeStore.MAX_DAYS).forEach { n ->
-            val on = n == days
-            val shape = appCorner(14)
-            Box(
-                Modifier
-                    .weight(1f)
-                    .height(46.dp)
-                    .liveClick(shape, sound = FeedbackSound.Toggle) { days = n }
-                    .background(if (on) IceColor.copy(alpha = 0.18f) else Color.Transparent, shape)
-                    .border(1.dp, if (on) IceColor else AppColors.Line, shape),
-                contentAlignment = Alignment.Center,
-            ) { Text("$n", color = if (on) IceColor else AppColors.Muted, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold) }
-        }
-    }
-    }
-    FreezeFrame("С какого дня") {
-    val first = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+    val tileShape = appCorner(22)
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(appCorner(16))
-            .background(AppColors.Line.copy(alpha = 0.3f))
-            .border(1.dp, AppColors.PanelBorder, appCorner(16))
-            .padding(8.dp),
-        verticalArrangement = Arrangement.spacedBy(5.dp),
+            .clip(tileShape)
+            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(IceColor.copy(alpha = 0.22f), IceColor.copy(alpha = 0.06f))))
+            .border(1.dp, IceColor.copy(alpha = 0.45f), tileShape)
+            .drawBehind { iceFrost(this) }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(Modifier.padding(bottom = 2.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            WeekShort.forEach { Text(it, color = AppColors.Faint, fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.weight(1f)) }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(AppIcons.Snow, null, tint = IceColor, modifier = Modifier.size(16.dp))
+            Text("Дней паузы", color = IceColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
-        (0 until 3).forEach { w ->
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                (0 until 7).forEach { d ->
-                    val day = first.plusDays(w * 7L + d)
-                    val past = day.isBefore(today)
-                    val inRange = !day.isBefore(start) && day.isBefore(start.plusDays(days.toLong()))
-                    val shape = appCorner(10)
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .height(36.dp)
-                            .then(if (!past) Modifier.liveClick(shape, sound = FeedbackSound.Tap) { start = day } else Modifier)
-                            .background(if (inRange) IceColor.copy(alpha = 0.2f) else AppColors.Field.copy(alpha = if (past) 0.35f else 1f), shape)
-                            .border(
-                                1.dp,
-                                when {
-                                    inRange -> IceColor.copy(alpha = 0.7f)
-                                    day == today -> AppColors.Accent
-                                    past -> AppColors.PanelBorder.copy(alpha = 0.5f)
-                                    else -> AppColors.PanelBorder
-                                },
-                                shape,
-                            ),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            "${day.dayOfMonth}",
-                            color = when {
-                                inRange -> IceColor
-                                past -> AppColors.Line
-                                else -> AppColors.Muted
-                            },
-                            fontSize = 13.sp,
-                            fontWeight = if (inRange) FontWeight.ExtraBold else FontWeight.Normal,
-                        )
-                    }
+        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            IceStep(AppIcons.Minus, "Меньше", enabled = days > 1) { days-- }
+            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                androidx.compose.animation.AnimatedContent(
+                    days,
+                    transitionSpec = {
+                        val up = targetState > initialState
+                        (androidx.compose.animation.slideInVertically(Motion.tween(280)) { if (up) it / 2 else -it / 2 } + fadeIn(Motion.tween(220))) togetherWith
+                            (androidx.compose.animation.slideOutVertically(Motion.tween(280)) { if (up) -it / 2 else it / 2 } + fadeOut(Motion.tween(160)))
+                    },
+                    label = "freeze-days",
+                ) { n ->
+                    Text("$n", color = AppColors.Text, fontSize = 56.sp, lineHeight = 60.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
+                }
+            }
+            IceStep(AppIcons.Plus, "Больше", enabled = days < StreakFreezeStore.MAX_DAYS) { days++ }
+        }
+        Text(freezeRange(Freeze(start, days, 0)), color = IceColor.copy(alpha = 0.8f), fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+    }
+    FreezeFrame("С какого дня") {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            (0 until 7).forEach { i ->
+                val day = today.plusDays(i.toLong())
+                val frozen = !day.isBefore(start) && day.isBefore(start.plusDays(days.toLong()))
+                val first = day == start
+                val fill by animateFloatAsState(if (frozen) 1f else 0f, Motion.tween(260), label = "freeze-fill")
+                val shape = appCorner(12)
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .liveClick(shape, sound = FeedbackSound.Tap, pressedScale = 0.92f) { start = day }
+                        .background(IceColor.copy(alpha = 0.06f + 0.16f * fill), shape)
+                        .border(if (first) 1.5.dp else 1.dp, if (first) IceColor else lerpColor(AppColors.PanelBorder, IceColor.copy(alpha = 0.55f), fill), shape)
+                        .padding(vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(WeekShort[day.dayOfWeek.value - 1], color = if (day == today) AppColors.Accent else AppColors.Faint, fontSize = 10.5.sp, maxLines = 1)
+                    Text("${day.dayOfMonth}", color = lerpColor(AppColors.Muted, IceColor, fill), fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                    Icon(
+                        AppIcons.Snow,
+                        null,
+                        tint = IceColor,
+                        modifier = Modifier.size(12.dp).graphicsLayer {
+                            alpha = fill
+                            scaleX = 0.4f + 0.6f * fill
+                            scaleY = 0.4f + 0.6f * fill
+                            rotationZ = (1f - fill) * -90f
+                        },
+                    )
                 }
             }
         }
     }
-    val preview = Freeze(start, days, 0)
-    Row(
-        Modifier.fillMaxWidth().clip(appCorner(12)).background(IceColor.copy(alpha = 0.08f)).border(1.dp, IceColor.copy(alpha = 0.25f), appCorner(12)).padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Icon(AppIcons.Snow, null, tint = IceColor, modifier = Modifier.size(14.dp))
-        Text("Пауза: ${freezeRange(preview)}", color = IceColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-    }
-    }
-    IceButton("Заморозить", Modifier.fillMaxWidth()) { onFreeze(start, days) }
+    IceButton("Заморозить", Modifier.fillMaxWidth(), gradient = true) { onFreeze(start, days) }
+}
+
+private fun lerpColor(a: Color, b: Color, t: Float): Color = androidx.compose.ui.graphics.lerp(a, b, t.coerceIn(0f, 1f))
+
+private fun iceFrost(scope: androidx.compose.ui.graphics.drawscope.DrawScope) = with(scope) {
+    val r = size.minDimension
+    drawCircle(IceColor.copy(alpha = 0.10f), r * 0.55f, Offset(size.width * 0.92f, size.height * 0.05f))
+    drawCircle(IceColor.copy(alpha = 0.06f), r * 0.35f, Offset(size.width * 0.06f, size.height * 1.0f))
+}
+
+@Composable
+private fun IceStep(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, enabled: Boolean, onClick: () -> Unit) {
+    val a by animateFloatAsState(if (enabled) 1f else 0.35f, Motion.tween(200), label = "ice-step")
+    Box(
+        Modifier
+            .size(48.dp)
+            .graphicsLayer { alpha = a }
+            .then(if (enabled) Modifier.liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.86f, onClick = onClick) else Modifier)
+            .background(IceColor.copy(alpha = 0.14f), CircleShape)
+            .border(1.dp, IceColor.copy(alpha = 0.5f), CircleShape),
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, label, tint = IceColor, modifier = Modifier.size(22.dp)) }
 }
 
 @Composable
@@ -351,13 +362,16 @@ private fun CooldownView(left: Int, last: Freeze?, onUnfreeze: (() -> Unit)?) {
 }
 
 @Composable
-private fun IceButton(label: String, modifier: Modifier, onClick: () -> Unit) {
+private fun IceButton(label: String, modifier: Modifier, gradient: Boolean = false, onClick: () -> Unit) {
     val shape = appCorner(16)
     Row(
         modifier
             .height(52.dp)
             .liveClick(shape, sound = FeedbackSound.Toggle, onClick = onClick)
-            .background(IceColor, shape),
+            .then(
+                if (gradient) Modifier.background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Color(0xFF5BB4EC), IceColor, Color(0xFFBFE8FF))), shape)
+                else Modifier.background(IceColor, shape),
+            ),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
