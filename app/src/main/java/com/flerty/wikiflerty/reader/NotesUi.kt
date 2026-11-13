@@ -35,6 +35,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -115,6 +117,7 @@ fun SelectionMenu(markerColor: Long, palette: List<Long>, actions: NoteActions, 
     var expanded by remember(main, more) { mutableStateOf(false) }
     var colors by remember(main, more) { mutableStateOf(false) }
     val swatches = remember(palette, markerColor) { (palette + markerColor).distinct() }
+    val lift = with(androidx.compose.ui.platform.LocalDensity.current) { 8.dp.roundToPx() }
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier.layout { m, c ->
@@ -124,9 +127,12 @@ fun SelectionMenu(markerColor: Long, palette: List<Long>, actions: NoteActions, 
         ) {
             androidx.compose.animation.AnimatedVisibility(
                 visible = colors,
-                enter = fadeIn(Motion.tween(200)) + androidx.compose.animation.scaleIn(Motion.tween(260), initialScale = 0.92f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)) +
-                    androidx.compose.animation.slideInVertically(Motion.tween(260)) { it / 4 },
-                exit = fadeOut(Motion.fade(140)) + androidx.compose.animation.scaleOut(Motion.tween(180), targetScale = 0.94f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)),
+                enter = androidx.compose.animation.slideInVertically(Motion.tween(340, easing = androidx.compose.animation.core.CubicBezierEasing(0.16f, 1f, 0.3f, 1f))) { it + lift } +
+                    fadeIn(Motion.tween(220)) +
+                    androidx.compose.animation.scaleIn(Motion.tween(340), initialScale = 0.9f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)),
+                exit = androidx.compose.animation.slideOutVertically(Motion.tween(260)) { it + lift } +
+                    fadeOut(Motion.tween(200)) +
+                    androidx.compose.animation.scaleOut(Motion.tween(260), targetScale = 0.9f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)),
             ) {
                 MarkerStrip(swatches, markerColor) { color ->
                     colors = false
@@ -440,51 +446,73 @@ fun NoteEditor(
 
     Column(modifier.revealScroll(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         val quoteBorder by animateColorAsState(Color(if (editing != null) edited else color), label = "quote")
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min)
-                .clip(appCorner(12))
-                .background(AppColors.Field),
-        ) {
-            Box(Modifier.width(4.dp).fillMaxHeight().background(quoteBorder))
-            Text(
-                draft.text,
-                color = AppColors.Text.copy(alpha = 0.85f),
-                fontSize = 15.sp,
-                lineHeight = 22.sp,
-                maxLines = 6,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            )
+        var quoteOpen by remember(draft.text) { mutableStateOf(false) }
+        var quoteLong by remember(draft.text) { mutableStateOf(false) }
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.width(3.dp).fillMaxHeight().clip(appCorner(2)).background(quoteBorder))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                com.flerty.wikiflerty.ui.ExpandingText(
+                    draft.text,
+                    expanded = quoteOpen,
+                    lines = 2,
+                    color = AppColors.Text.copy(alpha = 0.88f),
+                    fontSize = 14.5.sp,
+                    lineHeight = 21.sp,
+                    modifier = Modifier.fillMaxWidth(),
+                    onOverflow = { if (it) quoteLong = true },
+                )
+                AnimatedVisibility(quoteLong, enter = fadeIn(Motion.fade(200)), exit = fadeOut(Motion.fade(140))) {
+                    val turn by androidx.compose.animation.core.animateFloatAsState(if (quoteOpen) 180f else 0f, Motion.tween(300), label = "quote-turn")
+                    Row(
+                        Modifier
+                            .liveClick(appCorner(10), sound = FeedbackSound.Toggle, pressedScale = 0.95f) { quoteOpen = !quoteOpen }
+                            .padding(vertical = 4.dp, horizontal = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        Icon(AppIcons.Chevron, null, tint = AppColors.Accent, modifier = Modifier.size(14.dp).graphicsLayer { rotationZ = 90f + turn })
+                        androidx.compose.animation.AnimatedContent(quoteOpen, label = "quote-label") { open ->
+                            Text(if (open) "Свернуть" else "Весь текст", color = AppColors.Accent, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Описание", color = AppColors.Muted, fontSize = 13.sp)
-            BasicTextField(
-                value = text,
-                onValueChange = { text = it },
-                textStyle = TextStyle(color = AppColors.Text, fontSize = 15.sp, lineHeight = 21.sp),
-                cursorBrush = SolidColor(AppColors.Accent),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 96.dp)
-                    .fieldSurface(appCorner(14))
-                    .padding(12.dp),
-                decorationBox = { inner ->
-                    Box {
-                        if (text.isEmpty()) {
-                            Text("Твоя мысль об этом месте…", color = AppColors.Faint, fontSize = 15.sp)
-                        }
-                        inner()
+        Box(Modifier.fillMaxWidth()) {
+        BasicTextField(
+            value = text,
+            onValueChange = { text = it },
+            textStyle = TextStyle(color = AppColors.Text, fontSize = 15.sp, lineHeight = 21.sp),
+            cursorBrush = SolidColor(AppColors.Accent),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 150.dp)
+                .fieldSurface(appCorner(16))
+                .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 26.dp),
+            decorationBox = { inner ->
+                Box {
+                    if (text.isEmpty()) {
+                        Text("Твоя мысль об этом месте…", color = AppColors.Faint, fontSize = 15.sp)
                     }
-                },
+                    inner()
+                }
+            },
+        )
+            Text(
+                "${text.length}",
+                color = AppColors.Faint,
+                fontSize = 11.sp,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 8.dp),
             )
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Цвет", color = AppColors.Muted, fontSize = 13.sp)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 if (color !in palette) {
                     PaletteDot(color, "Текущий цвет", selected = editing == null, showSettings = false) { editing = null }
                 }
@@ -511,24 +539,18 @@ fun NoteEditor(
                         Modifier
                             .size(40.dp)
                             .liveClick(CircleShape, sound = FeedbackSound.Toggle) { if (editing == -1) editing = null else startEdit(-1) }
-                            .border(1.dp, if (editing == -1) AppColors.Accent else AppColors.Faint, CircleShape)
+                            .dashedCircle(if (editing == -1) AppColors.Accent else AppColors.Faint)
                             .semantics { contentDescription = "Добавить цвет" },
                         contentAlignment = Alignment.Center,
                     ) {
                         if (editing == -1) {
                             Box(Modifier.size(28.dp).clip(CircleShape).background(Color(edited)))
                         } else {
-                            Text("+", color = AppColors.Muted, fontSize = 20.sp)
+                            Icon(AppIcons.Plus, null, tint = AppColors.Muted, modifier = Modifier.size(16.dp))
                         }
                     }
                 }
             }
-            Text(
-                "Повторное нажатие — изменить цвет.",
-                color = AppColors.Faint,
-                fontSize = 12.sp,
-                lineHeight = 16.sp,
-            )
 
             AnimatedVisibility(
                 visible = editing != null,
@@ -572,22 +594,22 @@ fun NoteEditor(
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            val shape = appCorner(14)
+            val shape = appCorner(16)
             val id = draft.id
             Box(
                 Modifier
-                    .weight(1f)
-                    .height(50.dp)
+                    .size(width = 56.dp, height = 52.dp)
                     .liveClick(shape, sound = FeedbackSound.Close) { if (id != null) onDelete(id) else onCancel() }
-                    .border(1.dp, AppColors.Line, shape),
+                    .border(1.dp, if (id != null) AppColors.Bad.copy(alpha = 0.45f) else AppColors.Line, shape)
+                    .semantics { contentDescription = if (id != null) "Удалить" else "Отмена" },
                 contentAlignment = Alignment.Center,
             ) {
-                com.flerty.wikiflerty.ui.ActionLabel(if (id != null) "Удалить" else "Отмена", if (id != null) AppColors.Bad else AppColors.Text)
+                Icon(if (id != null) AppIcons.Trash else AppIcons.Close, null, tint = if (id != null) AppColors.Bad else AppColors.Muted, modifier = Modifier.size(20.dp))
             }
             Box(
                 Modifier
-                    .weight(2f)
-                    .height(50.dp)
+                    .weight(1f)
+                    .height(52.dp)
                     .liveClick(shape, sound = FeedbackSound.Toggle) {
                         val finalColor = if (editing != null) edited else color
                         onSave(draft.copy(note = text, color = finalColor))
@@ -595,10 +617,21 @@ fun NoteEditor(
                     .background(Brush.verticalGradient(listOf(AppColors.AccentLight, AppColors.Accent))),
                 contentAlignment = Alignment.Center,
             ) {
-                com.flerty.wikiflerty.ui.ActionLabel("Сохранить", AppColors.OnAccent)
+                com.flerty.wikiflerty.ui.ActionLabel("Сохранить", AppColors.OnAccent, icon = AppIcons.Check)
             }
         }
     }
+}
+
+private fun Modifier.dashedCircle(color: Color): Modifier = drawBehind {
+    drawCircle(
+        color,
+        radius = size.minDimension / 2f - 1.dp.toPx(),
+        style = androidx.compose.ui.graphics.drawscope.Stroke(
+            width = 1.2.dp.toPx(),
+            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 4.dp.toPx())),
+        ),
+    )
 }
 
 private const val MAX_PALETTE = 12

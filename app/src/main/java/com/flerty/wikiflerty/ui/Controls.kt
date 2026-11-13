@@ -428,7 +428,7 @@ fun PickerSheet(
         initialFirstVisibleItemIndex = (options.indexOfFirst { it.id == selectedId } - 2).coerceAtLeast(0),
     )
     val picked = remember { arrayOfNulls<String>(1) }
-    val corner = (26 * AppStyle.current.corners).dp
+    val corner = (26 * AppStyle.corners).dp
     SheetWindow(onDismiss = { picked[0]?.let(onSelect) ?: onDismiss() }) { control ->
         val close = control.close
         Column(
@@ -671,7 +671,7 @@ fun TextInputSheet(
 ) {
     var text by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(initial, androidx.compose.ui.text.TextRange(initial.length))) }
     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
-    val corner = (26 * AppStyle.current.corners).dp
+    val corner = (26 * AppStyle.corners).dp
     val hideInput = remember { arrayOfNulls<() -> Unit>(1) }
     SheetWindow(onDismiss, onClosing = { hideInput[0]?.invoke() }) { control ->
         val close = control.close

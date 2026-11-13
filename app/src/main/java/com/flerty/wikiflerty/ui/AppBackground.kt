@@ -138,8 +138,7 @@ private fun cropToFill(view: TextureView, videoWidth: Int, videoHeight: Int) {
 
 val hasAppBackground: Boolean
     get() {
-        val style = AppStyle.current
-        return BackgroundKind.of(style.background) != BackgroundKind.None || AppStyle.base.ambience != null || AppStyle.decor != Decor.None
+        return BackgroundKind.of(AppStyle.background) != BackgroundKind.None || AppStyle.base.ambience != null || AppStyle.decor != Decor.None
     }
 
 @Composable

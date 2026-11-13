@@ -145,7 +145,7 @@ fun AppSheet(
     val auraShown = remember { arrayOf<List<Color>?>(null) }
     if (aura != null) auraShown[0] = aura
     val auraGlow by androidx.compose.animation.core.animateFloatAsState(if (aura != null) 1f else 0f, Motion.tween(620), label = "sheet-aura")
-    val corner = (26 * AppStyle.current.corners).dp
+    val corner = (26 * AppStyle.corners).dp
     val sheetShape = RoundedCornerShape(topStart = corner, topEnd = corner)
     val pages = remember { SheetPages() }
     val dismissAll: () -> Unit = {

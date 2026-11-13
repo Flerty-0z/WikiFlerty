@@ -52,11 +52,9 @@ enum class ReadingSound(val id: String, val title: String, val hint: String, val
 }
 
 object Motion {
-    private val style get() = AppStyle.current
-
-    val enabled: Boolean get() = style.animations
-    val speed: MotionSpeed get() = MotionSpeed.of(style.motionSpeed)
-    val kind: MotionStyle get() = MotionStyle.of(style.motionStyle)
+    val enabled: Boolean get() = AppStyle.animations
+    val speed: MotionSpeed get() = MotionSpeed.of(AppStyle.motionSpeed)
+    val kind: MotionStyle get() = MotionStyle.of(AppStyle.motionStyle)
 
     private val bouncy = CubicBezierEasing(0.34f, 1.36f, 0.64f, 1f)
     private val strict = CubicBezierEasing(0.2f, 0f, 0f, 1f)
@@ -95,7 +93,7 @@ object Motion {
 
     fun pressScale(base: Float): Float {
         if (!enabled) return 1f
-        val factor = PressStrength.of(style.press).factor
+        val factor = PressStrength.of(AppStyle.press).factor
         return (1f - (1f - base) * factor).coerceIn(0.8f, 1f)
     }
 }

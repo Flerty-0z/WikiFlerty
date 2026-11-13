@@ -1046,7 +1046,7 @@ class PdfReaderActivity : ComponentActivity() {
     }
 
     private suspend fun renderQuote(draft: QuoteDraft, look: QuoteLook, format: QuoteFormat): Bitmap {
-        val theme = QuoteTheme(AppStyle.base, AppStyle.current.accent.toInt())
+        val theme = QuoteTheme(AppStyle.base, AppStyle.accent.toInt())
         return withContext(Dispatchers.Default) {
             QuoteCard.render(draft, look, format, theme, QuoteCard.loadCover(draft.coverPath, maxWidth = 480))
         }

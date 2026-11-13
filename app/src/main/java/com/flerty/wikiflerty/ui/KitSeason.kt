@@ -54,7 +54,7 @@ data class KitMoment(val season: Season, val part: DayPart) {
 @Composable
 fun rememberKitMoment(): KitMoment? {
     val frost = AppStyle.decor == Decor.Frost
-    val living = AppStyle.current.tune().living
+    val living = AppStyle.tune.living
     if (!living && !frost) return null
     if (!living) return KitMoment(Season.Winter, DayPart.Day)
     val state = produceState(KitMoment.now()) {

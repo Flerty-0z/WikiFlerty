@@ -367,7 +367,7 @@ object RatingCard {
     private const val H = 1350
 
     fun render(book: Book, cover: Bitmap?): Bitmap {
-        val accent = AppStyle.current.accent.toInt()
+        val accent = AppStyle.accent.toInt()
         val bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         val p = Paint(Paint.ANTI_ALIAS_FLAG)

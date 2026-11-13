@@ -239,6 +239,7 @@ class ReaderUiState {
     var currentHref by mutableStateOf<String?>(null)
     var nameMark by mutableStateOf<com.flerty.wikiflerty.data.Bookmark?>(null)
     var illustration by mutableStateOf<IllustrationOpen?>(null)
+    val optionsScroll = androidx.compose.foundation.ScrollState(0)
 
     fun flagInfo() = FlagInfo(chapter, chapterPage, chapterPages, bookPage, bookPages, progression, minutesLeft)
     var topPanelBottom = 0f
@@ -629,7 +630,10 @@ fun ReaderOverlay(
                         QuickButton.AiHistory -> state.sheet = ReaderSheet.AiHistory
                     }
                 },
-                onOptions = { state.sheet = ReaderSheet.Options },
+                onOptions = {
+                    state.optionsScroll.dispatchRawDelta(-state.optionsScroll.value.toFloat())
+                    state.sheet = ReaderSheet.Options
+                },
                 bottom = panelGap,
             )
         }
@@ -678,6 +682,7 @@ fun ReaderOverlay(
                         peopleFocus = state.peopleFocus,
                         illustrations = illustrations,
                         illustrationActions = illustrationActions,
+                        optionsScroll = state.optionsScroll,
                         onPerson = { state.personDraft = it },
                         quote = state.quote,
                         quoteActions = quoteActions,
@@ -1262,7 +1267,7 @@ internal fun TopPanel(
 ) {
     var preview by remember { mutableStateOf<Double?>(null) }
     var menu by remember { mutableStateOf(false) }
-    val r = (22 * com.flerty.wikiflerty.ui.AppStyle.current.corners).dp
+    val r = (22 * com.flerty.wikiflerty.ui.AppStyle.corners).dp
     val shape = RoundedCornerShape(r)
     val page = { f: Double -> if (totalPositions > 0) "${(f * (totalPositions - 1)).roundToInt() + 1}/$totalPositions" else "${(f * 100).roundToInt()}%" }
     Box(Modifier.windowInsetsPadding(WindowInsets.statusBars).padding(start = 10.dp, end = 10.dp, top = 8.dp)) {
@@ -1716,6 +1721,7 @@ private fun SheetContent(
     peopleFocus: String?,
     illustrations: List<com.flerty.wikiflerty.data.Illustration> = emptyList(),
     illustrationActions: IllustrationActions? = null,
+    optionsScroll: androidx.compose.foundation.ScrollState? = null,
     onPerson: (PersonDraft) -> Unit,
     quote: QuoteDraft?,
     quoteActions: QuoteActions,
@@ -1863,7 +1869,7 @@ private fun SheetContent(
                 val viewport = remember(sheet) { com.flerty.wikiflerty.ui.RevealViewport() }
                 androidx.compose.runtime.CompositionLocalProvider(com.flerty.wikiflerty.ui.LocalRevealViewport provides viewport) {
             Column(
-                modifier = Modifier.weight(1f, fill = false).revealViewport(viewport).revealScroll(),
+                modifier = Modifier.weight(1f, fill = false).revealViewport(viewport).revealScroll(keep = if (sheet == ReaderSheet.Options) optionsScroll else null),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
                 when (sheet) {

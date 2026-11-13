@@ -207,7 +207,7 @@ internal fun PersonSheet(draft: PersonDraft, onDismiss: () -> Unit, actions: Peo
     val nameFocus = remember { FocusRequester() }
     val noteFocus = remember { FocusRequester() }
     val hideInput = remember { arrayOfNulls<() -> Unit>(1) }
-    val corner = (26 * AppStyle.current.corners).dp
+    val corner = (26 * AppStyle.corners).dp
     com.flerty.wikiflerty.ui.SheetWindow(onDismiss, onClosing = { hideInput[0]?.invoke() }) { control ->
         val close = control.close
         val innerFocus = LocalFocusManager.current

@@ -1217,7 +1217,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         return "window.__wfKit && window.__wfKit($style)"
     }
 
-    private val bookKit: Boolean get() = com.flerty.wikiflerty.ui.AppStyle.current.tune().bookStyle
+    private val bookKit: Boolean get() = com.flerty.wikiflerty.ui.AppStyle.tune.bookStyle
 
     private fun applyKitTexture() {
         val s = settings
@@ -2201,7 +2201,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         return runCatching { android.graphics.Typeface.createFromAsset(assets, "fonts/$file") }.getOrNull()
     }
 
-    private fun quoteTheme() = QuoteTheme(com.flerty.wikiflerty.ui.AppStyle.base, com.flerty.wikiflerty.ui.AppStyle.current.accent.toInt())
+    private fun quoteTheme() = QuoteTheme(com.flerty.wikiflerty.ui.AppStyle.base, com.flerty.wikiflerty.ui.AppStyle.accent.toInt())
 
     private suspend fun renderQuote(draft: QuoteDraft, look: QuoteLook, format: QuoteFormat): Bitmap {
         val theme = quoteTheme()
@@ -3358,7 +3358,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private fun pageAccent(): Int {
         val kit = com.flerty.wikiflerty.ui.AppStyle.kit
-        val a = com.flerty.wikiflerty.ui.AppStyle.current.accent
+        val a = com.flerty.wikiflerty.ui.AppStyle.accent
         val custom = a != kit.accent && a != kit.accentLight
         return (if (custom) a else if (settings.pageTheme.isLight) kit.accentLight else kit.accent).toInt()
     }

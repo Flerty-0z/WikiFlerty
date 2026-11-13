@@ -73,7 +73,7 @@ private val PreviewHeight = 250.dp
 @Composable
 internal fun QuoteContent(draft: QuoteDraft, actions: QuoteActions, modifier: Modifier = Modifier) {
     val base = AppStyle.base
-    val accent = AppStyle.current.accent
+    val accent = AppStyle.accent
     val look = actions.look
     val format = actions.format
     val cover by produceState<Bitmap?>(null, draft.coverPath) {

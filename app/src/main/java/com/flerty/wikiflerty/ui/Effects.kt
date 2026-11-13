@@ -292,8 +292,8 @@ fun Reveal(content: @Composable () -> Unit) {
     androidx.compose.foundation.layout.Box(Modifier.scrollReveal()) { content() }
 }
 
-fun Modifier.revealScroll(viewport: RevealViewport? = null): Modifier = composed {
-    val state = androidx.compose.foundation.rememberScrollState()
+fun Modifier.revealScroll(viewport: RevealViewport? = null, keep: androidx.compose.foundation.ScrollState? = null): Modifier = composed {
+    val state = keep ?: androidx.compose.foundation.rememberScrollState()
     if (viewport != null) viewport.scroll = state
     this.fadeEdges({ state.canScrollBackward }, { state.canScrollForward }).verticalScroll(state)
 }

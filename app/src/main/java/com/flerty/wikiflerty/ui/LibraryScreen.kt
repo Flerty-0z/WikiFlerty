@@ -1338,13 +1338,14 @@ private fun ContinueStrip(book: Book, coverFile: File?, inPages: Boolean, modifi
             .fillMaxWidth()
             .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
             .fieldSurface(shape)
-            .padding(start = 8.dp, end = 8.dp, top = 7.dp, bottom = 7.dp),
+            .border(1.dp, AppColors.Accent.copy(alpha = 0.3f), shape)
+            .padding(start = 9.dp, end = 9.dp, top = 9.dp, bottom = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(11.dp),
     ) {
-        CoverBox(book, coverFile, Modifier.size(width = 28.dp, height = 42.dp).clip(appCorner(5)), small = true)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text(book.title, color = AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        CoverBox(book, coverFile, Modifier.size(width = 34.dp, height = 51.dp).clip(appCorner(5)), small = true)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(book.title, color = AppColors.Text, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ProgressLine(book.progress.toFloat(), Modifier.weight(1f))
                 Text(progressLabel(book, inPages), color = AppColors.Muted, fontSize = 11.sp, maxLines = 1)

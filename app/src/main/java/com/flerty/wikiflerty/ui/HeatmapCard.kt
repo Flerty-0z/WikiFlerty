@@ -251,7 +251,7 @@ private fun YearGrid(year: Int, perDay: Map<LocalDate, DayEntry>, frozen: Set<Lo
                 val step = 15.dp.toPx()
                 val cell = 12.dp.toPx()
                 val top = 14.dp.toPx()
-                val r = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx() * AppStyle.current.corners.coerceAtMost(1.3f))
+                val r = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx() * AppStyle.corners.coerceAtMost(1.3f))
                 val shown = appear.value * (weeks.size + 8)
                 months.forEach { (wi, layout) ->
                     val a = (shown - wi).coerceIn(0f, 1f)
@@ -295,7 +295,7 @@ private fun YearGrid(year: Int, perDay: Map<LocalDate, DayEntry>, frozen: Set<Lo
                     val step = 15.dp.toPx()
                     val cell = 12.dp.toPx()
                     val top = 14.dp.toPx()
-                    val r = 3.dp.toPx() * AppStyle.current.corners.coerceAtMost(1.3f)
+                    val r = 3.dp.toPx() * AppStyle.corners.coerceAtMost(1.3f)
                     val x = todayCell.first * step
                     val y = top + todayCell.second * step
                     val grow = 4.dp.toPx() * p

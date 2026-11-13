@@ -489,16 +489,40 @@ object AppStyle {
 
     var systemDark by mutableStateOf(true)
 
-    val kit: Kit get() = Kit.of(current.kit)
+    private val kitId = androidx.compose.runtime.derivedStateOf { current.kit }
+    private val modeId = androidx.compose.runtime.derivedStateOf { current.mode }
+    private val cornersValue = androidx.compose.runtime.derivedStateOf { current.corners }
+    private val accentValue = androidx.compose.runtime.derivedStateOf { current.accent }
+    private val outlineValue = androidx.compose.runtime.derivedStateOf { current.outline }
+    private val buttonsId = androidx.compose.runtime.derivedStateOf { current.buttons }
+    private val tuneValue = androidx.compose.runtime.derivedStateOf { current.tune() }
+    private val animationsValue = androidx.compose.runtime.derivedStateOf { current.animations }
+    private val speedId = androidx.compose.runtime.derivedStateOf { current.motionSpeed }
+    private val motionId = androidx.compose.runtime.derivedStateOf { current.motionStyle }
+    private val pressId = androidx.compose.runtime.derivedStateOf { current.press }
+    private val textScaleValue = androidx.compose.runtime.derivedStateOf { current.textScale }
+    private val backgroundId = androidx.compose.runtime.derivedStateOf { current.background }
+
+    val kit: Kit get() = Kit.of(kitId.value)
     val decor: Decor get() = kit.decor
-    val light: Boolean get() = when (ThemeMode.of(current.mode)) {
+    val light: Boolean get() = when (ThemeMode.of(modeId.value)) {
         ThemeMode.Light -> true
         ThemeMode.Dark -> false
         ThemeMode.System -> !systemDark
     }
     val base: UiBase get() = if (light) kit.light else kit.dark
     val bottomNav: Boolean get() = true
-    val buttons: ButtonLook get() = ButtonLook.of(current.buttons)
+    val buttons: ButtonLook get() = ButtonLook.of(buttonsId.value)
+    val corners: Float get() = cornersValue.value
+    val accent: Long get() = accentValue.value
+    val outline: Boolean get() = outlineValue.value
+    val tune: KitTune get() = tuneValue.value
+    val animations: Boolean get() = animationsValue.value
+    val motionSpeed: String get() = speedId.value
+    val motionStyle: String get() = motionId.value
+    val press: String get() = pressId.value
+    val textScale: Float get() = textScaleValue.value
+    val background: String get() = backgroundId.value
 }
 
 class StyleStore(context: Context) {
@@ -564,7 +588,7 @@ object AppColors {
 
     val Accent: Color get() {
         val kit = AppStyle.kit
-        val a = AppStyle.current.accent
+        val a = AppStyle.accent
         return Color(
             when {
                 AppStyle.light && a == kit.accent -> kit.accentLight
@@ -581,14 +605,13 @@ object AppColors {
     val AccentTintStrong: Color get() = Accent.copy(alpha = 0.2f).compositeOver(Panel)
 }
 
-fun appCorner(radius: Int): RoundedCornerShape = RoundedCornerShape((radius * AppStyle.current.corners).dp)
+fun appCorner(radius: Int): RoundedCornerShape = RoundedCornerShape((radius * AppStyle.corners).dp)
 
 const val UI_FONT = "jetbrainsmono"
 
 @Composable
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 fun WikiFlertyTheme(content: @Composable () -> Unit) {
-    val style = AppStyle.current
     val context = LocalContext.current
     val view = androidx.compose.ui.platform.LocalView.current
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
@@ -632,7 +655,7 @@ fun WikiFlertyTheme(content: @Composable () -> Unit) {
     val fontFit = remember { FontCatalog.uiScale(context, UI_FONT) }
     val density = LocalDensity.current
     CompositionLocalProvider(
-        LocalDensity provides Density(density.density, density.fontScale * style.textScale * fontFit),
+        LocalDensity provides Density(density.density, density.fontScale * AppStyle.textScale * fontFit),
         androidx.compose.foundation.LocalOverscrollFactory provides null,
     ) {
         MaterialTheme(colorScheme = colors, typography = typography) {

@@ -45,8 +45,8 @@ internal fun FeedBadge(pull: FeedPull, settings: ReaderSettings, modifier: Modif
     val bg = Color(page.background)
     val fg = Color(page.text)
     val kit = AppStyle.kit
-    val custom = AppStyle.current.accent != kit.accent && AppStyle.current.accent != kit.accentLight
-    val accent = Color(if (custom) AppStyle.current.accent else if (page.isLight) kit.accentLight else kit.accent)
+    val custom = AppStyle.accent != kit.accent && AppStyle.accent != kit.accentLight
+    val accent = Color(if (custom) AppStyle.accent else if (page.isLight) kit.accentLight else kit.accent)
     val target = if (pull.has) pull.k.coerceIn(0f, 1f) else (pull.k * 0.25f).coerceIn(0f, 0.25f)
     val k by animateFloatAsState(target, spring(stiffness = Spring.StiffnessMediumLow), label = "feed-k")
     val ready by animateFloatAsState(if (pull.ready) 1f else 0f, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMedium), label = "feed-ready")

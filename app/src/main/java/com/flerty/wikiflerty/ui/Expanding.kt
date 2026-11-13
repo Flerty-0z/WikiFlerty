@@ -159,7 +159,7 @@ fun ChipsFold(
             if (expanded) {
                 androidx.compose.foundation.layout.FlowRow(
                     Modifier.fillMaxWidth().padding(rowPadding),
-                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(spacing),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(spacing, androidx.compose.ui.Alignment.CenterHorizontally),
                     verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(spacing),
                 ) { content() }
             } else {

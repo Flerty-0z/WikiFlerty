@@ -91,7 +91,7 @@ private fun InfoChip(
                     dashed -> Modifier.drawBehind {
                         drawRoundRect(
                             line,
-                            cornerRadius = CornerRadius(12.dp.toPx() * AppStyle.current.corners),
+                            cornerRadius = CornerRadius(12.dp.toPx() * AppStyle.corners),
                             style = Stroke(1.2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 4.dp.toPx()))),
                         )
                     }

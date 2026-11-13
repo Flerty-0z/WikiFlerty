@@ -11,6 +11,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Alignment
+import androidx.compose.animation.togetherWith
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -65,7 +69,19 @@ fun ExportSheet(
                 selectedId = selected,
             ) { selected = it }
         }
-        Text(format.hint, color = AppColors.Faint, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(start = 4.dp))
+        androidx.compose.foundation.layout.Row(
+            Modifier.fillMaxWidth().fieldSurface(appCorner(14)).padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
+        ) {
+            androidx.compose.material3.Icon(AppIcons.Info, null, tint = AppColors.Accent, modifier = Modifier.size(16.dp))
+            androidx.compose.animation.AnimatedContent(
+                format.hint,
+                transitionSpec = { androidx.compose.animation.fadeIn(Motion.fade(220)) togetherWith androidx.compose.animation.fadeOut(Motion.fade(140)) using androidx.compose.animation.SizeTransform(clip = false) },
+                modifier = Modifier.weight(1f),
+                label = "export-hint",
+            ) { hint -> Text(hint, color = AppColors.Muted, fontSize = 12.5.sp, lineHeight = 17.sp) }
+        }
         Spacer(Modifier.height(2.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AppButton("Отправить", primary = true, modifier = Modifier.weight(1f)) {

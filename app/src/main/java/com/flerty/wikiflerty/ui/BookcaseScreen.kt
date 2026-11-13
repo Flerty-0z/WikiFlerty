@@ -233,7 +233,7 @@ fun BookcaseView(
     androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxSize().bookcaseWall()) {
         val width = maxWidth.value - 44f
         val decor = AppStyle.kit.decor
-        val tune = AppStyle.current.tune()
+        val tune = AppStyle.tune
         val drag = remember { ShelfDrag() }
         val propFeedback = LocalFeedback.current
         androidx.compose.runtime.LaunchedEffect(decor, live) { if (live) propFeedback?.preloadProps(decor) }
@@ -1361,7 +1361,7 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
         val moment = LocalKitMoment.current
         if (moment != null && decor != Decor.None && moment.season != Season.Summer) {
             val seed = remember(name) { (name ?: "shelf").hashCode() }
-            val falling = (moment.season == Season.Autumn || moment.season == Season.Spring) && AppStyle.current.tune().particles
+            val falling = (moment.season == Season.Autumn || moment.season == Season.Spring) && AppStyle.tune.particles
             val tick = throttledClock(falling, 3600, shelf = true)
             val motion = Motion.enabled
             androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().padding(horizontal = 10.dp).height(0.dp)) {

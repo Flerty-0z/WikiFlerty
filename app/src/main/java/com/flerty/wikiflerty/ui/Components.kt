@@ -50,7 +50,7 @@ private fun Modifier.basePanelSurface(shape: Shape, elevation: Dp): Modifier = t
     .clip(shape)
     .background(Brush.verticalGradient(listOf(AppColors.PanelTop, AppColors.PanelBottom)))
     .then(
-        if (AppStyle.current.outline) {
+        if (AppStyle.outline) {
             Modifier.border(1.dp, Brush.verticalGradient(listOf(AppColors.EdgeTop, AppColors.PanelBorder)), shape)
         } else {
             Modifier
