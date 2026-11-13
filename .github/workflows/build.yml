@@ -90,12 +90,14 @@ jobs:
           mkdir -p store
           cp app/build/outputs/apk/release/app-universal-release.apk "store/WikiFlerty-0.1.${{ inputs.public || github.run_number }}.apk"
 
-      - uses: actions/upload-artifact@v4
+      - name: Store draft
         if: ${{ inputs.store }}
-        with:
-          name: WikiFlerty-store
-          path: store/*.apk
-          retention-days: 7
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          T="store-0.1.${{ inputs.public || github.run_number }}"
+          gh release delete "$T" --cleanup-tag -y 2>/dev/null || true
+          gh release create "$T" store/*.apk --draft --title "$T" --notes "" --target "${{ github.sha }}"
 
       - name: Rename APK
         if: ${{ !inputs.store }}
