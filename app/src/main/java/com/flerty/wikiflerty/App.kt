@@ -56,6 +56,8 @@ class App : Application() {
 
     val readAloud: com.flerty.wikiflerty.tts.ReadAloud by lazy { com.flerty.wikiflerty.tts.ReadAloud(this) }
 
+    val illustrations: com.flerty.wikiflerty.data.IllustrationsRepository by lazy { com.flerty.wikiflerty.data.IllustrationsRepository(this) }
+
     val flashcards: com.flerty.wikiflerty.data.FlashcardStore by lazy { com.flerty.wikiflerty.data.FlashcardStore(this) }
 
     val stats: com.flerty.wikiflerty.data.ReadingStatsStore by lazy { com.flerty.wikiflerty.data.ReadingStatsStore(this) }
@@ -181,6 +183,7 @@ class App : Application() {
                 bookmarks.bookmarks.drop(1).map { },
                 notes.notes.drop(1).map { },
                 characters.characters.drop(1).map { },
+                illustrations.items.drop(1).map { },
             ).collect { cloud.request(4_000) }
         }
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {

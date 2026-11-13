@@ -24,7 +24,7 @@ class TextSelectionBridge(
 internal object TextSelection {
     const val BRIDGE = "WikiFlertySelection"
 
-    fun script(accent: String): String = SCRIPT.replace("__ACCENT__", accent) + "\n" + NOTES + "\n" + AUTO + "\n" + PEOPLE.replace("__ACCENT__", accent) + "\n" + FEED + "\n" + BIONIC + "\n" + KITBOOK
+    fun script(accent: String): String = SCRIPT.replace("__ACCENT__", accent) + "\n" + NOTES + "\n" + AUTO + "\n" + PEOPLE.replace("__ACCENT__", accent) + "\n" + FEED + "\n" + BIONIC + "\n" + KITBOOK + "\n" + IMAGES
 
     fun peopleCall(people: List<com.flerty.wikiflerty.data.BookCharacter>): String {
         fun stem(word: String): Pair<String, Int> {
@@ -538,6 +538,51 @@ internal object TextSelection {
             e.stopImmediatePropagation();
             bounce(best);
             try { window.${BRIDGE}.onEvent("person:" + hits[best].id); } catch (x) {}
+          }, true);
+        })();
+    """.trimIndent()
+
+    private val IMAGES = """
+        (function () {
+          if (window.__wfImg) return;
+          window.__wfImg = true;
+          var XL = "http://www.w3.org/1999/xlink";
+          function srcOf(el) {
+            if (!el) return "";
+            var tag = (el.tagName || "").toLowerCase();
+            if (tag === "img") return el.currentSrc || el.src || "";
+            if (tag === "image") {
+              var h = el.getAttribute("href") || el.getAttributeNS(XL, "href") || "";
+              try { return h ? new URL(h, document.baseURI).href : ""; } catch (e) { return ""; }
+            }
+            return "";
+          }
+          function pick(t) {
+            if (!t || !t.closest) return null;
+            if (t.closest("a[href]")) return null;
+            var el = t.closest("img, image");
+            if (!el) {
+              var svg = t.closest("svg");
+              el = svg ? svg.querySelector("image") : null;
+            }
+            var src = srcOf(el);
+            if (!src) return null;
+            var r = el.getBoundingClientRect();
+            if (r.width < 48 || r.height < 48) return null;
+            return src;
+          }
+          window.__wfImgAt = function (x, y) {
+            var t = document.elementFromPoint(x, y);
+            return pick(t) || "";
+          };
+          window.addEventListener("click", function (e) {
+            var sel = window.getSelection ? String(window.getSelection() || "") : "";
+            if (sel.length) return;
+            var src = pick(e.target);
+            if (!src) return;
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            try { window.${BRIDGE}.onEvent("image:" + src); } catch (x) {}
           }, true);
         })();
     """.trimIndent()

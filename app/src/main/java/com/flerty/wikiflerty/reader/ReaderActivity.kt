@@ -895,6 +895,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     showPerson(type.removePrefix("person:"))
                 }
                 type.startsWith("feed:") -> onFeedPull(type.removePrefix("feed:"))
+                type.startsWith("image:") -> openImage(type.removePrefix("image:"))
             }
         }
     }
@@ -1620,6 +1621,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val bookMarks = app.bookmarks.bookmarks.map { list ->
             list.filter { it.bookId == session.bookId }.sortedBy { it.progression }
         }
+        val bookArt = app.illustrations.items.map { list -> list.filter { it.bookId == session.bookId } }
         val peopleKey = app.library.books.value.firstOrNull { it.id == session.bookId }?.statsKey
         val bookPeople = app.characters.characters.map { list ->
             list.filter { it.bookId == session.bookId || (peopleKey != null && peopleKey in it.books) }.sortedBy { it.name.lowercase() }
@@ -1647,6 +1649,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     val notes by bookNotes.collectAsState(initial = emptyList())
                     val marks by bookMarks.collectAsState(initial = emptyList())
                     val people by bookPeople.collectAsState(initial = emptyList())
+                    val art by bookArt.collectAsState(initial = emptyList())
                     ReaderOverlay(
                         state = ui,
                         settings = current,
@@ -1683,6 +1686,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         peopleActions = peopleActions,
                         translateActions = translateActions,
                         onReturn = ::goReturn,
+                        illustrations = art,
+                        illustrationActions = illustrationActions,
                         onCoachDone = {
                             ui.coach = false
                             com.flerty.wikiflerty.ui.Tips.markReaderCoach(this@ReaderActivity)
@@ -1753,6 +1758,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         }
                         ui.chapter = locator.title?.takeIf { it.isNotBlank() } ?: chapterFor(href, total)
                         ui.currentHref = href
+                        hasImages(href)
                         val turnKey = href + "|" + (locator.locations.progression ?: 0.0)
                         if (turnKey != lastTurnKey) {
                             val first = lastTurnKey == null
@@ -2305,6 +2311,106 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
     }
 
+    private val imageHrefs = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+    private val imageCache = android.util.LruCache<String, ImageBitmap>(24)
+
+    private fun hasImages(href: String) {
+        if (imageHrefs.containsKey(href)) return
+        val pub = publication ?: return
+        imageHrefs[href] = false
+        lifecycleScope.launch(Dispatchers.IO) {
+            val link = pub.readingOrder.firstOrNull { it.url().toString().substringBefore('#') == href } ?: return@launch
+            val res = pub.get(link) ?: return@launch
+            val bytes = runCatching { res.read().getOrNull() }.getOrNull()
+            runCatching { res.close() }
+            val html = bytes?.toString(Charsets.UTF_8) ?: return@launch
+            imageHrefs[href] = Regex("<(img|image)\\b", RegexOption.IGNORE_CASE).containsMatchIn(html)
+        }
+    }
+
+    private fun imageLink(href: String): org.readium.r2.shared.publication.Link? {
+        val pub = publication ?: return null
+        return (pub.resources + pub.readingOrder).firstOrNull { it.url().toString().substringBefore('#') == href }
+    }
+
+    private fun hrefOfImage(src: String): String? {
+        val pub = publication ?: return null
+        val path = android.net.Uri.decode(runCatching { java.net.URI(src).rawPath }.getOrNull() ?: return null).trimStart('/')
+        if (path.isEmpty()) return null
+        val links = pub.resources + pub.readingOrder
+        val hit = links.map { android.net.Uri.decode(it.url().toString().substringBefore('#')).trimStart('/') to it }
+            .filter { (h, _) -> h.isNotEmpty() && (path == h || path.endsWith("/$h")) }
+            .maxByOrNull { it.first.length }
+        return hit?.second?.url()?.toString()?.substringBefore('#')
+    }
+
+    private suspend fun loadImage(href: String, maxSide: Int): ImageBitmap? {
+        val key = "$href|$maxSide"
+        imageCache.get(key)?.let { return it }
+        val link = imageLink(href) ?: return null
+        val pub = publication ?: return null
+        val image = withContext(Dispatchers.IO) {
+            val res = pub.get(link) ?: return@withContext null
+            val bytes = runCatching { res.read().getOrNull() }.getOrNull()
+            runCatching { res.close() }
+            bytes ?: return@withContext null
+            runCatching {
+                val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                var sample = 1
+                while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= maxSide) sample *= 2
+                val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)?.asImageBitmap()
+            }.getOrNull()
+        } ?: return null
+        imageCache.put(key, image)
+        return image
+    }
+
+    private fun openImage(src: String) {
+        if (ui.illustration != null) return
+        lifecycleScope.launch {
+            val href = hrefOfImage(src) ?: return@launch
+            val image = loadImage(href, 2048) ?: return@launch
+            if (ui.selection != null) endSelection()
+            ui.hideAll()
+            app.feedback.play(FeedbackSound.Open)
+            ui.illustration = IllustrationOpen(href, image, ui.chapter, navigator.currentLocator.value.toJSON().toString(), fromGallery = false)
+        }
+    }
+
+    private val illustrationActions by lazy {
+        IllustrationActions(
+            load = { href, side -> loadImage(href, side) },
+            onFavorite = { open, on ->
+                app.feedback.play(FeedbackSound.Toggle)
+                lifecycleScope.launch { app.illustrations.upsert(bookId, open.href, open.chapter, open.locatorJson) { it.copy(favorite = on) } }
+            },
+            onStrokes = { open, strokes ->
+                lifecycleScope.launch { app.illustrations.upsert(bookId, open.href, open.chapter, open.locatorJson) { it.copy(strokes = strokes) } }
+            },
+            onOpen = { item ->
+                lifecycleScope.launch {
+                    val image = loadImage(item.href, 2048) ?: run {
+                        Toast.makeText(this@ReaderActivity, "Не удалось открыть", Toast.LENGTH_SHORT).show()
+                        return@launch
+                    }
+                    app.feedback.play(FeedbackSound.Open)
+                    ui.illustration = IllustrationOpen(item.href, image, item.chapter, item.locatorJson, fromGallery = true)
+                }
+            },
+            onGoTo = { open ->
+                val locator = open.locatorJson?.let { runCatching { org.readium.r2.shared.publication.Locator.fromJSON(org.json.JSONObject(it)) }.getOrNull() }
+                ui.illustration = null
+                ui.hideAll()
+                if (locator != null) {
+                    rememberReturn()
+                    navigator.go(locator, animated = false)
+                }
+            },
+        )
+    }
+
     private fun onStripTap(left: Boolean, winX: Float, winY: Float) {
         if (ui.selection != null) {
             endSelection()
@@ -2315,7 +2421,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             app.feedback.play(FeedbackSound.Close)
             return
         }
-        if (peopleNow.isEmpty()) {
+        val images = ui.currentHref?.let { imageHrefs[it] } == true
+        if (peopleNow.isEmpty() && !images) {
             stripTurn(left)
             return
         }
@@ -2325,13 +2432,16 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val x = (winX - loc[0]) / density
         val y = (winY - loc[1]) / density
         lifecycleScope.launch {
-            val raw = runCatching { navigator.evaluateJavascript("window.__wfFlagAt ? window.__wfFlagAt($x, $y) : \"\"") }.getOrNull()
-            val id = raw?.trim()?.removeSurrounding("\"").orEmpty()
-            if (id.isNotEmpty() && id != "null") {
-                app.feedback.play(FeedbackSound.Open)
-                showPerson(id)
-            } else {
-                stripTurn(left)
+            val js = "(function(){var f=window.__wfFlagAt?window.__wfFlagAt($x,$y):\"\";if(f)return \"p:\"+f;var i=window.__wfImgAt?window.__wfImgAt($x,$y):\"\";return i?\"i:\"+i:\"\";})()"
+            val raw = runCatching { navigator.evaluateJavascript(js) }.getOrNull()
+            val hit = raw?.trim()?.let { if (it.startsWith("\"")) runCatching { org.json.JSONArray("[$it]").getString(0) }.getOrNull() else it }.orEmpty()
+            when {
+                hit.startsWith("p:") -> {
+                    app.feedback.play(FeedbackSound.Open)
+                    showPerson(hit.removePrefix("p:"))
+                }
+                hit.startsWith("i:") -> openImage(hit.removePrefix("i:"))
+                else -> stripTurn(left)
             }
         }
     }

@@ -163,6 +163,7 @@ enum class ReaderSheet(val title: String, val depth: Int) {
     Notes("Заметки", 0),
     Bookmarks("Закладки", 0),
     People("Персонажи", 0),
+    Gallery("Иллюстрации", 0),
     Quote("Цитата", 0),
     NoteEditor("Заметка", 3),
     AiMenu("ИИ", 0),
@@ -237,6 +238,7 @@ class ReaderUiState {
     var minutesLeft by mutableStateOf<Int?>(null)
     var currentHref by mutableStateOf<String?>(null)
     var nameMark by mutableStateOf<com.flerty.wikiflerty.data.Bookmark?>(null)
+    var illustration by mutableStateOf<IllustrationOpen?>(null)
 
     fun flagInfo() = FlagInfo(chapter, chapterPage, chapterPages, bookPage, bookPages, progression, minutesLeft)
     var topPanelBottom = 0f
@@ -393,6 +395,8 @@ fun ReaderOverlay(
     translateActions: TranslateActions? = null,
     onReturn: () -> Unit = {},
     onCoachDone: () -> Unit = {},
+    illustrations: List<com.flerty.wikiflerty.data.Illustration> = emptyList(),
+    illustrationActions: IllustrationActions? = null,
 ) {
     val progressText = progressText(state, settings)
     val flagSpace = if (settings.showFlag && state.flagHeight > 0) {
@@ -405,9 +409,10 @@ fun ReaderOverlay(
     val feedback = LocalFeedback.current
     val view = LocalView.current
 
-    BackHandler(enabled = state.sheet != null || state.panelsVisible || state.selection != null || state.footnote != null || state.person != null || state.translate != null) {
+    BackHandler(enabled = state.illustration != null || state.sheet != null || state.panelsVisible || state.selection != null || state.footnote != null || state.person != null || state.translate != null) {
         val sheet = state.sheet
         when {
+            state.illustration != null -> state.illustration = null
             state.footnote != null -> state.footnote = null
             state.translate != null && sheet == null -> translateActions?.onClose?.invoke() ?: run { state.translate = null }
             state.person != null && sheet == null -> state.person = null
@@ -671,6 +676,8 @@ fun ReaderOverlay(
                         bookmarkActions = bookmarkActions,
                         people = people,
                         peopleFocus = state.peopleFocus,
+                        illustrations = illustrations,
+                        illustrationActions = illustrationActions,
                         onPerson = { state.personDraft = it },
                         quote = state.quote,
                         quoteActions = quoteActions,
@@ -937,6 +944,28 @@ fun ReaderOverlay(
         exit = fadeOut(Motion.fade(220)),
     ) {
         ReaderCoach(settings.scroll, settings.leftTapForward) { onCoachDone() }
+    }
+    if (illustrationActions != null) {
+        AnimatedVisibility(
+            visible = state.illustration != null,
+            enter = fadeIn(Motion.fade(220)) + scaleIn(Motion.tween(300), initialScale = 0.94f),
+            exit = fadeOut(Motion.fade(200)) + scaleOut(Motion.tween(240), targetScale = 0.96f),
+        ) {
+            val last = remember { arrayOf<IllustrationOpen?>(null) }
+            state.illustration?.let { last[0] = it }
+            val open = last[0]
+            if (open != null) {
+                androidx.compose.runtime.key(open.href) {
+                    IllustrationViewer(
+                        open = open,
+                        entry = illustrations.firstOrNull { it.href == open.href },
+                        palette = settings.noteColors,
+                        actions = illustrationActions,
+                        onClose = { state.illustration = null },
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -1685,6 +1714,8 @@ private fun SheetContent(
     bookmarkActions: BookmarkActions,
     people: List<com.flerty.wikiflerty.data.BookCharacter>,
     peopleFocus: String?,
+    illustrations: List<com.flerty.wikiflerty.data.Illustration> = emptyList(),
+    illustrationActions: IllustrationActions? = null,
     onPerson: (PersonDraft) -> Unit,
     quote: QuoteDraft?,
     quoteActions: QuoteActions,
@@ -1763,7 +1794,7 @@ private fun SheetContent(
         com.flerty.wikiflerty.ui.SheetDivider()
 
         when (sheet) {
-            ReaderSheet.Toc, ReaderSheet.Notes, ReaderSheet.Bookmarks, ReaderSheet.People -> AnimatedContent(
+            ReaderSheet.Toc, ReaderSheet.Notes, ReaderSheet.Bookmarks, ReaderSheet.People, ReaderSheet.Gallery -> AnimatedContent(
                 targetState = sheet,
                 transitionSpec = {
                     val dir = if (NavSheets.indexOf(targetState) > NavSheets.indexOf(initialState)) 1 else -1
@@ -1777,6 +1808,7 @@ private fun SheetContent(
                 when (tab) {
                     ReaderSheet.Notes -> BookNotesList(notes = notes, onOpen = noteActions.onGoTo, onEdit = onEditNote)
                     ReaderSheet.Bookmarks -> BookmarkList(bookmarks, bookmarkActions)
+                    ReaderSheet.Gallery -> if (illustrationActions != null) IllustrationGallery(illustrations, illustrationActions)
                     ReaderSheet.People -> PeopleList(
                         people = people,
                         focus = peopleFocus,

@@ -88,6 +88,12 @@ object Backup {
                     put(c.toJson().put("bookId", JSONObject.NULL).put("book", book))
                 }
             })
+            put("illustrations", JSONArray().apply {
+                app.illustrations.items.value.forEach { i ->
+                    val book = ref(i.bookId) ?: return@forEach
+                    put(i.toJson().put("bookId", JSONObject.NULL).put("book", book))
+                }
+            })
             put("dictionary", JSONArray().apply {
                 app.dictionary.entries.value.forEach { e ->
                     put(e.toJson().put("bookId", JSONObject.NULL).put("book", ref(e.bookId) ?: JSONObject.NULL))
@@ -182,6 +188,19 @@ object Backup {
         val peopleAfter = localPeople.values.filter { c -> deletedCharacters[c.id]?.let { it < c.updatedAt } ?: true }
         if (peopleChanged > 0 || peopleAfter.size != app.characters.characters.value.size) app.characters.replaceAll(peopleAfter)
 
+        val localArt = app.illustrations.items.value.associateBy { it.key }.toMutableMap()
+        var artChanged = 0
+        remote.optJSONArray("illustrations").objects().forEach { j ->
+            val bookId = localBookId(j.optString("book").takeIf { it.isNotEmpty() }) ?: return@forEach
+            val art = runCatching { com.flerty.wikiflerty.data.Illustration.fromJson(j.put("bookId", bookId)) }.getOrNull() ?: return@forEach
+            val mine = localArt[art.key]
+            if (mine == null || art.updatedAt > mine.updatedAt) {
+                localArt[art.key] = art
+                artChanged++
+            }
+        }
+        if (artChanged > 0) app.illustrations.replaceAll(localArt.values.toList())
+
         val localWords = app.dictionary.entries.value.associateBy { it.id }.toMutableMap()
         var wordsChanged = 0
         remote.optJSONArray("dictionary").objects().forEach { j ->
@@ -271,6 +290,7 @@ object Backup {
         app.notes.remapBook(FOREIGN + fp, book.id)
         app.bookmarks.remapBook(FOREIGN + fp, book.id)
         app.characters.remapBook(FOREIGN + fp, book.id)
+        app.illustrations.remapBook(FOREIGN + fp, book.id)
         app.dictionary.remapBook(FOREIGN + fp, book.id)
         app.aiHistory.rename(FOREIGN + fp, book.id)
         app.heroes.rename(FOREIGN + fp, book.id)

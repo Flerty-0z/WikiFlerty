@@ -78,7 +78,7 @@ class BookmarkActions(
     val onName: (String, String) -> Unit = { _, _ -> },
 )
 
-internal val NavSheets = listOf(ReaderSheet.Toc, ReaderSheet.Notes, ReaderSheet.Bookmarks, ReaderSheet.People)
+internal val NavSheets = listOf(ReaderSheet.Toc, ReaderSheet.Notes, ReaderSheet.Bookmarks, ReaderSheet.People, ReaderSheet.Gallery)
 
 @Composable
 internal fun NavTabs(current: ReaderSheet, onSelect: (ReaderSheet) -> Unit, modifier: Modifier = Modifier, sheets: List<ReaderSheet> = NavSheets) {
@@ -120,6 +120,7 @@ internal fun NavTabs(current: ReaderSheet, onSelect: (ReaderSheet) -> Unit, modi
                             ReaderSheet.Notes -> if (selected) AppIcons.StarFilled else AppIcons.Star
                             ReaderSheet.Bookmarks -> AppIcons.Bookmark
                             ReaderSheet.People -> AppIcons.Person
+                            ReaderSheet.Gallery -> AppIcons.Image
                             else -> AppIcons.Toc
                         },
                         contentDescription = sheet.title,
