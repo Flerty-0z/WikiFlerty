@@ -1129,7 +1129,16 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     val name = selection.text.replace(Regex("\\s+"), " ").trim().trim('.', ',', '!', '?', ':', ';', '«', '»', '"', '—', '-').take(80)
                     endSelection()
                     val known = peopleNow.firstOrNull { it.name.equals(name, ignoreCase = true) }
-                    ui.personDraft = if (known != null) PersonDraft(known.id, known.name, known.note) else PersonDraft(null, name, "")
+                    ui.panelsVisible = false
+                    ui.person = null
+                    if (known != null) {
+                        ui.personDraft = PersonDraft(known.id, known.name, known.note)
+                    } else if (name.isNotBlank()) {
+                        lifecycleScope.launch {
+                            val saved = app.characters.save(bookId, null, name, "")
+                            ui.personDraft = PersonDraft(saved.id, saved.name, saved.note)
+                        }
+                    }
                 }
             },
             onSelectionQuote = {

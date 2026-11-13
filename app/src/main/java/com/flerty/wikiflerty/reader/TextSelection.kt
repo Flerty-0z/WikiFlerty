@@ -353,12 +353,19 @@ internal object TextSelection {
                   if (hit && low.length - k <= hit.s) {
                     var a = locate(run, start), b = locate(run, start + w.length);
                     if (a && b) {
-                      try {
-                        var r = document.createRange();
-                        r.setStart(a.node, a.off);
-                        r.setEnd(b.node, b.off);
-                        hits.push({ r: r, id: hit.id });
-                      } catch (x) {}
+                      var prev = run.last, gap = prev ? text.slice(prev.end, start) : null;
+                      if (prev && gap !== null && gap.length <= 3 && /^[\s\u00a0\-\u2010\u2011]*$/.test(gap)) {
+                        try { prev.r.setEnd(b.node, b.off); prev.end = start + w.length; } catch (x) {}
+                      } else {
+                        try {
+                          var r = document.createRange();
+                          r.setStart(a.node, a.off);
+                          r.setEnd(b.node, b.off);
+                          var h = { r: r, id: hit.id, end: start + w.length };
+                          hits.push(h);
+                          run.last = h;
+                        } catch (x) {}
+                      }
                     }
                     break;
                   }
@@ -409,10 +416,19 @@ internal object TextSelection {
             var o = layer.getBoundingClientRect();
             sizes = new Map();
             var frag = document.createDocumentFragment();
+            var vw = window.innerWidth || 1, vh = window.innerHeight || 1;
+            var root = document.scrollingElement || document.documentElement;
+            var paged = root.scrollWidth > vw + 4;
+            var seen = {};
             for (var i = 0; i < hits.length; i++) {
+              hits[i].flag = null;
               var rs = hits[i].r.getClientRects(), b = null;
               for (var j = 0; j < rs.length; j++) if (rs[j].width > 0) { b = rs[j]; break; }
               if (!b) continue;
+              var page = paged ? Math.floor((b.left + (window.scrollX || 0) + 1) / vw) : Math.floor((b.top + (window.scrollY || 0)) / vh);
+              var tag = hits[i].id + "@" + page;
+              if (seen[tag]) continue;
+              seen[tag] = 1;
               var el = hits[i].r.startContainer.parentElement;
               var fs = sizes.get(el);
               if (fs === undefined) { fs = el ? parseFloat(getComputedStyle(el).fontSize) || 16 : 16; sizes.set(el, fs); }

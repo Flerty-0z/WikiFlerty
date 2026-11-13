@@ -10,7 +10,7 @@ import com.flerty.wikiflerty.R
 import com.flerty.wikiflerty.reader.ReaderSettings
 import kotlinx.coroutines.flow.StateFlow
 
-enum class FeedbackSound { Tap, Toggle, Open, Close, Star, Success, Freeze, Thaw, Tick, Pick, Place, Check, Uncheck, Pop, Trash, Page, Reveal, Copy }
+enum class FeedbackSound { Tap, Toggle, Open, Close, Star, Success, Freeze, Thaw, Tick, Pick, Place, Check, Uncheck, Pop, Trash, Page, Reveal, Copy, YearSwipe, YearRise, YearCount, YearFinale }
 
 class Feedback(context: Context, private val settings: StateFlow<ReaderSettings>) {
     private val pool: SoundPool = SoundPool.Builder()
@@ -42,6 +42,10 @@ class Feedback(context: Context, private val settings: StateFlow<ReaderSettings>
         FeedbackSound.Page to pool.load(context, R.raw.ui_page, 1),
         FeedbackSound.Reveal to pool.load(context, R.raw.ui_reveal, 1),
         FeedbackSound.Copy to pool.load(context, R.raw.ui_copy, 1),
+        FeedbackSound.YearSwipe to pool.load(context, R.raw.year_swipe, 1),
+        FeedbackSound.YearRise to pool.load(context, R.raw.year_rise, 1),
+        FeedbackSound.YearCount to pool.load(context, R.raw.year_count, 1),
+        FeedbackSound.YearFinale to pool.load(context, R.raw.year_finale, 1),
     )
 
     private val propRes: Map<Decor, List<Pair<Int, Int>>> = mapOf(
@@ -89,6 +93,8 @@ class Feedback(context: Context, private val settings: StateFlow<ReaderSettings>
             val v = when (sound) {
                 FeedbackSound.Tap, FeedbackSound.Toggle, FeedbackSound.Open, FeedbackSound.Close, FeedbackSound.Check, FeedbackSound.Uncheck, FeedbackSound.Pick, FeedbackSound.Place -> volume
                 FeedbackSound.Tick, FeedbackSound.Pop -> volume * 0.6f
+                FeedbackSound.YearRise -> volume * 0.42f
+                FeedbackSound.YearSwipe, FeedbackSound.YearCount -> volume * 0.55f
                 else -> volume * 0.7f
             }
             ids[sound]?.let { pool.play(it, v, v, 1, 0, rate.coerceIn(0.5f, 2f)) }

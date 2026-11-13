@@ -239,6 +239,13 @@ private fun YearStories(data: YearData, onClose: () -> Unit) {
     }
     var index by remember { mutableIntStateOf(0) }
     var paused by remember { mutableStateOf(false) }
+    val feedback = LocalFeedback.current
+    val shownOnce = remember { booleanArrayOf(false) }
+    LaunchedEffect(index) {
+        if (shownOnce[0]) feedback?.play(if (pages[index] == 7) FeedbackSound.YearFinale else FeedbackSound.YearSwipe)
+        else if (pages[index] != 7) feedback?.play(FeedbackSound.YearSwipe, rate = 0.9f)
+        shownOnce[0] = true
+    }
     val progress = remember { Animatable(0f) }
     val last = index == pages.lastIndex
     LaunchedEffect(index, paused) {
@@ -318,11 +325,15 @@ private fun YearStories(data: YearData, onClose: () -> Unit) {
     }
 }
 
+private val RiseNotes = floatArrayOf(1f, 1.125f, 1.25f, 1.5f, 1.6875f, 2f)
+
 @Composable
 private fun Rise(delayMs: Int, content: @Composable () -> Unit) {
     val a = remember { Animatable(0f) }
+    val feedback = LocalFeedback.current
     LaunchedEffect(Unit) {
         delay(Motion.ms(delayMs).toLong())
+        if (delayMs > 0) feedback?.play(FeedbackSound.YearRise, rate = RiseNotes[(delayMs / 180).coerceIn(0, RiseNotes.size - 1)])
         a.animateTo(1f, tween(Motion.ms(620).coerceAtLeast(1), easing = FastOutSlowInEasing))
     }
     Box(Modifier.graphicsLayer {
@@ -337,6 +348,8 @@ private fun Label(text: String) = Text(text.uppercase(), color = AppColors.Accen
 @Composable
 private fun Big(value: Int, suffix: String = "") {
     val shown = animatedCount(value)
+    val feedback = LocalFeedback.current
+    LaunchedEffect(Unit) { if (value > 1) feedback?.play(FeedbackSound.YearCount) }
     Text("$shown$suffix", color = AppColors.Text, fontSize = 76.sp, lineHeight = 80.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center, maxLines = 1)
 }
 
