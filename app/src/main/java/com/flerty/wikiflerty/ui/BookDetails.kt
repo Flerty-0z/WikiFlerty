@@ -565,7 +565,6 @@ fun BookTagsSheet(book: Book, onDismiss: () -> Unit) {
     val books by app.library.books.collectAsStateWithLifecycle()
     val current = books.firstOrNull { it.id == book.id } ?: book
     var adding by remember { mutableStateOf(false) }
-    var editing by remember { mutableStateOf<Pair<Book, Double?>?>(null) }
     val have = current.tags.map { it.removePrefix(SpoilerMark).lowercase() }.toSet()
     val popular = remember(books, have) {
         books.flatMap { it.tags }.map { it.removePrefix(SpoilerMark) }
@@ -632,6 +631,7 @@ fun SeriesSheet(name: String, currentId: String?, onOpenBook: ((Book) -> Unit)?,
     val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
     val pinned = prefs.seriesShelves.any { it.equals(name, true) }
     var adding by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<Pair<Book, Double?>?>(null) }
     AppSheet(onDismiss, title = "Серия") {
         val close = sheetClose(onDismiss)
         Column(Modifier.fillMaxWidth().sheetReveal().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
