@@ -1185,16 +1185,15 @@ internal fun TopPanel(
     var preview by remember { mutableStateOf<Double?>(null) }
     var menu by remember { mutableStateOf(false) }
     val r = (22 * com.flerty.wikiflerty.ui.AppStyle.current.corners).dp
-    val shape = RoundedCornerShape(bottomStart = r, bottomEnd = r)
+    val shape = RoundedCornerShape(r)
     val page = { f: Double -> if (totalPositions > 0) "${(f * (totalPositions - 1)).roundToInt() + 1}/$totalPositions" else "${(f * 100).roundToInt()}%" }
-    Box {
+    Box(Modifier.windowInsetsPadding(WindowInsets.statusBars).padding(start = 10.dp, end = 10.dp, top = 8.dp)) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .panelSurface(shape)
+                .panelSurface(shape, elevation = 12.dp)
                 .blockTaps()
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 8.dp),
+                .padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 6.dp),
         ) {
             Row(
                 Modifier.fillMaxWidth().height(58.dp),

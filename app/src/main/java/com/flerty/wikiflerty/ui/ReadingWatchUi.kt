@@ -95,7 +95,7 @@ fun ReadingWatchCard(book: Book) {
 
 @Composable
 fun StopwatchShell(active: Boolean, moon: Boolean = true, content: @Composable () -> Unit) {
-    val shape = appCorner(22)
+    val shape = appCorner(18)
     Box(
         Modifier
             .fillMaxWidth()
@@ -103,16 +103,48 @@ fun StopwatchShell(active: Boolean, moon: Boolean = true, content: @Composable (
             .then(if (active) Modifier.background(AppColors.AccentTint, shape).border(1.dp, AppColors.Accent.copy(alpha = 0.45f), shape) else Modifier.fieldSurface(shape)),
     ) {
         Column(
-            Modifier.fillMaxWidth().padding(16.dp),
+            Modifier.fillMaxWidth().padding(if (moon) androidx.compose.foundation.layout.PaddingValues(start = 10.dp, end = 8.dp, top = 8.dp, bottom = 8.dp) else androidx.compose.foundation.layout.PaddingValues(16.dp)),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) { content() }
-        if (moon) FocusMoon(Modifier.align(Alignment.BottomStart).padding(14.dp))
     }
 }
 
 @Composable
-private fun FocusMoon(modifier: Modifier = Modifier) {
+private fun WatchBadge(running: Boolean, pulse: (() -> Float)?) {
+    Box(
+        Modifier
+            .size(34.dp)
+            .clip(appCorner(10))
+            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(AppColors.Accent.copy(alpha = 0.28f), AppColors.Accent.copy(alpha = 0.08f))))
+            .border(1.dp, AppColors.Accent.copy(alpha = 0.22f), appCorner(10)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(AppIcons.Clock, null, tint = AppColors.Accent, modifier = Modifier.size(17.dp))
+        if (running && pulse != null) {
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(6.dp)
+                    .graphicsLayer { alpha = pulse() }
+                    .background(AppColors.Accent, CircleShape),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CompactDigits(ms: Long, modifier: Modifier, dim: () -> Boolean = { false }) {
+    val s = ms / 1000
+    val text = if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%02d:%02d".format(s / 60, s % 60)
+    Box(modifier.graphicsLayer { alpha = if (dim()) 0.5f else 1f }, contentAlignment = Alignment.CenterStart) {
+        RollingClock(text, size = 20.sp)
+    }
+}
+
+@Composable
+private fun FocusMoon(modifier: Modifier = Modifier, size: Int = 44) {
     val context = LocalContext.current
     val on by com.flerty.wikiflerty.system.FocusMode.enabled.collectAsStateWithLifecycle()
     var askAccess by remember { androidx.compose.runtime.mutableStateOf(false) }
@@ -126,7 +158,7 @@ private fun FocusMoon(modifier: Modifier = Modifier) {
     }
     Box(
         modifier
-            .size(44.dp)
+            .size(size.dp)
             .graphicsLayer {
                 scaleX = pop.value
                 scaleY = pop.value
@@ -146,7 +178,7 @@ private fun FocusMoon(modifier: Modifier = Modifier) {
             AppIcons.Moon,
             if (on) "Фокус включён" else "Фокус выключен",
             tint = if (on) AppColors.Accent else AppColors.Muted,
-            modifier = Modifier.size(20.dp).graphicsLayer { rotationZ = -20f * fill },
+            modifier = Modifier.size((size * 0.45f).dp).graphicsLayer { rotationZ = -20f * fill },
         )
     }
     if (askAccess) {
@@ -181,25 +213,6 @@ private fun StatePill(text: String, color: Color, dot: (() -> Float)? = null) {
 }
 
 @Composable
-private fun Digits(ms: Long, dim: () -> Boolean = { false }) {
-    val s = ms / 1000
-    val parts = listOf("%02d".format(s / 3600) to "часы", "%02d".format(s / 60 % 60) to "минуты", "%02d".format(s % 60) to "секунды")
-    Row(
-        Modifier.graphicsLayer { alpha = if (dim()) 0.55f else 1f },
-        verticalAlignment = Alignment.Top,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        parts.forEachIndexed { i, (value, label) ->
-            if (i > 0) Text(":", color = AppColors.Faint, fontSize = 36.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                RollingClock(value, size = 40.sp)
-                Text(label, color = AppColors.Faint, fontSize = 11.sp, maxLines = 1)
-            }
-        }
-    }
-}
-
-@Composable
 private fun RoundControl(icon: ImageVector, description: String, size: Int, filled: Boolean, sound: FeedbackSound, onClick: () -> Unit) {
     Box(
         Modifier
@@ -212,8 +225,12 @@ private fun RoundControl(icon: ImageVector, description: String, size: Int, fill
 
 @Composable
 fun StopwatchIdle(note: String? = null, onStart: () -> Unit) {
-    Digits(0L, dim = { true })
-    RoundControl(AppIcons.Play, "Засечь время", 64, filled = true, sound = FeedbackSound.Toggle, onClick = onStart)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        WatchBadge(running = false, pulse = null)
+        CompactDigits(0L, Modifier.weight(1f).padding(start = 2.dp), dim = { true })
+        FocusMoon(size = 36)
+        RoundControl(AppIcons.Play, "Засечь время", 40, filled = true, sound = FeedbackSound.Toggle, onClick = onStart)
+    }
     if (note != null) Text(note, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1)
 }
 
@@ -227,18 +244,14 @@ fun StopwatchActive(key: Any, elapsed: (Long) -> Long, running: Boolean, onToggl
         }
     }
     val pulse = rememberInfiniteTransition(label = "watch-pulse").animateFloat(1f, 0.25f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "dot")
-    AnimatedContent(
-        targetState = running,
-        transitionSpec = { fadeIn(Motion.fade(220)) togetherWith fadeOut(Motion.fade(140)) },
-        label = "watch-pill",
-    ) { on ->
-        if (on) StatePill("Идёт сеанс чтения", AppColors.Accent, dot = { pulse.value }) else StatePill("Пауза", AppColors.Muted)
-    }
-    Digits(elapsed(now), dim = { !running && pulse.value < 0.6f })
-    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-        RoundControl(AppIcons.Close, "Сбросить", 48, filled = false, sound = FeedbackSound.Close, onClick = onCancel)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        WatchBadge(running = running, pulse = { pulse.value })
+        CompactDigits(elapsed(now), Modifier.weight(1f).padding(start = 4.dp), dim = { !running && pulse.value < 0.6f })
+        FocusMoon(size = 36)
+        RoundControl(AppIcons.Close, "Сбросить", 36, filled = false, sound = FeedbackSound.Close, onClick = onCancel)
+        RoundControl(AppIcons.Stop, "Стоп", 36, filled = false, sound = FeedbackSound.Open, onClick = onStop)
         Box(
-            Modifier.size(64.dp).liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.9f, onClick = onToggle).accentHighlight(CircleShape),
+            Modifier.size(40.dp).liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.9f, onClick = onToggle).accentHighlight(CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             AnimatedContent(
@@ -246,10 +259,9 @@ fun StopwatchActive(key: Any, elapsed: (Long) -> Long, running: Boolean, onToggl
                 transitionSpec = { (fadeIn(Motion.fade(180)) + scaleIn(Motion.tween(220), initialScale = 0.5f)) togetherWith (fadeOut(Motion.fade(120)) + scaleOut(Motion.tween(160), targetScale = 0.5f)) },
                 label = "watch-icon",
             ) { on ->
-                Icon(if (on) AppIcons.Pause else AppIcons.Play, if (on) "Пауза" else "Продолжить", tint = accentContent, modifier = Modifier.size(28.dp))
+                Icon(if (on) AppIcons.Pause else AppIcons.Play, if (on) "Пауза" else "Продолжить", tint = accentContent, modifier = Modifier.size(18.dp))
             }
         }
-        RoundControl(AppIcons.Stop, "Стоп", 48, filled = false, sound = FeedbackSound.Open, onClick = onStop)
     }
 }
 

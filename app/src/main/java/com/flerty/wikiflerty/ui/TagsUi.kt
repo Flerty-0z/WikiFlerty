@@ -27,6 +27,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -384,7 +387,7 @@ fun NextInSeriesCard(book: Book, series: BookSeries, coverFile: File?, modifier:
 fun ThemesCard(books: List<Book>, yearStart: Long) {
     val series = remember(books) { seriesList(books) }
     val tags = remember(books, yearStart) {
-        tagCounts(books.filter { (it.lastReadAt ?: 0L) >= yearStart || (it.finishedAt ?: 0L) >= yearStart }).take(5)
+        tagCounts(books.filter { (it.lastReadAt ?: 0L) >= yearStart || (it.finishedAt ?: 0L) >= yearStart }).take(10)
     }
     if (series.isEmpty() && tags.isEmpty()) return
     TabbedFrame("Серии и темы", icon = AppIcons.Series, inset = false) {
@@ -398,16 +401,90 @@ fun ThemesCard(books: List<Book>, yearStart: Long) {
         }
         if (tags.isNotEmpty()) {
             if (series.isNotEmpty()) Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.PanelBorder))
-            val top = tags.first().count.coerceAtLeast(1)
-            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                Text("Темы года", color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(start = 2.dp))
-                tags.forEach { t ->
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("#" + t.name, color = AppColors.Text, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                        Box(Modifier.weight(1f).height(6.dp).clip(appCorner(3)).background(AppColors.Line)) {
-                            Box(Modifier.fillMaxWidth(t.count.toFloat() / top).height(6.dp).background(AppColors.Accent))
-                        }
-                        Text("${t.count}", color = AppColors.Accent, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+            ThemesPodium(tags)
+        }
+    }
+}
+
+@Composable
+private fun PodiumStep(tag: TagCount, place: Int, height: androidx.compose.ui.unit.Dp, grow: Float, modifier: Modifier) {
+    val first = place == 1
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp, bottomStart = 5.dp, bottomEnd = 5.dp)
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            "#" + tag.name,
+            color = AppColors.Text,
+            fontSize = 11.5.sp,
+            lineHeight = 14.sp,
+            fontWeight = if (first) FontWeight.SemiBold else FontWeight.Normal,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.graphicsLayer { alpha = grow.coerceIn(0f, 1f) },
+        )
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(height * (0.25f + 0.75f * grow))
+                .clip(shape)
+                .background(
+                    if (first) androidx.compose.ui.graphics.Brush.verticalGradient(listOf(AppColors.Accent, androidx.compose.ui.graphics.lerp(AppColors.Accent, Color.Black, 0.22f)))
+                    else androidx.compose.ui.graphics.Brush.verticalGradient(listOf(AppColors.Accent.copy(alpha = 0.2f), AppColors.Accent.copy(alpha = 0.1f))),
+                )
+                .border(1.dp, AppColors.Accent.copy(alpha = if (first) 0.6f else 0.32f), shape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.graphicsLayer { alpha = grow.coerceIn(0f, 1f) }) {
+                Text("$place", color = if (first) AppColors.OnAccent else AppColors.Accent, fontSize = if (first) 24.sp else 19.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                Text("${tag.count} ${themeBooks(tag.count)}", color = if (first) AppColors.OnAccent.copy(alpha = 0.8f) else AppColors.Muted, fontSize = 10.5.sp, maxLines = 1, softWrap = false)
+            }
+        }
+    }
+}
+
+private fun themeBooks(n: Int): String {
+    val m10 = n % 10
+    val m100 = n % 100
+    return when {
+        m10 == 1 && m100 != 11 -> "книга"
+        m10 in 2..4 && m100 !in 12..14 -> "книги"
+        else -> "книг"
+    }
+}
+
+@Composable
+private fun ThemesPodium(tags: List<TagCount>) {
+    val grow = remember { androidx.compose.animation.core.Animatable(if (Motion.enabled) 0f else 1f) }
+    LaunchedEffect(Unit) { grow.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 220f)) }
+    Column(Modifier.padding(top = 12.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(AppIcons.Hash, null, tint = AppColors.Accent, modifier = Modifier.size(13.dp))
+            Text("Темы года", color = AppColors.Muted, fontSize = 12.5.sp, maxLines = 1)
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val g = grow.value
+            if (tags.size >= 2) PodiumStep(tags[1], 2, 70.dp, g, Modifier.weight(1f)) else Box(Modifier.weight(1f))
+            PodiumStep(tags[0], 1, 96.dp, g, Modifier.weight(1f))
+            if (tags.size >= 3) PodiumStep(tags[2], 3, 54.dp, g, Modifier.weight(1f)) else Box(Modifier.weight(1f))
+        }
+        if (tags.size > 3) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                tags.drop(3).forEach { t ->
+                    Row(
+                        Modifier
+                            .height(32.dp)
+                            .clip(appCorner(10))
+                            .background(AppColors.Line.copy(alpha = 0.3f))
+                            .border(1.dp, AppColors.PanelBorder, appCorner(10))
+                            .padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text("#" + t.name, color = AppColors.Text, fontSize = 12.5.sp, maxLines = 1, softWrap = false)
+                        Text("${t.count}", color = AppColors.Accent, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                     }
                 }
             }
