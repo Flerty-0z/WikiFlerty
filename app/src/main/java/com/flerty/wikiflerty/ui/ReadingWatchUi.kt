@@ -137,7 +137,7 @@ private fun WatchBadge(running: Boolean, pulse: (() -> Float)?) {
 @Composable
 private fun CompactDigits(ms: Long, modifier: Modifier, dim: () -> Boolean = { false }) {
     val s = ms / 1000
-    val text = if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%02d:%02d".format(s / 60, s % 60)
+    val text = "%02d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60)
     Box(modifier.graphicsLayer { alpha = if (dim()) 0.5f else 1f }, contentAlignment = Alignment.CenterStart) {
         RollingClock(text, size = 20.sp)
     }
@@ -244,11 +244,10 @@ fun StopwatchActive(key: Any, elapsed: (Long) -> Long, running: Boolean, onToggl
         }
     }
     val pulse = rememberInfiniteTransition(label = "watch-pulse").animateFloat(1f, 0.25f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "dot")
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         WatchBadge(running = running, pulse = { pulse.value })
         CompactDigits(elapsed(now), Modifier.weight(1f).padding(start = 4.dp), dim = { !running && pulse.value < 0.6f })
         FocusMoon(size = 36)
-        RoundControl(AppIcons.Close, "Сбросить", 36, filled = false, sound = FeedbackSound.Close, onClick = onCancel)
         RoundControl(AppIcons.Stop, "Стоп", 36, filled = false, sound = FeedbackSound.Open, onClick = onStop)
         Box(
             Modifier.size(40.dp).liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.9f, onClick = onToggle).accentHighlight(CircleShape),

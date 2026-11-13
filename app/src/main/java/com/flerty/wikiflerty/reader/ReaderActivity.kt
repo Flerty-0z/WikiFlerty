@@ -1399,7 +1399,13 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
     }
 
+    override fun finish() {
+        super.finish()
+        ReaderTransitions.closing(this)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        ReaderTransitions.install(this)
         val session = app.readerSession
 
         if (session == null) {

@@ -125,6 +125,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
     LaunchedEffect(Unit) {
         libraryViewModel.openReader.collect {
             context.startActivity(Intent(context, ReaderActivity::class.java))
+            (context as? android.app.Activity)?.let { com.flerty.wikiflerty.reader.ReaderTransitions.opened(it) }
         }
     }
     LaunchedEffect(Unit) {
@@ -134,6 +135,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                     .putExtra(com.flerty.wikiflerty.reader.PdfReaderActivity.EXTRA_BOOK, id)
                     .putExtra(com.flerty.wikiflerty.reader.PdfReaderActivity.EXTRA_PAGE, page),
             )
+            (context as? android.app.Activity)?.let { com.flerty.wikiflerty.reader.ReaderTransitions.opened(it) }
         }
     }
     LaunchedEffect(Unit) {

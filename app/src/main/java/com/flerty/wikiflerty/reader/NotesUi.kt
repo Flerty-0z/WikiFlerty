@@ -112,33 +112,32 @@ class NoteActions(
 fun SelectionMenu(markerColor: Long, actions: NoteActions, main: List<SelectionButton>, more: List<SelectionButton>, modifier: Modifier = Modifier) {
     var expanded by remember(main, more) { mutableStateOf(false) }
     Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        androidx.compose.animation.AnimatedContent(
-            targetState = expanded,
-            transitionSpec = {
-                val dir = if (targetState) 1 else -1
-                (androidx.compose.animation.slideInHorizontally(Motion.tween(240)) { dir * it / 6 } + fadeIn(Motion.fade(200)))
-                    .togetherWith(androidx.compose.animation.slideOutHorizontally(Motion.tween(200)) { -dir * it / 6 } + fadeOut(Motion.fade(140)))
-                    .using(androidx.compose.animation.SizeTransform(clip = false))
-            },
-            label = "selection-menu",
-        ) { open ->
-            Row(
-                modifier = Modifier
-                    .panelSurface(appCorner(28), elevation = 16.dp)
-                    .padding(5.dp)
-                    .then(if (open) Modifier.horizontalScroll(rememberScrollState()) else Modifier),
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
-            ) {
-                if (open) {
-                    MenuAction("Назад", sound = FeedbackSound.Close, onClick = { expanded = false }) {
-                        Icon(AppIcons.Back, null, tint = AppColors.Muted, modifier = Modifier.size(20.dp))
-                    }
-                    more.forEach { SelectionAction(it, markerColor, actions) }
-                } else {
-                    main.forEach { SelectionAction(it, markerColor, actions) }
-                    if (more.isNotEmpty()) {
-                        MenuAction("Ещё", sound = FeedbackSound.Toggle, onClick = { expanded = true }) {
-                            Icon(AppIcons.More, null, tint = AppColors.Text, modifier = Modifier.size(22.dp))
+        Box(Modifier.panelSurface(appCorner(28), elevation = 16.dp).padding(5.dp)) {
+            androidx.compose.animation.AnimatedContent(
+                targetState = expanded,
+                transitionSpec = {
+                    val dir = if (targetState) 1 else -1
+                    (androidx.compose.animation.slideInHorizontally(Motion.tween(260)) { dir * it / 5 } + fadeIn(Motion.tween(220, delayMillis = 60)))
+                        .togetherWith(androidx.compose.animation.slideOutHorizontally(Motion.tween(220)) { -dir * it / 5 } + fadeOut(Motion.fade(120)))
+                        .using(androidx.compose.animation.SizeTransform(clip = true) { _, _ -> Motion.tween(260) })
+                },
+                label = "selection-menu",
+            ) { open ->
+                Row(
+                    modifier = if (open) Modifier.horizontalScroll(rememberScrollState()) else Modifier,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    if (open) {
+                        MenuAction("Назад", sound = FeedbackSound.Close, onClick = { expanded = false }) {
+                            Icon(AppIcons.Back, null, tint = AppColors.Muted, modifier = Modifier.size(20.dp))
+                        }
+                        more.forEach { SelectionAction(it, markerColor, actions) }
+                    } else {
+                        main.forEach { SelectionAction(it, markerColor, actions) }
+                        if (more.isNotEmpty()) {
+                            MenuAction("Ещё", sound = FeedbackSound.Toggle, onClick = { expanded = true }) {
+                                Icon(AppIcons.More, null, tint = AppColors.Text, modifier = Modifier.size(22.dp))
+                            }
                         }
                     }
                 }

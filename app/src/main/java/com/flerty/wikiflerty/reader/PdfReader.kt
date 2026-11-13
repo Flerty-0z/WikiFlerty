@@ -536,8 +536,14 @@ class PdfReaderActivity : ComponentActivity() {
         if (granted && pending != null) saveQuote(pending.first, pending.second, pending.third)
     }
 
+    override fun finish() {
+        super.finish()
+        ReaderTransitions.closing(this)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ReaderTransitions.install(this)
         val found = intent.getStringExtra(EXTRA_BOOK)?.let { id -> app.library.books.value.firstOrNull { it.id == id } }
         if (found == null) {
             finish()

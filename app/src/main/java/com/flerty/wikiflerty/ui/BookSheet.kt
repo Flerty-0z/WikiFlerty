@@ -302,7 +302,11 @@ fun BookSheet(
     val inPages = book.paper || app.libraryPrefs.prefs.value.progressInPages
     val aura by rememberCoverAura(coverFile, app.libraryPrefs.prefs.value.aura && !EInk.on)
 
-    AppSheet(onDismiss, aura = aura) {
+    val readAfter = remember { booleanArrayOf(false) }
+    AppSheet({
+        onDismiss()
+        if (readAfter[0]) onRead()
+    }, aura = aura) {
         val close = sheetClose(onDismiss)
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             val halo = aura?.firstOrNull()
@@ -371,8 +375,8 @@ fun BookSheet(
                     BookStatsContent(app, book, onBack = { showStats = false })
                 } else {
                     BookMainContent(app, book, onRead = {
+                        readAfter[0] = true
                         close()
-                        onRead()
                     }, onStats = { showStats = true }, onRate = { rating = true }, onDelete = { confirmDelete = true }, onEdit = { editPaper = true }, onOpenBook = onOpenBook)
                 }
             }

@@ -5,7 +5,6 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutLinearInEasing
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -32,6 +31,8 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import kotlinx.coroutines.launch
+
+private val SheetEase = androidx.compose.animation.core.CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
 
 class SheetControl internal constructor(val close: () -> Unit, private val shown: () -> Float) {
     val progress: Float get() = shown()
@@ -115,7 +116,7 @@ fun SheetWindow(
         DialogWindowSetup()
         KeepHostBars()
         LaunchedEffect(Unit) {
-            if (Motion.enabled) shown.animateTo(1f, spring(dampingRatio = 1f, stiffness = 420f))
+            if (Motion.enabled) shown.animateTo(1f, tween(Motion.ms(380), easing = SheetEase))
         }
         Box(Modifier.fillMaxSize()) {
             Box(
