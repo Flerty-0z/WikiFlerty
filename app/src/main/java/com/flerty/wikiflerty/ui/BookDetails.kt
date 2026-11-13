@@ -743,7 +743,6 @@ fun SeriesSheet(name: String, currentId: String?, onOpenBook: ((Book) -> Unit)?,
                     }
                 }
             }
-        }
             val accent = AppColors.Accent
             Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min).sheetReveal()) {
                 Box(
