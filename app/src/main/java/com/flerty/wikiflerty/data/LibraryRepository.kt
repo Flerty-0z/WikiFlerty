@@ -438,6 +438,10 @@ class LibraryRepository(
         b.copy(facts = b.facts + facts.mapValues { it.value.trim() }, series = series.filter { it.name.isNotBlank() }.distinctBy { it.name.lowercase() })
     }
 
+    suspend fun removeFromSeries(bookId: String, name: String) = editMeta(bookId) { b ->
+        b.copy(series = b.series.filterNot { it.name.equals(name, true) })
+    }
+
     suspend fun addToSeries(bookId: String, name: String, number: Double?) = editMeta(bookId) { b ->
         b.copy(series = b.series.filterNot { it.name.equals(name, true) } + BookSeries(name, number))
     }

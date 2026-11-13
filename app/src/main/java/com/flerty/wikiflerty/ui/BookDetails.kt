@@ -422,22 +422,8 @@ private fun SeriesEditSheet(draft: SeriesDraft, onRemove: () -> Unit, onDismiss:
     AppSheet(onDismiss, title = "Серия") {
         val close = sheetClose(onDismiss)
         PaperField(draft.name, "Название серии", AppIcons.Series) { naming = true }
-        val value = draft.number.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 60.dp).fieldSurface(appCorner(16)).padding(horizontal = 14.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Icon(AppIcons.Sort, null, tint = AppColors.Muted, modifier = Modifier.size(18.dp))
-            Text("Часть", color = AppColors.Text, fontSize = 15.sp, modifier = Modifier.weight(1f))
-            StepButton(AppIcons.Minus, "Меньше", value != null) {
-                val next = (value ?: 0.0) - 1
-                draft.number = if (next < 1) "" else BookSeries("", next).numberLabel.orEmpty()
-            }
-            Text(partLabel(draft.number) ?: "—", color = AppColors.Accent, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, textAlign = TextAlign.Center, modifier = Modifier.width(44.dp))
-            StepButton(AppIcons.Plus, "Больше", (value ?: 0.0) < 999) {
-                draft.number = BookSeries("", (value ?: 0.0) + 1).numberLabel.orEmpty()
-            }
+        PartStepper(draft.number.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }) { v ->
+            draft.number = v?.let { BookSeries("", it).numberLabel.orEmpty() }.orEmpty()
         }
         AppButton("Готово", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true) { close() }
         DeleteRow("Убрать серию") {
@@ -579,6 +565,7 @@ fun BookTagsSheet(book: Book, onDismiss: () -> Unit) {
     val books by app.library.books.collectAsStateWithLifecycle()
     val current = books.firstOrNull { it.id == book.id } ?: book
     var adding by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<Pair<Book, Double?>?>(null) }
     val have = current.tags.map { it.removePrefix(SpoilerMark).lowercase() }.toSet()
     val popular = remember(books, have) {
         books.flatMap { it.tags }.map { it.removePrefix(SpoilerMark) }
@@ -719,12 +706,19 @@ fun SeriesSheet(name: String, currentId: String?, onOpenBook: ((Book) -> Unit)?,
                         Modifier
                             .weight(1f)
                             .padding(start = 6.dp, top = 5.dp, bottom = 5.dp)
-                            .then(
-                                if (onOpenBook != null && !current) Modifier.liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) {
+                            .liveClick(
+                                shape,
+                                sound = FeedbackSound.Open,
+                                pressedScale = 0.98f,
+                                onLongClick = { editing = b to number },
+                            ) {
+                                if (onOpenBook != null && !current) {
                                     close()
                                     onOpenBook(b)
-                                } else Modifier,
-                            )
+                                } else {
+                                    editing = b to number
+                                }
+                            }
                             .fieldSurface(shape, selected = current)
                             .padding(10.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -806,9 +800,71 @@ fun SeriesSheet(name: String, currentId: String?, onOpenBook: ((Book) -> Unit)?,
         if (missing.isNotEmpty()) {
             HintNote("В библиотеке нет частей: " + missing.joinToString(", "), AppIcons.Alert)
         }
+        editing?.let { (b, n) -> SeriesBookSheet(b, name, n) { editing = null } }
         if (adding) {
             val next = (items.mapNotNull { it.second }.maxOrNull() ?: items.size.toDouble()).let { kotlin.math.floor(it) + 1 }
             SeriesAddSheet(name, next, items.map { it.first.id }.toSet()) { adding = false }
+        }
+    }
+}
+
+@Composable
+private fun PartStepper(value: Double?, onChange: (Double?) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 60.dp).fieldSurface(appCorner(16)).padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(AppIcons.Sort, null, tint = AppColors.Muted, modifier = Modifier.size(18.dp))
+        Text("Часть", color = AppColors.Text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+        StepButton(AppIcons.Minus, "Меньше", value != null) {
+            val next = (value ?: 0.0) - 1
+            onChange(if (next < 1) null else next)
+        }
+        androidx.compose.animation.AnimatedContent(
+            value,
+            transitionSpec = { androidx.compose.animation.fadeIn(Motion.fade(200)) togetherWith androidx.compose.animation.fadeOut(Motion.fade(120)) },
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.width(78.dp),
+            label = "part",
+        ) { v ->
+            if (v == null) {
+                Text("без номера", color = AppColors.Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            } else {
+                Text(BookSeries("", v).numberLabel.orEmpty(), color = AppColors.Accent, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            }
+        }
+        StepButton(AppIcons.Plus, "Больше", (value ?: 0.0) < 999) {
+            onChange((value ?: 0.0) + 1)
+        }
+    }
+}
+
+@Composable
+private fun SeriesBookSheet(book: Book, name: String, number: Double?, onDismiss: () -> Unit) {
+    val app = LocalContext.current.applicationContext as App
+    var value by remember { mutableStateOf(number) }
+    AppSheet(onDismiss, title = "Том серии") {
+        val close = sheetClose(onDismiss)
+        Row(
+            Modifier.fillMaxWidth().sheetReveal().fieldSurface(appCorner(16)).padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SmallCover(app.library.coverFile(book), Modifier.size(width = 38.dp, height = 57.dp), title = book.title, author = book.author)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(book.title, color = AppColors.Text, fontSize = 14.5.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(name, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        PartStepper(value) { value = it }
+        AppButton("Готово", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true) {
+            if (value != number) app.appScope.launch { app.library.addToSeries(book.id, name, value) }
+            close()
+        }
+        DeleteRow("Убрать из серии") {
+            app.appScope.launch { app.library.removeFromSeries(book.id, name) }
+            close()
         }
     }
 }
