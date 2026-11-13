@@ -57,6 +57,11 @@ private fun DialogWindowSetup() {
             w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             w.setDimAmount(0f)
             w.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            @Suppress("DEPRECATION")
+            w.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS or WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION)
+            w.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+            w.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+            HighRefresh.apply(w)
             w.setWindowAnimations(0)
             @Suppress("DEPRECATION")
             w.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
@@ -108,6 +113,10 @@ fun SheetWindow(
     }
     val control = remember { SheetControl(close) { shown.value } }
     val back: () -> Unit = remember { { if (backHook?.invoke() != true) close() } }
+    DisposableEffect(Unit) {
+        SharedClock.cover()
+        onDispose { SharedClock.uncover() }
+    }
     Dialog(
         onDismissRequest = back,
         properties = DialogProperties(

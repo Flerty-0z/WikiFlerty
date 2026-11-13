@@ -398,7 +398,7 @@ fun throttledClock(animated: Boolean, wrapSeconds: Int, shelf: Boolean = false):
                 androidx.compose.runtime.withFrameNanos { }
                 if (shelf) {
                     if (!SharedClock.held) time.floatValue = SharedClock.shelfSeconds(wrap)
-                } else {
+                } else if (!SharedClock.covered) {
                     time.floatValue = SharedClock.seconds(wrap)
                 }
             }
@@ -407,25 +407,71 @@ fun throttledClock(animated: Boolean, wrapSeconds: Int, shelf: Boolean = false):
     return time
 }
 
-object SharedClock {
-    private val start = System.nanoTime()
-    private var pausedTotal = 0L
-    private var pausedAt = 0L
-    private var holds = 0
+private class ClockPause(start: Long) {
+    private var count = 0
+    private var last = start
+    private var virtual = 0.0
+    private var rate = 1.0
 
-    val held: Boolean get() = holds > 0
+    val paused: Boolean get() = count > 0 && rate <= 0.0
 
     fun hold() {
-        if (holds++ == 0) pausedAt = System.nanoTime()
+        advance()
+        count++
     }
 
     fun release() {
-        if (holds > 0 && --holds == 0) pausedTotal += System.nanoTime() - pausedAt
+        advance()
+        if (count > 0) count--
     }
 
-    fun seconds(wrapMs: Long): Float = ((System.nanoTime() - start) / 1_000_000L % wrapMs) / 1000f
+    private fun advance() {
+        val now = System.nanoTime()
+        val dt = (now - last) / 1_000_000.0
+        last = now
+        if (dt <= 0.0) return
+        val target = if (count > 0) 0.0 else 1.0
+        val from = rate
+        val to = if (target > from) minOf(target, from + dt / RAMP_MS) else maxOf(target, from - dt / RAMP_MS)
+        virtual += dt * (from + to) / 2.0
+        rate = to
+    }
 
-    fun shelfMillis(): Long = ((if (holds > 0) pausedAt else System.nanoTime()) - start - pausedTotal) / 1_000_000L
+    fun millis(): Long {
+        advance()
+        return virtual.toLong()
+    }
+
+    private companion object {
+        const val RAMP_MS = 280.0
+    }
+}
+
+object SharedClock {
+    private val start = System.nanoTime()
+    private val global = ClockPause(start)
+    private val shelf = ClockPause(start)
+
+    val held: Boolean get() = shelf.paused
+    val covered: Boolean get() = global.paused
+
+    fun hold() = shelf.hold()
+
+    fun release() = shelf.release()
+
+    fun cover() {
+        global.hold()
+        shelf.hold()
+    }
+
+    fun uncover() {
+        global.release()
+        shelf.release()
+    }
+
+    fun seconds(wrapMs: Long): Float = (global.millis() % wrapMs) / 1000f
+
+    fun shelfMillis(): Long = shelf.millis()
 
     fun shelfSeconds(wrapMs: Long): Float = (shelfMillis() % wrapMs) / 1000f
 }

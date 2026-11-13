@@ -16,6 +16,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        HighRefresh.apply(window)
         enableEdgeToEdge()
         if (savedInstanceState == null) holdFirstFrame()
         setContent {

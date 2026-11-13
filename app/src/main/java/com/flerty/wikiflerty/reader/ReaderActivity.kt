@@ -1509,6 +1509,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             )
 
         super.onCreate(savedInstanceState)
+        com.flerty.wikiflerty.ui.HighRefresh.apply(window)
         setContentView(R.layout.activity_reader)
         ui.handleColor = selectionAccent()
         ui.onHandleDrag = { phase, start, x, y -> onHandleDrag(phase, start, x, y) }
@@ -2405,6 +2406,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 return@capturePage
             }
             prepareTurn(bitmap, forward, animation)
+            val before = navigator.currentLocator.value
             if (!go(forward, animated = false)) {
                 resetTurnViews()
                 pendingTurn = null
@@ -2412,9 +2414,25 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 return@capturePage
             }
             val (duration, easing) = turnSpec(animation)
-            runTurn(1f, duration, easing, delay = 60) { resetTurnViews() }
+            whenTurned(before) { runTurn(1f, duration, easing) { resetTurnViews() } }
             schedulePending()
         }
+    }
+
+    private var turnSeq = 0
+
+    private fun whenTurned(before: org.readium.r2.shared.publication.Locator, onReady: () -> Unit) {
+        val seq = ++turnSeq
+        val started = android.os.SystemClock.uptimeMillis()
+        val view = bookArea
+        var moved = 0
+        fun check() {
+            if (!turning || seq != turnSeq) return
+            val waited = android.os.SystemClock.uptimeMillis() - started
+            if (navigator.currentLocator.value != before) moved++
+            if (moved >= 2 || waited >= 70) onReady() else view.postOnAnimation { check() }
+        }
+        view.postOnAnimation { check() }
     }
 
     private var turnAnimator: android.animation.ValueAnimator? = null
