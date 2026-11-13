@@ -108,18 +108,12 @@ enum class NewsTarget { None, Stats, Custom, Library, LibraryView, Guide, Ai }
 
 class NewsItem(val group: String, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None, val query: String = "")
 
-const val NewsRelease = 330
+const val NewsRelease = 335
 
 val WhatsNewItems = listOf(
-    NewsItem("Чтение", AppIcons.Image, "Иллюстрации", "Нажми на картинку в книге: приближение, рисование маркерами и избранное. Галерея — в шторке с главами"),
-    NewsItem("Чтение", AppIcons.Palette, "Цвет маркера", "«Маркер» в меню выделения открывает полоску со всеми цветами"),
-    NewsItem("Чтение", AppIcons.Note, "Новое окно заметки", "Цитата свёрнута, большое поле для мысли, цвета одной строкой"),
-    NewsItem("Чтение", AppIcons.Flag, "Флажок", "Ширина как у меню, плавные цифры, длинная глава бежит строкой"),
-    NewsItem("Заметки", AppIcons.ListView, "Заметки и отметки", "Переключатель над «+»: только заметки, всё или только отметки"),
-    NewsItem("Библиотека", AppIcons.Series, "Серии", "Серии плитками, окно серии с путём по томам, «Добавить книгу» и полка серии в шкафу", NewsTarget.Library),
-    NewsItem("Библиотека", AppIcons.Hash, "Теги", "Управление тегами плитками с обложками, облако одной строкой", NewsTarget.Library),
-    NewsItem("Библиотека", AppIcons.Plus, "Добавить книгу", "Новое окно «+» — три корешка на полке", NewsTarget.Library),
-    NewsItem("Исправления", AppIcons.Check, "Плавность и фикс багов", "Экран больше не замирает после шторок и смены темы, меньше пустых страниц, перетаскивание декора, без волн при нажатии"),
+    NewsItem("Библиотека", AppIcons.Shelf, "Порядок полок", "Полки тегов и серий теперь в «Показать → Полки» вместе с обычными. Порядок меняется долгим нажатием", NewsTarget.Library),
+    NewsItem("Библиотека", AppIcons.Series, "Тома в серии", "Долгое нажатие на книгу в окне серии: номер части или «Убрать из серии»", NewsTarget.Library),
+    NewsItem("Исправления", AppIcons.Check, "Мелкие правки", "Окно «+» в цветах шаблона, «без номера» вместо прочерка, верные значки в шапках"),
 )
 
 @Composable
