@@ -159,9 +159,10 @@ fun AppSheet(
             val body: @Composable (Modifier) -> Unit = { mod ->
                 Box(
                     mod.height(sheetHeight()).drawBehind {
+                        val glow = auraGlow
                         val colors = auraShown[0]
-                        if (colors != null && auraGlow > 0.01f) {
-                            val a = auraGlow * (if (AppStyle.light) 0.24f else 0.42f)
+                        if (colors != null && glow > 0.01f) {
+                            val a = glow * (if (AppStyle.light) 0.24f else 0.42f)
                             drawRect(
                                 Brush.radialGradient(listOf(colors[0].copy(alpha = a), Color.Transparent), center = androidx.compose.ui.geometry.Offset(size.width * 0.16f, 72.dp.toPx()), radius = size.width * 0.9f),
                             )

@@ -93,5 +93,16 @@ object CoverAura {
 @Composable
 fun rememberCoverAura(file: File?, enabled: Boolean = true): State<List<Color>?> =
     produceState(if (enabled) CoverAura.peek(file) else null, file, enabled) {
-        value = if (enabled) withContext(Dispatchers.IO) { CoverAura.load(file) } else null
+        if (!enabled) {
+            value = null
+            return@produceState
+        }
+        repeat(8) {
+            val found = withContext(Dispatchers.IO) { CoverAura.load(file) }
+            if (found != null) {
+                value = found
+                return@produceState
+            }
+            kotlinx.coroutines.delay(250)
+        }
     }

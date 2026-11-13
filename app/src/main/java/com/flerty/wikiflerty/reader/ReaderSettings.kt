@@ -39,7 +39,6 @@ enum class PageTheme(
 }
 
 enum class PageAnimation(val id: String, val title: String) {
-    Slide("slide", "Сдвиг"),
     Curl("curl", "Загиб"),
     Flip("flip", "3D-поворот"),
     Cover("cover", "Накрытие"),
@@ -49,7 +48,7 @@ enum class PageAnimation(val id: String, val title: String) {
     ;
 
     companion object {
-        fun of(id: String) = entries.firstOrNull { it.id == id } ?: Slide
+        fun of(id: String) = entries.firstOrNull { it.id == id } ?: Fade
     }
 }
 
@@ -123,7 +122,7 @@ data class ReaderSettings(
     val columns: String = "auto",
     val theme: String = PageTheme.Dark.id,
     val scroll: Boolean = false,
-    val pageAnimation: String = PageAnimation.Slide.id,
+    val pageAnimation: String = PageAnimation.Fade.id,
     val volumeKeys: Boolean = false,
     val edgeTaps: Boolean = true,
     val edgeZone: Double = 0.3,

@@ -2057,7 +2057,6 @@ private fun ScrollOptions(
                 a.id,
                 a.title,
                 when (a) {
-                    PageAnimation.Slide -> "Страница уезжает в сторону"
                     PageAnimation.Curl -> "Угол загибается, как в бумажной книге"
                     PageAnimation.Flip -> "Страница поворачивается вокруг корешка"
                     PageAnimation.Depth -> "Страница уходит вглубь и тает"
@@ -2066,7 +2065,6 @@ private fun ScrollOptions(
                     PageAnimation.None -> "Мгновенно, без эффекта"
                 },
                 icon = when (a) {
-                    PageAnimation.Slide -> AppIcons.Forward
                     PageAnimation.Curl -> AppIcons.Book
                     PageAnimation.Flip -> AppIcons.Rotate
                     PageAnimation.Depth -> AppIcons.Screen

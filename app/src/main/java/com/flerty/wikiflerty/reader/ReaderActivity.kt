@@ -2335,7 +2335,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
         when (settings.animation) {
             PageAnimation.None -> go(forward, animated = false)
-            PageAnimation.Slide, PageAnimation.Curl, PageAnimation.Fade, PageAnimation.Cover, PageAnimation.Flip, PageAnimation.Depth -> requestTurn(forward, settings.animation)
+            PageAnimation.Curl, PageAnimation.Fade, PageAnimation.Cover, PageAnimation.Flip, PageAnimation.Depth -> requestTurn(forward, settings.animation)
         }
         resyncListening()
     }
@@ -2480,7 +2480,6 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         PageAnimation.Fade -> 280L to DecelerateInterpolator(1.4f)
         PageAnimation.Flip -> 430L to android.view.animation.AccelerateInterpolator(1.3f)
         PageAnimation.Depth -> 360L to DecelerateInterpolator(1.4f)
-        PageAnimation.Slide -> 300L to DecelerateInterpolator(1.8f)
         else -> 320L to DecelerateInterpolator(1.4f)
     }
 
@@ -2508,10 +2507,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
         if (incoming(animation, forward)) {
             preRasterPages()
-            if (animation != PageAnimation.Slide) {
-                navContainer.outlineProvider = ViewOutlineProvider.BOUNDS
-                navContainer.elevation = 18 * resources.displayMetrics.density
-            }
+            navContainer.outlineProvider = ViewOutlineProvider.BOUNDS
+            navContainer.elevation = 18 * resources.displayMetrics.density
         }
         snapshot.visibility = View.VISIBLE
         ui.pageTurning = true
@@ -2543,7 +2540,6 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private fun incoming(animation: PageAnimation, forward: Boolean) = when (animation) {
         PageAnimation.Cover -> forward
-        PageAnimation.Slide -> true
         PageAnimation.Flip, PageAnimation.Depth -> !forward
         else -> false
     }
@@ -2575,11 +2571,6 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 navContainer.translationX = -w * 0.12f * (1f - p)
             }
             PageAnimation.Cover -> if (forward) navContainer.translationX = w * (1f - p) else snapshot.translationX = w * p
-            PageAnimation.Slide -> {
-                val dir = if (forward) -1f else 1f
-                snapshot.translationX = dir * w * p
-                navContainer.translationX = -dir * w * (1f - p)
-            }
             else -> snapshot.translationX = (if (forward) -w else w) * p
         }
     }
@@ -2695,7 +2686,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private fun swipeAllowed(): Boolean {
         val s = settings
         if (s.scroll) return false
-        if (s.animation == PageAnimation.Slide || s.animation == PageAnimation.None) return false
+        if (s.animation == PageAnimation.None) return false
         return ui.sheet == null && ui.selection == null && ui.footnote == null
     }
 
