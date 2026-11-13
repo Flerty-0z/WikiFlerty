@@ -723,14 +723,11 @@ fun SeriesSheet(name: String, currentId: String?, onOpenBook: ((Book) -> Unit)?,
                         SmallCover(app.library.coverFile(b), Modifier.size(width = 38.dp, height = 57.dp), title = b.title, author = b.author)
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(b.title, color = AppColors.Text, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                Icon(statusIcon(b.status), null, tint = if (finished) AppColors.Good else AppColors.Muted, modifier = Modifier.size(13.dp))
-                                Text(
-                                    if (reading && b.progress > 0) "${(b.progress * 100).toInt()}%" else b.status.title,
-                                    color = AppColors.Muted,
-                                    fontSize = 12.sp,
-                                    maxLines = 1,
-                                )
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                StatusPill(b.status, small = true, framed = true)
+                                if (reading && b.progress > 0) {
+                                    Text("${(b.progress * 100).toInt()}%", color = AppColors.Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                }
                             }
                         }
                     }

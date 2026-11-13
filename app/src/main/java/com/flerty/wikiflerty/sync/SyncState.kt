@@ -80,6 +80,7 @@ fun JSONObject?.toLongMap(): Map<String, Long> =
 
 class SyncStateStore(context: Context) {
     private val file = File(context.filesDir, "sync_state.json")
+    private val saver = java.util.concurrent.Executors.newSingleThreadExecutor()
     private val _state = MutableStateFlow(load())
     val state: StateFlow<SyncState> = _state.asStateFlow()
 
@@ -88,7 +89,7 @@ class SyncStateStore(context: Context) {
         val updated = transform(_state.value)
         if (updated == _state.value) return
         _state.value = updated
-        runCatching { file.writeText(updated.toJson().toString()) }
+        saver.execute { if (_state.value === updated) runCatching { file.writeText(updated.toJson().toString()) } }
     }
 
     private fun load(): SyncState = runCatching {

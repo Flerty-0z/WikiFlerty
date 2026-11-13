@@ -68,16 +68,16 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
     val inPages = libraryPrefs.progressInPages
     val positions = books.associate { it.id to it.positions }
     val bookOrderAll = books.map { it.id }
-    val noteBooks = notes.map { it.bookId }.distinct()
+    val kindNotes = notes.filter { kind == 1 || (kind == 0) == it.note.isNotBlank() }
+    val noteBooks = kindNotes.map { it.bookId }.distinct()
         .sortedBy { id -> bookOrderAll.indexOf(id).let { if (it < 0) Int.MAX_VALUE else it } }
     if (bookFilter != null && bookFilter !in noteBooks) bookFilter = null
-    val scoped = notes.filter { bookFilter == null || it.bookId == bookFilter }
+    val scoped = kindNotes.filter { bookFilter == null || it.bookId == bookFilter }
     val usedColors = scoped.map { it.color }.distinct()
     if (colorFilter != null && colorFilter !in usedColors) colorFilter = null
-    val choices = noteBooks.map { id -> BookChoice(id, titles[id], notes.count { it.bookId == id }) }
-    val filtered = notes
+    val choices = noteBooks.map { id -> BookChoice(id, titles[id], kindNotes.count { it.bookId == id }) }
+    val filtered = kindNotes
         .filter { bookFilter == null || it.bookId == bookFilter }
-        .filter { kind == 1 || (kind == 0) == it.note.isNotBlank() }
         .filter { colorFilter == null || it.color == colorFilter }
         .filter {
             query.isBlank() ||
@@ -155,7 +155,7 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
                         selectedId = bookFilter,
                         allIds = noteBooks,
                         fallbackTitle = bookFilter?.let { titles[it] },
-                        count = if (bookFilter == null) notes.size else notes.count { it.bookId == bookFilter },
+                        count = if (bookFilter == null) kindNotes.size else kindNotes.count { it.bookId == bookFilter },
                     ) { bookSheet = true }
                 }
             }
@@ -236,7 +236,7 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
         BookPickerSheet(
             title = "Книги",
             choices = choices,
-            total = notes.size,
+            total = kindNotes.size,
             selectedId = bookFilter,
             onSelect = { bookFilter = it },
             onDismiss = { bookSheet = false },

@@ -625,16 +625,16 @@ private fun AddFan(open: Boolean, onClose: () -> Unit, onFile: () -> Unit, onSca
     )
     data class Item(val icon: androidx.compose.ui.graphics.vector.ImageVector, val label: String, val from: Long, val to: Long, val dx: Float, val dy: Float, val action: () -> Unit)
     val items = listOf(
-        Item(AppIcons.Book, "Файл", 0xFF6E8EFF, 0xFF4C63D9, -104f, -86f, onFile),
-        Item(AppIcons.FolderSearch, "Скан", 0xFF5EEAD4, 0xFF1FA392, 0f, -138f, onScan),
-        Item(AppIcons.Pages, "Бумажная", 0xFFF49AC1, 0xFFD45A93, 104f, -86f, onPaper),
+        Item(AppIcons.Book, "Файл", 0xFF6E8EFF, 0xFF4C63D9, -82f, -48f, onFile),
+        Item(AppIcons.FolderSearch, "Скан", 0xFF5EEAD4, 0xFF1FA392, 0f, -94f, onScan),
+        Item(AppIcons.Pages, "Бумажная", 0xFFF49AC1, 0xFFD45A93, 82f, -48f, onPaper),
     )
-    Box(Modifier.fillMaxSize().padding(bottom = fabCenter), contentAlignment = Alignment.BottomCenter) {
+    Box(Modifier.fillMaxSize().padding(bottom = fabCenter - 55.dp), contentAlignment = Alignment.BottomCenter) {
         items.forEachIndexed { i, item ->
             val local = ((p - i * 0.08f) / (1f - 0.16f)).coerceIn(0f, 1.2f)
             Column(
                 Modifier
-                    .offset(x = (item.dx * local).dp, y = (item.dy * local + 28f).dp)
+                    .offset(x = (item.dx * local).dp, y = (item.dy * local).dp)
                     .graphicsLayer {
                         val k = local.coerceIn(0f, 1.1f)
                         scaleX = 0.3f + 0.7f * k
@@ -646,8 +646,8 @@ private fun AddFan(open: Boolean, onClose: () -> Unit, onFile: () -> Unit, onSca
             ) {
                 Box(
                     Modifier
-                        .size(58.dp)
-                        .shadow(14.dp, CircleShape, ambientColor = Color(item.to), spotColor = Color(item.to))
+                        .size(54.dp)
+                        .shadow(12.dp, CircleShape, ambientColor = Color(item.to), spotColor = Color(item.to))
                         .clip(CircleShape)
                         .background(Brush.linearGradient(listOf(Color(item.from), Color(item.to))))
                         .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.86f) {
@@ -661,8 +661,10 @@ private fun AddFan(open: Boolean, onClose: () -> Unit, onFile: () -> Unit, onSca
                         .clip(appCorner(9))
                         .background(AppColors.Panel.copy(alpha = 0.92f))
                         .border(1.dp, AppColors.PanelBorder, appCorner(9))
-                        .padding(horizontal = 9.dp, vertical = 3.dp),
-                ) { Text(item.label, color = AppColors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
+                        .height(22.dp)
+                        .padding(horizontal = 9.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text(item.label, color = AppColors.Text, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
             }
         }
     }

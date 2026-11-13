@@ -40,7 +40,7 @@ class SheetControl internal constructor(val close: () -> Unit, private val shown
 }
 
 @Composable
-private fun DialogWindowSetup() {
+private fun DialogWindowSetup(holder: Array<android.view.Window?>? = null) {
     val view = LocalView.current
     val light = AppStyle.light
     DisposableEffect(view, light) {
@@ -53,6 +53,7 @@ private fun DialogWindowSetup() {
             }
             parent = parent.parent
         }
+        if (holder != null) holder[0] = window
         window?.let { w ->
             w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             w.setDimAmount(0f)
@@ -99,10 +100,12 @@ fun SheetWindow(
     val shown = remember { Animatable(if (Motion.enabled) 0f else 1f) }
     val scope = rememberCoroutineScope()
     val closing = remember { booleanArrayOf(false) }
+    val windowRef = remember { arrayOfNulls<android.view.Window>(1) }
     val close: () -> Unit = remember {
         {
             if (!closing[0]) {
                 closing[0] = true
+                runCatching { windowRef[0]?.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) }
                 closingHook()
                 scope.launch {
                     if (Motion.enabled) runCatching { shown.animateTo(0f, tween(Motion.ms(260), easing = SheetExit)) }
@@ -126,7 +129,7 @@ fun SheetWindow(
             decorFitsSystemWindows = false,
         ),
     ) {
-        DialogWindowSetup()
+        DialogWindowSetup(windowRef)
         KeepHostBars()
         LaunchedEffect(Unit) {
             if (Motion.enabled) {

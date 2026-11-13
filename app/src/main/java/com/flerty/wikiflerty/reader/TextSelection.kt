@@ -24,7 +24,7 @@ class TextSelectionBridge(
 internal object TextSelection {
     const val BRIDGE = "WikiFlertySelection"
 
-    fun script(accent: String): String = SCRIPT.replace("__ACCENT__", accent) + "\n" + NOTES + "\n" + AUTO + "\n" + PEOPLE.replace("__ACCENT__", accent) + "\n" + FEED + "\n" + BIONIC + "\n" + KITBOOK + "\n" + IMAGES
+    fun script(accent: String): String = SCRIPT.replace("__ACCENT__", accent) + "\n" + NOTES + "\n" + AUTO + "\n" + PEOPLE.replace("__ACCENT__", accent) + "\n" + FEED + "\n" + BIONIC + "\n" + KITBOOK + "\n" + IMAGES + "\n" + BREAKS
 
     fun peopleCall(people: List<com.flerty.wikiflerty.data.BookCharacter>): String {
         fun stem(word: String): Pair<String, Int> {
@@ -539,6 +539,26 @@ internal object TextSelection {
             bounce(best);
             try { window.${BRIDGE}.onEvent("person:" + hits[best].id); } catch (x) {}
           }, true);
+        })();
+    """.trimIndent()
+
+    private val BREAKS = """
+        (function () {
+          if (window.__wfBreaks) return;
+          window.__wfBreaks = true;
+          function put() {
+            if (document.getElementById("wf-breaks")) return true;
+            var host = document.head || document.documentElement;
+            if (!host) return false;
+            var st = document.createElement("style");
+            st.id = "wf-breaks";
+            st.textContent =
+              "body *:not(img):not(svg):not(image){break-before:auto!important;page-break-before:auto!important;break-after:auto!important;page-break-after:auto!important;}" +
+              "p,div,section,article,blockquote,li,dl,dd,table,header,footer,aside,figure{break-inside:auto!important;page-break-inside:auto!important;}";
+            host.appendChild(st);
+            return true;
+          }
+          if (!put()) document.addEventListener("DOMContentLoaded", put);
         })();
     """.trimIndent()
 

@@ -138,7 +138,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private fun screensLayoutKey(): String {
         val s = settings
         val v = navigator.publicationView
-        return listOf(s.font, s.fontSize, s.lineHeight, s.margins, s.bold, s.columns, s.justify, s.hyphens, s.scroll, v.width / 8, v.height / 8).joinToString("|")
+        return listOf("b1", s.font, s.fontSize, s.lineHeight, s.margins, s.bold, s.columns, s.justify, s.hyphens, s.scroll, v.width / 8, v.height / 8).joinToString("|")
     }
 
     private fun loadScreens(key: String) {
@@ -2884,7 +2884,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val s = settings
         if (s.scroll) return false
         if (s.animation == PageAnimation.None) return false
-        return ui.sheet == null && ui.selection == null && ui.footnote == null
+        return ui.sheet == null && ui.selection == null && ui.footnote == null && ui.illustration == null
     }
 
     private fun overPanels(ev: android.view.MotionEvent): Boolean {

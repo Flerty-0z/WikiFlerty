@@ -527,6 +527,7 @@ object AppStyle {
 
 class StyleStore(context: Context) {
     private val file = File(context.filesDir, "ui_style.json")
+    private val saver = java.util.concurrent.Executors.newSingleThreadExecutor()
     private val _style = MutableStateFlow(load())
     val style: StateFlow<UiStyle> = _style.asStateFlow()
 
@@ -557,7 +558,7 @@ class StyleStore(context: Context) {
         if (updated == _style.value) return false
         _style.value = updated
         AppStyle.current = updated
-        runCatching { file.writeText(updated.toJson().toString()) }
+        saver.execute { if (_style.value === updated) runCatching { file.writeText(updated.toJson().toString()) } }
         return true
     }
 

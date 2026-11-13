@@ -78,9 +78,8 @@ object ThemeSwap {
                 host.shot = img
                 withFrameNanos { }
                 apply()
-                repeat(3) { withFrameNanos { } }
-                delay(70)
-                host.progress.animateTo(1f, tween(Motion.ms(640), easing = FastOutSlowInEasing))
+                repeat(2) { withFrameNanos { } }
+                host.progress.animateTo(1f, tween(Motion.ms(480), easing = FastOutSlowInEasing))
             } finally {
                 host.request = null
                 host.shot = null
@@ -100,7 +99,21 @@ fun ThemeSwapHost(modifier: Modifier = Modifier, content: @Composable () -> Unit
         onDispose { ThemeSwap.remove(host) }
     }
     val layer = rememberGraphicsLayer()
-    Box(modifier.fillMaxSize().onGloballyPositioned { host.origin = it.positionInWindow() }) {
+    Box(
+        modifier
+            .fillMaxSize()
+            .onGloballyPositioned { host.origin = it.positionInWindow() }
+            .pointerInput(host) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val e = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                        if (host.shot != null && e.changes.any { it.pressed && !it.previousPressed }) {
+                            scope.launch { runCatching { host.progress.snapTo(1f) } }
+                        }
+                    }
+                }
+            },
+    ) {
         Box(
             Modifier
                 .fillMaxSize()
@@ -118,15 +131,7 @@ fun ThemeSwapHost(modifier: Modifier = Modifier, content: @Composable () -> Unit
         val shot = host.shot
         if (shot != null) {
             val ring = host.ring ?: AppColors.Accent
-            Canvas(
-                Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) awaitPointerEvent().changes.forEach { it.consume() }
-                        }
-                    },
-            ) {
+            Canvas(Modifier.fillMaxSize()) {
                 val p = host.progress.value
                 val c = host.center
                 val far = max(

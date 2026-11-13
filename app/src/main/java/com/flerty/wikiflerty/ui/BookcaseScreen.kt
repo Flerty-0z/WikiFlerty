@@ -128,7 +128,7 @@ private fun withProps(content: List<ShelfUnit>, tune: KitTune, seed: String): Li
     return placeProps(content, tune, seed) { k -> ShelfUnit.Prop(base + k * 7, "p:$seed:$k") }
 }
 
-private fun arrange(books: List<Book>, onAdd: (() -> Unit)?, live: Boolean, decor: Decor = Decor.None, seed: String = "", behave: Boolean = true, tune: KitTune = KitTune()): List<ShelfUnit> {
+private fun arrange(books: List<Book>, onAdd: (() -> Unit)?, live: Boolean, decor: Decor = Decor.None, seed: String = "", behave: Boolean = true, tune: KitTune = KitTune(), stacks: Boolean = true): List<ShelfUnit> {
     if (!live) {
         val units = books.map<Book, ShelfUnit> { ShelfUnit.Standing(it, lean = false) }.toMutableList()
         if (onAdd != null) units += ShelfUnit.Add(onAdd)
@@ -138,9 +138,9 @@ private fun arrange(books: List<Book>, onAdd: (() -> Unit)?, live: Boolean, deco
     val content: List<ShelfUnit> = if (!behave) {
         books.map { ShelfUnit.Standing(it, lean = false) }
     } else {
-        val standing = books.filter { it.status != ReadStatus.Finished }
+        val standing = books.filter { !stacks || it.status != ReadStatus.Finished }
             .sortedWith(compareBy<Book> { if (it.status == ReadStatus.Reading) 0 else 1 }.thenByDescending { it.lastReadAt ?: it.addedAt })
-        val lying = books.filter { it.status == ReadStatus.Finished }.sortedByDescending { it.finishedAt ?: it.addedAt }
+        val lying = books.filter { stacks && it.status == ReadStatus.Finished }.sortedByDescending { it.finishedAt ?: it.addedAt }
         standing.mapIndexed { i, b -> ShelfUnit.Standing(b, lean = standing.size >= 3 && i == standing.lastIndex) } +
             lying.chunked(4).map { ShelfUnit.Stack(it) }
     }
@@ -202,8 +202,8 @@ private fun unitWidth(u: ShelfUnit): Float = when (u) {
     is ShelfUnit.Prop -> 65f
 }
 
-private fun rows(planks: List<PlankSpec>, width: Float, live: Boolean, decor: Decor, behave: Boolean, tune: KitTune): List<PlankRow> = planks.flatMap { p ->
-    val units = arrange(p.books, p.onAdd, live, decor, p.key, behave, tune)
+private fun rows(planks: List<PlankSpec>, width: Float, live: Boolean, decor: Decor, behave: Boolean, tune: KitTune, stacks: Boolean = true): List<PlankRow> = planks.flatMap { p ->
+    val units = arrange(p.books, p.onAdd, live, decor, p.key, behave, tune, stacks)
     if (!p.wrap) return@flatMap listOf(PlankRow(p.key, p.key, p.name, units, p.onEdit, scroll = true))
     val out = mutableListOf<MutableList<ShelfUnit>>(mutableListOf())
     var used = 0f
@@ -227,6 +227,7 @@ fun BookcaseView(
     animationKey: Any? = null,
     live: Boolean = true,
     behave: Boolean = true,
+    stacks: Boolean = true,
     onMove: ((Book, String, String) -> Unit)? = null,
     footer: (@Composable () -> Unit)? = null,
 ) {
@@ -238,7 +239,7 @@ fun BookcaseView(
         val propFeedback = LocalFeedback.current
         androidx.compose.runtime.LaunchedEffect(decor, live) { if (live) propFeedback?.preloadProps(decor) }
         val effective = drag.preview?.let { tune.copy(propPlace = PropPlace.Custom.id, pins = it) } ?: tune
-        val list = remember(planks, width, live, decor, behave, effective) { rows(planks, width, live, decor, behave, effective) }
+        val list = remember(planks, width, live, decor, behave, effective, stacks) { rows(planks, width, live, decor, behave, effective, stacks) }
         drag.layout = {
             val out = LinkedHashMap<String, MutableList<ShelfUnit>>()
             list.forEach { r -> out.getOrPut(r.plank) { mutableListOf() }.addAll(r.units.filter { it !is ShelfUnit.Add }) }
@@ -251,7 +252,7 @@ fun BookcaseView(
         val tickFeedback = LocalFeedback.current
         val rowOf = remember(list) {
             val m = HashMap<String, Int>()
-            list.forEachIndexed { i, r -> r.units.forEach { m[it.key] = i } }
+            list.forEachIndexed { i, r -> r.units.forEach { m[r.plank + "|" + it.key] = i } }
             m
         }
         val listStateHolder = rememberLazyListState()
@@ -263,9 +264,9 @@ fun BookcaseView(
             val first = listStateHolder.firstVisibleItemIndex
             var idx = 0
             seq.forEach { u ->
-                val r = drag.slots[u.key]?.takeIf { it.first == plank }?.second
+                val r = drag.slots["$plank|${u.key}"]?.second
                 if (r == null) {
-                    if ((rowOf[u.key] ?: Int.MAX_VALUE) < first) idx++
+                    if ((rowOf["$plank|${u.key}"] ?: Int.MAX_VALUE) < first) idx++
                     return@forEach
                 }
                 val sameRow = p.y >= r.top - slack && p.y <= r.bottom + slack
@@ -576,8 +577,9 @@ private class ShelfDrag {
 
 private val LocalShelfDrag = androidx.compose.runtime.staticCompositionLocalOf<ShelfDrag?> { null }
 
-private fun Modifier.slot(key: String, plank: String): Modifier = composed {
+private fun Modifier.slot(unitKey: String, plank: String): Modifier = composed {
     val drag = LocalShelfDrag.current ?: return@composed this
+    val key = "$plank|$unitKey"
     val owner = remember { Any() }
     androidx.compose.runtime.DisposableEffect(key) {
         onDispose {
@@ -683,7 +685,7 @@ private fun PropGhost(drag: ShelfDrag) {
             androidx.compose.runtime.withFrameNanos { }
             androidx.compose.runtime.withFrameNanos { }
             fun destLocal(): Offset? {
-                val d = drag.slots[unit.key]?.second ?: return null
+                val d = drag.slots.entries.firstOrNull { it.key.endsWith("|" + unit.key) }?.value?.second ?: return null
                 val r = drag.root?.takeIf { it.isAttached } ?: return null
                 val box = r.boundsInWindow()
                 if (d.bottom < box.top || d.top > box.bottom) return null

@@ -327,6 +327,7 @@ fun LibraryScreen(
                     animationKey = active.id + "|" + q,
                     live = prefs.liveShelf,
                     behave = prefs.shelfBehavior,
+                    stacks = active.id != ReadStatus.Finished.id,
                     onMove = if (active.id == "all" && q.isEmpty() && (shelves.isNotEmpty() || prefs.tagShelves.isNotEmpty())) { book, from, to ->
                         if (to.startsWith(TagFilterPrefix)) {
                             app.appScope.launch { app.library.addTag(book.id, to.removePrefix(TagFilterPrefix)) }
