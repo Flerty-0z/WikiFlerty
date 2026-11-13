@@ -104,10 +104,6 @@ fun SheetWindow(
         }
     }
     val control = remember { SheetControl(close) { shown.value } }
-    DisposableEffect(Unit) {
-        SharedClock.cover()
-        onDispose { SharedClock.uncover() }
-    }
     Dialog(
         onDismissRequest = close,
         properties = DialogProperties(

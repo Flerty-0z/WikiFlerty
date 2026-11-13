@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Constraints
@@ -53,12 +54,36 @@ fun ExpandingText(
     onOverflow: (Boolean) -> Unit = {},
 ) {
     val anim = remember { Animatable(if (expanded) 1f else 0f) }
-    LaunchedEffect(expanded) {
-        val target = if (expanded) 1f else 0f
-        if (Motion.enabled) anim.animateTo(target, tween(Motion.ms(420), easing = ExpandEase)) else anim.snapTo(target)
-    }
     val cut = remember { mutableIntStateOf(0) }
     val full = remember { mutableIntStateOf(0) }
+    val viewport = LocalRevealViewport.current
+    val self = remember { arrayOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
+    LaunchedEffect(expanded) {
+        val target = if (expanded) 1f else 0f
+        if (!Motion.enabled) {
+            anim.snapTo(target)
+            return@LaunchedEffect
+        }
+        var prev = anim.value
+        anim.animateTo(target, tween(Motion.ms(420), easing = ExpandEase)) {
+            val v = value
+            if (!expanded && v < prev) {
+                val span = (full.intValue - cut.intValue).coerceAtLeast(0)
+                val shrink = span * (prev - v)
+                val scroll = viewport?.scroll
+                val box = viewport?.coords
+                val me = self[0]
+                if (scroll != null && box != null && me != null && box.isAttached && me.isAttached && scroll.value > 0) {
+                    val top = box.localPositionOf(me, Offset.Zero).y
+                    if (top < 0f) {
+                        val move = minOf(shrink, -top, scroll.value.toFloat())
+                        if (move > 0f) scroll.dispatchRawDelta(-move)
+                    }
+                }
+            }
+            prev = v
+        }
+    }
     val fadePx = with(androidx.compose.ui.platform.LocalDensity.current) { 28.dp.toPx() }
     Text(
         text,
@@ -73,6 +98,7 @@ fun ExpandingText(
             onOverflow(over)
         },
         modifier = modifier
+            .onGloballyPositioned { self[0] = it }
             .clipToBounds()
             .layout { m, c ->
                 val p = m.measure(c.copy(maxHeight = Constraints.Infinity))

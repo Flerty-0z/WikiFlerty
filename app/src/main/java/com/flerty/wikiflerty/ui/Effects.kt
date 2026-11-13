@@ -292,8 +292,9 @@ fun Reveal(content: @Composable () -> Unit) {
     androidx.compose.foundation.layout.Box(Modifier.scrollReveal()) { content() }
 }
 
-fun Modifier.revealScroll(): Modifier = composed {
+fun Modifier.revealScroll(viewport: RevealViewport? = null): Modifier = composed {
     val state = androidx.compose.foundation.rememberScrollState()
+    if (viewport != null) viewport.scroll = state
     this.fadeEdges({ state.canScrollBackward }, { state.canScrollForward }).verticalScroll(state)
 }
 
@@ -326,6 +327,7 @@ fun Modifier.fadeEdges(canUp: () -> Boolean, canDown: () -> Boolean, top: androi
 
 class RevealViewport {
     var coords: androidx.compose.ui.layout.LayoutCoordinates? = null
+    var scroll: androidx.compose.foundation.ScrollState? = null
     val since: Long = android.os.SystemClock.uptimeMillis()
 }
 
@@ -396,7 +398,7 @@ fun throttledClock(animated: Boolean, wrapSeconds: Int, shelf: Boolean = false):
                 androidx.compose.runtime.withFrameNanos { }
                 if (shelf) {
                     if (!SharedClock.held) time.floatValue = SharedClock.shelfSeconds(wrap)
-                } else if (!SharedClock.covered) {
+                } else {
                     time.floatValue = SharedClock.seconds(wrap)
                 }
             }
@@ -412,22 +414,6 @@ object SharedClock {
     private var holds = 0
 
     val held: Boolean get() = holds > 0
-
-    private var covers = 0
-
-    val covered: Boolean get() = covers > 0
-
-    fun cover() {
-        covers++
-        hold()
-    }
-
-    fun uncover() {
-        if (covers > 0) {
-            covers--
-            release()
-        }
-    }
 
     fun hold() {
         if (holds++ == 0) pausedAt = System.nanoTime()

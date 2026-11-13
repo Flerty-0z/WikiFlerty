@@ -145,7 +145,7 @@ fun AppSheet(
                 ) {
                     if (title != null) Box(Modifier.padding(horizontal = 16.dp)) { SheetHeader(title, close) }
                     Column(
-                        Modifier.weight(1f).revealViewport(viewport).padding(horizontal = 16.dp).navigationBarsPadding().revealScroll().padding(top = if (title == null) 16.dp else 14.dp, bottom = 16.dp),
+                        Modifier.weight(1f).revealViewport(viewport).padding(horizontal = 16.dp).navigationBarsPadding().revealScroll(viewport).padding(top = if (title == null) 16.dp else 14.dp, bottom = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         content()

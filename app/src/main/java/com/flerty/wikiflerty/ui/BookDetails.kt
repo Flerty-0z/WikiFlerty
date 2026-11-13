@@ -316,10 +316,8 @@ fun BookAboutCard(app: App, book: Book, onOpenBook: ((Book) -> Unit)? = null) {
     }) {
         Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (description.isNotBlank()) {
-                val bring = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
-                val bringScope = rememberCoroutineScope()
                 var long by remember(description) { mutableStateOf(false) }
-                Column(Modifier.bringIntoViewRequester(bring), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     ExpandingText(
                         description,
                         expanded = expanded,
@@ -334,7 +332,6 @@ fun BookAboutCard(app: App, book: Book, onOpenBook: ((Book) -> Unit)? = null) {
                         Row(
                             Modifier.liveClick(appCorner(8), sound = FeedbackSound.Toggle) {
                                 expanded = !expanded
-                                if (!expanded) bringScope.launch { bring.bringIntoView() }
                             }.padding(vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
