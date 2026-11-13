@@ -438,6 +438,10 @@ class LibraryRepository(
         b.copy(facts = b.facts + facts.mapValues { it.value.trim() }, series = series.filter { it.name.isNotBlank() }.distinctBy { it.name.lowercase() })
     }
 
+    suspend fun addToSeries(bookId: String, name: String, number: Double?) = editMeta(bookId) { b ->
+        b.copy(series = b.series.filterNot { it.name.equals(name, true) } + BookSeries(name, number))
+    }
+
     suspend fun fillDetails(bookId: String, description: String?, facts: Map<String, String>, series: List<BookSeries>) = editMeta(bookId) { b ->
         val missing = facts.filter { (k, v) -> v.isNotBlank() && b.fact(k).isBlank() }
         val hasDescription = !b.customDescription.isNullOrBlank() || !cachedDescription(b.id).isNullOrBlank()

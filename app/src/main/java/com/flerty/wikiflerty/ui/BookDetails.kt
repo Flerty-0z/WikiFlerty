@@ -644,6 +644,7 @@ fun SeriesSheet(name: String, currentId: String?, onOpenBook: ((Book) -> Unit)?,
     val done = items.count { it.first.status == ReadStatus.Finished }
     val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
     val pinned = prefs.seriesShelves.any { it.equals(name, true) }
+    var adding by remember { mutableStateOf(false) }
     AppSheet(onDismiss, title = "Серия") {
         val close = sheetClose(onDismiss)
         Column(Modifier.fillMaxWidth().sheetReveal().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -671,7 +672,7 @@ fun SeriesSheet(name: String, currentId: String?, onOpenBook: ((Book) -> Unit)?,
                 val finished = b.status == ReadStatus.Finished
                 val reading = b.status == ReadStatus.Reading
                 val first = i == 0
-                val last = i == items.lastIndex
+                val last = false
                 Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min).sheetReveal()) {
                     Box(
                         Modifier
@@ -743,8 +744,127 @@ fun SeriesSheet(name: String, currentId: String?, onOpenBook: ((Book) -> Unit)?,
                 }
             }
         }
+            val accent = AppColors.Accent
+            Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min).sheetReveal()) {
+                Box(
+                    Modifier
+                        .width(40.dp)
+                        .fillMaxHeight()
+                        .drawBehind {
+                            if (items.isNotEmpty()) {
+                                val x = size.width / 2f
+                                val dash = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 5.dp.toPx()))
+                                drawLine(line, Offset(x, 0f), Offset(x, size.height / 2f), strokeWidth = 2.dp.toPx(), pathEffect = dash)
+                            }
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier
+                            .size(30.dp)
+                            .clip(CircleShape)
+                            .background(AppColors.Panel)
+                            .drawBehind {
+                                drawCircle(
+                                    accent.copy(alpha = 0.7f),
+                                    radius = size.minDimension / 2f - 1.dp.toPx(),
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                        width = 1.5.dp.toPx(),
+                                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx())),
+                                    ),
+                                )
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(AppIcons.Plus, null, tint = AppColors.Accent, modifier = Modifier.size(15.dp)) }
+                }
+                val shape = appCorner(16)
+                Row(
+                    Modifier
+                        .weight(1f)
+                        .padding(start = 6.dp, top = 5.dp, bottom = 5.dp)
+                        .height(56.dp)
+                        .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) { adding = true }
+                        .drawBehind {
+                            val r = 16.dp.toPx() * AppStyle.corners
+                            drawRoundRect(
+                                accent.copy(alpha = 0.55f),
+                                cornerRadius = CornerRadius(r, r),
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                    width = 1.5.dp.toPx(),
+                                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 6.dp.toPx())),
+                                ),
+                            )
+                        }
+                        .padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                ) {
+                    Icon(AppIcons.Plus, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
+                    Text("Добавить книгу", color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                }
+            }
+        }
         if (missing.isNotEmpty()) {
             HintNote("В библиотеке нет частей: " + missing.joinToString(", "), AppIcons.Alert)
+        }
+        if (adding) {
+            val next = (items.mapNotNull { it.second }.maxOrNull() ?: items.size.toDouble()).let { kotlin.math.floor(it) + 1 }
+            SeriesAddSheet(name, next, items.map { it.first.id }.toSet()) { adding = false }
+        }
+    }
+}
+
+@Composable
+private fun SeriesAddSheet(name: String, next: Double, inSeries: Set<String>, onDismiss: () -> Unit) {
+    val app = LocalContext.current.applicationContext as App
+    val books by app.library.books.collectAsStateWithLifecycle()
+    val choices = remember(books, inSeries) { books.filter { it.id !in inSeries && !it.paper }.sortedBy { it.title.lowercase() } }
+    val picked = remember { androidx.compose.runtime.mutableStateListOf<String>() }
+    AppSheet(onDismiss, title = "Добавить в серию") {
+        val close = sheetClose(onDismiss)
+        if (choices.isEmpty()) {
+            EmptyNote(AppIcons.Book, "Все книги уже в серии", "")
+        }
+        choices.forEach { b ->
+            val on = b.id in picked
+            val shape = appCorner(16)
+            val edge by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent.copy(alpha = 0.6f) else Color.Transparent, Motion.fade(200), label = "pick-edge")
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .sheetReveal()
+                    .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.98f) { if (on) picked.remove(b.id) else picked.add(b.id) }
+                    .fieldSurface(shape, selected = on)
+                    .border(1.dp, edge, shape)
+                    .padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                SmallCover(app.library.coverFile(b), Modifier.size(width = 32.dp, height = 48.dp), title = b.title, author = b.author)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(b.title, color = AppColors.Text, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (b.author.isNotBlank()) Text(b.author, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                val index = picked.indexOf(b.id)
+                Box(
+                    Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(if (on) AppColors.Accent else Color.Transparent)
+                        .border(1.5.dp, if (on) AppColors.Accent else AppColors.Faint, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (on) Text(BookSeries(name, next + index).numberLabel.orEmpty(), color = AppColors.OnAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                }
+            }
+        }
+        if (choices.isNotEmpty()) {
+            AppButton(if (picked.isEmpty()) "Выбери книги" else "Добавить · ${picked.size}", primary = picked.isNotEmpty(), modifier = Modifier.fillMaxWidth(), labeled = true) {
+                if (picked.isEmpty()) return@AppButton
+                val ids = picked.toList()
+                app.appScope.launch { ids.forEachIndexed { i, id -> app.library.addToSeries(id, name, next + i) } }
+                close()
+            }
         }
     }
 }

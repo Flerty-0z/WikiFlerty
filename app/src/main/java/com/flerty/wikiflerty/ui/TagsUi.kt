@@ -135,7 +135,7 @@ private fun RowAction(icon: ImageVector, description: String, sound: FeedbackSou
 }
 
 @Composable
-private fun EmptyNote(icon: ImageVector, title: String, hint: String) {
+internal fun EmptyNote(icon: ImageVector, title: String, hint: String) {
     Column(
         Modifier.fillMaxWidth().padding(vertical = 26.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

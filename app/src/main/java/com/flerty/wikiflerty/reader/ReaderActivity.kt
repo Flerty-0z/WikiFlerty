@@ -3145,13 +3145,16 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             decor.addView(cover, android.widget.FrameLayout.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT))
             cover.post {
                 apply()
-                cover.postDelayed({
-                    cover.start {
+                var finished = false
+                val end = {
+                    if (!finished) {
+                        finished = true
                         decor.removeView(cover)
                         bitmap.recycle()
                         revealing = false
                     }
-                }, 260)
+                }
+                cover.postDelayed({ cover.start(end) }, 120)
             }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -3532,9 +3535,26 @@ private class RevealCover(
     private val hole = android.graphics.Path()
     private val stroke = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { style = android.graphics.Paint.Style.STROKE }
 
+    private var animator: android.animation.ValueAnimator? = null
+    private var skipped = false
+    private var onDone: (() -> Unit)? = null
+
     init {
-        isClickable = true
+        isClickable = false
         isFocusable = false
+    }
+
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
+        if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) finishNow()
+        return false
+    }
+
+    fun finishNow() {
+        if (skipped) return
+        skipped = true
+        val a = animator
+        if (a != null) a.end() else post { onDone?.invoke() }
     }
 
     override fun onDraw(canvas: android.graphics.Canvas) {
@@ -3565,8 +3585,13 @@ private class RevealCover(
     }
 
     fun start(done: () -> Unit) {
-        android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = com.flerty.wikiflerty.ui.Motion.ms(640).toLong()
+        onDone = done
+        if (skipped) {
+            done()
+            return
+        }
+        animator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = com.flerty.wikiflerty.ui.Motion.ms(480).toLong()
             interpolator = android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f)
             addUpdateListener {
                 progress = it.animatedValue as Float
