@@ -356,6 +356,7 @@ fun TtsOptions(
     }
 
     SwitchRow("Листать за голосом", settings.ttsFollow, icon = AppIcons.Pages) { v -> onSettingsChange { it.copy(ttsFollow = v) } }
+    SwitchRow("Голос за листанием", settings.ttsJump, icon = AppIcons.Voice) { v -> onSettingsChange { it.copy(ttsJump = v) } }
 
     if (active) {
         PickerRow(

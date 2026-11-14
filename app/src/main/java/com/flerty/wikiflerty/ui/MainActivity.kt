@@ -16,6 +16,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null && !isTaskRoot && forwardToOwnTask(intent)) {
+            finish()
+            return
+        }
         HighRefresh.apply(window)
         enableEdgeToEdge()
         if (savedInstanceState == null) holdFirstFrame()
@@ -45,6 +49,14 @@ class MainActivity : ComponentActivity() {
                 return ready
             }
         })
+    }
+
+    private fun forwardToOwnTask(source: Intent?): Boolean {
+        val action = source?.action ?: return false
+        if (action != Intent.ACTION_VIEW && action != Intent.ACTION_SEND) return false
+        val forward = Intent(source).setClass(this, MainActivity::class.java)
+            .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        return runCatching { startActivity(forward) }.isSuccess
     }
 
     override fun onNewIntent(intent: Intent) {

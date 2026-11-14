@@ -315,6 +315,30 @@ internal fun PersonProfileSheet(
                                     RoleChip(r, roleIcon(r), on) { actions.onUpdate(person.copy(role = if (on) "" else r)) }
                                 }
                             }
+                            ProfileLabel("Другие имена")
+                            Row(
+                                Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                RoleChip("Добавить", AppIcons.Plus, false) {
+                                    field = ProfileField("Другое имя", "Прозвище, титул или должность", "", 60, false) { c, v ->
+                                        val n = v.trim()
+                                        if (n.isEmpty() || c.knownAs(n)) c else c.copy(aliases = c.aliases + n)
+                                    }
+                                }
+                                person.aliases.forEachIndexed { i, a ->
+                                    RoleChip(a, AppIcons.Person, false) {
+                                        field = ProfileField("Другое имя", "Оставь пустым, чтобы убрать", a, 60, false) { c, v ->
+                                            val n = v.trim()
+                                            val list = c.aliases.toMutableList()
+                                            if (i !in list.indices) c else {
+                                                if (n.isEmpty()) list.removeAt(i) else list[i] = n
+                                                c.copy(aliases = list.distinctBy { it.lowercase() })
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             ProfileText("Внешность", person.looks, "Как он выглядит") {
                                 field = ProfileField("Внешность", "Как он выглядит", person.looks, 2000, true) { c, v -> c.copy(looks = v) }
                             }
@@ -418,7 +442,7 @@ private fun parseTies(text: String, people: List<BookCharacter>): List<Tie> =
         val parts = line.split(Regex("\\s+[—–-]\\s+|:\\s*"), limit = 2)
         val name = parts[0].trim().take(40)
         val what = parts.getOrNull(1)?.trim().orEmpty()
-        Tie(name, what, people.firstOrNull { it.name.equals(name, true) || it.name.split(' ').firstOrNull()?.equals(name, true) == true })
+        Tie(name, what, people.firstOrNull { it.knownAs(name) || it.name.split(' ').firstOrNull()?.equals(name, true) == true })
     }
 
 @Composable

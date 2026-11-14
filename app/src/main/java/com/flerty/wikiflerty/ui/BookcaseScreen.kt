@@ -80,7 +80,7 @@ private sealed class ShelfUnit(val key: String) {
     class Prop(val index: Int, key: String) : ShelfUnit(key)
 }
 
-class PlankSpec(val key: String, val name: String?, val books: List<Book>, val onAdd: (() -> Unit)?, val onEdit: (() -> Unit)?, val wrap: Boolean)
+class PlankSpec(val key: String, val name: String?, val books: List<Book>, val onAdd: (() -> Unit)?, val onEdit: (() -> Unit)?, val wrap: Boolean, val sortable: Boolean = true)
 
 private class PlankRow(val key: String, val plank: String, val name: String?, val units: List<ShelfUnit>, val onEdit: (() -> Unit)?, val scroll: Boolean)
 
@@ -139,7 +139,6 @@ private fun arrange(books: List<Book>, onAdd: (() -> Unit)?, live: Boolean, deco
         books.map { ShelfUnit.Standing(it, lean = false) }
     } else {
         val standing = books.filter { !stacks || it.status != ReadStatus.Finished }
-            .sortedWith(compareBy<Book> { if (it.status == ReadStatus.Reading) 0 else 1 }.thenByDescending { it.lastReadAt ?: it.addedAt })
         val lying = books.filter { stacks && it.status == ReadStatus.Finished }.sortedByDescending { it.finishedAt ?: it.addedAt }
         standing.mapIndexed { i, b -> ShelfUnit.Standing(b, lean = standing.size >= 3 && i == standing.lastIndex) } +
             lying.chunked(4).map { ShelfUnit.Stack(it) }
@@ -229,6 +228,7 @@ fun BookcaseView(
     behave: Boolean = true,
     stacks: Boolean = true,
     onMove: ((Book, String, String) -> Unit)? = null,
+    onReorder: ((Book, String, List<String>) -> Unit)? = null,
     footer: (@Composable () -> Unit)? = null,
 ) {
     androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxSize().bookcaseWall()) {
@@ -239,7 +239,18 @@ fun BookcaseView(
         val propFeedback = LocalFeedback.current
         androidx.compose.runtime.LaunchedEffect(decor, live) { if (live) propFeedback?.preloadProps(decor) }
         val effective = drag.preview?.let { tune.copy(propPlace = PropPlace.Custom.id, pins = it) } ?: tune
-        val list = remember(planks, width, live, decor, behave, effective, stacks) { rows(planks, width, live, decor, behave, effective, stacks) }
+        val bookPreview = drag.bookPreview
+        val laid = remember(planks, bookPreview) {
+            if (bookPreview == null) planks else planks.map { p ->
+                if (p.key != bookPreview.first) p else {
+                    val by = p.books.associateBy { it.id }
+                    val head = bookPreview.second.mapNotNull { by[it] }
+                    PlankSpec(p.key, p.name, head + p.books.filter { it.id !in bookPreview.second }, p.onAdd, p.onEdit, p.wrap, p.sortable)
+                }
+            }
+        }
+        val sortable = remember(planks) { planks.filter { it.sortable }.map { it.key }.toSet() }
+        val list = remember(laid, width, live, decor, behave, effective, stacks) { rows(laid, width, live, decor, behave, effective, stacks) }
         drag.layout = {
             val out = LinkedHashMap<String, MutableList<ShelfUnit>>()
             list.forEach { r -> out.getOrPut(r.plank) { mutableListOf() }.addAll(r.units.filter { it !is ShelfUnit.Add }) }
@@ -273,6 +284,38 @@ fun BookcaseView(
                 if (if (sameRow) r.center.x < p.x else r.bottom < p.y) idx++
             }
             plank to idx
+        }
+        drag.bookSlotAt = bookSlotAt@{
+            val moving = drag.book ?: return@bookSlotAt null
+            val p = drag.pointer ?: return@bookSlotAt null
+            val plank = drag.target(drag.from, keepMargin) ?: return@bookSlotAt null
+            if (plank != drag.from || plank !in sortable) return@bookSlotAt null
+            val seq = drag.layout()[plank]?.filterIsInstance<ShelfUnit.Standing>()?.filter { it.book.id != moving.id } ?: return@bookSlotAt null
+            val first = listStateHolder.firstVisibleItemIndex
+            var idx = 0
+            seq.forEach { u ->
+                val r = drag.slots["$plank|${u.key}"]?.second
+                if (r == null) {
+                    if ((rowOf["$plank|${u.key}"] ?: Int.MAX_VALUE) < first) idx++
+                    return@forEach
+                }
+                val sameRow = p.y >= r.top - slack && p.y <= r.bottom + slack
+                if (if (sameRow) r.center.x < p.x else r.bottom < p.y) idx++
+            }
+            idx
+        }
+        drag.bookApply = bookApply@{ idx ->
+            val moving = drag.book ?: return@bookApply false
+            val plank = drag.from
+            val seq = drag.layout()[plank]?.filterIsInstance<ShelfUnit.Standing>()?.map { it.book.id }?.filter { it != moving.id } ?: return@bookApply false
+            val next = seq.toMutableList().apply { add(idx.coerceIn(0, size), moving.id) }
+            val current = drag.bookPreview?.takeIf { it.first == plank }?.second
+                ?: drag.layout()[plank]?.filterIsInstance<ShelfUnit.Standing>()?.map { it.book.id }
+            if (current == next) return@bookApply false
+            drag.bookPreview = plank to next
+            drag.appliedAt = System.currentTimeMillis()
+            tickFeedback?.play(FeedbackSound.Tick)
+            true
         }
         drag.applySlot = applySlot@{ slot ->
             val unit = drag.prop ?: return@applySlot false
@@ -315,6 +358,28 @@ fun BookcaseView(
                 }
             }
         }
+        androidx.compose.runtime.LaunchedEffect(drag) {
+            while (true) {
+                androidx.compose.runtime.snapshotFlow { drag.phase == 1 && drag.book != null && drag.reorder }.first { it }
+                var cand: Int? = null
+                var candAt = 0L
+                while (drag.phase == 1 && drag.book != null) {
+                    val now = androidx.compose.runtime.withFrameMillis { it }
+                    if (drag.autoscroll) {
+                        cand = null
+                        continue
+                    }
+                    val c = drag.bookSlotAt()
+                    if (c != cand) {
+                        cand = c
+                        candAt = now
+                        continue
+                    }
+                    if (c == null || now - candAt < 80 || System.currentTimeMillis() - drag.appliedAt < 180) continue
+                    drag.bookApply(c)
+                }
+            }
+        }
         val plankOrder = planks.map { it.key }
         val lastOrder = remember { arrayOf<List<String>?>(null) }
         if (lastOrder[0] != null && lastOrder[0] != plankOrder && lastOrder[0]!!.toSet() == plankOrder.toSet()) {
@@ -350,7 +415,10 @@ fun BookcaseView(
             }
         }
         val move by androidx.compose.runtime.rememberUpdatedState(onMove)
-        drag.enabled = onMove != null && planks.size > 1
+        val reorder by androidx.compose.runtime.rememberUpdatedState(onReorder)
+        drag.enabled = (onMove != null && planks.size > 1) || onReorder != null
+        drag.reorder = onReorder != null
+        drag.onReorder = { book, plank, ids -> reorder?.invoke(book, plank, ids) }
         val feedback = LocalFeedback.current
         drag.scrolling = { listStateHolder.isScrollInProgress }
         drag.onDrop = { book, from, to -> move?.invoke(book, from, to) }
@@ -405,7 +473,7 @@ fun BookcaseView(
                     val step = speed * dt
                     val moved = if (kotlin.math.abs(step) > 0.2f) listState.dispatchRawDelta(step) else 0f
                     var sideMoved = 0f
-                    val side = if (drag.prop != null) drag.sideScrolls.entries.firstOrNull { (_, v) -> p.y >= v.second.top && p.y <= v.second.bottom } else null
+                    val side = if (drag.prop != null || (drag.book != null && drag.reorder)) drag.sideScrolls.entries.firstOrNull { (_, v) -> p.y >= v.second.top && p.y <= v.second.bottom } else null
                     if (side?.key != sideKey) {
                         sideKey = side?.key
                         sideArmed = false
@@ -533,6 +601,11 @@ private class ShelfDrag {
     var applySlot: (Pair<String, Int>) -> Boolean = { false }
     var layout: () -> Map<String, List<ShelfUnit>> = { emptyMap() }
     var onPropDrop: (Map<String, List<PropPin>>) -> Unit = {}
+    var reorder = false
+    var bookPreview by mutableStateOf<Pair<String, List<String>>?>(null)
+    var bookSlotAt: () -> Int? = { null }
+    var bookApply: (Int) -> Boolean = { false }
+    var onReorder: (Book, String, List<String>) -> Unit = { _, _, _ -> }
 
     fun target(keep: String? = null, margin: Float = 0f): String? {
         val p = pointer ?: return null
@@ -566,6 +639,16 @@ private class ShelfDrag {
         val b = book ?: return
         if (phase != 1) return
         val target = target()
+        if (reorder && (target == null || target == from)) {
+            bookSlotAt()?.let { c -> if (autoscroll || System.currentTimeMillis() - appliedAt >= 180) bookApply(c) }
+            landPlank = from
+            dest = null
+            destSpec = null
+            phase = 2
+            bookPreview?.takeIf { it.first == from }?.let { onReorder(b, from, it.second) }
+            return
+        }
+        bookPreview = null
         val moved = target != null && target != from
         landPlank = if (moved) target!! else from
         dest = null
@@ -838,6 +921,7 @@ private fun DragGhost(drag: ShelfDrag) {
             drag.dest = null
             drag.destSpec = null
             drag.pointer = null
+            drag.bookPreview = null
         }
     }
     fun lerp(a: Float, b: Float, t: Float) = a + (b - a) * t

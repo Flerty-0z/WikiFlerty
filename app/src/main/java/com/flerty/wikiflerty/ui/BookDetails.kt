@@ -419,9 +419,19 @@ private fun StepButton(icon: ImageVector, description: String, enabled: Boolean,
 @Composable
 private fun SeriesEditSheet(draft: SeriesDraft, onRemove: () -> Unit, onDismiss: () -> Unit) {
     var naming by remember { mutableStateOf(false) }
+    val app = LocalContext.current.applicationContext as App
+    val known = remember { app.library.books.value.flatMap { b -> b.series.map { it.name.trim() } }.filter { it.isNotBlank() }.distinctBy { it.lowercase() }.sortedBy { it.lowercase() } }
     AppSheet(onDismiss, title = "Серия") {
         val close = sheetClose(onDismiss)
         PaperField(draft.name, "Название серии", AppIcons.Series) { naming = true }
+        val others = known.filter { !it.equals(draft.name.trim(), ignoreCase = true) }
+        if (others.isNotEmpty()) {
+            TabbedFrame("Мои серии", icon = AppIcons.Series) {
+                ChipsFold(Modifier.padding(vertical = 8.dp)) {
+                    others.forEach { n -> TagChip(n, AppIcons.Series) { draft.name = n } }
+                }
+            }
+        }
         PartStepper(draft.number.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }) { v ->
             draft.number = v?.let { BookSeries("", it).numberLabel.orEmpty() }.orEmpty()
         }
@@ -875,12 +885,21 @@ private fun SeriesAddSheet(name: String, next: Double, inSeries: Set<String>, on
     val books by app.library.books.collectAsStateWithLifecycle()
     val choices = remember(books, inSeries) { books.filter { it.id !in inSeries && !it.paper }.sortedBy { it.title.lowercase() } }
     val picked = remember { androidx.compose.runtime.mutableStateListOf<String>() }
+    var query by remember { mutableStateOf("") }
+    val shown = remember(choices, query) {
+        val q = query.trim().lowercase()
+        if (q.isEmpty()) choices else choices.filter { it.title.lowercase().contains(q) || it.author.lowercase().contains(q) }
+    }
     AppSheet(onDismiss, title = "Добавить в серию") {
         val close = sheetClose(onDismiss)
         if (choices.isEmpty()) {
             EmptyNote(AppIcons.Book, "Все книги уже в серии", "")
         }
-        choices.forEach { b ->
+        if (choices.size > 5) {
+            SearchField(query, { query = it }, Modifier.fillMaxWidth(), placeholder = "Название или автор")
+            if (shown.isEmpty()) EmptyNote(AppIcons.Search, "Ничего не нашлось", "")
+        }
+        shown.forEach { b ->
             val on = b.id in picked
             val shape = appCorner(16)
             val edge by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent.copy(alpha = 0.6f) else Color.Transparent, Motion.fade(200), label = "pick-edge")

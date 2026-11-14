@@ -41,7 +41,10 @@ data class BookCharacter(
     val quotes: List<String> = emptyList(),
     val books: List<String> = emptyList(),
     val avatarAt: Long = 0,
+    val aliases: List<String> = emptyList(),
 ) {
+    fun knownAs(text: String): Boolean = name.equals(text, true) || aliases.any { it.equals(text, true) }
+
     val filled: Int get() = listOf(note, looks, ties, fate).count { it.isNotBlank() } + if (quotes.isNotEmpty()) 1 else 0
 
     fun toJson(): JSONObject = JSONObject().apply {
@@ -59,6 +62,7 @@ data class BookCharacter(
         put("quotes", JSONArray(quotes))
         put("books", JSONArray(books))
         put("avatarAt", avatarAt)
+        put("aliases", JSONArray(aliases))
     }
 
     companion object {
@@ -80,6 +84,7 @@ data class BookCharacter(
             quotes = strings(json, "quotes"),
             books = strings(json, "books"),
             avatarAt = json.optLong("avatarAt"),
+            aliases = strings(json, "aliases"),
         )
     }
 }

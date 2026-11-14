@@ -794,6 +794,7 @@ fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
             LibrarySort.entries.forEachIndexed { index, sort ->
                 if (index > 0) ListDivider()
                 val icon = when (sort) {
+                    LibrarySort.Manual -> AppIcons.Gesture
                     LibrarySort.Recent -> AppIcons.Clock
                     LibrarySort.Added -> AppIcons.Plus
                     LibrarySort.Title -> AppIcons.TextSize
@@ -809,6 +810,7 @@ fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
                 }
             }
             val names = prefs.sort == LibrarySort.Title || prefs.sort == LibrarySort.Author || prefs.sort == LibrarySort.Series
+            androidx.compose.animation.AnimatedVisibility(prefs.sort != LibrarySort.Manual) {
             val options = when {
                 names -> listOf("А → Я", "Я → А")
                 prefs.sort == LibrarySort.Progress -> listOf("Больше", "Меньше")
@@ -818,6 +820,7 @@ fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
             SettingSegmented(null, options, if (first) 0 else 1) { i ->
                 val wantFirst = i == 0
                 app.libraryPrefs.update { it.copy(descending = if (names) !wantFirst else wantFirst) }
+            }
             }
         }
         SettingsGroup(null) {

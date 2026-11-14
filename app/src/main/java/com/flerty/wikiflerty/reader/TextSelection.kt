@@ -28,7 +28,8 @@ internal object TextSelection {
 
     fun peopleCall(people: List<com.flerty.wikiflerty.data.BookCharacter>): String {
         fun stem(word: String): Pair<String, Int> {
-            var stem = word.lowercase().replace('ё', 'е')
+            var stem = word.lowercase().replace('ё', 'е').replace("\u00AD", "")
+            if (stem.length == 3 && stem.last() in "аеиоуыэюя") return stem.dropLast(1) to -2
             val short = stem.length <= 3
             if (stem.length > 4 && stem.last() in "йь") stem = stem.dropLast(1)
             if (stem.length > 3 && stem.last() in "аеиоуыэюяy") stem = stem.dropLast(1)
@@ -39,7 +40,7 @@ internal object TextSelection {
         val exact = HashMap<String, MutableSet<String>>()
         val tolerance = HashMap<String, Int>()
         people.forEach { p ->
-            p.name.split(Regex("\\s*[,;/()]\\s*|\\s+или\\s+")).map { it.trim() }.filter { it.isNotEmpty() }.forEach { variant ->
+            (p.name.split(Regex("\\s*[,;/()]\\s*|\\s+или\\s+")) + p.aliases).map { it.trim() }.filter { it.isNotEmpty() }.distinct().forEach { variant ->
                 val words = variant.split(Regex("[\\s\\-\u2010\u2011]+")).map { it.trim('.', ',', '«', '»', '"', '\'', '(', ')') }
                     .filter { it.length >= 2 && it.first().isLetter() }
                     .map { stem(it) }
@@ -53,7 +54,7 @@ internal object TextSelection {
                 }
                 words.forEach { (st, t) ->
                     owners.getOrPut(st) { mutableSetOf() } += p.id
-                    tolerance[st] = maxOf(tolerance[st] ?: 0, t)
+                    tolerance[st] = (tolerance[st] ?: t).let { old -> if (old < 0 || t < 0) minOf(old, t) else maxOf(old, t) }
                 }
             }
         }
@@ -337,7 +338,8 @@ internal object TextSelection {
           if (window.__wfPeopleReady) return;
           window.__wfPeopleReady = true;
           var hits = [];
-          var word = /(^|[^\p{L}\p{N}])(\p{Lu}[\p{L}]*)/gu;
+          var word = /(^|[^\p{L}\p{N}\u00AD])(\p{Lu}[\p{L}\u00AD]*)/gu;
+          var tail = /^[аяыиуюеео]?[йюмх]?$/;
           window.__wfPeople = function (list, force) {
             var key = JSON.stringify(list || []);
             if (!force && window.__wfPeopleKey === key) return;
@@ -350,7 +352,11 @@ internal object TextSelection {
             var singles = {}, phrases = {};
             singleList.forEach(function (k) { singles[k[0]] = { s: k[1], id: k[2] }; });
             phraseList.forEach(function (ph) { var f = ph[0][0][0]; (phrases[f] = phrases[f] || []).push({ w: ph[0], id: ph[1] }); });
-            function fits(low, ws) { return low.indexOf(ws[0]) === 0 && low.length - ws[0].length <= ws[1]; }
+            function fits(low, ws) {
+              if (low.indexOf(ws[0]) !== 0) return false;
+              if (ws[1] < 0) return low.length - ws[0].length <= -ws[1] && tail.test(low.slice(ws[0].length));
+              return low.length - ws[0].length <= ws[1];
+            }
             var BLOCK = "p,div,li,h1,h2,h3,h4,h5,h6,blockquote,td,th,dd,dt,section,article,figcaption,body";
             var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
               acceptNode: function (n) {
@@ -373,7 +379,7 @@ internal object TextSelection {
               var m, tokens = [];
               while ((m = word.exec(text))) {
                 var st = m.index + m[1].length;
-                tokens.push({ low: m[2].toLowerCase().replace(/ё/g, "е"), start: st, end: st + m[2].length });
+                tokens.push({ low: m[2].toLowerCase().replace(/ё/g, "е").replace(/\u00AD/g, ""), start: st, end: st + m[2].length });
               }
               var prev = null;
               for (var i = 0; i < tokens.length; i++) {
@@ -397,7 +403,7 @@ internal object TextSelection {
                 if (!best) {
                   for (var k2 = t.low.length; k2 >= Math.max(2, t.low.length - 3); k2--) {
                     var one = singles[t.low.slice(0, k2)];
-                    if (one && t.low.length - k2 <= one.s) { best = one.id; size = 1; break; }
+                    if (one && fits(t.low, [t.low.slice(0, k2), one.s])) { best = one.id; size = 1; break; }
                   }
                 }
                 if (!best) continue;

@@ -161,6 +161,7 @@ data class ReaderSettings(
     val ttsPitch: Double = 1.0,
     val ttsColor: Long = 0xFFF2C46B,
     val ttsFollow: Boolean = true,
+    val ttsJump: Boolean = true,
     val autoNight: Boolean = false,
     val nightTheme: String = PageTheme.Black.id,
     val nightFrom: Int = 22 * 60,
@@ -257,6 +258,7 @@ data class ReaderSettings(
         put("ttsPitch", ttsPitch)
         put("ttsColor", String.format("#%08X", ttsColor))
         put("ttsFollow", ttsFollow)
+        put("ttsJump", ttsJump)
         put("autoNight", autoNight)
         put("nightTheme", nightTheme)
         put("nightFrom", nightFrom)
@@ -338,6 +340,7 @@ data class ReaderSettings(
                 ttsPitch = json.optDouble("ttsPitch", d.ttsPitch).coerceIn(0.3, 3.0),
                 ttsColor = runCatching { json.getString("ttsColor").removePrefix("#").toLong(16) }.getOrDefault(d.ttsColor),
                 ttsFollow = json.optBoolean("ttsFollow", d.ttsFollow),
+                ttsJump = json.optBoolean("ttsJump", d.ttsJump),
                 autoNight = json.optBoolean("autoNight", d.autoNight),
                 nightTheme = json.optString("nightTheme", d.nightTheme),
                 nightFrom = json.optInt("nightFrom", d.nightFrom).coerceIn(0, 24 * 60 - 1),

@@ -9,6 +9,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 enum class LibrarySort(val id: String, val title: String) {
+    Manual("manual", "Без сортировки"),
     Recent("recent", "Недавно читал"),
     Added("added", "Дата добавления"),
     Title("title", "Название"),
@@ -17,7 +18,7 @@ enum class LibrarySort(val id: String, val title: String) {
     Progress("progress", "Прогресс");
 
     companion object {
-        fun of(id: String?) = entries.firstOrNull { it.id == id } ?: Recent
+        fun of(id: String?) = entries.firstOrNull { it.id == id } ?: Manual
     }
 }
 
@@ -31,7 +32,7 @@ enum class LibraryView(val id: String) {
 
 data class LibraryPrefs(
     val filter: String = "all",
-    val sort: LibrarySort = LibrarySort.Recent,
+    val sort: LibrarySort = LibrarySort.Manual,
     val descending: Boolean = true,
     val view: LibraryView = LibraryView.Shelves,
     val coverSize: Int = 1,
@@ -48,6 +49,7 @@ data class LibraryPrefs(
     val tagShelves: List<String> = emptyList(),
     val seriesShelves: List<String> = emptyList(),
     val plankOrder: List<String> = emptyList(),
+    val bookOrder: List<String> = emptyList(),
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("filter", filter)
@@ -69,6 +71,7 @@ data class LibraryPrefs(
         put("tagShelves", JSONArray(tagShelves))
         put("seriesShelves", JSONArray(seriesShelves))
         put("plankOrder", JSONArray(plankOrder))
+        put("bookOrder", JSONArray(bookOrder))
     }
 
     companion object {
@@ -89,6 +92,7 @@ data class LibraryPrefs(
             aura = j.optBoolean("aura", true),
             tagShelves = j.optJSONArray("tagShelves")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
             plankOrder = j.optJSONArray("plankOrder")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
+            bookOrder = j.optJSONArray("bookOrder")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
             seriesShelves = j.optJSONArray("seriesShelves")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
             shelves = j.optJSONArray("shelves")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
         )

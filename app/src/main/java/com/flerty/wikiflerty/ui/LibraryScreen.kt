@@ -143,8 +143,26 @@ fun statusIcon(status: ReadStatus): ImageVector = when (status) {
 fun allShelves(prefs: LibraryPrefs, books: List<Book>): List<String> =
     (prefs.shelves + books.flatMap { it.shelves }).distinct()
 
+private fun manualOrder(books: List<Book>, order: List<String>): List<Book> {
+    val pos = HashMap<String, Int>(order.size * 2)
+    order.forEachIndexed { i, id -> pos.putIfAbsent(id, i) }
+    return books.sortedWith(compareBy<Book> { pos[it.id] ?: -1 }.thenByDescending { it.addedAt })
+}
+
+private fun movedOrder(all: List<String>, plank: List<String>, id: String): List<String>? {
+    val i = plank.indexOf(id)
+    if (i < 0 || plank.size < 2) return null
+    val rest = all.filter { it != id }.toMutableList()
+    val at = if (i > 0) rest.indexOf(plank[i - 1]).let { if (it < 0) -1 else it + 1 } else rest.indexOf(plank[1])
+    if (at < 0) return null
+    rest.add(at, id)
+    return rest
+}
+
 private fun sorted(books: List<Book>, prefs: LibraryPrefs): List<Book> {
+    if (prefs.sort == LibrarySort.Manual) return manualOrder(books, prefs.bookOrder)
     val comparator: Comparator<Book> = when (prefs.sort) {
+        LibrarySort.Manual -> compareBy<Book> { 0 }
         LibrarySort.Recent -> compareBy { it.lastReadAt ?: it.addedAt }
         LibrarySort.Added -> compareBy { it.addedAt }
         LibrarySort.Title -> compareBy(String.CASE_INSENSITIVE_ORDER) { it.title }
@@ -326,33 +344,35 @@ fun LibraryScreen(
         ) { layout ->
             val lgrid = layout.view == LibraryView.Grid
                 if (layout.view == LibraryView.Shelves) {
-                val planks = remember(books, shelves, active, q, shown, prefs.tagShelves, prefs.seriesShelves, plankFilters) { if (active.id == "all" && q.isEmpty()) {
+                val ordered = remember(books, prefs) { sorted(books, prefs) }
+                val planks = remember(ordered, shelves, active, q, shown, prefs.tagShelves, prefs.seriesShelves, plankFilters) { if (active.id == "all" && q.isEmpty()) {
                     val named = plankFilters.mapNotNull { f ->
                         when {
                             f.isShelf -> {
                                 val name = f.title
-                                PlankSpec("shelf:$name", name, books.filter { name in it.shelves }, { controls.shelfDialog = ShelfDialog.Edit(name) }, { controls.shelfDialog = ShelfDialog.Edit(name) }, wrap = false)
+                                PlankSpec("shelf:$name", name, ordered.filter { name in it.shelves }, { controls.shelfDialog = ShelfDialog.Edit(name) }, { controls.shelfDialog = ShelfDialog.Edit(name) }, wrap = false)
                             }
                             f.id.startsWith(SERIES_PLANK) -> {
                                 val name = f.title
                                 val parts = books.mapNotNull { b -> b.series.firstOrNull { it.name.equals(name, true) }?.let { b to (it.number ?: Double.MAX_VALUE) } }
                                     .sortedWith(compareBy<Pair<Book, Double>> { it.second }.thenBy { it.first.title })
                                     .map { it.first }
-                                if (parts.isEmpty()) null else PlankSpec(SERIES_PLANK + name, name, parts, null, { seriesPlank = name }, wrap = false)
+                                if (parts.isEmpty()) null else PlankSpec(SERIES_PLANK + name, name, parts, null, { seriesPlank = name }, wrap = false, sortable = false)
                             }
                             else -> {
                                 val tag = f.id.removePrefix(TagFilterPrefix)
-                                val tagged = books.filter { it.hasTag(tag) }
+                                val tagged = ordered.filter { it.hasTag(tag) }
                                 if (tagged.isEmpty()) null else PlankSpec(TagFilterPrefix + tag, "#$tag", tagged, null, { manageTags = true }, wrap = false)
                             }
                         }
                     }
-                    val rest = books.filter { b -> b.shelves.none { it in shelves } }
+                    val rest = ordered.filter { b -> b.shelves.none { it in shelves } }
                     named + if (rest.isNotEmpty() || named.isEmpty()) listOf(PlankSpec("rest", if (named.isEmpty()) null else "Без полки", rest, { addBook() }, null, wrap = named.isEmpty())) else emptyList()
                 } else {
                     val edit = if (active.isShelf) ({ controls.shelfDialog = ShelfDialog.Edit(active.title) }) else null
-                    listOf(PlankSpec(active.id, if (active.isShelf) active.title else null, shown, edit ?: if (q.isEmpty()) ({ addBook() }) else null, edit, wrap = true))
+                    listOf(PlankSpec(active.id, if (active.isShelf) active.title else null, shown, edit ?: if (q.isEmpty()) ({ addBook() }) else null, edit, wrap = true, sortable = q.isEmpty()))
                 } }
+                val orderNow by androidx.compose.runtime.rememberUpdatedState(ordered)
                 BookcaseView(
                     planks = planks,
                     onBook = { longPress(it) },
@@ -361,6 +381,9 @@ fun LibraryScreen(
                     live = prefs.liveShelf,
                     behave = prefs.shelfBehavior,
                     stacks = active.id != ReadStatus.Finished.id,
+                    onReorder = if (prefs.sort == LibrarySort.Manual) { book, _, ids ->
+                        movedOrder(orderNow.map { it.id }, ids, book.id)?.let { next -> app.libraryPrefs.update { it.copy(bookOrder = next) } }
+                    } else null,
                     onMove = if (active.id == "all" && q.isEmpty() && (shelves.isNotEmpty() || prefs.tagShelves.isNotEmpty() || prefs.seriesShelves.isNotEmpty())) { book, from, to ->
                         if (to.startsWith("series:")) {
                         } else if (to.startsWith(TagFilterPrefix)) {

@@ -332,9 +332,13 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private val mySession: ReadAloudSession? get() = app.readAloud.session.value?.takeIf { it.bookId == bookId }
 
-    private fun resyncListening() {
+    private fun resyncListening(byTurn: Boolean = false) {
         val session = mySession ?: return
         if (!session.navigator.playback.value.playWhenReady) return
+        if (byTurn) {
+            manualTurnAt = android.os.SystemClock.uptimeMillis()
+            if (!settings.ttsJump) return
+        }
         lifecycleScope.launch {
             delay(350)
             runCatching { navigator.firstVisibleElementLocator() }.getOrNull()?.let { app.readAloud.go(it) }
@@ -1167,7 +1171,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 if (selection != null) {
                     val name = selection.text.replace(Regex("\\s+"), " ").trim().trim('.', ',', '!', '?', ':', ';', '«', '»', '"', '—', '-').take(80)
                     endSelection()
-                    val known = peopleNow.firstOrNull { it.name.equals(name, ignoreCase = true) }
+                    val known = peopleNow.firstOrNull { it.knownAs(name) }
                     ui.panelsVisible = false
                     ui.person = null
                     if (known != null) {
@@ -2534,7 +2538,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             PageAnimation.None -> go(forward, animated = false)
             PageAnimation.Curl, PageAnimation.Fade, PageAnimation.Cover, PageAnimation.Flip, PageAnimation.Depth -> requestTurn(forward, settings.animation)
         }
-        resyncListening()
+        resyncListening(byTurn = true)
     }
 
     private var capturing = false
@@ -3097,7 +3101,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             runTurn(target, (90 + full * share).toLong(), DecelerateInterpolator(1.3f)) {
                 if (complete) {
                     resetTurnViews()
-                    resyncListening()
+                    resyncListening(byTurn = true)
                 } else {
                     go(!forward, animated = false)
                     afterRender {
@@ -3112,7 +3116,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             if (done) {
                 curl.hide()
                 turning = false
-                resyncListening()
+                resyncListening(byTurn = true)
             } else {
                 go(!forward, animated = false)
                 afterRender {
@@ -3289,7 +3293,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val s = settings
-        if (s.volumeKeys && ::navigator.isInitialized &&
+        if (s.volumeKeys && ::navigator.isInitialized && mySession == null &&
             (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || event.keyCode == KeyEvent.KEYCODE_VOLUME_UP)
         ) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
@@ -3475,7 +3479,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         if (settings.animation == PageAnimation.None || com.flerty.wikiflerty.ui.Motion.ms(100) == 0) {
             lifecycleScope.launch {
                 navigator.go(target, animated = false)
-                resyncListening()
+                resyncListening(byTurn = true)
             }
             return true
         }
@@ -3490,7 +3494,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 }
                 delay(260)
                 shiftView.reveal()
-                resyncListening()
+                resyncListening(byTurn = true)
             }
         }
         return true
