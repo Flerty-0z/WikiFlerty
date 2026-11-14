@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -148,7 +149,7 @@ internal fun EmptyNote(icon: ImageVector, title: String, hint: String) {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun TagCloudSheet(active: List<String>, onApply: (List<String>) -> Unit, onDismiss: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
@@ -194,28 +195,6 @@ fun TagCloudSheet(active: List<String>, onApply: (List<String>) -> Unit, onDismi
                     }
                 }
             }
-            val lastEdit = remember { arrayOf<String?>(null) }
-            if (editing != null) lastEdit[0] = editing
-            androidx.compose.animation.AnimatedVisibility(
-                visible = editing != null,
-                enter = androidx.compose.animation.expandVertically(Motion.tween(320, easing = androidx.compose.animation.core.FastOutSlowInEasing), expandFrom = Alignment.Top) + androidx.compose.animation.fadeIn(Motion.tween(260, delayMillis = 60)),
-                exit = androidx.compose.animation.shrinkVertically(Motion.tween(280, easing = androidx.compose.animation.core.FastOutSlowInEasing), shrinkTowards = Alignment.Top) + androidx.compose.animation.fadeOut(Motion.fade(140)),
-            ) {
-                val name = lastEdit[0].orEmpty()
-                val count = counts.firstOrNull { it.name.equals(name, true) }?.count ?: 0
-                val pinned = prefs.tagShelves.any { it.equals(name, true) }
-                TabbedFrame("#$name", icon = AppIcons.Pencil, trailing = { CountBadge(count) }) {
-                    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        TagActionTile(AppIcons.Pencil, "Имя", AppColors.Text, false, Modifier.weight(1f)) { rename = name }
-                        TagActionTile(AppIcons.Shelf, "В шкафу", if (pinned) AppColors.Accent else AppColors.Text, pinned, Modifier.weight(1f)) {
-                            app.libraryPrefs.update { p ->
-                                p.copy(tagShelves = if (!pinned) (p.tagShelves + name).distinctBy { it.lowercase() } else p.tagShelves.filterNot { it.equals(name, true) })
-                            }
-                        }
-                        TagActionTile(AppIcons.Trash, "Удалить", AppColors.Bad, false, Modifier.weight(1f)) { delete = name }
-                    }
-                }
-            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (active.isNotEmpty()) {
                     AppButton("Сбросить", primary = false, modifier = Modifier.weight(1f), labeled = true) {
@@ -232,6 +211,36 @@ fun TagCloudSheet(active: List<String>, onApply: (List<String>) -> Unit, onDismi
                     if (chosen.isNotEmpty()) {
                         onApply(chosen)
                         close()
+                    }
+                }
+            }
+            val lastEdit = remember { arrayOf<String?>(null) }
+            if (editing != null) lastEdit[0] = editing
+            val bring = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+            LaunchedEffect(editing) {
+                if (editing != null) {
+                    kotlinx.coroutines.delay(Motion.ms(340).toLong())
+                    bring.bringIntoView()
+                }
+            }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = editing != null,
+                modifier = Modifier.bringIntoViewRequester(bring),
+                enter = androidx.compose.animation.expandVertically(Motion.tween(320, easing = androidx.compose.animation.core.FastOutSlowInEasing), expandFrom = Alignment.Top) + androidx.compose.animation.fadeIn(Motion.tween(240, delayMillis = 80)),
+                exit = androidx.compose.animation.shrinkVertically(Motion.tween(280, easing = androidx.compose.animation.core.FastOutSlowInEasing), shrinkTowards = Alignment.Top) + androidx.compose.animation.fadeOut(Motion.fade(140)),
+            ) {
+                val name = lastEdit[0].orEmpty()
+                val count = counts.firstOrNull { it.name.equals(name, true) }?.count ?: 0
+                val pinned = prefs.tagShelves.any { it.equals(name, true) }
+                TabbedFrame("#$name", icon = AppIcons.Pencil, trailing = { CountBadge(count) }) {
+                    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        TagActionTile(AppIcons.Pencil, "Имя", AppColors.Text, false, Modifier.weight(1f)) { rename = name }
+                        TagActionTile(AppIcons.Shelf, "В шкафу", if (pinned) AppColors.Accent else AppColors.Text, pinned, Modifier.weight(1f)) {
+                            app.libraryPrefs.update { p ->
+                                p.copy(tagShelves = if (!pinned) (p.tagShelves + name).distinctBy { it.lowercase() } else p.tagShelves.filterNot { it.equals(name, true) })
+                            }
+                        }
+                        TagActionTile(AppIcons.Trash, "Удалить", AppColors.Bad, false, Modifier.weight(1f)) { delete = name }
                     }
                 }
             }
