@@ -509,7 +509,7 @@ fun NoteEditor(
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 2.dp),
+                Modifier.fillMaxWidth().fieldSurface(appCorner(20)).horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {

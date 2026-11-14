@@ -586,33 +586,50 @@ fun BookTagsSheet(book: Book, onDismiss: () -> Unit) {
     }
     AppSheet(onDismiss, title = "Теги") {
         TabbedFrame("У этой книги", icon = AppIcons.Tag) {
-            Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (current.tags.isEmpty()) {
-                    Text("Пока нет тегов", color = AppColors.Faint, fontSize = 13.sp, modifier = Modifier.padding(vertical = 4.dp))
+            Column(Modifier.padding(vertical = 8.dp)) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = current.tags.isEmpty(),
+                    enter = androidx.compose.animation.expandVertically(Motion.tween(280)) + androidx.compose.animation.fadeIn(Motion.fade(220)),
+                    exit = androidx.compose.animation.shrinkVertically(Motion.tween(240)) + androidx.compose.animation.fadeOut(Motion.fade(140)),
+                ) {
+                    Text("Пока нет тегов", color = AppColors.Faint, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
                 }
-                current.tags.forEach { tag ->
+                AnimatedItems(current.tags, key = { it.removePrefix(SpoilerMark).lowercase() }) { tag ->
                     val spoiler = tagSpoiler(tag)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(tagTitle(tag), color = AppColors.Text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        val tint by androidx.compose.animation.animateColorAsState(if (spoiler) AppColors.Accent else AppColors.Muted, Motion.fade(200), label = "tag-eye")
+                        val edge by androidx.compose.animation.animateColorAsState(if (spoiler) AppColors.Accent.copy(alpha = 0.4f) else AppColors.PanelBorder, Motion.fade(200), label = "tag-edge")
+                        val fill by androidx.compose.animation.animateColorAsState(if (spoiler) AppColors.AccentSoft else Color.Transparent, Motion.fade(200), label = "tag-fill")
                         Box(
                             Modifier.size(38.dp).liveClick(appCorner(12), sound = if (spoiler) FeedbackSound.Uncheck else FeedbackSound.Check, pressedScale = 0.88f) {
                                 save(current.tags.map { if (it == tag) (if (spoiler) it.removePrefix(SpoilerMark) else SpoilerMark + it) else it })
-                            }.then(if (spoiler) Modifier.clip(appCorner(12)).background(AppColors.AccentSoft) else Modifier).border(1.dp, if (spoiler) AppColors.Accent.copy(alpha = 0.4f) else AppColors.PanelBorder, appCorner(12)),
+                            }.clip(appCorner(12)).background(fill).border(1.dp, edge, appCorner(12)),
                             contentAlignment = Alignment.Center,
-                        ) { Icon(if (spoiler) AppIcons.EyeOff else AppIcons.Eye, if (spoiler) "Спойлер" else "Сделать спойлером", tint = if (spoiler) AppColors.Accent else AppColors.Muted, modifier = Modifier.size(17.dp)) }
+                        ) {
+                            androidx.compose.animation.Crossfade(spoiler, animationSpec = Motion.fade(180), label = "tag-eye-icon") { on ->
+                                Icon(if (on) AppIcons.EyeOff else AppIcons.Eye, if (on) "Спойлер" else "Сделать спойлером", tint = tint, modifier = Modifier.size(17.dp))
+                            }
+                        }
                         Box(
                             Modifier.size(38.dp).liveClick(appCorner(12), sound = FeedbackSound.Trash, pressedScale = 0.88f) { save(current.tags - tag) }.border(1.dp, AppColors.PanelBorder, appCorner(12)),
                             contentAlignment = Alignment.Center,
                         ) { Icon(AppIcons.Trash, "Убрать тег", tint = AppColors.Muted, modifier = Modifier.size(17.dp)) }
                     }
                 }
-                CardButton("Новый тег", AppIcons.Plus, Modifier.fillMaxWidth()) { adding = true }
+                CardButton("Новый тег", AppIcons.Plus, Modifier.fillMaxWidth().padding(top = 8.dp)) { adding = true }
             }
         }
-        if (popular.isNotEmpty()) {
+        val lastPopular = remember { arrayOf(popular) }
+        if (popular.isNotEmpty()) lastPopular[0] = popular
+        androidx.compose.animation.AnimatedVisibility(
+            visible = popular.isNotEmpty(),
+            enter = androidx.compose.animation.expandVertically(Motion.tween(300)) + androidx.compose.animation.fadeIn(Motion.fade(240)),
+            exit = androidx.compose.animation.shrinkVertically(Motion.tween(260)) + androidx.compose.animation.fadeOut(Motion.fade(160)),
+        ) {
             TabbedFrame("Мои теги", icon = AppIcons.Hash, inset = false) {
-                ChipsFold(Modifier.padding(vertical = 12.dp), rowPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp)) {
-                    popular.forEach { t -> InfoChip("#$t", AppIcons.Plus) { save(current.tags + t) } }
+                ChipsFold(Modifier.padding(vertical = 12.dp).animateContentSize(Motion.tween(260)), rowPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp)) {
+                    lastPopular[0].forEach { t -> androidx.compose.runtime.key(t) { InfoChip("#$t", AppIcons.Plus) { save(current.tags + t) } } }
                 }
             }
         }

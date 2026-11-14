@@ -191,3 +191,43 @@ fun ChipsFold(
         }
     }
 }
+
+@Composable
+fun <T : Any> AnimatedItems(items: List<T>, key: (T) -> Any, gap: androidx.compose.ui.unit.Dp = 8.dp, content: @Composable (T) -> Unit) {
+    val exiting = remember { LinkedHashMap<Any, Pair<Int, T>>() }
+    val previous = remember { arrayOfNulls<List<T>>(1) }
+    val first = remember { booleanArrayOf(true) }
+    var tick by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    tick
+    val keys = items.map(key).toSet()
+    previous[0]?.let { old ->
+        if (old !== items) old.forEachIndexed { i, o -> val k = key(o); if (k !in keys && k !in exiting) exiting[k] = i to o }
+    }
+    exiting.keys.removeAll { it in keys }
+    previous[0] = items
+    val render = items.toMutableList()
+    exiting.values.sortedBy { it.first }.forEach { (i, o) -> render.add(i.coerceAtMost(render.size), o) }
+    val initial = first[0]
+    androidx.compose.runtime.SideEffect { first[0] = false }
+    androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth()) {
+        render.forEachIndexed { index, item ->
+            val k = key(item)
+            androidx.compose.runtime.key(k) {
+                val state = remember { androidx.compose.animation.core.MutableTransitionState(initial) }
+                state.targetState = k in keys
+                if (!state.targetState && state.isIdle && !state.currentState) {
+                    androidx.compose.runtime.SideEffect {
+                        if (exiting.remove(k) != null) tick++
+                    }
+                }
+                androidx.compose.animation.AnimatedVisibility(
+                    visibleState = state,
+                    enter = androidx.compose.animation.expandVertically(tween(Motion.ms(300), easing = ExpandEase)) + androidx.compose.animation.fadeIn(tween(Motion.ms(240), delayMillis = Motion.ms(60))),
+                    exit = androidx.compose.animation.shrinkVertically(tween(Motion.ms(260), easing = ExpandEase)) + androidx.compose.animation.fadeOut(tween(Motion.ms(160))),
+                ) {
+                    androidx.compose.foundation.layout.Box(Modifier.padding(top = if (index == 0) 0.dp else gap)) { content(item) }
+                }
+            }
+        }
+    }
+}

@@ -8,7 +8,6 @@ import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.PixelFormat
 import android.graphics.PorterDuff
 import android.graphics.Rect
 import android.graphics.RectF
@@ -19,15 +18,16 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
 import android.view.Choreographer
-import android.view.SurfaceHolder
-import android.view.SurfaceView
+import android.graphics.SurfaceTexture
+import android.view.Surface
+import android.view.TextureView
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.DecelerateInterpolator
 import kotlin.math.PI
 import kotlin.math.hypot
 import kotlin.math.sin
 
-class PageCurlView(context: Context) : SurfaceView(context), SurfaceHolder.Callback {
+class PageCurlView(context: Context) : TextureView(context), TextureView.SurfaceTextureListener {
     private val main = Handler(Looper.getMainLooper())
     private val thread = HandlerThread("page-curl", android.os.Process.THREAD_PRIORITY_DISPLAY).also { it.start() }
     private val render = Handler(thread.looper)
@@ -38,6 +38,7 @@ class PageCurlView(context: Context) : SurfaceView(context), SurfaceHolder.Callb
         private set
 
     private var surfaceReady = false
+    private var surface: Surface? = null
     private var w = 0f
     private var h = 0f
     private var bitmap: Bitmap? = null
@@ -70,22 +71,24 @@ class PageCurlView(context: Context) : SurfaceView(context), SurfaceHolder.Callb
 
     init {
         isClickable = false
-        setZOrderOnTop(true)
-        holder.setFormat(PixelFormat.TRANSLUCENT)
-        holder.addCallback(this)
+        isOpaque = false
+        surfaceTextureListener = this
         render.post { choreographer = Choreographer.getInstance() }
     }
 
     val running: Boolean get() = showing
 
-    override fun surfaceCreated(holder: SurfaceHolder) {
+    override fun onSurfaceTextureAvailable(texture: SurfaceTexture, width: Int, height: Int) {
         render.post {
+            surface = Surface(texture)
+            w = width.toFloat()
+            h = height.toFloat()
             surfaceReady = true
             present(clear = bitmap == null)
         }
     }
 
-    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+    override fun onSurfaceTextureSizeChanged(texture: SurfaceTexture, width: Int, height: Int) {
         render.post {
             w = width.toFloat()
             h = height.toFloat()
@@ -93,15 +96,20 @@ class PageCurlView(context: Context) : SurfaceView(context), SurfaceHolder.Callb
         }
     }
 
-    override fun surfaceDestroyed(holder: SurfaceHolder) {
+    override fun onSurfaceTextureDestroyed(texture: SurfaceTexture): Boolean {
         val done = java.util.concurrent.CountDownLatch(1)
         render.post {
             surfaceReady = false
             if (mode != 0) completeNow()
+            surface?.release()
+            surface = null
             done.countDown()
         }
         runCatching { done.await(300, java.util.concurrent.TimeUnit.MILLISECONDS) }
+        return true
     }
+
+    override fun onSurfaceTextureUpdated(texture: SurfaceTexture) = Unit
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
@@ -245,7 +253,7 @@ class PageCurlView(context: Context) : SurfaceView(context), SurfaceHolder.Callb
 
     private fun present(clear: Boolean) {
         if (!surfaceReady) return
-        val surface = holder.surface
+        val surface = surface ?: return
         if (!surface.isValid) return
         val canvas = runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) surface.lockHardwareCanvas() else surface.lockCanvas(null)

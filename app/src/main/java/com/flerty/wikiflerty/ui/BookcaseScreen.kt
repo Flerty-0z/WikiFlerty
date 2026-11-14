@@ -139,7 +139,7 @@ private fun arrange(books: List<Book>, onAdd: (() -> Unit)?, live: Boolean, deco
         books.map { ShelfUnit.Standing(it, lean = false) }
     } else {
         val standing = books.filter { !stacks || it.status != ReadStatus.Finished }
-        val lying = books.filter { stacks && it.status == ReadStatus.Finished }.sortedByDescending { it.finishedAt ?: it.addedAt }
+        val lying = books.filter { stacks && it.status == ReadStatus.Finished }
         standing.mapIndexed { i, b -> ShelfUnit.Standing(b, lean = standing.size >= 3 && i == standing.lastIndex) } +
             lying.chunked(4).map { ShelfUnit.Stack(it) }
     }
@@ -290,8 +290,28 @@ fun BookcaseView(
             val p = drag.pointer ?: return@bookSlotAt null
             val plank = drag.target(drag.from, keepMargin) ?: return@bookSlotAt null
             if (plank != drag.from || plank !in sortable) return@bookSlotAt null
-            val seq = drag.layout()[plank]?.filterIsInstance<ShelfUnit.Standing>()?.filter { it.book.id != moving.id } ?: return@bookSlotAt null
             val first = listStateHolder.firstVisibleItemIndex
+            if (drag.fromSpec != null) {
+                val piles = drag.layout()[plank]?.filterIsInstance<ShelfUnit.Stack>() ?: return@bookSlotAt null
+                var at = 0
+                piles.forEach { u ->
+                    val n = u.books.count { it.id != moving.id }
+                    val r = drag.slots["$plank|${u.key}"]?.second
+                    if (r == null) {
+                        if ((rowOf["$plank|${u.key}"] ?: Int.MAX_VALUE) < first) at += n
+                        return@forEach
+                    }
+                    val sameRow = p.y >= r.top - slack && p.y <= r.bottom + slack
+                    if (sameRow && p.x >= r.left && p.x <= r.right) {
+                        val slice = r.height / u.books.size.coerceAtLeast(1)
+                        at += kotlin.math.round((r.bottom - p.y) / slice).toInt().coerceIn(0, n)
+                    } else if (if (sameRow) r.center.x < p.x else r.bottom < p.y) {
+                        at += n
+                    }
+                }
+                return@bookSlotAt at
+            }
+            val seq = drag.layout()[plank]?.filterIsInstance<ShelfUnit.Standing>()?.filter { it.book.id != moving.id } ?: return@bookSlotAt null
             var idx = 0
             seq.forEach { u ->
                 val r = drag.slots["$plank|${u.key}"]?.second
@@ -307,10 +327,15 @@ fun BookcaseView(
         drag.bookApply = bookApply@{ idx ->
             val moving = drag.book ?: return@bookApply false
             val plank = drag.from
-            val seq = drag.layout()[plank]?.filterIsInstance<ShelfUnit.Standing>()?.map { it.book.id }?.filter { it != moving.id } ?: return@bookApply false
-            val next = seq.toMutableList().apply { add(idx.coerceIn(0, size), moving.id) }
-            val current = drag.bookPreview?.takeIf { it.first == plank }?.second
-                ?: drag.layout()[plank]?.filterIsInstance<ShelfUnit.Standing>()?.map { it.book.id }
+            val lay = drag.layout()[plank] ?: return@bookApply false
+            val standing = lay.filterIsInstance<ShelfUnit.Standing>().map { it.book.id }
+            val piled = lay.filterIsInstance<ShelfUnit.Stack>().flatMap { u -> u.books.map { it.id } }
+            val next = if (drag.fromSpec != null) {
+                standing + piled.filter { it != moving.id }.toMutableList().apply { add(idx.coerceIn(0, size), moving.id) }
+            } else {
+                standing.filter { it != moving.id }.toMutableList().apply { add(idx.coerceIn(0, size), moving.id) } + piled
+            }
+            val current = drag.bookPreview?.takeIf { it.first == plank }?.second ?: (standing + piled)
             if (current == next) return@bookApply false
             drag.bookPreview = plank to next
             drag.appliedAt = System.currentTimeMillis()
@@ -888,15 +913,21 @@ private fun DragGhost(drag: ShelfDrag) {
                     val flight = launch {
                         kotlinx.coroutines.coroutineScope {
                             launch {
-                                pos.animateTo(local, androidx.compose.animation.core.spring(dampingRatio = 0.92f, stiffness = 560f, visibilityThreshold = Offset(1.5f, 1.5f)))
-                                var last = local
-                                val until = System.nanoTime() + 120_000_000L
-                                while (System.nanoTime() < until) {
-                                    val now = drag.dest?.let { d -> drag.root?.takeIf { it.isAttached }?.windowToLocal(d) } ?: break
-                                    if ((now - last).getDistance() < 0.5f) break
-                                    last = now
-                                    pos.snapTo(now)
-                                    androidx.compose.runtime.withFrameNanos { }
+                                kotlinx.coroutines.coroutineScope {
+                                    val spec = androidx.compose.animation.core.spring(dampingRatio = 0.92f, stiffness = 560f, visibilityThreshold = Offset(1.5f, 1.5f))
+                                    var target = local
+                                    var job = launch { pos.animateTo(target, spec) }
+                                    val until = System.nanoTime() + 900_000_000L
+                                    while (job.isActive && System.nanoTime() < until) {
+                                        androidx.compose.runtime.withFrameNanos { }
+                                        val now = drag.dest?.let { d -> drag.root?.takeIf { it.isAttached }?.windowToLocal(d) } ?: break
+                                        if ((now - target).getDistance() > 1f) {
+                                            target = now
+                                            job.cancel()
+                                            job = launch { pos.animateTo(target, spec) }
+                                        }
+                                    }
+                                    job.join()
                                 }
                             }
                             launch { lift.animateTo(0f, Motion.tween(240, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
