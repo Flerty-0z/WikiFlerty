@@ -181,10 +181,15 @@ fun TagCloudSheet(active: List<String>, onApply: (List<String>) -> Unit, onDismi
                             t,
                             if (top <= 1) 0f else (t.count - 1f) / (top - 1f),
                             selected,
-                            editing = edit,
-                            onLongClick = { editing = if (edit) null else t.name },
+                            editing = edit && !selected,
                         ) {
-                            if (selected) picked.removeAll { it.equals(t.name, true) } else picked.add(t.name)
+                            if (selected) {
+                                picked.removeAll { it.equals(t.name, true) }
+                                if (edit) editing = picked.lastOrNull()
+                            } else {
+                                picked.add(t.name)
+                                editing = t.name
+                            }
                         }
                     }
                 }
@@ -193,8 +198,8 @@ fun TagCloudSheet(active: List<String>, onApply: (List<String>) -> Unit, onDismi
             if (editing != null) lastEdit[0] = editing
             androidx.compose.animation.AnimatedVisibility(
                 visible = editing != null,
-                enter = androidx.compose.animation.expandVertically(Motion.tween(300)) + androidx.compose.animation.fadeIn(Motion.fade(240)),
-                exit = androidx.compose.animation.shrinkVertically(Motion.tween(260)) + androidx.compose.animation.fadeOut(Motion.fade(160)),
+                enter = androidx.compose.animation.expandVertically(Motion.tween(320, easing = androidx.compose.animation.core.FastOutSlowInEasing), expandFrom = Alignment.Top) + androidx.compose.animation.fadeIn(Motion.tween(260, delayMillis = 60)),
+                exit = androidx.compose.animation.shrinkVertically(Motion.tween(280, easing = androidx.compose.animation.core.FastOutSlowInEasing), shrinkTowards = Alignment.Top) + androidx.compose.animation.fadeOut(Motion.fade(140)),
             ) {
                 val name = lastEdit[0].orEmpty()
                 val count = counts.firstOrNull { it.name.equals(name, true) }?.count ?: 0
@@ -211,41 +216,22 @@ fun TagCloudSheet(active: List<String>, onApply: (List<String>) -> Unit, onDismi
                     }
                 }
             }
-            androidx.compose.animation.AnimatedVisibility(
-                visible = editing == null && chosen.isEmpty(),
-                enter = androidx.compose.animation.expandVertically(Motion.tween(260)) + androidx.compose.animation.fadeIn(Motion.fade(220)),
-                exit = androidx.compose.animation.shrinkVertically(Motion.tween(220)) + androidx.compose.animation.fadeOut(Motion.fade(140)),
-            ) {
-                Text(
-                    "Тап — выбрать, удержание — изменить",
-                    color = AppColors.Faint,
-                    fontSize = 12.sp,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            androidx.compose.animation.AnimatedVisibility(
-                visible = chosen.isNotEmpty() || active.isNotEmpty(),
-                enter = androidx.compose.animation.expandVertically(Motion.tween(300)) + androidx.compose.animation.fadeIn(Motion.fade(240)),
-                exit = androidx.compose.animation.shrinkVertically(Motion.tween(260)) + androidx.compose.animation.fadeOut(Motion.fade(160)),
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (active.isNotEmpty()) {
-                        AppButton("Сбросить", primary = false, modifier = Modifier.weight(1f), labeled = true) {
-                            onApply(emptyList())
-                            close()
-                        }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (active.isNotEmpty()) {
+                    AppButton("Сбросить", primary = false, modifier = Modifier.weight(1f), labeled = true) {
+                        onApply(emptyList())
+                        close()
                     }
-                    AppButton(
-                        if (chosen.isEmpty()) "Показать" else "Показать · $matched",
-                        primary = chosen.isNotEmpty(),
-                        modifier = Modifier.weight(1.4f),
-                        labeled = true,
-                    ) {
-                        if (chosen.isNotEmpty()) {
-                            onApply(chosen)
-                            close()
-                        }
+                }
+                AppButton(
+                    if (chosen.isEmpty()) "Выбери теги" else "Показать · $matched",
+                    primary = chosen.isNotEmpty(),
+                    modifier = Modifier.weight(1.4f),
+                    labeled = true,
+                ) {
+                    if (chosen.isNotEmpty()) {
+                        onApply(chosen)
+                        close()
                     }
                 }
             }

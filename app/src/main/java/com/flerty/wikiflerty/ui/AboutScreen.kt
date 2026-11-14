@@ -31,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -225,28 +226,35 @@ fun UpdatePanel(app: App, modifier: Modifier = Modifier, onLater: (() -> Unit)? 
 @Composable
 fun AppButton(text: String, primary: Boolean, modifier: Modifier = Modifier, labeled: Boolean = false, onClick: () -> Unit) {
     val shape = appCorner(12)
+    val fill by androidx.compose.animation.animateColorAsState(if (primary) AppColors.Accent else AppColors.Accent.copy(alpha = 0f), Motion.fade(220), label = "btn-fill")
+    val edge by androidx.compose.animation.animateColorAsState(if (primary) AppColors.Accent else AppColors.Accent.copy(alpha = 0.35f), Motion.fade(220), label = "btn-edge")
+    val tint by androidx.compose.animation.animateColorAsState(if (primary) AppColors.OnAccent else AppColors.Accent, Motion.fade(220), label = "btn-tint")
     Box(
         modifier
             .height(44.dp)
             .liveClick(shape, sound = FeedbackSound.Toggle, onClick = onClick)
-            .then(
-                if (primary) Modifier.background(AppColors.Accent)
-                else Modifier.border(1.dp, AppColors.Accent.copy(alpha = 0.35f), shape),
-            )
+            .background(fill, shape)
+            .border(1.dp, edge, shape)
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        val icon = actionIcon(text)
-        val tint = if (primary) AppColors.OnAccent else AppColors.Accent
-        if (labeled) {
-            androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
-                if (icon != null) Icon(icon, null, tint = tint, modifier = Modifier.size(19.dp))
-                FitText(text, tint, 14.sp, weight = FontWeight.SemiBold)
+        androidx.compose.animation.AnimatedContent(
+            text,
+            transitionSpec = { androidx.compose.animation.fadeIn(Motion.fade(200)) togetherWith androidx.compose.animation.fadeOut(Motion.fade(120)) },
+            contentAlignment = Alignment.Center,
+            label = "btn-text",
+        ) { label ->
+            val icon = actionIcon(label)
+            if (labeled) {
+                androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                    if (icon != null) Icon(icon, null, tint = tint, modifier = Modifier.size(19.dp))
+                    FitText(label, tint, 14.sp, weight = FontWeight.SemiBold)
+                }
+            } else if (icon != null) {
+                ActionLabel(label, tint, fontSize = 14.sp, iconSize = 21.dp)
+            } else {
+                FitText(label, tint, 14.sp, weight = FontWeight.SemiBold)
             }
-        } else if (icon != null) {
-            ActionLabel(text, tint, fontSize = 14.sp, iconSize = 21.dp)
-        } else {
-            FitText(text, if (primary) AppColors.OnAccent else AppColors.Accent, 14.sp, weight = FontWeight.SemiBold)
         }
     }
 }

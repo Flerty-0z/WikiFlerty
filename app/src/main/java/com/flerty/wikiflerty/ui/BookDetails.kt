@@ -840,9 +840,9 @@ private fun SeriesCarousel(
         lastTick = tick
         androidx.compose.runtime.SideEffect { feedback?.play(FeedbackSound.Tick) }
     }
-    fun settle(velocity: Float) {
+    fun settle(velocity: Float, from: Float) {
         val n = latest.size
-        val target = (pos.value - velocity / step * 0.18f).let { kotlin.math.round(it) }.coerceIn(0f, (n - 1).coerceAtLeast(0).toFloat())
+        val target = (from - velocity / step * 0.18f).let { kotlin.math.round(it) }.coerceIn(0f, (n - 1).coerceAtLeast(0).toFloat())
         scope.launch { pos.animateTo(target, androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 300f), initialVelocity = -velocity / step) }
     }
     androidx.compose.foundation.layout.BoxWithConstraints(
@@ -861,6 +861,7 @@ private fun SeriesCarousel(
                     val mid = size.width / 2f
                     val onCenter = kotlin.math.abs(down.position.x - mid) < coverW.toPx() / 2f
                     var mode = 0
+                    var cur = pos.value
                     var travel = Offset.Zero
                     val started = down.uptimeMillis
                     while (true) {
@@ -876,14 +877,18 @@ private fun SeriesCarousel(
                             } else {
                                 val v = tracker.calculateVelocity().x
                                 if (mode == 2) {
+                                    val id = movingNow
+                                    val index = latest.indexOfFirst { it.id == id }.coerceAtLeast(0).toFloat()
+                                    val spring = androidx.compose.animation.core.spring<Float>(dampingRatio = 0.85f, stiffness = 320f)
+                                    val slot = id?.let { slots[it] }
                                     scope.launch {
-                                        val id = movingNow
-                                        val index = latest.indexOfFirst { it.id == id }.coerceAtLeast(0)
-                                        pos.animateTo(index.toFloat(), androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 320f))
+                                        slot?.snapTo(cur)
+                                        onMoveEnd()
+                                        launch { slot?.animateTo(index, spring) }
+                                        pos.animateTo(index, spring)
                                     }
-                                    onMoveEnd()
                                 } else {
-                                    settle(v)
+                                    settle(v, cur)
                                 }
                             }
                             change.consume()
@@ -895,6 +900,7 @@ private fun SeriesCarousel(
                         if (mode == 0) {
                             if (kotlin.math.abs(travel.x) > slop) {
                                 mode = 1
+                                cur = pos.value
                             } else if (travel.getDistance() > slop) {
                                 break
                             } else if (onCenter && change.uptimeMillis - started >= holdMs) {
@@ -902,6 +908,8 @@ private fun SeriesCarousel(
                                 val idx = kotlin.math.round(pos.value).toInt().coerceIn(0, n - 1)
                                 if (n > 1) {
                                     mode = 2
+                                    cur = idx.toFloat()
+                                    scope.launch { pos.snapTo(cur) }
                                     haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                                     feedback?.play(FeedbackSound.Pick)
                                     onMoveStart(latest[idx].id)
@@ -911,7 +919,8 @@ private fun SeriesCarousel(
                         if (mode != 0) {
                             change.consume()
                             val n = latest.size
-                            val next = (pos.value - delta.x / step).coerceIn(-0.35f, (n - 1) + 0.35f)
+                            val next = (cur - delta.x / step).coerceIn(-0.35f, (n - 1) + 0.35f)
+                            cur = next
                             scope.launch { pos.snapTo(next) }
                             if (mode == 2) {
                                 val id = movingNow

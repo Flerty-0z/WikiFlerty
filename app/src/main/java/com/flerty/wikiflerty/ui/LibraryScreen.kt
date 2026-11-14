@@ -150,13 +150,14 @@ private fun manualOrder(books: List<Book>, order: List<String>): List<Book> {
 }
 
 private fun movedOrder(all: List<String>, plank: List<String>, id: String): List<String>? {
-    val i = plank.indexOf(id)
-    if (i < 0 || plank.size < 2) return null
-    val rest = all.filter { it != id }.toMutableList()
-    val at = if (i > 0) rest.indexOf(plank[i - 1]).let { if (it < 0) -1 else it + 1 } else rest.indexOf(plank[1])
-    if (at < 0) return null
-    rest.add(at, id)
-    return rest
+    if (id !in plank || plank.size < 2) return null
+    val members = plank.toSet()
+    val base = all.toMutableList()
+    plank.filter { it !in base }.forEach { base.add(0, it) }
+    val slots = base.indices.filter { base[it] in members }
+    if (slots.size != plank.size) return null
+    slots.forEachIndexed { k, at -> base[at] = plank[k] }
+    return base
 }
 
 private fun sorted(books: List<Book>, prefs: LibraryPrefs): List<Book> {
