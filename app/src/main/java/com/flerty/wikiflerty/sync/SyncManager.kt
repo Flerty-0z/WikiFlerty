@@ -26,6 +26,15 @@ class SyncManager(@Suppress("unused") private val app: App) {
     }
 
     fun settingsChanged() {
+        if (Extras.applying) return
         store.update { it.copy(settingsChangedAt = System.currentTimeMillis()) }
+    }
+
+    fun libraryChanged() {
+        store.update { it.copy(libraryChangedAt = System.currentTimeMillis()) }
+    }
+
+    fun flashcardsChanged() {
+        store.update { it.copy(flashcardsChangedAt = System.currentTimeMillis()) }
     }
 }

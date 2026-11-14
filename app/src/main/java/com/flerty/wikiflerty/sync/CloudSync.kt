@@ -184,7 +184,7 @@ class CloudSync(private val app: App) {
     fun stop() {
         pending?.cancel()
         setCode(null)
-        prefs.edit().remove("seenGens").remove("pushedParts").remove("uploaded").remove("remoteImages").remove("error").remove("devices").apply()
+        prefs.edit().remove("seenGens").remove("pushedParts").remove("uploaded").remove("imageChunks").remove("imageLast").remove("remoteImages").remove("error").remove("devices").apply()
         _status.value = _status.value.copy(error = null, lastReport = null)
         _devices.value = deviceList()
     }
@@ -217,7 +217,7 @@ class CloudSync(private val app: App) {
     private fun setCode(code: String?) {
         if (code != null && code != _status.value.code) prefs.edit().putLong("joinedAt", System.currentTimeMillis()).remove("devices").remove("selfSeen").apply()
         prefs.edit().apply { if (code == null) remove("code") else putString("code", code) }.apply()
-        if (code != _status.value.code) prefs.edit().remove("seenGens").remove("pushedParts").remove("uploaded").remove("remoteImages").apply()
+        if (code != _status.value.code) prefs.edit().remove("seenGens").remove("pushedParts").remove("uploaded").remove("imageChunks").remove("imageLast").remove("remoteImages").apply()
         _status.value = _status.value.copy(code = code)
         _devices.value = deviceList()
     }
@@ -297,6 +297,7 @@ class CloudSync(private val app: App) {
         group("stats", "stats", "achievements", "freezes", "paperSessions")
         group("ai", "aiHistory", "heroes")
         group("settings", "settings")
+        group("library", "library", "flashcards")
         out["images"] = JSONObject().put("images", images)
         out["devices"] = devicesPart()
         return out
@@ -307,6 +308,10 @@ class CloudSync(private val app: App) {
         val local = localImages()
         if (upload) uploadImages(space, key, code, local)
         val images = JSONObject(remoteImages.toString())
+        val chunks = readMap("imageChunks")
+        local.forEach { (k, entry) ->
+            chunks[imageName(code, k, entry.json.optLong("at"))]?.toIntOrNull()?.takeIf { it > 1 }?.let { entry.json.put("n", it) }
+        }
         local.forEach { (k, entry) ->
             val known = images.optJSONObject(k)
             if (known == null || entry.json.optLong("at") >= known.optLong("at")) images.put(k, entry.json)
@@ -440,6 +445,10 @@ class CloudSync(private val app: App) {
                 )
             }
         }
+        val bg = app.style.backgroundImage
+        if (bg.exists()) out["g|bg"] = LocalImage(JSONObject().put("kind", "g").put("fp", "g").put("at", seconds(bg.lastModified())), bg)
+        val video = app.style.backgroundVideo
+        if (video.exists() && video.length() in 1..MAX_VIDEO) out["v|bg"] = LocalImage(JSONObject().put("kind", "v").put("fp", "v").put("at", seconds(video.lastModified())), video)
         val known = app.characters.characters.value.map { it.id }.toSet()
         app.characters.avatars().forEach { (id, file) ->
             if (id !in known) return@forEach
@@ -452,19 +461,49 @@ class CloudSync(private val app: App) {
 
     private fun uploadImages(space: String, key: SecretKeySpec, code: String, local: Map<String, LocalImage>) {
         val done = prefs.getStringSet("uploaded", emptySet()).orEmpty().toMutableSet()
+        val chunks = readMap("imageChunks")
+        val last = readMap("imageLast")
         var changed = false
         local.forEach { (k, img) ->
             val name = imageName(code, k, img.json.optLong("at"))
             if (name in done) return@forEach
-            val bytes = if (img.json.optString("kind") == "c") shrink(img.file) else img.file.readBytes()
-            if (bytes == null) return@forEach
+            val kind = img.json.optString("kind")
+            val bytes = when (kind) {
+                "c" -> shrink(img.file, 600)
+                "g" -> shrink(img.file, 1920)
+                else -> img.file.readBytes()
+            } ?: return@forEach
             val blob = encrypt(bytes, key)
-            if (blob.length >= CHUNK) return@forEach
-            put(space, name, blob, Precondition.None)
+            val big = kind == "g" || kind == "v"
+            if (blob.length >= CHUNK && !big) return@forEach
+            val pieces = blob.chunked(CHUNK)
+            if (pieces.size == 1) put(space, name, blob, Precondition.None) else pieces.forEachIndexed { i, piece -> put(space, "$name-$i", piece, Precondition.None) }
+            if (big) {
+                last[k]?.let { old ->
+                    val oldName = old.substringBefore('|')
+                    val oldN = old.substringAfter('|').toIntOrNull() ?: 1
+                    if (oldName != name) {
+                        if (oldN <= 1) runCatching { delete(space, oldName) } else for (i in 0 until oldN) runCatching { delete(space, "$oldName-$i") }
+                    }
+                }
+                last[k] = "$name|${pieces.size}"
+            }
+            chunks[name] = pieces.size.toString()
             done += name
             changed = true
         }
-        if (changed) prefs.edit().putStringSet("uploaded", done).apply()
+        if (changed) {
+            prefs.edit().putStringSet("uploaded", done).apply()
+            writeMap("imageChunks", chunks)
+            writeMap("imageLast", last)
+        }
+    }
+
+    private fun markKnown(name: String, n: Int) {
+        val done = prefs.getStringSet("uploaded", emptySet()).orEmpty().toMutableSet()
+        done += name
+        prefs.edit().putStringSet("uploaded", done).apply()
+        if (n > 1) writeMap("imageChunks", readMap("imageChunks").also { it[name] = n.toString() })
     }
 
     private suspend fun applyImages(space: String, key: SecretKeySpec, code: String, remote: JSONObject) {
@@ -474,12 +513,29 @@ class CloudSync(private val app: App) {
             val entry = remote.optJSONObject(k) ?: return@forEach
             val fp = entry.optString("fp").ifBlank { return@forEach }
             val at = entry.optLong("at")
+            val n = entry.optInt("n", 1)
+            fun fetch(): ByteArray? = download(space, key, imageName(code, k, at), n)?.also { markKnown(imageName(code, k, at), n) }
             when (entry.optString("kind")) {
+                "g", "v" -> {
+                    if (!app.sync.store.state.value.syncSettings) return@forEach
+                    val file = if (entry.optString("kind") == "g") app.style.backgroundImage else app.style.backgroundVideo
+                    val current = if (file.exists()) seconds(file.lastModified()) else -1L
+                    if (at <= current) return@forEach
+                    val bytes = fetch() ?: return@forEach
+                    val tmp = java.io.File(file.parentFile, file.name + ".part")
+                    tmp.writeBytes(bytes)
+                    if (!tmp.renameTo(file)) {
+                        file.writeBytes(bytes)
+                        tmp.delete()
+                    }
+                    file.setLastModified(at)
+                    app.style.backgroundTick.value++
+                }
                 "c" -> {
                     val book = books.firstOrNull { it.fingerprint == fp } ?: return@forEach
                     val current = app.library.customCover(book)?.let { seconds(it.lastModified()) } ?: -1L
                     if (at <= current) return@forEach
-                    val bytes = download(space, key, imageName(code, k, at)) ?: return@forEach
+                    val bytes = fetch() ?: return@forEach
                     app.library.applyCover(book.id, bytes, at)
                 }
                 "p" -> {
@@ -487,7 +543,7 @@ class CloudSync(private val app: App) {
                     val file = app.characters.avatar(id)
                     val current = if (file.exists()) seconds(file.lastModified()) else -1L
                     if (at <= current) return@forEach
-                    val bytes = download(space, key, imageName(code, k, at)) ?: return@forEach
+                    val bytes = fetch() ?: return@forEach
                     app.characters.applyAvatar(id, bytes, at)
                 }
                 "a" -> {
@@ -497,7 +553,7 @@ class CloudSync(private val app: App) {
                     val file = app.heroes.avatar(bookId, hero.id)
                     val current = if (file.exists()) seconds(file.lastModified()) else -1L
                     if (at <= current) return@forEach
-                    val bytes = download(space, key, imageName(code, k, at)) ?: return@forEach
+                    val bytes = fetch() ?: return@forEach
                     file.writeBytes(bytes)
                     file.setLastModified(at)
                 }
@@ -505,20 +561,26 @@ class CloudSync(private val app: App) {
         }
     }
 
-    private fun download(space: String, key: SecretKeySpec, name: String): ByteArray? {
-        val doc = get(space, name) ?: return null
-        return runCatching { decrypt(doc.blob, key) }.getOrNull()
+    private fun download(space: String, key: SecretKeySpec, name: String, n: Int = 1): ByteArray? {
+        val blob = if (n <= 1) {
+            get(space, name)?.blob ?: return null
+        } else {
+            val text = StringBuilder()
+            for (i in 0 until n) text.append(get(space, "$name-$i")?.blob ?: return null)
+            text.toString()
+        }
+        return runCatching { decrypt(blob, key) }.getOrNull()
     }
 
-    private fun shrink(file: java.io.File): ByteArray? = runCatching {
+    private fun shrink(file: java.io.File, limit: Int): ByteArray? = runCatching {
         val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
         android.graphics.BitmapFactory.decodeFile(file.path, bounds)
         var sample = 1
-        while (bounds.outHeight / (sample * 2) >= 600) sample *= 2
+        while (bounds.outHeight / (sample * 2) >= limit) sample *= 2
         val bitmap = android.graphics.BitmapFactory.decodeFile(file.path, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
             ?: return@runCatching null
-        val scaled = if (bitmap.height > 600) {
-            android.graphics.Bitmap.createScaledBitmap(bitmap, (bitmap.width * 600f / bitmap.height).toInt().coerceAtLeast(1), 600, true)
+        val scaled = if (bitmap.height > limit) {
+            android.graphics.Bitmap.createScaledBitmap(bitmap, (bitmap.width * limit.toFloat() / bitmap.height).toInt().coerceAtLeast(1), limit, true)
         } else {
             bitmap
         }
@@ -639,6 +701,7 @@ class CloudSync(private val app: App) {
         const val ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
         const val LENGTH = 25
         const val CHUNK = 700_000
+        const val MAX_VIDEO = 8L * 1024 * 1024
         const val HEAD = "head"
         const val LEGACY = "all"
         const val KEY = "AIzaSyCu6eR2CIY4EKqllpI8AJ6NfX1urr_klYM"

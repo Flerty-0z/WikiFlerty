@@ -533,6 +533,7 @@ class StyleStore(context: Context) {
 
     val backgroundImage = File(context.filesDir, "ui_background.jpg")
     val backgroundVideo = File(context.filesDir, "ui_background.mp4")
+    val backgroundTick = MutableStateFlow(0)
 
     init {
         val loaded = _style.value

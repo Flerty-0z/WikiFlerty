@@ -37,6 +37,7 @@ fun AppBackground() {
     val style = AppStyle.current
     val app = LocalContext.current.applicationContext as App
     val kind = BackgroundKind.of(style.background)
+    val tick by app.style.backgroundTick.collectAsStateWithLifecycle()
     if (kind == BackgroundKind.None) {
         val decor = AppStyle.decor
         if (decor != Decor.None) {
@@ -53,7 +54,7 @@ fun AppBackground() {
         when (kind) {
             BackgroundKind.Image -> {
                 val file = app.style.backgroundImage
-                val version = file.lastModified()
+                val version = file.lastModified() + tick
                 val bitmap by produceState<ImageBitmap?>(null, version) {
                     value = withContext(Dispatchers.IO) { BitmapFactory.decodeFile(file.path)?.asImageBitmap() }
                 }
@@ -68,7 +69,7 @@ fun AppBackground() {
                     )
                 }
             }
-            BackgroundKind.Video -> LoopingVideo(app.style.backgroundVideo, Modifier.fillMaxSize())
+            BackgroundKind.Video -> androidx.compose.runtime.key(tick) { LoopingVideo(app.style.backgroundVideo, Modifier.fillMaxSize()) }
             BackgroundKind.None -> Unit
         }
         Box(Modifier.fillMaxSize().background(AppColors.Background.copy(alpha = style.backgroundDim)))

@@ -122,6 +122,18 @@ class App : Application() {
         bookmarks.onDeleted = { sync.bookmarkDeleted(it) }
         characters.onDeleted = { sync.characterDeleted(it) }
         readerSettings.onChanged = { sync.settingsChanged() }
+        sync.store.state.value.let { st ->
+            val lib = java.io.File(filesDir, "library_prefs.json")
+            val cards = java.io.File(filesDir, "flashcards.json")
+            if (st.libraryChangedAt == 0L && lib.exists()) sync.store.update { it.copy(libraryChangedAt = lib.lastModified()) }
+            if (st.flashcardsChangedAt == 0L && cards.exists()) sync.store.update { it.copy(flashcardsChangedAt = cards.lastModified()) }
+        }
+        libraryPrefs.onChanged = {
+            sync.libraryChanged()
+            cloud.request(6_000)
+        }
+        flashcards.onChanged = { sync.flashcardsChanged() }
+        com.flerty.wikiflerty.sync.Extras.watch(this) { sync.settingsChanged() }
         style.onChanged = {
             sync.settingsChanged()
             appScope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -185,6 +197,7 @@ class App : Application() {
                 notes.notes.drop(1).map { },
                 characters.characters.drop(1).map { },
                 illustrations.items.drop(1).map { },
+                customToc.items.drop(1).map { },
             ).collect { cloud.request(4_000) }
         }
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {

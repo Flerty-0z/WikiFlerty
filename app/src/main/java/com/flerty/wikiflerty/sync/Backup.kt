@@ -131,7 +131,14 @@ object Backup {
                 put("reader", app.readerSettings.saved.toJson())
                 put("style", app.style.style.value.toJson())
                 put("ai", app.ai.settings.value.toJson())
+                put("extra", Extras.snapshot(app))
             })
+            put("library", JSONObject().apply {
+                val prefs = app.libraryPrefs.prefs.value
+                put("changedAt", state.libraryChangedAt)
+                put("prefs", prefs.toJson().put("bookOrder", JSONArray(prefs.bookOrder.mapNotNull { ref(it) }.distinct())))
+            })
+            put("flashcards", JSONObject().put("changedAt", state.flashcardsChangedAt).put("prefs", app.flashcards.prefs.value.toJson()))
         }
     }
 
@@ -288,7 +295,42 @@ object Backup {
             remoteSettings.optJSONObject("reader")?.let { app.readerSettings.replace(ReaderSettings.fromJson(it)) }
             remoteSettings.optJSONObject("style")?.let { app.style.replace(UiStyle.fromJson(it)) }
             remoteSettings.optJSONObject("ai")?.let { app.ai.store.replace(AiSettings.fromJson(it)) }
+            remoteSettings.optJSONObject("extra")?.let { Extras.apply(app, it) }
             settingsApplied = true
+        }
+
+        val remoteLibrary = remote.optJSONObject("library")
+        val libraryAt = remoteLibrary?.optLong("changedAt") ?: 0L
+        val libraryApplied = remoteLibrary != null && libraryAt > state.libraryChangedAt
+        if (libraryApplied) {
+            remoteLibrary?.optJSONObject("prefs")?.let { j ->
+                val incoming = com.flerty.wikiflerty.data.LibraryPrefs.fromJson(j)
+                val order = incoming.bookOrder.map { fp -> idByFp[fp] ?: (FOREIGN + fp) }
+                app.libraryPrefs.replace { incoming.copy(bookOrder = order) }
+            }
+        }
+
+        val remoteCards = remote.optJSONObject("flashcards")
+        val cardsAt = remoteCards?.optLong("changedAt") ?: 0L
+        remoteCards?.optJSONObject("prefs")?.let { j ->
+            val other = com.flerty.wikiflerty.data.FlashcardPrefs.fromJson(j)
+            val newer = cardsAt > state.flashcardsChangedAt
+            app.flashcards.replace { mine ->
+                val days = mine.history.keys + other.history.keys
+                val history = days.associateWith { d ->
+                    val a = mine.history[d]
+                    val b = other.history[d]
+                    when {
+                        a == null -> b!!
+                        b == null -> a
+                        else -> if (b.first > a.first) b else a
+                    }
+                }.entries.sortedByDescending { it.key }.take(400).associate { it.key to it.value }
+                val base = if (newer) mine.copy(newPerDay = other.newPerDay, direction = other.direction, autoSpeak = other.autoSpeak) else mine
+                val day = maxOf(mine.newDay, other.newDay)
+                val count = maxOf(if (mine.newDay == day) mine.newCount else 0, if (other.newDay == day) other.newCount else 0)
+                base.copy(history = history, newDay = day, newCount = count)
+            }
         }
 
         app.sync.store.update {
@@ -299,6 +341,8 @@ object Backup {
                 deletedCharacters = deletedCharacters,
                 foreignBooks = foreign.values.toList(),
                 settingsChangedAt = if (settingsApplied) remoteChangedAt else it.settingsChangedAt,
+                libraryChangedAt = if (libraryApplied) libraryAt else it.libraryChangedAt,
+                flashcardsChangedAt = maxOf(it.flashcardsChangedAt, cardsAt),
             )
         }
         return MergeReport(notesChanged, wordsChanged, progressChanged, settingsApplied, marksChanged, chatsChanged)
@@ -313,6 +357,7 @@ object Backup {
         app.dictionary.remapBook(FOREIGN + fp, book.id)
         app.aiHistory.rename(FOREIGN + fp, book.id)
         app.heroes.rename(FOREIGN + fp, book.id)
+        app.libraryPrefs.replace { p -> if (FOREIGN + fp in p.bookOrder) p.copy(bookOrder = p.bookOrder.map { if (it == FOREIGN + fp) book.id else it }) else p }
         val foreign = app.sync.store.state.value.foreignBooks.firstOrNull { it.fingerprint == fp } ?: return
         app.library.applyProgress(book.id, foreign.locatorJson, foreign.progress, foreign.lastReadAt)
         foreign.meta?.let { app.library.applyMeta(book.id, JSONObject(it)) }

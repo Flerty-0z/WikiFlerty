@@ -104,12 +104,23 @@ class LibraryPrefsStore(context: Context) {
     private val _prefs = MutableStateFlow(load())
     val prefs: StateFlow<LibraryPrefs> = _prefs.asStateFlow()
 
+    var onChanged: (() -> Unit)? = null
+
     @Synchronized
     fun update(transform: (LibraryPrefs) -> LibraryPrefs) {
-        val updated = transform(_prefs.value)
-        if (updated == _prefs.value) return
+        if (write(transform(_prefs.value))) onChanged?.invoke()
+    }
+
+    @Synchronized
+    fun replace(transform: (LibraryPrefs) -> LibraryPrefs) {
+        write(transform(_prefs.value))
+    }
+
+    private fun write(updated: LibraryPrefs): Boolean {
+        if (updated == _prefs.value) return false
         _prefs.value = updated
         runCatching { file.writeText(updated.toJson().toString()) }
+        return true
     }
 
     private fun load(): LibraryPrefs = runCatching {

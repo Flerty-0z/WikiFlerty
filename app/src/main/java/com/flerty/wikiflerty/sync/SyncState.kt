@@ -43,6 +43,8 @@ data class ForeignBook(
 data class SyncState(
     val syncSettings: Boolean = true,
     val settingsChangedAt: Long = 0,
+    val libraryChangedAt: Long = 0,
+    val flashcardsChangedAt: Long = 0,
     val deletedNotes: Map<String, Long> = emptyMap(),
     val deletedWords: Map<String, Long> = emptyMap(),
     val deletedBookmarks: Map<String, Long> = emptyMap(),
@@ -53,6 +55,8 @@ data class SyncState(
         put("version", 1)
         put("syncSettings", syncSettings)
         put("settingsChangedAt", settingsChangedAt)
+        put("libraryChangedAt", libraryChangedAt)
+        put("flashcardsChangedAt", flashcardsChangedAt)
         put("deletedNotes", JSONObject(deletedNotes))
         put("deletedWords", JSONObject(deletedWords))
         put("deletedBookmarks", JSONObject(deletedBookmarks))
@@ -64,6 +68,8 @@ data class SyncState(
         fun fromJson(j: JSONObject) = SyncState(
             syncSettings = j.optBoolean("syncSettings", true),
             settingsChangedAt = j.optLong("settingsChangedAt"),
+            libraryChangedAt = j.optLong("libraryChangedAt"),
+            flashcardsChangedAt = j.optLong("flashcardsChangedAt"),
             deletedNotes = j.optJSONObject("deletedNotes").toLongMap(),
             deletedWords = j.optJSONObject("deletedWords").toLongMap(),
             deletedBookmarks = j.optJSONObject("deletedBookmarks").toLongMap(),

@@ -174,12 +174,23 @@ class FlashcardStore(context: Context) {
     private val _prefs = MutableStateFlow(load())
     val prefs: StateFlow<FlashcardPrefs> = _prefs.asStateFlow()
 
+    var onChanged: (() -> Unit)? = null
+
     @Synchronized
     fun update(transform: (FlashcardPrefs) -> FlashcardPrefs) {
-        val updated = transform(_prefs.value)
-        if (updated == _prefs.value) return
+        if (write(transform(_prefs.value))) onChanged?.invoke()
+    }
+
+    @Synchronized
+    fun replace(transform: (FlashcardPrefs) -> FlashcardPrefs) {
+        write(transform(_prefs.value))
+    }
+
+    private fun write(updated: FlashcardPrefs): Boolean {
+        if (updated == _prefs.value) return false
         _prefs.value = updated
         runCatching { file.writeText(updated.toJson().toString()) }
+        return true
     }
 
     fun recordAnswer(correct: Boolean, wasNew: Boolean) = update { p ->
