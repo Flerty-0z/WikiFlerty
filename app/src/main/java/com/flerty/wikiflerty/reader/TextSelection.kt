@@ -295,6 +295,9 @@ internal object TextSelection {
           function hide() { send("0:0:0"); }
           window.__wfFeed = function (enabled, hasPrev, hasNext) {
             on = !!enabled; prev = !!hasPrev; next = !!hasNext;
+            var was = window.__wfScrollOn;
+            window.__wfScrollOn = on;
+            if (was !== on && window.__wfPeoplePlace) window.__wfPeoplePlace();
             var old = document.getElementById("wf-feed");
             if (old) old.remove();
             if (!on) { reset(); hide(); }
@@ -471,8 +474,9 @@ internal object TextSelection {
             sizes = new Map();
             var frag = document.createDocumentFragment();
             var vw = window.innerWidth || 1, vh = window.innerHeight || 1;
+            if (window.screen && screen.height > 0) vh = Math.min(vh, screen.height);
             var root = document.scrollingElement || document.documentElement;
-            var paged = root.scrollWidth > vw + 4;
+            var paged = window.__wfScrollOn === true ? false : window.__wfScrollOn === false ? true : (root.scrollWidth > vw + 4 && root.scrollHeight <= (window.innerHeight || 1) + 4);
             var seen = {};
             for (var i = 0; i < hits.length; i++) {
               hits[i].flag = null;
@@ -503,6 +507,7 @@ internal object TextSelection {
             if (pending) clearTimeout(pending);
             pending = setTimeout(function () { pending = 0; requestAnimationFrame(place); }, 140);
           }
+          window.__wfPeoplePlace = later;
           window.addEventListener("resize", later);
           try { new MutationObserver(later).observe(document.documentElement, { attributes: true, attributeFilter: ["style", "class"] }); } catch (x) {}
           try { if (window.ResizeObserver && document.body) new ResizeObserver(later).observe(document.body); } catch (x) {}
