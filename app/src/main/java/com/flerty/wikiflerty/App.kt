@@ -210,8 +210,8 @@ class App : Application() {
                     ticker?.cancel()
                     ticker = appScope.launch {
                         while (true) {
-                            kotlinx.coroutines.delay(4 * 60_000L)
-                            cloud.request(0)
+                            kotlinx.coroutines.delay(10 * 60_000L)
+                            cloud.request(0, periodic = true)
                         }
                     }
                 }

@@ -203,8 +203,12 @@ class CloudSync(private val app: App) {
         }.also { if (it.isSuccess) stop() }
     }
 
-    fun request(delayMs: Long = 1500) {
+    @Volatile
+    private var wantPush = false
+
+    fun request(delayMs: Long = 1500, periodic: Boolean = false) {
         if (!_status.value.enabled) return
+        if (!periodic) wantPush = true
         if (pending?.isActive == true) return
         pending = app.appScope.launch {
             delay(delayMs)
@@ -212,7 +216,10 @@ class CloudSync(private val app: App) {
         }
     }
 
-    suspend fun syncNow(): Result<MergeReport> = runSync(requireExisting = false)
+    suspend fun syncNow(): Result<MergeReport> {
+        wantPush = true
+        return runSync(requireExisting = false)
+    }
 
     private fun setCode(code: String?) {
         if (code != null && code != _status.value.code) prefs.edit().putLong("joinedAt", System.currentTimeMillis()).remove("devices").remove("selfSeen").apply()
@@ -225,7 +232,9 @@ class CloudSync(private val app: App) {
     private suspend fun runSync(requireExisting: Boolean): Result<MergeReport> = withContext(Dispatchers.IO) {
         val code = _status.value.code ?: return@withContext Result.failure(IllegalStateException("Синхронизация выключена"))
         _status.value = _status.value.copy(running = true)
-        val result = runCatching { mutex.withLock { exchange(code, requireExisting) } }
+        val push = wantPush || requireExisting || System.currentTimeMillis() - prefs.getLong("lastPush", 0) >= PUSH_EVERY
+        wantPush = false
+        val result = runCatching { mutex.withLock { exchange(code, requireExisting, push) } }
         val now = System.currentTimeMillis()
         val error = result.exceptionOrNull()?.let { describe(it) }
         if (error == null) prefs.edit().putLong("lastSync", now).remove("error").apply() else prefs.edit().putString("error", error).apply()
@@ -324,7 +333,7 @@ class CloudSync(private val app: App) {
 
     private fun hashes(parts: Map<String, JSONObject>) = parts.mapValues { hex(sha("part", it.value.toString())) }
 
-    private suspend fun exchange(code: String, requireExisting: Boolean): MergeReport {
+    private suspend fun exchange(code: String, requireExisting: Boolean, push: Boolean): MergeReport {
         val space = space(code)
         val key = key(code)
         var report = MergeReport()
@@ -378,35 +387,53 @@ class CloudSync(private val app: App) {
                 applyImages(space, key, code, runCatching { JSONObject(prefs.getString("remoteImages", null) ?: "{}") }.getOrElse { JSONObject() })
             }
 
+            if (!push && head != null && LEGACY !in remote) return report
             val parts = localParts(code, space, key, upload = true)
             val now = hashes(parts)
             val changed = parts.keys.filter { name -> now[name] != pushed[name] || remote[name] == null }
             if (changed.isEmpty() && LEGACY !in remote) {
                 parts["images"]?.optJSONObject("images")?.let { prefs.edit().putString("remoteImages", it.toString()).apply() }
+                prefs.edit().putLong("lastPush", System.currentTimeMillis()).apply()
                 return report
             }
 
             val next = remote.filterKeys { it != LEGACY }.toMutableMap()
             val written = mutableListOf<Pair<String, PartRef>>()
+            val pieces = mutableListOf<Pair<String, String>>()
             changed.forEach { name ->
                 val blob = pack(parts.getValue(name).toString(), key)
                 val gen = java.lang.Long.toString(System.currentTimeMillis(), 36) + (1000 + SecureRandom().nextInt(9000))
                 val chunks = blob.chunked(CHUNK)
-                chunks.forEachIndexed { i, c -> put(space, chunk(gen, i), c, Precondition.None) }
+                chunks.forEachIndexed { i, c -> pieces += chunk(gen, i) to c }
                 val ref = PartRef(gen, chunks.size)
                 next[name] = ref
                 written += name to ref
             }
             next.keys.retainAll(parts.keys)
-            try {
-                put(space, HEAD, headJson(next), if (head == null) Precondition.Missing else Precondition.At(head.time))
-            } catch (e: Conflict) {
-                written.forEach { (_, ref) -> for (i in 0 until ref.n) runCatching { delete(space, chunk(ref.gen, i)) } }
-                return@repeat
+            val stale = remote.flatMap { (name, old) ->
+                if (next[name]?.gen != old.gen) (0 until old.n).map { chunk(old.gen, it) } else emptyList()
             }
-            remote.forEach { (name, old) ->
-                if (next[name]?.gen != old.gen) for (i in 0 until old.n) runCatching { delete(space, chunk(old.gen, i)) }
+            val headCondition = if (head == null) Precondition.Missing else Precondition.At(head.time)
+            if (pieces.sumOf { it.second.length } < BATCH) {
+                val writes = pieces.map { (part, blob) -> writeOf(space, part, blob, Precondition.None) } +
+                    writeOf(space, HEAD, headJson(next), headCondition) +
+                    stale.map { deleteOf(space, it) }
+                try {
+                    commit(writes, conditional = true)
+                } catch (e: Conflict) {
+                    return@repeat
+                }
+            } else {
+                pieces.forEach { (part, blob) -> put(space, part, blob, Precondition.None) }
+                try {
+                    put(space, HEAD, headJson(next), headCondition)
+                } catch (e: Conflict) {
+                    written.forEach { (_, ref) -> for (i in 0 until ref.n) runCatching { delete(space, chunk(ref.gen, i)) } }
+                    return@repeat
+                }
+                stale.forEach { runCatching { delete(space, it) } }
             }
+            prefs.edit().putLong("lastPush", System.currentTimeMillis()).apply()
             written.forEach { (name, ref) ->
                 pushed[name] = now.getValue(name)
                 seen[name] = ref.gen
@@ -642,7 +669,7 @@ class CloudSync(private val app: App) {
         return Doc(blob, json.optString("updateTime"))
     }
 
-    private fun put(space: String, part: String, blob: String, condition: Precondition): String {
+    private fun writeOf(space: String, part: String, blob: String, condition: Precondition): JSONObject {
         val write = JSONObject()
             .put(
                 "update",
@@ -660,15 +687,21 @@ class CloudSync(private val app: App) {
             Precondition.Missing -> write.put("currentDocument", JSONObject().put("exists", false))
             is Precondition.At -> write.put("currentDocument", JSONObject().put("updateTime", condition.time))
         }
-        val body = JSONObject().put("writes", org.json.JSONArray().put(write)).toString()
+        return write
+    }
+
+    private fun deleteOf(space: String, part: String): JSONObject = JSONObject().put("delete", "$NAME$space/parts/$part")
+
+    private fun commit(writes: List<JSONObject>, conditional: Boolean) {
+        val body = JSONObject().put("writes", org.json.JSONArray().apply { writes.forEach { put(it) } }).toString()
         val r = call("POST", "$COMMIT?key=$KEY", body)
-        if (r.code in 200..299) {
-            val json = JSONObject(r.body)
-            return json.optJSONArray("writeResults")?.optJSONObject(0)?.optString("updateTime")?.takeIf { it.isNotEmpty() }
-                ?: json.optString("commitTime")
-        }
-        if (condition != Precondition.None && (r.code == 409 || r.code == 412 || r.code == 404 || (r.code == 400 && r.body.contains("FAILED_PRECONDITION")))) throw Conflict()
+        if (r.code in 200..299) return
+        if (conditional && (r.code == 409 || r.code == 412 || r.code == 404 || (r.code == 400 && r.body.contains("FAILED_PRECONDITION")))) throw Conflict()
         throw IOException("HTTP ${r.code}")
+    }
+
+    private fun put(space: String, part: String, blob: String, condition: Precondition) {
+        commit(listOf(writeOf(space, part, blob, condition)), conditional = condition != Precondition.None)
     }
 
     private fun delete(space: String, part: String) {
@@ -702,6 +735,8 @@ class CloudSync(private val app: App) {
         const val LENGTH = 25
         const val CHUNK = 700_000
         const val MAX_VIDEO = 8L * 1024 * 1024
+        const val BATCH = 6_000_000
+        const val PUSH_EVERY = 15 * 60_000L
         const val HEAD = "head"
         const val LEGACY = "all"
         const val KEY = "AIzaSyCu6eR2CIY4EKqllpI8AJ6NfX1urr_klYM"
