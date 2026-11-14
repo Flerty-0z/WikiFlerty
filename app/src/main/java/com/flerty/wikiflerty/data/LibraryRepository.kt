@@ -442,6 +442,14 @@ class LibraryRepository(
         b.copy(series = b.series.filterNot { it.name.equals(name, true) })
     }
 
+    suspend fun reorderSeries(name: String, ids: List<String>) {
+        ids.forEachIndexed { i, id ->
+            editMeta(id) { b ->
+                b.copy(series = b.series.map { if (it.name.equals(name, true)) it.copy(number = (i + 1).toDouble()) else it })
+            }
+        }
+    }
+
     suspend fun addToSeries(bookId: String, name: String, number: Double?) = editMeta(bookId) { b ->
         b.copy(series = b.series.filterNot { it.name.equals(name, true) } + BookSeries(name, number))
     }

@@ -12,6 +12,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -398,22 +401,10 @@ private fun SeriesEditRow(draft: SeriesDraft, onClick: () -> Unit) {
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(draft.name.ifBlank { "Без названия" }, color = if (draft.name.isBlank()) AppColors.Faint else AppColors.Text, fontSize = 14.5.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(partLabel(draft.number)?.let { "Часть $it" } ?: "Без номера", color = AppColors.Muted, fontSize = 12.sp, maxLines = 1)
+            partLabel(draft.number)?.let { Text("Том $it", color = AppColors.Muted, fontSize = 12.sp, maxLines = 1) }
         }
         Icon(AppIcons.Pencil, null, tint = AppColors.Faint, modifier = Modifier.size(15.dp))
     }
-}
-
-@Composable
-private fun StepButton(icon: ImageVector, description: String, enabled: Boolean, onClick: () -> Unit) {
-    val shape = appCorner(12)
-    Box(
-        Modifier
-            .size(40.dp)
-            .liveClick(shape, sound = FeedbackSound.Tick, pressedScale = 0.86f, enabled = enabled, onClick = onClick)
-            .border(1.dp, if (enabled) AppColors.Accent.copy(alpha = 0.4f) else AppColors.PanelBorder, shape),
-        contentAlignment = Alignment.Center,
-    ) { Icon(icon, description, tint = if (enabled) AppColors.Accent else AppColors.Faint, modifier = Modifier.size(18.dp)) }
 }
 
 @Composable
@@ -431,9 +422,6 @@ private fun SeriesEditSheet(draft: SeriesDraft, onRemove: () -> Unit, onDismiss:
                     others.forEach { n -> TagChip(n, AppIcons.Series) { draft.name = n } }
                 }
             }
-        }
-        PartStepper(draft.number.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }) { v ->
-            draft.number = v?.let { BookSeries("", it).numberLabel.orEmpty() }.orEmpty()
         }
         AppButton("Готово", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true) { close() }
         DeleteRow("Убрать серию") {
@@ -470,7 +458,13 @@ fun BookDetailsSheet(book: Book, onDismiss: () -> Unit) {
         keys.forEach { k -> PaperField(values[k].orEmpty(), BookFacts.title(k), icons.getValue(k)) { field = k } }
         AppButton("Сохранить", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true) {
             val facts = keys.associateWith { values[it].orEmpty() }
-            val list = series.filter { it.name.isNotBlank() }.map { BookSeries(it.name.trim(), it.number.replace(',', '.').toDoubleOrNull()?.takeIf { n -> n > 0 }) }
+            val all = app.library.books.value
+            val list = series.filter { it.name.isNotBlank() }.map { d ->
+                val n = d.name.trim()
+                val own = book.series.firstOrNull { it.name.equals(n, true) }?.number
+                val next = all.filter { it.id != book.id }.mapNotNull { b -> b.series.firstOrNull { it.name.equals(n, true) }?.number }.maxOrNull()?.let { kotlin.math.floor(it) + 1 }
+                BookSeries(n, own ?: next)
+            }
             app.appScope.launch { app.library.editDetails(book.id, facts, list) }
             close()
         }
@@ -643,255 +637,333 @@ fun BookTagsSheet(book: Book, onDismiss: () -> Unit) {
 }
 
 @Composable
-fun SeriesSheet(name: String, currentId: String?, onOpenBook: ((Book) -> Unit)?, onDismiss: () -> Unit) {
+fun SeriesSheet(name: String, currentId: String?, onOpenBook: ((Book) -> Unit)?, onRead: ((Book) -> Unit)? = null, onDismiss: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
     val books by app.library.books.collectAsStateWithLifecycle()
     val items = remember(books, name) {
         books.mapNotNull { b -> b.series.firstOrNull { it.name.equals(name, true) }?.let { b to it.number } }
             .sortedWith(compareBy<Pair<Book, Double?>> { it.second ?: Double.MAX_VALUE }.thenBy { it.first.title })
+            .map { it.first }
     }
-    val missing = remember(items) {
-        val numbers = items.mapNotNull { it.second }.filter { it == Math.floor(it) && it in 1.0..60.0 }.map { it.toInt() }.toSet()
-        if (numbers.size < 2) emptyList() else (1..numbers.max()).filter { it !in numbers }
+    val byId = remember(items) { items.associateBy { it.id } }
+    var order by remember { mutableStateOf(items.map { it.id }) }
+    var moving by remember { mutableStateOf<String?>(null) }
+    androidx.compose.runtime.LaunchedEffect(items) {
+        if (moving == null) order = items.map { it.id }
     }
-    val done = items.count { it.first.status == ReadStatus.Finished }
+    val shown = order.mapNotNull { byId[it] }
+    val done = items.count { it.status == ReadStatus.Finished }
     val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
     val pinned = prefs.seriesShelves.any { it.equals(name, true) }
     var adding by remember { mutableStateOf(false) }
-    var editing by remember { mutableStateOf<Pair<Book, Double?>?>(null) }
+    var removing by remember { mutableStateOf<Book?>(null) }
+    val start = remember { items.indexOfFirst { it.id == currentId }.takeIf { it >= 0 } ?: items.indexOfFirst { it.status == ReadStatus.Reading }.takeIf { it >= 0 } ?: items.indexOfFirst { it.status != ReadStatus.Finished }.coerceAtLeast(0) }
+    val pos = remember { androidx.compose.animation.core.Animatable(start.toFloat()) }
+    val center = shown.getOrNull(kotlin.math.round(pos.value).toInt().coerceIn(0, (shown.size - 1).coerceAtLeast(0)))
     AppSheet(onDismiss, title = "Серия") {
         val close = sheetClose(onDismiss)
-        Column(Modifier.fillMaxWidth().sheetReveal().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(name, color = AppColors.Text, fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("прочитано $done из ${items.size}", color = AppColors.Muted, fontSize = 12.5.sp, maxLines = 1)
-                val part by androidx.compose.animation.core.animateFloatAsState(if (items.isEmpty()) 0f else done.toFloat() / items.size, Motion.tween(600), label = "series-part")
-                Box(Modifier.weight(1f).height(4.dp).clip(appCorner(2)).background(AppColors.Line)) {
-                    Box(Modifier.fillMaxWidth(part).height(4.dp).background(if (done == items.size && items.isNotEmpty()) AppColors.Good else AppColors.Accent))
-                }
-            }
+        Column(Modifier.fillMaxWidth().sheetReveal(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(name, color = AppColors.Text, fontSize = 20.sp, lineHeight = 25.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text("${items.size} ${seriesBooksWord(items.size)} · прочитано $done", color = AppColors.Muted, fontSize = 12.5.sp, maxLines = 1)
         }
-        SettingsGroup(null) {
-            SettingSwitch("Полка в шкафу", pinned, hint = null, icon = AppIcons.Shelf) { v ->
-                app.libraryPrefs.update { p ->
-                    p.copy(seriesShelves = if (v) (p.seriesShelves + name).distinctBy { it.lowercase() } else p.seriesShelves.filterNot { it.equals(name, true) })
-                }
-            }
-        }
-        val line = AppColors.Line
-        Column(Modifier.fillMaxWidth()) {
-            items.forEachIndexed { i, (b, number) ->
-                val shape = appCorner(16)
-                val current = b.id == currentId
-                val finished = b.status == ReadStatus.Finished
-                val reading = b.status == ReadStatus.Reading
-                val first = i == 0
-                val last = false
-                Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min).sheetReveal()) {
-                    Box(
-                        Modifier
-                            .width(40.dp)
-                            .fillMaxHeight()
-                            .drawBehind {
-                                val x = size.width / 2f
-                                val dash = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 5.dp.toPx()))
-                                val top = if (first) size.height / 2f else 0f
-                                val bottom = if (last) size.height / 2f else size.height
-                                drawLine(line, Offset(x, top), Offset(x, bottom), strokeWidth = 2.dp.toPx(), pathEffect = dash)
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        val fill = when {
-                            finished -> AppColors.Good
-                            reading || current -> AppColors.Accent
-                            else -> AppColors.Panel
-                        }
-                        val edge = when {
-                            finished -> AppColors.Good
-                            reading || current -> AppColors.Accent
-                            else -> AppColors.PanelBorder
-                        }
-                        Box(
-                            Modifier.size(30.dp).clip(CircleShape).background(fill).border(2.dp, edge, CircleShape),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            if (finished) {
-                                Icon(AppIcons.Check, null, tint = AppColors.OnAccent, modifier = Modifier.size(15.dp))
-                            } else {
-                                Text(
-                                    number?.let { BookSeries(name, it).numberLabel }.orEmpty().ifEmpty { "${i + 1}" },
-                                    color = if (reading || current) AppColors.OnAccent else AppColors.Muted,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                )
-                            }
-                        }
-                    }
-                    Row(
-                        Modifier
-                            .weight(1f)
-                            .padding(start = 6.dp, top = 5.dp, bottom = 5.dp)
-                            .liveClick(
-                                shape,
-                                sound = FeedbackSound.Open,
-                                pressedScale = 0.98f,
-                                onLongClick = { editing = b to number },
-                            ) {
-                                if (onOpenBook != null && !current) {
-                                    close()
-                                    onOpenBook(b)
-                                } else {
-                                    editing = b to number
-                                }
-                            }
-                            .fieldSurface(shape, selected = current)
-                            .padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        SmallCover(app.library.coverFile(b), Modifier.size(width = 38.dp, height = 57.dp), title = b.title, author = b.author)
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(b.title, color = AppColors.Text, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        if (shown.isEmpty()) {
+            EmptyNote(AppIcons.Series, "В серии пока нет книг", "")
+        } else {
+            SeriesCarousel(
+                shown,
+                pos,
+                moving,
+                onMoveStart = { id -> moving = id },
+                onMove = { id, to ->
+                    val from = order.indexOf(id)
+                    if (from >= 0 && to != from) order = order.toMutableList().apply { removeAt(from); add(to.coerceIn(0, size), id) }
+                },
+                onMoveEnd = {
+                    moving = null
+                    val ids = order
+                    if (ids != items.map { it.id }) app.appScope.launch { app.library.reorderSeries(name, ids) }
+                },
+            )
+            val last = remember { arrayOfNulls<Book>(1) }
+            if (center != null) last[0] = center
+            last[0]?.let { b ->
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AnimatedContent(
+                        b.id,
+                        transitionSpec = { fadeIn(Motion.fade(220)) togetherWith fadeOut(Motion.fade(140)) },
+                        label = "series-title",
+                    ) { id ->
+                        val book = byId[id] ?: b
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(book.title, color = AppColors.Text, fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 12.dp))
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                StatusPill(b.status, small = true, framed = true)
-                                if (reading && b.progress > 0) {
-                                    Text("${(b.progress * 100).toInt()}%", color = AppColors.Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                StatusPill(book.status, small = true, framed = true)
+                                if (book.status == ReadStatus.Reading && book.progress > 0) {
+                                    Text("${(book.progress * 100).toInt()}%", color = AppColors.Muted, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                                 }
+                            }
+                        }
+                    }
+                    SeriesDots(shown, kotlin.math.round(pos.value).toInt())
+                }
+                Box(Modifier.fillMaxWidth().height(48.dp)) {
+                    androidx.compose.animation.AnimatedContent(
+                        moving != null,
+                        transitionSpec = { fadeIn(Motion.fade(220)) togetherWith fadeOut(Motion.fade(140)) },
+                        label = "series-actions",
+                    ) { move ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            if (move) {
+                                Box(Modifier.weight(1f).height(48.dp).fieldSurface(appCorner(14)), contentAlignment = Alignment.Center) {
+                                    Text("Листай, чтобы переставить", color = AppColors.Muted, fontSize = 13.sp, maxLines = 1)
+                                }
+                            } else {
+                                val read = onRead?.takeIf { !b.paper } ?: onOpenBook?.takeIf { b.id != currentId }
+                                if (read != null) {
+                                    AppButton(if (onRead != null && !b.paper) "Читать" else "Открыть", primary = true, modifier = Modifier.weight(1f).height(48.dp), labeled = true) {
+                                        close()
+                                        read(b)
+                                    }
+                                } else {
+                                    Box(Modifier.weight(1f))
+                                }
+                                SeriesIconButton(AppIcons.Plus, "Добавить книгу", false) { adding = true }
+                                SeriesIconButton(AppIcons.Shelf, "Полка в шкафу", pinned) {
+                                    app.libraryPrefs.update { p ->
+                                        p.copy(seriesShelves = if (!pinned) (p.seriesShelves + name).distinctBy { it.lowercase() } else p.seriesShelves.filterNot { it.equals(name, true) })
+                                    }
+                                }
+                                SeriesIconButton(AppIcons.Trash, "Убрать из серии", false) { removing = b }
                             }
                         }
                     }
                 }
             }
-            val accent = AppColors.Accent
-            Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min).sheetReveal()) {
+            Text("Зажми обложку, чтобы поменять порядок", color = AppColors.Faint, fontSize = 11.5.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        }
+        removing?.let { b ->
+            ConfirmSheet(
+                title = "Убрать из серии?",
+                text = "«${b.title}» останется в библиотеке.",
+                confirm = "Убрать",
+                onConfirm = { app.appScope.launch { app.library.removeFromSeries(b.id, name) } },
+                onDismiss = { removing = null },
+            )
+        }
+        if (adding) {
+            val next = (books.mapNotNull { bk -> bk.series.firstOrNull { it.name.equals(name, true) }?.number }.maxOrNull() ?: items.size.toDouble()).let { kotlin.math.floor(it) + 1 }
+            SeriesAddSheet(name, next, items.map { it.id }.toSet()) { adding = false }
+        }
+    }
+}
+
+private fun seriesBooksWord(n: Int): String {
+    val m10 = n % 10
+    val m100 = n % 100
+    return when {
+        m10 == 1 && m100 != 11 -> "книга"
+        m10 in 2..4 && m100 !in 12..14 -> "книги"
+        else -> "книг"
+    }
+}
+
+@Composable
+private fun SeriesIconButton(icon: ImageVector, description: String, active: Boolean, onClick: () -> Unit) {
+    val shape = appCorner(14)
+    val edge by androidx.compose.animation.animateColorAsState(if (active) AppColors.Accent.copy(alpha = 0.6f) else AppColors.PanelBorder, Motion.fade(200), label = "series-btn-edge")
+    val tint by androidx.compose.animation.animateColorAsState(if (active) AppColors.Accent else AppColors.Text, Motion.fade(200), label = "series-btn-tint")
+    Box(
+        Modifier
+            .size(48.dp)
+            .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.9f, onClick = onClick)
+            .fieldSurface(shape, selected = active)
+            .border(1.dp, edge, shape),
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, description, tint = tint, modifier = Modifier.size(19.dp)) }
+}
+
+@Composable
+private fun SeriesDots(books: List<Book>, index: Int) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        books.forEachIndexed { i, b ->
+            val on = i == index
+            val width by androidx.compose.animation.core.animateDpAsState(if (on) 20.dp else 8.dp, Motion.tween(260), label = "series-dot")
+            val color = when {
+                b.status == ReadStatus.Finished -> AppColors.Good
+                b.status == ReadStatus.Reading -> AppColors.Accent
+                on -> AppColors.Muted
+                else -> AppColors.Line
+            }
+            val c by androidx.compose.animation.animateColorAsState(if (on && b.status != ReadStatus.Finished) AppColors.Accent else color, Motion.fade(220), label = "series-dot-color")
+            Box(Modifier.width(width).height(8.dp).clip(CircleShape).background(c))
+        }
+    }
+}
+
+@Composable
+private fun SeriesCarousel(
+    books: List<Book>,
+    pos: androidx.compose.animation.core.Animatable<Float, androidx.compose.animation.core.AnimationVector1D>,
+    moving: String?,
+    onMoveStart: (String) -> Unit,
+    onMove: (String, Int) -> Unit,
+    onMoveEnd: () -> Unit,
+) {
+    val app = LocalContext.current.applicationContext as App
+    val scope = rememberCoroutineScope()
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val feedback = LocalFeedback.current
+    val coverW = 156.dp
+    val coverH = 234.dp
+    val step = with(density) { 150.dp.toPx() }
+    val count = books.size
+    val latest by androidx.compose.runtime.rememberUpdatedState(books)
+    val movingNow by androidx.compose.runtime.rememberUpdatedState(moving)
+    val slots = remember { HashMap<String, androidx.compose.animation.core.Animatable<Float, androidx.compose.animation.core.AnimationVector1D>>() }
+    books.forEachIndexed { i, b ->
+        val a = slots.getOrPut(b.id) { androidx.compose.animation.core.Animatable(i.toFloat()) }
+        androidx.compose.runtime.LaunchedEffect(b.id, i) {
+            if (a.targetValue != i.toFloat()) a.animateTo(i.toFloat(), androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 420f))
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(count) {
+        if (pos.value > count - 1) pos.snapTo((count - 1).coerceAtLeast(0).toFloat())
+    }
+    val lift = remember { androidx.compose.animation.core.Animatable(0f) }
+    androidx.compose.runtime.LaunchedEffect(moving) {
+        lift.animateTo(if (moving != null) 1f else 0f, androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 420f))
+    }
+    var lastTick by remember { androidx.compose.runtime.mutableIntStateOf(kotlin.math.round(pos.value).toInt()) }
+    val tick = kotlin.math.round(pos.value).toInt()
+    if (tick != lastTick) {
+        lastTick = tick
+        androidx.compose.runtime.SideEffect { feedback?.play(FeedbackSound.Tick) }
+    }
+    fun settle(velocity: Float) {
+        val n = latest.size
+        val target = (pos.value - velocity / step * 0.18f).let { kotlin.math.round(it) }.coerceIn(0f, (n - 1).coerceAtLeast(0).toFloat())
+        scope.launch { pos.animateTo(target, androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 300f), initialVelocity = -velocity / step) }
+    }
+    androidx.compose.foundation.layout.BoxWithConstraints(
+        Modifier
+            .fillMaxWidth()
+            .height(coverH + 28.dp)
+            .sheetReveal()
+            .pointerInput(Unit) {
+                val slop = viewConfiguration.touchSlop
+                val holdMs = viewConfiguration.longPressTimeoutMillis
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    scope.launch { pos.stop() }
+                    val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
+                    tracker.addPosition(down.uptimeMillis, down.position)
+                    val mid = size.width / 2f
+                    val onCenter = kotlin.math.abs(down.position.x - mid) < coverW.toPx() / 2f
+                    var mode = 0
+                    var travel = Offset.Zero
+                    val started = down.uptimeMillis
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) {
+                            if (mode == 0) {
+                                val dx = down.position.x - mid
+                                if (kotlin.math.abs(dx) > coverW.toPx() / 2f) {
+                                    val target = (kotlin.math.round(pos.value) + if (dx > 0) 1 else -1).coerceIn(0f, (latest.size - 1).coerceAtLeast(0).toFloat())
+                                    scope.launch { pos.animateTo(target, androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 300f)) }
+                                }
+                            } else {
+                                val v = tracker.calculateVelocity().x
+                                if (mode == 2) {
+                                    scope.launch {
+                                        val id = movingNow
+                                        val index = latest.indexOfFirst { it.id == id }.coerceAtLeast(0)
+                                        pos.animateTo(index.toFloat(), androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 320f))
+                                    }
+                                    onMoveEnd()
+                                } else {
+                                    settle(v)
+                                }
+                            }
+                            change.consume()
+                            break
+                        }
+                        tracker.addPosition(change.uptimeMillis, change.position)
+                        val delta = change.position - change.previousPosition
+                        travel += delta
+                        if (mode == 0) {
+                            if (kotlin.math.abs(travel.x) > slop) {
+                                mode = 1
+                            } else if (travel.getDistance() > slop) {
+                                break
+                            } else if (onCenter && change.uptimeMillis - started >= holdMs) {
+                                val n = latest.size
+                                val idx = kotlin.math.round(pos.value).toInt().coerceIn(0, n - 1)
+                                if (n > 1) {
+                                    mode = 2
+                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                    feedback?.play(FeedbackSound.Pick)
+                                    onMoveStart(latest[idx].id)
+                                }
+                            }
+                        }
+                        if (mode != 0) {
+                            change.consume()
+                            val n = latest.size
+                            val next = (pos.value - delta.x / step).coerceIn(-0.35f, (n - 1) + 0.35f)
+                            scope.launch { pos.snapTo(next) }
+                            if (mode == 2) {
+                                val id = movingNow
+                                if (id != null) onMove(id, kotlin.math.round(next).toInt().coerceIn(0, n - 1))
+                            }
+                        }
+                    }
+                }
+            },
+    ) {
+        val width = constraints.maxWidth.toFloat()
+        val drawOrder = books.sortedByDescending { b ->
+            val at = if (b.id == moving) pos.value else slots[b.id]?.value ?: 0f
+            kotlin.math.abs(at - pos.value)
+        }
+        drawOrder.forEach { b ->
+            androidx.compose.runtime.key(b.id) {
+                val isMoving = b.id == moving
+                val index = books.indexOf(b)
                 Box(
                     Modifier
-                        .width(40.dp)
-                        .fillMaxHeight()
-                        .drawBehind {
-                            if (items.isNotEmpty()) {
-                                val x = size.width / 2f
-                                val dash = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 5.dp.toPx()))
-                                drawLine(line, Offset(x, 0f), Offset(x, size.height / 2f), strokeWidth = 2.dp.toPx(), pathEffect = dash)
-                            }
+                        .align(Alignment.TopCenter)
+                        .padding(top = 10.dp)
+                        .size(coverW, coverH)
+                        .graphicsLayer {
+                            val at = if (isMoving) pos.value else slots[b.id]?.value ?: index.toFloat()
+                            val d = at - pos.value
+                            val k = kotlin.math.min(1f, kotlin.math.abs(d))
+                            translationX = d * step
+                            val s = (1f - 0.2f * k) * (1f + 0.07f * if (isMoving) lift.value else 0f)
+                            scaleX = s
+                            scaleY = s
+                            alpha = 1f - 0.5f * k
+                            translationY = -10.dp.toPx() * if (isMoving) lift.value else 0f
+                            rotationZ = if (isMoving) -2f * lift.value else 0f
+                            shadowElevation = (8.dp.toPx() + 14.dp.toPx() * if (isMoving) lift.value else 0f) * (1f - k)
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
+                            clip = true
                         },
-                    contentAlignment = Alignment.Center,
                 ) {
+                    SmallCover(app.library.coverFile(b), Modifier.fillMaxSize(), maxWidth = 360, title = b.title, author = b.author)
+                    val label = books.indexOf(b) + 1
                     Box(
                         Modifier
-                            .size(30.dp)
-                            .clip(CircleShape)
-                            .background(AppColors.Panel)
-                            .drawBehind {
-                                drawCircle(
-                                    accent.copy(alpha = 0.7f),
-                                    radius = size.minDimension / 2f - 1.dp.toPx(),
-                                    style = androidx.compose.ui.graphics.drawscope.Stroke(
-                                        width = 1.5.dp.toPx(),
-                                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx())),
-                                    ),
-                                )
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) { Icon(AppIcons.Plus, null, tint = AppColors.Accent, modifier = Modifier.size(15.dp)) }
-                }
-                val shape = appCorner(16)
-                Row(
-                    Modifier
-                        .weight(1f)
-                        .padding(start = 6.dp, top = 5.dp, bottom = 5.dp)
-                        .height(56.dp)
-                        .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) { adding = true }
-                        .drawBehind {
-                            val r = 16.dp.toPx() * AppStyle.corners
-                            drawRoundRect(
-                                accent.copy(alpha = 0.55f),
-                                cornerRadius = CornerRadius(r, r),
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(
-                                    width = 1.5.dp.toPx(),
-                                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 6.dp.toPx())),
-                                ),
-                            )
-                        }
-                        .padding(horizontal = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
-                ) {
-                    Icon(AppIcons.Plus, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
-                    Text("Добавить книгу", color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            .align(Alignment.TopStart)
+                            .padding(8.dp)
+                            .clip(appCorner(8))
+                            .background(AppColors.Accent)
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                    ) { Text("Том $label", color = AppColors.OnAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
                 }
             }
-        }
-        if (missing.isNotEmpty()) {
-            HintNote("В библиотеке нет частей: " + missing.joinToString(", "), AppIcons.Alert)
-        }
-        editing?.let { (b, n) -> SeriesBookSheet(b, name, n) { editing = null } }
-        if (adding) {
-            val next = (items.mapNotNull { it.second }.maxOrNull() ?: items.size.toDouble()).let { kotlin.math.floor(it) + 1 }
-            SeriesAddSheet(name, next, items.map { it.first.id }.toSet()) { adding = false }
-        }
-    }
-}
-
-@Composable
-private fun PartStepper(value: Double?, onChange: (Double?) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 60.dp).fieldSurface(appCorner(16)).padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Icon(AppIcons.Sort, null, tint = AppColors.Muted, modifier = Modifier.size(18.dp))
-        Text("Часть", color = AppColors.Text, fontSize = 15.sp, modifier = Modifier.weight(1f))
-        StepButton(AppIcons.Minus, "Меньше", value != null) {
-            val next = (value ?: 0.0) - 1
-            onChange(if (next < 1) null else next)
-        }
-        androidx.compose.animation.AnimatedContent(
-            value,
-            transitionSpec = { androidx.compose.animation.fadeIn(Motion.fade(200)) togetherWith androidx.compose.animation.fadeOut(Motion.fade(120)) },
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.width(78.dp),
-            label = "part",
-        ) { v ->
-            if (v == null) {
-                Text("без номера", color = AppColors.Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-            } else {
-                Text(BookSeries("", v).numberLabel.orEmpty(), color = AppColors.Accent, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-            }
-        }
-        StepButton(AppIcons.Plus, "Больше", (value ?: 0.0) < 999) {
-            onChange((value ?: 0.0) + 1)
-        }
-    }
-}
-
-@Composable
-private fun SeriesBookSheet(book: Book, name: String, number: Double?, onDismiss: () -> Unit) {
-    val app = LocalContext.current.applicationContext as App
-    var value by remember { mutableStateOf(number) }
-    AppSheet(onDismiss, title = "Том серии") {
-        val close = sheetClose(onDismiss)
-        Row(
-            Modifier.fillMaxWidth().sheetReveal().fieldSurface(appCorner(16)).padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            SmallCover(app.library.coverFile(book), Modifier.size(width = 38.dp, height = 57.dp), title = book.title, author = book.author)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(book.title, color = AppColors.Text, fontSize = 14.5.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(name, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-        PartStepper(value) { value = it }
-        AppButton("Готово", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true) {
-            if (value != number) app.appScope.launch { app.library.addToSeries(book.id, name, value) }
-            close()
-        }
-        DeleteRow("Убрать из серии") {
-            app.appScope.launch { app.library.removeFromSeries(book.id, name) }
-            close()
         }
     }
 }

@@ -283,7 +283,7 @@ fun LibraryScreen(
     var showTags by remember { mutableStateOf(false) }
     var showSeries by remember { mutableStateOf(false) }
     var seriesPlank by remember { mutableStateOf<String?>(null) }
-    var manageTags by remember { mutableStateOf(false) }
+    var tagEdit by remember { mutableStateOf<String?>(null) }
     val tagTotal = remember(books) { books.flatMap { b -> b.tags.map { it.removePrefix(SpoilerMark).lowercase() } }.distinct().size }
     val seriesTotal = remember(books) { books.flatMap { b -> b.series.map { it.name.trim().lowercase() } }.filter { it.isNotEmpty() }.distinct().size }
     val tablet = LocalConfiguration.current.screenWidthDp >= 600
@@ -362,7 +362,7 @@ fun LibraryScreen(
                             else -> {
                                 val tag = f.id.removePrefix(TagFilterPrefix)
                                 val tagged = ordered.filter { it.hasTag(tag) }
-                                if (tagged.isEmpty()) null else PlankSpec(TagFilterPrefix + tag, "#$tag", tagged, null, { manageTags = true }, wrap = false)
+                                if (tagged.isEmpty()) null else PlankSpec(TagFilterPrefix + tag, "#$tag", tagged, null, { tagEdit = tag }, wrap = false)
                             }
                         }
                     }
@@ -466,8 +466,8 @@ fun LibraryScreen(
                 onDismiss = { showTags = false },
             )
         }
-        if (showSeries) SeriesListSheet(onOpenBook = { menuBookId = it.id }) { showSeries = false }
-        seriesPlank?.let { name -> SeriesSheet(name, null, { menuBookId = it.id }) { seriesPlank = null } }
+        if (showSeries) SeriesListSheet(onOpenBook = { menuBookId = it.id }, onRead = { viewModel.open(it) }) { showSeries = false }
+        seriesPlank?.let { name -> SeriesSheet(name, null, { menuBookId = it.id }, onRead = { viewModel.open(it) }) { seriesPlank = null } }
     }
     LaunchedEffect(showFilterSheet) {
         if (!showFilterSheet) {
@@ -475,7 +475,7 @@ fun LibraryScreen(
             showSeries = false
         }
     }
-    if (manageTags) TagManageSheet { manageTags = false }
+    tagEdit?.let { name -> TagActionsSheet(name, books.count { it.hasTag(name) }) { tagEdit = null } }
 
     if (showFilterSheet) {
         LibraryFilterSheet(
@@ -494,7 +494,7 @@ fun LibraryScreen(
                 when {
                     id.startsWith(SHELF) -> controls.shelfDialog = ShelfDialog.Edit(id.removePrefix(SHELF))
                     id.startsWith(SERIES_PLANK) -> seriesPlank = id.removePrefix(SERIES_PLANK)
-                    else -> manageTags = true
+                    else -> tagEdit = id.removePrefix(TagFilterPrefix)
                 }
             },
             onReorder = { order ->

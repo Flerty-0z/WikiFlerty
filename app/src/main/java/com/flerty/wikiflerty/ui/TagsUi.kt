@@ -92,18 +92,19 @@ fun nextInSeries(books: List<Book>, book: Book): Pair<Book, BookSeries>? {
 }
 
 @Composable
-private fun CloudChip(tag: TagCount, weight: Float, selected: Boolean, onClick: () -> Unit) {
+private fun CloudChip(tag: TagCount, weight: Float, selected: Boolean, editing: Boolean = false, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     val shape = appCorner(12)
     val bg by animateColorAsState(if (selected) AppColors.Accent else AppColors.Field, Motion.fade(200), label = "cloud-bg")
     val fg by animateColorAsState(if (selected) AppColors.OnAccent else AppColors.Text, Motion.fade(200), label = "cloud-fg")
-    val edge by animateColorAsState(if (selected) AppColors.Accent else AppColors.PanelBorder, Motion.fade(200), label = "cloud-edge")
+    val edge by animateColorAsState(if (selected || editing) AppColors.Accent else AppColors.PanelBorder, Motion.fade(200), label = "cloud-edge")
+    val ring by androidx.compose.animation.core.animateDpAsState(if (editing) 2.dp else 1.dp, Motion.tween(200), label = "cloud-ring")
     Row(
         Modifier
             .heightIn(min = 34.dp)
-            .liveClick(shape, sound = if (selected) FeedbackSound.Uncheck else FeedbackSound.Check, pressedScale = 0.92f, onClick = onClick)
+            .liveClick(shape, sound = if (selected) FeedbackSound.Uncheck else FeedbackSound.Check, pressedScale = 0.92f, onLongClick = onLongClick, onClick = onClick)
             .clip(shape)
             .background(bg)
-            .border(1.dp, edge, shape)
+            .border(ring, edge, shape)
             .padding(horizontal = 11.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -152,10 +153,16 @@ internal fun EmptyNote(icon: ImageVector, title: String, hint: String) {
 fun TagCloudSheet(active: List<String>, onApply: (List<String>) -> Unit, onDismiss: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
     val books by app.library.books.collectAsStateWithLifecycle()
+    val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
     val counts = remember(books) { tagCounts(books) }
     val picked = remember { mutableStateListOf<String>().apply { addAll(active) } }
-    var manage by remember { mutableStateOf(false) }
-    LaunchedEffect(counts) { picked.removeAll { p -> counts.none { it.name.equals(p, true) } } }
+    var editing by remember { mutableStateOf<String?>(null) }
+    var rename by remember { mutableStateOf<String?>(null) }
+    var delete by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(counts) {
+        picked.removeAll { p -> counts.none { it.name.equals(p, true) } }
+        if (editing != null && counts.none { it.name.equals(editing, true) }) editing = null
+    }
     val chosen = picked.toList()
     val matched = remember(books, chosen) { books.count { b -> chosen.all { b.hasTag(it) } } }
     val top = counts.maxOfOrNull { it.count } ?: 1
@@ -169,34 +176,115 @@ fun TagCloudSheet(active: List<String>, onApply: (List<String>) -> Unit, onDismi
                 ChipsFold(Modifier.padding(vertical = 10.dp), spacing = 7.dp) {
                     counts.forEach { t ->
                         val selected = chosen.any { it.equals(t.name, true) }
-                        CloudChip(t, if (top <= 1) 0f else (t.count - 1f) / (top - 1f), selected) {
+                        val edit = editing.equals(t.name, true)
+                        CloudChip(
+                            t,
+                            if (top <= 1) 0f else (t.count - 1f) / (top - 1f),
+                            selected,
+                            editing = edit,
+                            onLongClick = { editing = if (edit) null else t.name },
+                        ) {
                             if (selected) picked.removeAll { it.equals(t.name, true) } else picked.add(t.name)
                         }
                     }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (active.isNotEmpty()) {
-                    AppButton("Сбросить", primary = false, modifier = Modifier.weight(1f), labeled = true) {
-                        onApply(emptyList())
-                        close()
-                    }
-                }
-                AppButton(
-                    if (chosen.isEmpty()) "Отметь теги" else "Показать · $matched",
-                    primary = chosen.isNotEmpty(),
-                    modifier = Modifier.weight(1.4f),
-                    labeled = true,
-                ) {
-                    if (chosen.isNotEmpty()) {
-                        onApply(chosen)
-                        close()
+            val lastEdit = remember { arrayOf<String?>(null) }
+            if (editing != null) lastEdit[0] = editing
+            androidx.compose.animation.AnimatedVisibility(
+                visible = editing != null,
+                enter = androidx.compose.animation.expandVertically(Motion.tween(300)) + androidx.compose.animation.fadeIn(Motion.fade(240)),
+                exit = androidx.compose.animation.shrinkVertically(Motion.tween(260)) + androidx.compose.animation.fadeOut(Motion.fade(160)),
+            ) {
+                val name = lastEdit[0].orEmpty()
+                val count = counts.firstOrNull { it.name.equals(name, true) }?.count ?: 0
+                val pinned = prefs.tagShelves.any { it.equals(name, true) }
+                TabbedFrame("#$name", icon = AppIcons.Pencil, trailing = { CountBadge(count) }) {
+                    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        TagActionTile(AppIcons.Pencil, "Имя", AppColors.Text, false, Modifier.weight(1f)) { rename = name }
+                        TagActionTile(AppIcons.Shelf, "В шкафу", if (pinned) AppColors.Accent else AppColors.Text, pinned, Modifier.weight(1f)) {
+                            app.libraryPrefs.update { p ->
+                                p.copy(tagShelves = if (!pinned) (p.tagShelves + name).distinctBy { it.lowercase() } else p.tagShelves.filterNot { it.equals(name, true) })
+                            }
+                        }
+                        TagActionTile(AppIcons.Trash, "Удалить", AppColors.Bad, false, Modifier.weight(1f)) { delete = name }
                     }
                 }
             }
-            CardButton("Управление тегами", AppIcons.Pencil, Modifier.fillMaxWidth()) { manage = true }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = editing == null && chosen.isEmpty(),
+                enter = androidx.compose.animation.expandVertically(Motion.tween(260)) + androidx.compose.animation.fadeIn(Motion.fade(220)),
+                exit = androidx.compose.animation.shrinkVertically(Motion.tween(220)) + androidx.compose.animation.fadeOut(Motion.fade(140)),
+            ) {
+                Text(
+                    "Тап — выбрать, удержание — изменить",
+                    color = AppColors.Faint,
+                    fontSize = 12.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = chosen.isNotEmpty() || active.isNotEmpty(),
+                enter = androidx.compose.animation.expandVertically(Motion.tween(300)) + androidx.compose.animation.fadeIn(Motion.fade(240)),
+                exit = androidx.compose.animation.shrinkVertically(Motion.tween(260)) + androidx.compose.animation.fadeOut(Motion.fade(160)),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (active.isNotEmpty()) {
+                        AppButton("Сбросить", primary = false, modifier = Modifier.weight(1f), labeled = true) {
+                            onApply(emptyList())
+                            close()
+                        }
+                    }
+                    AppButton(
+                        if (chosen.isEmpty()) "Показать" else "Показать · $matched",
+                        primary = chosen.isNotEmpty(),
+                        modifier = Modifier.weight(1.4f),
+                        labeled = true,
+                    ) {
+                        if (chosen.isNotEmpty()) {
+                            onApply(chosen)
+                            close()
+                        }
+                    }
+                }
+            }
         }
-        if (manage) TagManageSheet { manage = false }
+        rename?.let { name ->
+            TextInputSheet("Название тега", name, "Название тега", onDismiss = { rename = null }, icon = AppIcons.Tag, maxLength = 40) { text ->
+                val clean = text.trim().trimStart('#').replace('|', ' ').trim()
+                if (clean.isNotEmpty() && clean != name) {
+                    app.appScope.launch { app.library.renameTag(name, clean) }
+                    app.libraryPrefs.update { p ->
+                        p.copy(
+                            tagShelves = p.tagShelves.map { if (it.equals(name, true)) clean else it }.distinctBy { it.lowercase() },
+                            filter = if (p.filter.startsWith(TagFilterPrefix)) "all" else p.filter,
+                        )
+                    }
+                    picked.replaceAll { if (it.equals(name, true)) clean else it }
+                    editing = clean
+                }
+            }
+        }
+        delete?.let { name ->
+            ConfirmSheet(
+                title = "Удалить тег?",
+                text = "#$name пропадёт у всех книг. Сами книги останутся.",
+                confirm = "Удалить",
+                onConfirm = {
+                    app.appScope.launch { app.library.renameTag(name, null) }
+                    app.libraryPrefs.update { p ->
+                        p.copy(
+                            tagShelves = p.tagShelves.filterNot { it.equals(name, true) },
+                            filter = if (p.filter.startsWith(TagFilterPrefix)) "all" else p.filter,
+                        )
+                    }
+                    picked.removeAll { it.equals(name, true) }
+                    editing = null
+                },
+                onDismiss = { delete = null },
+            )
+        }
     }
 }
 
@@ -242,33 +330,6 @@ private fun TagRow(tag: TagCount, pinned: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun TagTile(tag: TagCount, bookIds: List<String>, pinned: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val shape = appCorner(16)
-    Column(
-        modifier
-            .height(112.dp)
-            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onClick = onClick)
-            .fieldSurface(shape, selected = pinned)
-            .padding(10.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-            Box(Modifier.height(42.dp).weight(1f)) {
-                bookIds.asReversed().forEachIndexed { r, id ->
-                    val i = bookIds.size - 1 - r
-                    BookCover(id, 28.dp, Modifier.offset(x = (14 * i).dp))
-                }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (pinned) Icon(AppIcons.Shelf, null, tint = AppColors.Accent, modifier = Modifier.size(13.dp))
-                Text("${tag.count}", color = AppColors.Faint, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-            }
-        }
-        Text("#" + tag.name, color = AppColors.Text, fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-    }
-}
-
-@Composable
 private fun TagActionTile(icon: ImageVector, label: String, tint: androidx.compose.ui.graphics.Color, active: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val shape = appCorner(16)
     val edge by animateColorAsState(if (active) AppColors.Accent.copy(alpha = 0.6f) else AppColors.PanelBorder, Motion.fade(220), label = "tag-edge")
@@ -288,7 +349,7 @@ private fun TagActionTile(icon: ImageVector, label: String, tint: androidx.compo
 }
 
 @Composable
-private fun TagActionsSheet(name: String, count: Int, onDismiss: () -> Unit) {
+fun TagActionsSheet(name: String, count: Int, onDismiss: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
     val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
     val pinned = prefs.tagShelves.any { it.equals(name, true) }
@@ -366,29 +427,7 @@ private fun TagActionsSheet(name: String, count: Int, onDismiss: () -> Unit) {
 }
 
 @Composable
-fun TagManageSheet(onDismiss: () -> Unit) {
-    val app = LocalContext.current.applicationContext as App
-    val books by app.library.books.collectAsStateWithLifecycle()
-    val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
-    val counts = remember(books) { tagCounts(books) }
-    var open by remember { mutableStateOf<TagCount?>(null) }
-    AppSheet(onDismiss, title = "Управление тегами") {
-        if (counts.isEmpty()) EmptyNote(AppIcons.Hash, "Тегов пока нет", "Добавь их в карточке книги")
-        counts.chunked(2).forEach { pair ->
-            Row(Modifier.fillMaxWidth().sheetReveal(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                pair.forEach { t ->
-                    val ids = remember(books, t.name) { books.filter { it.hasTag(t.name) }.sortedByDescending { it.lastReadAt ?: it.addedAt }.take(3).map { it.id } }
-                    TagTile(t, ids, prefs.tagShelves.any { it.equals(t.name, true) }, Modifier.weight(1f)) { open = t }
-                }
-                if (pair.size == 1) Box(Modifier.weight(1f))
-            }
-        }
-        open?.let { t -> TagActionsSheet(t.name, t.count) { open = null } }
-    }
-}
-
-@Composable
-fun SeriesListSheet(onOpenBook: ((Book) -> Unit)?, onDismiss: () -> Unit) {
+fun SeriesListSheet(onOpenBook: ((Book) -> Unit)?, onRead: ((Book) -> Unit)? = null, onDismiss: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
     val books by app.library.books.collectAsStateWithLifecycle()
     val list = remember(books) { seriesList(books) }
@@ -401,7 +440,7 @@ fun SeriesListSheet(onOpenBook: ((Book) -> Unit)?, onDismiss: () -> Unit) {
                 if (pair.size == 1) Box(Modifier.weight(1f))
             }
         }
-        open?.let { name -> SeriesSheet(name, null, onOpenBook) { open = null } }
+        open?.let { name -> SeriesSheet(name, null, onOpenBook, onRead) { open = null } }
     }
 }
 
