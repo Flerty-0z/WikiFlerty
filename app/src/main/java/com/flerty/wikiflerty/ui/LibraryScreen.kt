@@ -285,6 +285,7 @@ fun LibraryScreen(
     var showSeries by remember { mutableStateOf(false) }
     var seriesPlank by remember { mutableStateOf<String?>(null) }
     var tagEdit by remember { mutableStateOf<String?>(null) }
+    var tagPlank by remember { mutableStateOf<String?>(null) }
     val tagTotal = remember(books) { books.flatMap { b -> b.tags.map { it.removePrefix(SpoilerMark).lowercase() } }.distinct().size }
     val seriesTotal = remember(books) { books.flatMap { b -> b.series.map { it.name.trim().lowercase() } }.filter { it.isNotEmpty() }.distinct().size }
     val tablet = LocalConfiguration.current.screenWidthDp >= 600
@@ -363,7 +364,7 @@ fun LibraryScreen(
                             else -> {
                                 val tag = f.id.removePrefix(TagFilterPrefix)
                                 val tagged = ordered.filter { it.hasTag(tag) }
-                                if (tagged.isEmpty()) null else PlankSpec(TagFilterPrefix + tag, "#$tag", tagged, null, { tagEdit = tag }, wrap = false)
+                                if (tagged.isEmpty()) null else PlankSpec(TagFilterPrefix + tag, "#$tag", tagged, null, { tagPlank = tag }, wrap = false)
                             }
                         }
                     }
@@ -477,6 +478,17 @@ fun LibraryScreen(
         }
     }
     tagEdit?.let { name -> TagActionsSheet(name, books.count { it.hasTag(name) }) { tagEdit = null } }
+    if (!showFilterSheet) {
+        seriesPlank?.let { name -> SeriesSheet(name, null, { menuBookId = it.id }, onRead = { viewModel.open(it) }) { seriesPlank = null } }
+        tagPlank?.let { tag ->
+            TagCloudSheet(
+                active = tagFilterNames(prefs.filter),
+                onApply = { names -> app.libraryPrefs.update { it.copy(filter = if (names.isEmpty()) "all" else tagFilterId(names)) } },
+                onDismiss = { tagPlank = null },
+                focus = tag,
+            )
+        }
+    }
 
     if (showFilterSheet) {
         LibraryFilterSheet(

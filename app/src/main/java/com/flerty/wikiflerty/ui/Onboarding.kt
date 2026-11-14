@@ -108,16 +108,13 @@ enum class NewsTarget { None, Stats, Custom, Library, LibraryView, Guide, Ai }
 
 class NewsItem(val group: String, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None, val query: String = "")
 
-const val NewsRelease = 336
+const val NewsRelease = 337
 
 val WhatsNewItems = listOf(
-    NewsItem("Библиотека", AppIcons.Gesture, "Без сортировки", "Расставляй книги на полке сам — перетаскиванием. Порядок сохранится", NewsTarget.LibraryView),
-    NewsItem("Библиотека", AppIcons.Series, "Серии", "Тома каруселью, номер ставится сам, порядок меняется перетаскиванием. Поиск и выбор своей серии", NewsTarget.Library),
-    NewsItem("Библиотека", AppIcons.Hash, "Теги", "Всё на одной странице: нажми на тег — он выбран, и сразу видно действия", NewsTarget.Library),
-    NewsItem("Чтение", AppIcons.Toc, "Свои главы", "Оглавление → «Найти главы». Или выдели заголовок → «Глава»"),
-    NewsItem("Чтение", AppIcons.Person, "Другие имена", "У персонажа можно указать прозвища — флажок узнает его по ним"),
-    NewsItem("Чтение", AppIcons.Voice, "Чтение вслух", "Кнопки громкости больше не листают. Переключатель «Голос за листанием»"),
-    NewsItem("Исправления", AppIcons.Check, "Правки", "Книга не закрывается после сворачивания, флажки в ленте, обновлённое окно заморозки, плавнее анимации"),
+    NewsItem("Синхронизация", AppIcons.Cloud, "Переносится всё", "Порядок книг, полки, цели, карточки слов, свой фон и мелкие настройки теперь тоже на всех устройствах"),
+    NewsItem("Библиотека", AppIcons.Shelf, "Полки серий и тегов", "Нажми на название полки — откроется серия или тег. Там же полку можно убрать из шкафа", NewsTarget.Library),
+    NewsItem("Библиотека", AppIcons.Series, "Добавление в серию", "Выбор книг теперь в том же виде, что и для полок", NewsTarget.Library),
+    NewsItem("Исправления", AppIcons.Check, "Правки", "Синхронизация работает экономнее, мелкие правки оформления"),
 )
 
 @Composable

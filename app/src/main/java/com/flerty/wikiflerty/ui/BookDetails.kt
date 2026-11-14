@@ -997,36 +997,54 @@ private fun SeriesAddSheet(name: String, next: Double, inSeries: Set<String>, on
             SearchField(query, { query = it }, Modifier.fillMaxWidth(), placeholder = "Название или автор")
             if (shown.isEmpty()) EmptyNote(AppIcons.Search, "Ничего не нашлось", "")
         }
-        shown.forEach { b ->
-            val on = b.id in picked
-            val shape = appCorner(16)
-            val edge by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent.copy(alpha = 0.6f) else Color.Transparent, Motion.fade(200), label = "pick-edge")
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .sheetReveal()
-                    .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.98f) { if (on) picked.remove(b.id) else picked.add(b.id) }
-                    .fieldSurface(shape, selected = on)
-                    .border(1.dp, edge, shape)
-                    .padding(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                SmallCover(app.library.coverFile(b), Modifier.size(width = 32.dp, height = 48.dp), title = b.title, author = b.author)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(b.title, color = AppColors.Text, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    if (b.author.isNotBlank()) Text(b.author, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                val index = picked.indexOf(b.id)
-                Box(
-                    Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(if (on) AppColors.Accent else Color.Transparent)
-                        .border(1.5.dp, if (on) AppColors.Accent else AppColors.Faint, CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (on) Text(BookSeries(name, next + index).numberLabel.orEmpty(), color = AppColors.OnAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+        if (shown.isNotEmpty()) {
+            SettingsGroup("Книги · ${picked.size}/${choices.size}") {
+                Column(Modifier.padding(vertical = 6.dp)) {
+                    shown.forEachIndexed { i, b ->
+                        if (i > 0) ListDivider()
+                        val on = b.id in picked
+                        val tint by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent else AppColors.Text, Motion.fade(200), label = "pick-tint")
+                        val fill by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent else Color.Transparent, Motion.fade(200), label = "pick-fill")
+                        val edge by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent else AppColors.Line, Motion.fade(200), label = "pick-edge")
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 58.dp)
+                                .liveClick(appCorner(12), sound = FeedbackSound.Toggle, pressedScale = 0.98f) { if (on) picked.remove(b.id) else picked.add(b.id) }
+                                .padding(vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            BookCover(b.id, 32.dp)
+                            Column(Modifier.weight(1f)) {
+                                Text(b.title, color = tint, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                val index = picked.indexOf(b.id)
+                                val label = remember { arrayOf("") }
+                                if (index >= 0) label[0] = "Том " + BookSeries(name, next + index).numberLabel.orEmpty()
+                                androidx.compose.animation.AnimatedVisibility(
+                                    visible = on,
+                                    enter = androidx.compose.animation.expandVertically(Motion.tween(220)) + androidx.compose.animation.fadeIn(Motion.fade(200)),
+                                    exit = androidx.compose.animation.shrinkVertically(Motion.tween(200)) + androidx.compose.animation.fadeOut(Motion.fade(140)),
+                                ) {
+                                    Text(label[0], color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, modifier = Modifier.padding(top = 2.dp))
+                                }
+                            }
+                            Box(
+                                Modifier
+                                    .size(24.dp)
+                                    .clip(appCorner(7))
+                                    .background(fill)
+                                    .border(1.5.dp, edge, appCorner(7)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                androidx.compose.animation.AnimatedVisibility(
+                                    visible = on,
+                                    enter = androidx.compose.animation.scaleIn(Motion.tween(180), initialScale = 0.5f) + androidx.compose.animation.fadeIn(Motion.fade(160)),
+                                    exit = androidx.compose.animation.scaleOut(Motion.tween(140), targetScale = 0.5f) + androidx.compose.animation.fadeOut(Motion.fade(120)),
+                                ) { Icon(AppIcons.Check, null, tint = AppColors.OnAccent, modifier = Modifier.size(15.dp)) }
+                            }
+                        }
+                    }
                 }
             }
         }
