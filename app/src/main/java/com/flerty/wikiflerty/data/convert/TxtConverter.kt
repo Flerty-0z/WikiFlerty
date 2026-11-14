@@ -47,7 +47,7 @@ class TxtConverter(private val identifier: String) {
             book.addPage(href, html.toString())
         }
         if (index == 0) book.addPage("part1.xhtml", xhtmlHead(title, language) + "<h1>${esc(title)}</h1>\n" + XHTML_END)
-        if (book.toc.isNotEmpty() && parts.first().second.isNotEmpty()) book.toc.add(0, TocEntry(title, "part1.xhtml"))
+        if (book.toc.isNotEmpty() && parts.first().second.isNotEmpty()) book.toc.add(0, TocEntry("Начало", "part1.xhtml"))
         book.write(target)
     }
 
@@ -74,12 +74,15 @@ class TxtConverter(private val identifier: String) {
         return result.map { it.replace(Regex("[ \\t]{2,}"), " ") }
     }
 
+    private var lastNumber = 0
+
     private fun isHeading(p: String): Boolean {
-        if (p.length > 80) return false
-        val t = p.trim()
-        if (Regex("^(глава|часть|книга|пролог|эпилог|предисловие|послесловие|chapter|part|book|prologue|epilogue|preface|afterword)([\\s.:,\\-—–]+.*)?", RegexOption.IGNORE_CASE).matches(t)) return true
-        if (Regex("^(\\d{1,3}|[IVXLC]{1,7})[.)]?$").matches(t)) return true
-        if (Regex("^\\*\\s*\\*\\s*\\*$").matches(t)) return false
+        if (!ChapterHeading.isHeading(p)) return false
+        val n = ChapterHeading.number(p) ?: return true
+        if (n == 1 || n == lastNumber + 1) {
+            lastNumber = n
+            return true
+        }
         return false
     }
 

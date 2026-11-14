@@ -257,7 +257,16 @@ class ReaderUiState {
     }
 }
 
-data class TocItem(val title: String, val depth: Int, val link: Link)
+data class TocItem(val title: String, val depth: Int, val link: Link, val locator: org.readium.r2.shared.publication.Locator? = null, val id: String? = null)
+
+class TocActions(
+    val custom: Boolean = false,
+    val busy: Boolean = false,
+    val onFind: () -> Unit = {},
+    val onAdd: (String) -> Unit = {},
+    val onRename: (TocItem, String) -> Unit = { _, _ -> },
+    val onReset: () -> Unit = {},
+)
 
 data class ChapterMark(val at: Float, val item: TocItem)
 
@@ -375,6 +384,7 @@ fun ReaderOverlay(
     onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit,
     onTocSelect: (TocItem) -> Unit,
     onBack: () -> Unit,
+    tocActions: TocActions = TocActions(),
     notes: List<com.flerty.wikiflerty.data.Note>,
     noteActions: NoteActions,
     ai: AiBridge,
@@ -675,6 +685,7 @@ fun ReaderOverlay(
                         settings = settings,
                         fonts = fonts,
                         toc = toc,
+                        tocActions = tocActions,
                         notes = notes,
                         bookmarks = bookmarks,
                         bookmarkActions = bookmarkActions,
@@ -1714,6 +1725,7 @@ private fun SheetContent(
     settings: ReaderSettings,
     fonts: List<FontEntry>,
     toc: List<TocItem>,
+    tocActions: TocActions = TocActions(),
     notes: List<com.flerty.wikiflerty.data.Note>,
     bookmarks: List<com.flerty.wikiflerty.data.Bookmark>,
     bookmarkActions: BookmarkActions,
@@ -1821,7 +1833,7 @@ private fun SheetContent(
                         onAdd = { onPerson(PersonDraft(null, "", "")) },
                         onEdit = { onPerson(PersonDraft(it.id, it.name, it.note)) },
                     )
-                    else -> TocList(toc, onTocSelect, Modifier, currentHref, chapter)
+                    else -> TocList(toc, onTocSelect, Modifier, currentHref, chapter, tocActions)
                 }
             }
             ReaderSheet.Quote -> if (quote != null) {
@@ -2525,12 +2537,12 @@ internal fun SoundOptions(settings: ReaderSettings, onSettingsChange: ((ReaderSe
 }
 
 @Composable
-private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: Modifier, currentHref: String? = null, chapter: String? = null) {
-    if (toc.isEmpty()) {
-        Text("В этой книге нет оглавления", color = AppColors.Muted, fontSize = 15.sp, modifier = Modifier.padding(vertical = 12.dp))
-        return
-    }
+private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: Modifier, currentHref: String? = null, chapter: String? = null, actions: TocActions = TocActions()) {
+    var naming by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<TocItem?>(null) }
+    var resetting by remember { mutableStateOf(false) }
     val current = remember(toc, currentHref, chapter) {
+        if (actions.custom && !chapter.isNullOrBlank()) return@remember toc.indexOfLast { it.title == chapter.trim() }
         val res = currentHref?.substringBefore('#')?.trimStart('/')
         val byHref = if (res == null) -1 else toc.indexOfLast { it.link.href.toString().substringBefore('#').trimStart('/') == res }
         val byTitle = if (chapter.isNullOrBlank()) -1 else toc.indexOfLast { it.title == chapter.trim() }
@@ -2540,10 +2552,21 @@ private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: M
             else -> byTitle
         }
     }
-    val list = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = (current - 2).coerceAtLeast(0))
+    val list = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = (current - 1).coerceAtLeast(0))
     LazyColumn(modifier, state = list) {
-        itemsIndexed(toc) { index, item ->
-            Column {
+        item(key = "toc-tools") {
+            Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TocTool(if (actions.busy) "Ищу главы…" else "Найти главы", AppIcons.Search, actions.busy, Modifier.weight(1f)) { if (!actions.busy) actions.onFind() }
+                TocTool("Глава здесь", AppIcons.Plus, false, Modifier.weight(1f)) { naming = true }
+            }
+        }
+        if (toc.isEmpty()) {
+            item(key = "toc-empty") {
+                Text("В этой книге нет оглавления", color = AppColors.Muted, fontSize = 15.sp, modifier = Modifier.padding(vertical = 12.dp))
+            }
+        }
+        itemsIndexed(toc, key = { i, it -> it.id ?: ("b$i") }) { index, item ->
+            Column(Modifier.animateItem(fadeInSpec = Motion.fade(220), placementSpec = Motion.tween(280), fadeOutSpec = Motion.fade(160))) {
             if (index > 0) com.flerty.wikiflerty.ui.ListDivider()
             Reveal {
                 val shape = appCorner(12)
@@ -2555,7 +2578,7 @@ private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: M
                         .padding(vertical = 3.dp)
                         .clip(shape)
                         .background(if (active) AppColors.AccentTint else Color.Transparent)
-                        .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) { onSelect(item) }
+                        .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onLongClick = if (item.id != null) ({ editing = item }) else null) { onSelect(item) }
                         .padding(start = (8 + item.depth * 16).dp, end = 8.dp, top = 9.dp, bottom = 9.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -2575,10 +2598,61 @@ private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: M
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
+                    if (item.id != null) {
+                        Box(
+                            Modifier.size(32.dp).liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.88f) { editing = item },
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(AppIcons.Pencil, "Изменить главу", tint = AppColors.Faint, modifier = Modifier.size(15.dp)) }
+                    }
                 }
             }
             }
         }
+        if (actions.custom) {
+            item(key = "toc-reset") {
+                Box(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+                    TocTool("Вернуть оглавление книги", AppIcons.Undo, false, Modifier.fillMaxWidth()) { resetting = true }
+                }
+            }
+        }
+    }
+    if (naming) {
+        com.flerty.wikiflerty.ui.TextInputSheet("Новая глава", "", "Например, Глава 3", onDismiss = { naming = false }, icon = AppIcons.Toc, maxLength = 80) { text ->
+            actions.onAdd(text.trim())
+        }
+    }
+    editing?.let { item ->
+        com.flerty.wikiflerty.ui.TextInputSheet("Название главы", item.title, "Оставь пустым, чтобы убрать", onDismiss = { editing = null }, icon = AppIcons.Toc, maxLength = 80) { text ->
+            actions.onRename(item, text.trim())
+        }
+    }
+    if (resetting) {
+        com.flerty.wikiflerty.ui.ConfirmSheet(
+            title = "Вернуть оглавление книги?",
+            text = "Твои главы удалятся, вернётся оглавление из файла.",
+            confirm = "Вернуть",
+            onConfirm = { actions.onReset() },
+            onDismiss = { resetting = false },
+        )
+    }
+}
+
+@Composable
+private fun TocTool(label: String, icon: ImageVector, busy: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val shape = appCorner(14)
+    Row(
+        modifier
+            .heightIn(min = 46.dp)
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onClick = onClick)
+            .fieldSurface(shape)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+    ) {
+        androidx.compose.animation.AnimatedContent(busy, transitionSpec = { fadeIn(Motion.fade(200)) togetherWith fadeOut(Motion.fade(140)) }, label = "toc-tool") { b ->
+            if (b) com.flerty.wikiflerty.ui.KitSpinner(Modifier.size(16.dp)) else Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(17.dp))
+        }
+        Text(label, color = AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

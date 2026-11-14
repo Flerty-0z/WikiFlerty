@@ -94,6 +94,7 @@ import org.readium.r2.navigator.epub.css.FontWeight
 import org.readium.r2.navigator.input.InputListener
 import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.shared.publication.Link
+import com.flerty.wikiflerty.data.CustomChapter
 import org.readium.r2.shared.publication.services.positions
 import org.readium.r2.shared.util.AbsoluteUrl
 
@@ -102,10 +103,15 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private val settings: ReaderSettings get() = app.readerSettings.settings.value
     private var lastTurnKey: String? = null
     private var tocItems: List<TocItem> = emptyList()
+    private var baseToc: List<TocItem> = emptyList()
+    private var baseMarks: List<ChapterMark> = emptyList()
+    private val tocState = mutableStateOf<List<TocItem>>(emptyList())
+    private val tocCustom = mutableStateOf(false)
+    private val tocBusy = mutableStateOf(false)
 
     private fun chapterFor(href: String, progression: Double?): String? {
         val key = href.substringBefore('#')
-        if (key.isNotEmpty()) tocItems.lastOrNull { it.link.href.toString().substringBefore('#') == key }?.title?.takeIf { it.isNotBlank() }?.let { return it }
+        if (key.isNotEmpty() && !tocCustom.value) tocItems.lastOrNull { it.link.href.toString().substringBefore('#') == key }?.title?.takeIf { it.isNotBlank() }?.let { return it }
         val at = progression ?: return null
         return ui.chapterMarks.lastOrNull { it.at <= at + 0.0001 }?.item?.title?.takeIf { it.isNotBlank() }
     }
@@ -1184,6 +1190,14 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     }
                 }
             },
+            onSelectionChapter = {
+                val selection = ui.selection
+                if (selection != null) {
+                    val title = selection.text.replace(Regex("\\s+"), " ").trim().take(80)
+                    endSelection()
+                    addChapter(title, selection.locator)
+                }
+            },
             onSelectionQuote = {
                 val selection = ui.selection
                 if (selection != null) {
@@ -1194,6 +1208,86 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 }
             },
         )
+    }
+
+    private fun applyToc() {
+        val custom = app.customToc.of(bookId)?.chapters.orEmpty()
+        val pub = publication
+        if (custom.isEmpty()) {
+            tocCustom.value = false
+            tocItems = baseToc
+            tocState.value = baseToc
+            ui.chapterMarks = baseMarks
+        } else {
+            val marks = custom.mapNotNull { c ->
+                val loc = runCatching { Locator.fromJSON(org.json.JSONObject(c.locator)) }.getOrNull() ?: return@mapNotNull null
+                val link = pub?.linkWithHref(loc.href) ?: Link(org.readium.r2.shared.publication.Href(loc.href))
+                ChapterMark(c.at.toFloat(), TocItem(c.title, 0, link, loc, c.id))
+            }
+            tocCustom.value = true
+            tocItems = marks.map { it.item }
+            tocState.value = tocItems
+            ui.chapterMarks = marks
+        }
+        ui.chapter = chapterFor(ui.currentHref.orEmpty(), ui.progression) ?: ui.chapter?.takeUnless { tocCustom.value }
+    }
+
+    private fun chapterAt(locator: Locator): Double {
+        locator.locations.totalProgression?.let { return it }
+        val key = locator.href.toString().substringBefore('#')
+        val inRes = positions.filter { it.href.toString().substringBefore('#') == key }
+        val p = locator.locations.progression ?: 0.0
+        return (inRes.lastOrNull { (it.locations.progression ?: 0.0) <= p + 0.0001 } ?: inRes.firstOrNull())?.locations?.totalProgression ?: ui.progression
+    }
+
+    private fun seedChapters(): List<CustomChapter> {
+        app.customToc.of(bookId)?.chapters?.takeIf { it.isNotEmpty() }?.let { return it }
+        val pub = publication ?: return emptyList()
+        return baseMarks.filter { it.item.title.isNotBlank() }.mapNotNull { m ->
+            val loc = pub.locatorFromLink(m.item.link) ?: return@mapNotNull null
+            val at = m.at.toDouble()
+            CustomChapter(java.util.UUID.randomUUID().toString(), m.item.title, loc.copy(locations = loc.locations.copy(totalProgression = at)).toJSON().toString(), at)
+        }
+    }
+
+    private fun addChapter(title: String, locator: Locator) {
+        val at = chapterAt(locator)
+        lifecycleScope.launch {
+            val list = seedChapters()
+            val name = title.ifBlank { "Глава ${list.count { it.at < at } + 1}" }
+            val item = CustomChapter(java.util.UUID.randomUUID().toString(), name, locator.copy(title = name).toJSON().toString(), at)
+            app.customToc.set(bookId, list.filterNot { kotlin.math.abs(it.at - at) < 0.00001 } + item)
+            Toast.makeText(this@ReaderActivity, "Глава добавлена в оглавление", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun renameChapter(item: TocItem, title: String) {
+        val id = item.id ?: return
+        val list = app.customToc.of(bookId)?.chapters.orEmpty()
+        lifecycleScope.launch {
+            app.customToc.set(bookId, if (title.isBlank()) list.filterNot { it.id == id } else list.map { if (it.id == id) it.copy(title = title) else it })
+        }
+    }
+
+    private fun resetToc() {
+        lifecycleScope.launch { app.customToc.set(bookId, emptyList()) }
+    }
+
+    private fun findChapters() {
+        val pub = publication ?: return
+        if (tocBusy.value) return
+        tocBusy.value = true
+        lifecycleScope.launch {
+            val pos = positions.ifEmpty { withContext(Dispatchers.Default) { runCatching { pub.positions() }.getOrDefault(emptyList()) } }
+            val found = runCatching { ChapterFinder.find(pub, pos) }.getOrDefault(emptyList())
+            tocBusy.value = false
+            if (found.size < 2) {
+                Toast.makeText(this@ReaderActivity, "Главы не нашлись. Выдели заголовок → «Глава»", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            app.customToc.set(bookId, found.map { CustomChapter(java.util.UUID.randomUUID().toString(), it.title, it.locator.toJSON().toString(), it.at) })
+            Toast.makeText(this@ReaderActivity, "Нашёл глав: ${found.size}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private var lastColumns: String? = null
@@ -1643,7 +1737,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val title = book?.title ?: session.publication.metadata.title.orEmpty()
         bookTitle = title
         val toc = flattenToc(session.publication.tableOfContents)
-        tocItems = toc
+        baseToc = toc
+        applyToc()
         var cover by mutableStateOf<ImageBitmap?>(null)
 
         if (!com.flerty.wikiflerty.ui.Tips.readerCoachDone(this)) ui.coach = true
@@ -1661,10 +1756,19 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         fonts = fonts,
                         title = title,
                         cover = cover,
-                        toc = toc,
+                        toc = tocState.value,
+                        tocActions = TocActions(
+                            custom = tocCustom.value,
+                            busy = tocBusy.value,
+                            onFind = ::findChapters,
+                            onAdd = { title -> addChapter(title, navigator.currentLocator.value) },
+                            onRename = ::renameChapter,
+                            onReset = ::resetToc,
+                        ),
                         onSettingsChange = { transform -> app.readerSettings.update(transform) },
                         onTocSelect = { item ->
-                            navigator.go(item.link, animated = false)
+                            val target = item.locator
+                            if (target != null) navigator.go(target, animated = false) else navigator.go(item.link, animated = false)
                             resyncListening()
                         },
                         onBack = { finish() },
@@ -1720,11 +1824,15 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
 
         lifecycleScope.launch {
+            app.customToc.items.map { it[session.bookId] }.distinctUntilChanged().collect { applyToc() }
+        }
+
+        lifecycleScope.launch {
             positions = withContext(Dispatchers.Default) {
                 runCatching { session.publication.positions() }.getOrDefault(emptyList())
             }
             ui.totalPositions = positions.size
-            ui.chapterMarks = withContext(Dispatchers.Default) {
+            baseMarks = withContext(Dispatchers.Default) {
                 val firstAt = HashMap<String, Float>()
                 positions.forEach { loc ->
                     val key = loc.href.toString().substringBefore('#')
@@ -1735,6 +1843,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     firstAt[key]?.let { ChapterMark(it, item) }
                 }.distinctBy { it.at to it.item.depth }.sortedBy { it.at }
             }
+            applyToc()
             if (ui.chapter.isNullOrBlank()) ui.chapter = chapterFor(ui.currentHref.orEmpty(), ui.progression)
             val total = ui.totalPositions
             app.appScope.launch { app.library.setPositions(session.bookId, total) }
@@ -1761,7 +1870,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                             ui.progression = total ?: ui.progression
                             ui.position = locator.locations.position
                         }
-                        ui.chapter = locator.title?.takeIf { it.isNotBlank() } ?: chapterFor(href, total)
+                        ui.chapter = if (tocCustom.value) chapterFor(href, total) else locator.title?.takeIf { it.isNotBlank() } ?: chapterFor(href, total)
                         ui.currentHref = href
                         hasImages(href)
                         val turnKey = href + "|" + (locator.locations.progression ?: 0.0)

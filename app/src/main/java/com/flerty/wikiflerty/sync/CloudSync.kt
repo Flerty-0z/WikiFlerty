@@ -291,7 +291,7 @@ class CloudSync(private val app: App) {
             out[name] = j
         }
         group("notes", "notes", "deletedNotes")
-        group("marks", "bookmarks", "deletedBookmarks")
+        group("marks", "bookmarks", "deletedBookmarks", "illustrations", "customToc")
         group("people", "characters", "deletedCharacters")
         group("words", "dictionary", "deletedWords")
         group("stats", "stats", "achievements", "freezes", "paperSessions")

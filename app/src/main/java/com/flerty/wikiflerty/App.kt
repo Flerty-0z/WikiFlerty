@@ -57,6 +57,7 @@ class App : Application() {
     val readAloud: com.flerty.wikiflerty.tts.ReadAloud by lazy { com.flerty.wikiflerty.tts.ReadAloud(this) }
 
     val illustrations: com.flerty.wikiflerty.data.IllustrationsRepository by lazy { com.flerty.wikiflerty.data.IllustrationsRepository(this) }
+    val customToc: com.flerty.wikiflerty.data.CustomTocRepository by lazy { com.flerty.wikiflerty.data.CustomTocRepository(this) }
 
     val flashcards: com.flerty.wikiflerty.data.FlashcardStore by lazy { com.flerty.wikiflerty.data.FlashcardStore(this) }
 

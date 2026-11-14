@@ -318,30 +318,98 @@ private fun FreezeFrame(title: String, content: @Composable () -> Unit) {
     }
 }
 
+private fun dayWord(n: Int): String {
+    val m100 = n % 100
+    val m10 = n % 10
+    return when {
+        m100 in 11..14 -> "дней"
+        m10 == 1 -> "день"
+        m10 in 2..4 -> "дня"
+        else -> "дней"
+    }
+}
+
 @Composable
 private fun CooldownView(left: Int, last: Freeze?, onUnfreeze: (() -> Unit)?) {
-    val progress by animateFloatAsState(1f - left / StreakFreezeStore.COOLDOWN_DAYS.toFloat(), Motion.tween(700), label = "cool")
-    Column(Modifier.fillMaxWidth().fieldSurface(appCorner(18)).padding(vertical = 16.dp, horizontal = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Box(Modifier.size(112.dp), contentAlignment = Alignment.Center) {
-            val track = AppColors.Line
+    val total = StreakFreezeStore.COOLDOWN_DAYS
+    val target = (1f - left / total.toFloat()).coerceIn(0f, 1f)
+    val melt = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(target) {
+        melt.animateTo(target, Motion.tween(1100, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+    }
+    val shown = if (Motion.enabled) kotlin.math.ceil(total * (1f - melt.value)).toInt().coerceAtLeast(left) else left
+    val glow = rememberInfiniteTransition(label = "ice-glow")
+    val pulse by glow.animateFloat(0f, 1f, infiniteRepeatable(tween(2600, easing = LinearEasing), RepeatMode.Reverse), label = "ice-pulse")
+    val opens = LocalDate.now().plusDays(left.toLong())
+    val track = AppColors.Line
+    val disc = AppColors.Panel
+    Column(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier
+                .size(190.dp)
+                .drawBehind {
+                    val a = if (Motion.enabled) 0.10f + 0.08f * pulse else 0.12f
+                    drawCircle(androidx.compose.ui.graphics.Brush.radialGradient(listOf(IceColor.copy(alpha = a), Color.Transparent), center, size.minDimension * 0.62f), size.minDimension * 0.62f)
+                },
+            contentAlignment = Alignment.Center,
+        ) {
             Canvas(Modifier.fillMaxSize()) {
-                val stroke = 9.dp.toPx()
+                val stroke = 13.dp.toPx()
                 val inset = stroke / 2
                 val arc = Size(size.width - stroke, size.height - stroke)
+                drawCircle(
+                    androidx.compose.ui.graphics.Brush.radialGradient(listOf(lerpColor(disc, IceColor, 0.10f), disc), Offset(size.width * 0.4f, size.height * 0.35f), size.minDimension * 0.6f),
+                    size.minDimension / 2 - stroke,
+                )
                 drawArc(track, 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(stroke))
-                drawArc(IceColor, -90f, 360f * progress, false, Offset(inset, inset), arc, style = Stroke(stroke, cap = StrokeCap.Round))
+                if (melt.value > 0.001f) {
+                    drawArc(
+                        androidx.compose.ui.graphics.Brush.sweepGradient(listOf(Color(0xFF5BB4EC), IceColor, Color(0xFFBFE8FF), Color(0xFF5BB4EC))),
+                        -90f,
+                        360f * melt.value,
+                        false,
+                        Offset(inset, inset),
+                        arc,
+                        style = Stroke(stroke, cap = StrokeCap.Round),
+                    )
+                }
             }
-            Icon(AppIcons.Snow, null, tint = IceColor, modifier = Modifier.size(36.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    AppIcons.Snow,
+                    null,
+                    tint = IceColor,
+                    modifier = Modifier.size(34.dp).graphicsLayer { rotationZ = if (Motion.enabled) (pulse - 0.5f) * 14f else 0f },
+                )
+                Text("$shown", color = AppColors.Text, fontSize = 44.sp, lineHeight = 48.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(top = 2.dp))
+                Text(dayWord(shown), color = AppColors.Faint, fontSize = 12.sp, maxLines = 1)
+            }
         }
-        Text(StatsCalc.days(left), color = AppColors.Text, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 8.dp))
-        Text("до следующей заморозки", color = AppColors.Muted, fontSize = 13.sp)
+        Text(
+            "Новая заморозка через ${StatsCalc.days(left)}",
+            color = AppColors.Text,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 18.dp),
+        )
+        Text("откроется ${opens.dayOfMonth} ${MonthGenitive[opens.monthValue - 1]}", color = AppColors.Faint, fontSize = 12.5.sp, modifier = Modifier.padding(top = 4.dp))
         if (last != null) {
-            Text(
-                "Последняя: ${freezeRange(last)} · ${StatsCalc.days(last.days)}",
-                color = IceColor,
-                fontSize = 12.5.sp,
-                modifier = Modifier.padding(top = 8.dp).clip(appCorner(12)).background(IceColor.copy(alpha = 0.08f)).padding(horizontal = 12.dp, vertical = 8.dp),
-            )
+            Row(
+                Modifier.fillMaxWidth().padding(top = 20.dp).fieldSurface(appCorner(18)).padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                val ring = appCorner(12)
+                Box(
+                    Modifier.size(38.dp).background(IceColor.copy(alpha = 0.12f), ring).border(1.dp, IceColor.copy(alpha = 0.35f), ring),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(AppIcons.Undo, null, tint = IceColor, modifier = Modifier.size(18.dp)) }
+                Column(Modifier.weight(1f)) {
+                    Text("ПОСЛЕДНЯЯ", color = AppColors.Faint, fontSize = 10.5.sp, letterSpacing = 1.sp, maxLines = 1)
+                    Text("${freezeRange(last)} · ${StatsCalc.days(last.days)}", color = AppColors.Text, fontSize = 13.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+                }
+            }
         }
     }
     if (onUnfreeze != null) {

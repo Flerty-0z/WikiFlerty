@@ -94,6 +94,12 @@ object Backup {
                     put(i.toJson().put("bookId", JSONObject.NULL).put("book", book))
                 }
             })
+            put("customToc", JSONArray().apply {
+                app.customToc.items.value.values.forEach { t ->
+                    val book = ref(t.bookId) ?: return@forEach
+                    put(t.toJson().put("bookId", JSONObject.NULL).put("book", book))
+                }
+            })
             put("dictionary", JSONArray().apply {
                 app.dictionary.entries.value.forEach { e ->
                     put(e.toJson().put("bookId", JSONObject.NULL).put("book", ref(e.bookId) ?: JSONObject.NULL))
@@ -200,6 +206,19 @@ object Backup {
             }
         }
         if (artChanged > 0) app.illustrations.replaceAll(localArt.values.toList())
+
+        val localToc = app.customToc.items.value.toMutableMap()
+        var tocChanged = 0
+        remote.optJSONArray("customToc").objects().forEach { j ->
+            val bookId = localBookId(j.optString("book").takeIf { it.isNotEmpty() }) ?: return@forEach
+            val toc = runCatching { com.flerty.wikiflerty.data.BookToc.fromJson(j.put("bookId", bookId)) }.getOrNull() ?: return@forEach
+            val mine = localToc[bookId]
+            if (mine == null || toc.updatedAt > mine.updatedAt) {
+                localToc[bookId] = toc
+                tocChanged++
+            }
+        }
+        if (tocChanged > 0) app.customToc.replaceAll(localToc.values.toList())
 
         val localWords = app.dictionary.entries.value.associateBy { it.id }.toMutableMap()
         var wordsChanged = 0
