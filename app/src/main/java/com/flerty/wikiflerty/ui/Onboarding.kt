@@ -108,12 +108,16 @@ enum class NewsTarget { None, Stats, Custom, Library, LibraryView, Guide, Ai }
 
 class NewsItem(val group: String, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None, val query: String = "")
 
-const val NewsRelease = 335
+const val NewsRelease = 336
 
 val WhatsNewItems = listOf(
-    NewsItem("Библиотека", AppIcons.Shelf, "Порядок полок", "Полки тегов и серий теперь в «Показать → Полки» вместе с обычными. Порядок меняется долгим нажатием", NewsTarget.Library),
-    NewsItem("Библиотека", AppIcons.Series, "Тома в серии", "Долгое нажатие на книгу в окне серии: номер части или «Убрать из серии»", NewsTarget.Library),
-    NewsItem("Исправления", AppIcons.Check, "Мелкие правки", "Окно «+» в цветах шаблона, «без номера» вместо прочерка, верные значки в шапках"),
+    NewsItem("Библиотека", AppIcons.Gesture, "Без сортировки", "Расставляй книги на полке сам — перетаскиванием. Порядок сохранится", NewsTarget.LibraryView),
+    NewsItem("Библиотека", AppIcons.Series, "Серии", "Тома каруселью, номер ставится сам, порядок меняется перетаскиванием. Поиск и выбор своей серии", NewsTarget.Library),
+    NewsItem("Библиотека", AppIcons.Hash, "Теги", "Всё на одной странице: нажми на тег — он выбран, и сразу видно действия", NewsTarget.Library),
+    NewsItem("Чтение", AppIcons.Toc, "Свои главы", "Оглавление → «Найти главы». Или выдели заголовок → «Глава»"),
+    NewsItem("Чтение", AppIcons.Person, "Другие имена", "У персонажа можно указать прозвища — флажок узнает его по ним"),
+    NewsItem("Чтение", AppIcons.Voice, "Чтение вслух", "Кнопки громкости больше не листают. Переключатель «Голос за листанием»"),
+    NewsItem("Исправления", AppIcons.Check, "Правки", "Книга не закрывается после сворачивания, флажки в ленте, обновлённое окно заморозки, плавнее анимации"),
 )
 
 @Composable
