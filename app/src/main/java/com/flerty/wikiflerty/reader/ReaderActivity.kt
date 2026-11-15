@@ -2663,6 +2663,17 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             pendingCount = (pendingCount + 1).coerceAtMost(4)
             return
         }
+        if (turning && animation == PageAnimation.Curl && (curl.showing || curlStart != null)) {
+            if (pendingTurn != forward) pendingCount = 0
+            pendingTurn = forward
+            pendingCount = (pendingCount + 1).coerceAtMost(4)
+            curlStart?.let {
+                curl.removeCallbacks(it)
+                it.run()
+            }
+            curl.hurry(170)
+            return
+        }
         if (turning) finishTurnNow()
         if (animation == PageAnimation.Curl) curlTurn(forward) else animatedTurn(forward, animation)
     }
@@ -2953,12 +2964,16 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             }
             val start = Runnable {
                 curlStart = null
-                curl.play(bitmap, forward, onShown = {
+                curl.play(bitmap, forward, duration = if (pendingCount > 0) 320 else 520, onShown = {
                     snapshot.visibility = View.GONE
                     snapshot.setImageDrawable(null)
                 }) {
                     curl.hide()
                     turning = false
+                    if (pendingCount > 0) {
+                        bookArea.removeCallbacks(drainTurn)
+                        drainPending()
+                    }
                 }
             }
             curlStart = start

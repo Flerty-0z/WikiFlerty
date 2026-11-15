@@ -436,7 +436,8 @@ fun PickerSheet(
                 .fillMaxWidth()
                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = corner, topEnd = corner))
                 .background(AppColors.Panel)
-                .height(sheetHeight())
+                .sheetResize()
+                .heightIn(max = sheetMaxHeight())
                 .padding(horizontal = 16.dp)
                 .navigationBarsPadding()
                 .padding(top = 16.dp, bottom = 12.dp),

@@ -1097,6 +1097,7 @@ fun NewShelfButton(onClick: () -> Unit) {
 private fun Modifier.bookcaseWall(): Modifier = this.drawBehind {
     val decor = AppStyle.kit.decor
     if (decor != Decor.None && decor != Decor.Library) return@drawBehind
+    if (BackgroundKind.of(AppStyle.current.background) != BackgroundKind.None) return@drawBehind
     val light = AppStyle.light
     val top = if (light) Color(0xFFE6D7C3) else if (decor == Decor.Library) Color(0xFF241509) else Color(0xFF1D1611)
     val bottom = if (light) Color(0xFFD8C5AC) else if (decor == Decor.Library) Color(0xFF150B05) else Color(0xFF110D0A)

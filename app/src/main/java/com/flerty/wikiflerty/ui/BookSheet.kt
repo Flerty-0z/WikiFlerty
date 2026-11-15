@@ -129,6 +129,31 @@ fun KeepHostBars() {
 fun sheetHeight(): androidx.compose.ui.unit.Dp = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.57f).dp
 
 @Composable
+fun sheetMaxHeight(): androidx.compose.ui.unit.Dp = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.75f).dp
+
+private val SheetResize = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)
+
+@Composable
+internal fun Modifier.sheetResize(): Modifier = this.animateContentSize(androidx.compose.animation.core.tween(Motion.ms(260), easing = SheetResize))
+
+@Composable
+private fun SheetStack(pages: SheetPages, max: androidx.compose.ui.unit.Dp, content: @Composable () -> Unit) {
+    androidx.compose.ui.layout.Layout(content) { measurables, constraints ->
+        val limit = minOf(max.roundToPx(), constraints.maxHeight)
+        val inner = constraints.copy(minHeight = 0, maxHeight = limit)
+        val placeables = measurables.map { it.measure(inner) }
+        val layers = pages.stack.toList()
+        var h = placeables.firstOrNull()?.height?.toFloat() ?: 0f
+        placeables.drop(1).forEachIndexed { i, p ->
+            val v = layers.getOrNull(i)?.enter?.value ?: 1f
+            h += (p.height - h) * v
+        }
+        val height = kotlin.math.round(h).toInt().coerceIn(0, limit)
+        layout(constraints.maxWidth, height) { placeables.forEach { it.placeRelative(0, 0) } }
+    }
+}
+
+@Composable
 fun AppSheet(
     onDismiss: () -> Unit,
     title: String? = null,
@@ -156,46 +181,43 @@ fun AppSheet(
         val close = control.close
         val viewport = remember { RevealViewport() }
         androidx.compose.runtime.CompositionLocalProvider(LocalSheetClose provides close, LocalSheetCloseAll provides close, LocalRevealViewport provides viewport, LocalSheetPages provides pages) {
-            val body: @Composable (Modifier) -> Unit = { mod ->
-                Box(
-                    mod.height(sheetHeight()).drawBehind {
-                        val glow = auraGlow
-                        val colors = auraShown[0]
-                        if (colors != null && glow > 0.01f) {
-                            val a = glow * (if (AppStyle.light) 0.24f else 0.42f)
-                            drawRect(
-                                Brush.radialGradient(listOf(colors[0].copy(alpha = a), Color.Transparent), center = androidx.compose.ui.geometry.Offset(size.width * 0.16f, 72.dp.toPx()), radius = size.width * 0.9f),
-                            )
-                            drawRect(
-                                Brush.radialGradient(listOf(colors[1].copy(alpha = a * 0.62f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(size.width, 0f), radius = size.width * 0.72f),
-                            )
-                        }
-                    },
-                ) {
-                    Column(Modifier.fillMaxSize().pageDepth(pages, null)) {
-                        if (title != null) Box(Modifier.padding(horizontal = 16.dp)) { SheetHeader(title, close) }
-                        Column(
-                            Modifier.weight(1f).revealViewport(viewport).padding(horizontal = 16.dp).navigationBarsPadding().revealScroll(viewport).padding(top = if (title == null) 16.dp else 14.dp, bottom = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            content()
-                        }
-                    }
-                    pages.stack.forEach { page ->
-                        androidx.compose.runtime.key(page) { SheetPageLayer(pages, page, close) }
-                    }
-                }
-            }
-            Box(Modifier.fillMaxWidth().height(sheetHeight() + aboveHeight)) {
+            Box(Modifier.fillMaxWidth()) {
                 if (above != null) Box(Modifier.fillMaxWidth().height(aboveHeight + corner).padding(horizontal = 16.dp), content = above)
                 Box(
                     Modifier
-                        .align(Alignment.BottomCenter)
+                        .padding(top = aboveHeight)
                         .fillMaxWidth()
-                        .height(sheetHeight())
                         .clip(sheetShape)
-                        .background(AppColors.Panel),
-                ) { body(Modifier) }
+                        .background(AppColors.Panel)
+                        .drawBehind {
+                            val glow = auraGlow
+                            val colors = auraShown[0]
+                            if (colors != null && glow > 0.01f) {
+                                val a = glow * (if (AppStyle.light) 0.24f else 0.42f)
+                                drawRect(
+                                    Brush.radialGradient(listOf(colors[0].copy(alpha = a), Color.Transparent), center = androidx.compose.ui.geometry.Offset(size.width * 0.16f, 72.dp.toPx()), radius = size.width * 0.9f),
+                                )
+                                drawRect(
+                                    Brush.radialGradient(listOf(colors[1].copy(alpha = a * 0.62f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(size.width, 0f), radius = size.width * 0.72f),
+                                )
+                            }
+                        },
+                ) {
+                    SheetStack(pages, sheetMaxHeight()) {
+                        Column(Modifier.fillMaxWidth().pageDepth(pages, null).sheetResize()) {
+                            if (title != null) Box(Modifier.padding(horizontal = 16.dp)) { SheetHeader(title, close) }
+                            Column(
+                                Modifier.weight(1f, fill = false).revealViewport(viewport).padding(horizontal = 16.dp).navigationBarsPadding().revealScroll(viewport).padding(top = if (title == null) 16.dp else 14.dp, bottom = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                content()
+                            }
+                        }
+                        pages.stack.forEach { page ->
+                            androidx.compose.runtime.key(page) { SheetPageLayer(pages, page, close) }
+                        }
+                    }
+                }
             }
         }
     }
@@ -267,20 +289,21 @@ private fun SheetPageLayer(pages: SheetPages, page: SheetPage, closeAll: () -> U
     val back: () -> Unit = { if (!page.leaving) page.onDismiss() }
     val title = page.title
     androidx.compose.runtime.CompositionLocalProvider(LocalSheetClose provides back, LocalRevealViewport provides viewport) {
+        val panel = AppColors.Panel
         Column(
             Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .graphicsLayer {
                     translationX = size.width * (1f - page.enter.value)
-                    shadowElevation = if (page.enter.value in 0.01f..0.99f) 18.dp.toPx() else 0f
                 }
                 .pageDepth(pages, page)
-                .background(AppColors.Panel)
+                .drawBehind { drawRect(panel, size = androidx.compose.ui.geometry.Size(size.width, size.height + 4000.dp.toPx())) }
+                .sheetResize()
                 .pointerInput(Unit) { detectTapGestures { } },
         ) {
             if (title != null) Box(Modifier.padding(horizontal = 16.dp)) { PageHeader(title, back, closeAll) }
             Column(
-                Modifier.weight(1f).revealViewport(viewport).padding(horizontal = 16.dp).navigationBarsPadding().revealScroll(viewport).padding(top = if (title == null) 16.dp else 14.dp, bottom = 16.dp),
+                Modifier.weight(1f, fill = false).revealViewport(viewport).padding(horizontal = 16.dp).navigationBarsPadding().revealScroll(viewport).padding(top = if (title == null) 16.dp else 14.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 page.content?.invoke(this)

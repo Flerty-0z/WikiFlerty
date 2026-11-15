@@ -125,6 +125,7 @@ import com.flerty.wikiflerty.ui.PickerOption
 import com.flerty.wikiflerty.ui.PickerRow
 import com.flerty.wikiflerty.ui.SettingIcon
 import com.flerty.wikiflerty.ui.appCorner
+import com.flerty.wikiflerty.ui.sheetResize
 import com.flerty.wikiflerty.ui.accentContent
 import com.flerty.wikiflerty.ui.accentHighlight
 import com.flerty.wikiflerty.ui.AppIcons
@@ -578,6 +579,7 @@ fun ReaderOverlay(
                 progressText = progressText,
                 totalPositions = state.totalPositions,
                 marks = state.chapterMarks,
+                inPages = settings.progressInPages,
                 onBack = onBack,
                 onListen = { state.sheet = ReaderSheet.Listen },
                 onSearch = { state.sheet = ReaderSheet.Search },
@@ -665,7 +667,7 @@ fun ReaderOverlay(
                         val dir = if (deeper) 1 else -1
                         (slideInHorizontally(Motion.tween(260)) { dir * it / 5 } + fadeIn(Motion.fade(220)))
                             .togetherWith(slideOutHorizontally(Motion.tween(220)) { -dir * it / 5 } + fadeOut(Motion.fade(160)))
-                            .using(SizeTransform(clip = false))
+                            .using(SizeTransform(clip = false) { _, _ -> androidx.compose.animation.core.snap() })
                     },
                     label = "sheet",
                 ) { sheet ->
@@ -1266,6 +1268,7 @@ internal fun TopPanel(
     progressText: String,
     totalPositions: Int,
     marks: List<ChapterMark>,
+    inPages: Boolean = false,
     onBack: () -> Unit,
     onListen: () -> Unit,
     onSearch: () -> Unit,
@@ -1373,7 +1376,11 @@ internal fun TopPanel(
                     contentAlignment = Alignment.Center,
                 ) { Icon(AppIcons.SkipNext, "Следующая глава", tint = AppColors.Muted, modifier = Modifier.size(17.dp)) }
                 Text(
-                    "${((preview ?: progression) * 100).roundToInt().coerceIn(0, 100)}%",
+                    when {
+                        inPages && preview != null -> page(preview!!)
+                        inPages -> progressText
+                        else -> "${((preview ?: progression) * 100).roundToInt().coerceIn(0, 100)}%"
+                    },
                     color = if (preview != null) AppColors.Accent else AppColors.Muted,
                     fontSize = 12.sp,
                     fontWeight = if (preview != null) FontWeight.SemiBold else FontWeight.Normal,
@@ -1709,11 +1716,12 @@ internal fun SheetFrame(content: @Composable () -> Unit) {
             .widthIn(max = PanelMaxWidth)
             .fillMaxWidth()
             .imePadding()
-            .height(com.flerty.wikiflerty.ui.sheetHeight())
             .shadow(20.dp, appCorner(28), ambientColor = Color(0x66503010), spotColor = Color(0x66503010))
             .clip(appCorner(28))
             .background(AppColors.Background)
-            .blockTaps(),
+            .blockTaps()
+            .sheetResize()
+            .heightIn(max = com.flerty.wikiflerty.ui.sheetMaxHeight()),
     ) {
         content()
     }
@@ -1818,7 +1826,7 @@ private fun SheetContent(
                     val dir = if (NavSheets.indexOf(targetState) > NavSheets.indexOf(initialState)) 1 else -1
                     (slideInHorizontally(Motion.tween(280)) { dir * it / 4 } + fadeIn(Motion.fade(220)))
                         .togetherWith(slideOutHorizontally(Motion.tween(240)) { -dir * it / 4 } + fadeOut(Motion.fade(160)))
-                        .using(SizeTransform(clip = true))
+                        .using(SizeTransform(clip = true) { _, _ -> androidx.compose.animation.core.snap() })
                 },
                 modifier = Modifier.weight(1f, fill = false),
                 label = "nav",

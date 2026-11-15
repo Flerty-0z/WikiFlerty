@@ -1,5 +1,6 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
@@ -74,6 +75,8 @@ private fun flakes(seed: Int, n: Int): List<Flake> {
 }
 
 private val InkLine = Color(0xFF141210)
+private val NewsInk = Color(0xFF1E1A14)
+internal val NewsLeafColors = listOf(Color(0xFFE6D9BE), Color(0xFFD8C7A2), Color(0xFFCDB894), Color(0xFFE9DFC8))
 internal val LeafColors = listOf(Color(0xFFD9882E), Color(0xFFC0502A), Color(0xFFB8862A), Color(0xFF8E4A22))
 internal val SummerLeafColors = listOf(Color(0xFF7FA84E), Color(0xFF9CC06A), Color(0xFF5E8E44), Color(0xFFB0C46A))
 private val WeedColors = listOf(Color(0xFF4E8A5A), Color(0xFF6E9A4A), Color(0xFF3E7A6A), Color(0xFF7A8A3A))
@@ -221,10 +224,17 @@ internal fun DrawScope.leaf(c: Offset, r: Float, angle: Float, color: Color, dec
         drawPath(p, color.copy(alpha = color.alpha * alpha))
         when (decor) {
             Decor.Comic -> drawPath(p, InkLine.copy(alpha = alpha), style = Stroke(1.6f * density, join = StrokeJoin.Round))
-            Decor.Clay -> drawPath(p, Brush.linearGradient(listOf(Color.White.copy(alpha = 0.5f * alpha), Color.Transparent, Color.Black.copy(alpha = 0.12f * alpha)), start = Offset(c.x - r, c.y - r), end = Offset(c.x + r, c.y + r)))
+            Decor.Clay -> clipPath(p) { drawCircle(Color.White.copy(alpha = 0.35f * alpha), r * 0.6f, Offset(c.x - r * 0.25f, c.y - r * 0.35f)) }
+            Decor.News -> drawPath(p, NewsInk.copy(alpha = 0.75f * alpha), style = Stroke(1.1f * density, join = StrokeJoin.Round))
             else -> Unit
         }
-        drawLine((if (decor == Decor.Comic) InkLine else Color.Black).copy(alpha = (if (decor == Decor.Comic) 0.9f else 0.22f) * alpha), Offset(c.x - r * 0.9f, c.y), Offset(c.x + r * 0.8f, c.y), 0.8f * density)
+        val vein = when (decor) {
+            Decor.Comic -> InkLine.copy(alpha = 0.9f * alpha)
+            Decor.News -> NewsInk.copy(alpha = 0.6f * alpha)
+            Decor.Clay -> Color(0xFF5A2E14).copy(alpha = 0.35f * alpha)
+            else -> Color.Black.copy(alpha = 0.22f * alpha)
+        }
+        drawLine(vein, Offset(c.x - r * 0.9f, c.y), Offset(c.x + r * 0.8f, c.y), 0.8f * density)
     }
 }
 
@@ -281,16 +291,14 @@ private fun DrawScope.seasonParticles(decor: Decor, light: Boolean, moment: KitM
             snow(p, (1.6f + s.size * 2.2f) * d, 0.55f + 0.45f * s.size, decor, light)
         }
         Season.Autumn -> when (decor) {
-            Decor.News -> specks.forEach { s ->
-                val y = ((s.y * span + t * 260f * d * s.speed) % span) - 30 * d
-                val x = s.x * w * 1.2f - y * 0.18f
-                val ink = if (light) Color(0xFF141414) else Color(0xFFECE6D8)
-                drawLine(ink.copy(alpha = 0.12f + 0.1f * s.size), Offset(x, y), Offset(x - 3 * d, y + 16 * d), 1 * d, cap = StrokeCap.Round)
-            }
             Decor.Zen -> Unit
             else -> specks.take(10).forEachIndexed { i, s ->
                 val p = fall(s, if (decor == Decor.Sea) 8f else 19f, 30f)
-                val colors = if (decor == Decor.Sea) WeedColors else LeafColors
+                val colors = when (decor) {
+                    Decor.Sea -> WeedColors
+                    Decor.News -> NewsLeafColors
+                    else -> LeafColors
+                }
                 leaf(p, (5f + s.size * 4f) * d, t * 34f * s.speed + s.phase * 57f, colors[i % colors.size].copy(alpha = if (light) 0.9f else 0.8f), decor)
             }
         }
@@ -413,7 +421,7 @@ fun DrawScope.plankSeason(decor: Decor, season: Season, light: Boolean, seed: In
 }
 
 fun DrawScope.plankFall(decor: Decor, season: Season, seed: Int, nowMs: Long, motion: Boolean) {
-    if (decor == Decor.News || decor == Decor.Sea || decor == Decor.None) return
+    if (decor == Decor.Sea || decor == Decor.None) return
     if (season != Season.Autumn && season != Season.Spring) return
     val d = density
     val w = size.width
@@ -454,7 +462,8 @@ fun DrawScope.plankFall(decor: Decor, season: Season, seed: Int, nowMs: Long, mo
         if (alpha <= 0.01f) continue
         if (autumn) {
             val lr = (5f + r.nextFloat() * 3f) * d
-            leaf(Offset(x, y - 1.5f * d), lr, angle, LeafColors[r.nextInt(LeafColors.size)], decor, alpha)
+            val palette = if (decor == Decor.News) NewsLeafColors else LeafColors
+            leaf(Offset(x, y - 1.5f * d), lr, angle, palette[r.nextInt(palette.size)], decor, alpha)
         } else {
             val pr = (2.6f + r.nextFloat() * 1.8f) * d
             val c = Offset(x, y - pr * 0.3f)

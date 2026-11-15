@@ -193,6 +193,23 @@ class PageCurlView(context: Context) : TextureView(context), TextureView.Surface
         }
     }
 
+    fun hurry(ms: Long) {
+        render.post {
+            if (mode != 1) return@post
+            if (startNanos < 0) {
+                duration = minOf(duration, ms)
+                return@post
+            }
+            val now = System.nanoTime()
+            val t = ((now - startNanos) / 1_000_000f / duration.coerceAtLeast(1)).coerceIn(0f, 1f)
+            if (t >= 1f) return@post
+            val next = (ms / (1f - t)).toLong().coerceAtLeast(1)
+            if (next >= duration) return@post
+            duration = next
+            startNanos = now - (t * next * 1_000_000f).toLong()
+        }
+    }
+
     fun cancel() {
         render.post { if (mode != 0) completeNow() }
     }
