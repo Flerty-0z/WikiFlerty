@@ -299,6 +299,7 @@ class LibraryRepository(
                 author = author.trim(),
                 positions = total,
                 coverFileName = coverName ?: b.coverFileName,
+                coverRemoved = if (coverName != null) false else b.coverRemoved,
                 progress = if (b.positions > 0) (b.progress * b.positions / total).coerceIn(0.0, 1.0) else b.progress,
             )
         }
@@ -329,15 +330,21 @@ class LibraryRepository(
             file.setLastModified(at)
         }
         val old = _books.value.firstOrNull { it.id == bookId }?.let { coverFile(it) }
-        update { list -> list.map { if (it.id == bookId) it.copy(coverFileName = name) else it } }
+        update { list -> list.map { if (it.id == bookId) it.copy(coverFileName = name, coverRemoved = false) else it } }
         withContext(Dispatchers.IO) { old?.takeIf { it.name != name }?.delete() }
     }
 
     suspend fun setCover(bookId: String, cover: Uri) {
         val name = withContext(Dispatchers.IO) { saveCover(bookId, cover) } ?: return
         val old = _books.value.firstOrNull { it.id == bookId }?.let { coverFile(it) }
-        editMeta(bookId) { it.copy(coverFileName = name) }
+        editMeta(bookId) { it.copy(coverFileName = name, coverRemoved = false) }
         withContext(Dispatchers.IO) { old?.takeIf { it.name != name }?.delete() }
+    }
+
+    suspend fun removeCover(bookId: String) {
+        val old = _books.value.firstOrNull { it.id == bookId }?.let { coverFile(it) }
+        editMeta(bookId) { it.copy(coverFileName = null, coverRemoved = true) }
+        withContext(Dispatchers.IO) { old?.delete() }
     }
 
     suspend fun setPaperPage(bookId: String, page: Int) {
@@ -540,7 +547,7 @@ class LibraryRepository(
         update { list -> list.map { if (it.id == bookId) it.copy(lastReadAt = now) else it } }
     }
 
-    suspend fun saveProgress(bookId: String, locator: Locator) {
+    suspend fun saveProgress(bookId: String, locator: Locator, override: Double? = null) {
         val json = locator.toJSON().toString()
         val now = System.currentTimeMillis()
         update { list ->
@@ -551,7 +558,7 @@ class LibraryRepository(
                     val started = it.status == ReadStatus.New || it.status == ReadStatus.Planned
                     it.copy(
                         locatorJson = json,
-                        progress = locator.locations.totalProgression ?: it.progress,
+                        progress = override ?: locator.locations.totalProgression ?: it.progress,
                         lastReadAt = now,
                         status = if (started) ReadStatus.Reading else it.status,
                         metaChangedAt = if (started) now else it.metaChangedAt,

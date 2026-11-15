@@ -115,8 +115,9 @@ fun PaperBookSheet(book: Book?, onDismiss: () -> Unit) {
     var author by remember { mutableStateOf(book?.author.orEmpty()) }
     var pages by remember { mutableStateOf(book?.positions?.takeIf { it > 0 }?.toString().orEmpty()) }
     var cover by remember { mutableStateOf<Uri?>(null) }
-    val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) cover = uri }
-    val camera = rememberCoverShot { cover = it }
+    var removeCover by remember { mutableStateOf(false) }
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) { cover = uri; removeCover = false } }
+    val camera = rememberCoverShot { cover = it; removeCover = false }
     val preview by produceState<ImageBitmap?>(null, cover) {
         value = cover?.let { uri ->
             withContext(Dispatchers.IO) {
@@ -142,10 +143,14 @@ fun PaperBookSheet(book: Book?, onDismiss: () -> Unit) {
                 contentAlignment = Alignment.Center,
             ) {
                 val img = preview
+                val hasFile = book != null && book.coverFileName != null && !removeCover
                 when {
                     img != null -> androidx.compose.foundation.Image(img, null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSizeCompat())
-                    book != null && book.coverFileName != null -> SmallCover(app.library.coverFile(book), Modifier.matchParentSizeCompat())
+                    hasFile -> SmallCover(app.library.coverFile(book!!), Modifier.matchParentSizeCompat())
                     else -> Icon(AppIcons.Book, null, tint = AppColors.Accent, modifier = Modifier.size(30.dp))
+                }
+                CoverRemoveButton(img != null || hasFile, Modifier.align(Alignment.TopEnd)) {
+                    if (cover != null) cover = null else removeCover = true
                 }
             }
             Column(Modifier.weight(1f).height(126.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -163,7 +168,12 @@ fun PaperBookSheet(book: Book?, onDismiss: () -> Unit) {
         AppButton(if (book == null) "Добавить на полку" else "Сохранить", primary = true, modifier = Modifier.fillMaxWidth()) {
             if (!ready) return@AppButton
             app.appScope.launch {
-                if (book == null) app.library.addPaper(title, author, total!!, cover) else app.library.editPaper(book.id, title, author, total!!, cover)
+                if (book == null) {
+                    app.library.addPaper(title, author, total!!, cover)
+                } else {
+                    app.library.editPaper(book.id, title, author, total!!, cover)
+                    if (cover == null && removeCover) app.library.removeCover(book.id)
+                }
             }
             close()
         }

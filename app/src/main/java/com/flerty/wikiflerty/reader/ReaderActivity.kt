@@ -137,7 +137,6 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private var lastPageAt = 0L
     private var pageCountJob: Job? = null
 
-    private var hrefOrder: List<Pair<String, Int>> = emptyList()
     private val screensByHref = HashMap<String, Int>()
     private var screensKey = ""
 
@@ -164,7 +163,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         getSharedPreferences("reader_screens", MODE_PRIVATE).edit().putString(bookId, json.toString()).apply()
     }
 
-    private var textWeights: List<Pair<String, Int>>? = null
+    private class Weight(val href: String, val text: Int, val images: Int)
+
+    private var textWeights: List<Weight>? = null
     private var weightsJob: Job? = null
 
     private fun loadWeights() {
@@ -173,25 +174,25 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val book = bookId
         weightsJob = lifecycleScope.launch {
             val found = withContext(Dispatchers.IO) {
-                val prefs = getSharedPreferences("reader_textlen", MODE_PRIVATE)
+                val prefs = getSharedPreferences("reader_textlen2", MODE_PRIVATE)
                 val cached = prefs.getString(book, null)?.let { raw ->
                     runCatching {
                         val arr = org.json.JSONArray(raw)
-                        (0 until arr.length()).map { i -> arr.getJSONArray(i).let { it.getString(0) to it.getInt(1) } }
+                        (0 until arr.length()).map { i -> arr.getJSONArray(i).let { Weight(it.getString(0), it.getInt(1), it.optInt(2)) } }
                     }.getOrNull()
                 }
                 val order = pub.readingOrder.map { it.url().toString().substringBefore('#') }
-                if (cached != null && cached.map { it.first } == order) return@withContext cached
+                if (cached != null && cached.map { it.href } == order) return@withContext cached
                 val list = pub.readingOrder.map { link ->
                     val res = pub.get(link)
                     val bytes = res?.let { r -> runCatching { r.read().getOrNull() }.getOrNull().also { runCatching { r.close() } } }
                     val html = bytes?.toString(Charsets.UTF_8).orEmpty()
-                    val images = Regex("<(img|image|svg)\\b", RegexOption.IGNORE_CASE).findAll(html).count()
+                    val images = Regex("<(img|image)\\b", RegexOption.IGNORE_CASE).findAll(html).count()
                     val text = htmlToText(html).count { !it.isWhitespace() }
-                    link.url().toString().substringBefore('#') to (text + images * 700)
+                    Weight(link.url().toString().substringBefore('#'), text, images)
                 }
                 val arr = org.json.JSONArray()
-                list.forEach { (h, w) -> arr.put(org.json.JSONArray().put(h).put(w)) }
+                list.forEach { w -> arr.put(org.json.JSONArray().put(w.href).put(w.text).put(w.images)) }
                 prefs.edit().putString(book, arr.toString()).apply()
                 list
             }
@@ -206,26 +207,69 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             loadWeights()
             return
         }
-        if (hrefOrder.isEmpty()) hrefOrder = weights
         val key = screensLayoutKey()
         if (key != screensKey) loadScreens(key)
         if (screensByHref[href] != count) {
             screensByHref[href] = count
             saveScreens()
         }
-        var measuredScreens = 0
-        var measuredWeight = 0L
-        hrefOrder.forEach { (h, n) -> screensByHref[h]?.let { if (n > 0) { measuredScreens += it; measuredWeight += n } } }
-        val ratio = if (measuredWeight > 0) measuredScreens.toDouble() / measuredWeight else return
+        var bigScreens = 0.0
+        var bigText = 0L
+        var anyScreens = 0.0
+        var anyText = 0L
+        weights.forEach { w ->
+            val measured = screensByHref[w.href] ?: return@forEach
+            val textScreens = (measured - w.images).coerceAtLeast(0).toDouble()
+            if (w.text >= MIN_TEXT_FOR_RATIO) {
+                bigScreens += textScreens
+                bigText += w.text
+            }
+            if (w.text > 0) {
+                anyScreens += textScreens
+                anyText += w.text
+            }
+        }
+        val ratio = when {
+            bigText > 0 -> bigScreens / bigText
+            anyText > 0 -> anyScreens / anyText
+            else -> return
+        }
         var total = 0
         var before = -1
-        hrefOrder.forEach { (h, n) ->
-            if (h == href) before = total
-            total += screensByHref[h] ?: (n * ratio).roundToInt().coerceAtLeast(1)
+        weights.forEach { w ->
+            if (w.href == href) before = total
+            total += screensByHref[w.href] ?: (kotlin.math.ceil(w.text * ratio).toInt() + w.images).coerceAtLeast(1)
         }
         if (before < 0 || total <= 0) return
+        if (bigText == 0L && weights.any { it.text >= MIN_TEXT_FOR_RATIO }) {
+            ui.bookPages = 0
+            return
+        }
         ui.bookPages = total
         ui.bookPage = (before + cur).coerceIn(1, total)
+    }
+
+    private var endLocator: org.readium.r2.shared.publication.Locator? = null
+    private var positionBefore: Int? = null
+
+    private fun checkEnd(locator: org.readium.r2.shared.publication.Locator, cur: Int, count: Int) {
+        val pub = publication ?: return
+        val last = pub.readingOrder.lastOrNull()?.url()?.toString()?.substringBefore('#') ?: return
+        val href = locator.href.toString().substringBefore('#')
+        if (href != last || cur < count) {
+            endLocator = null
+            return
+        }
+        val here = locator.locations.position
+        val before = positionBefore
+        val wasNear = endLocator != null || positions.size <= 3 || (here != null && before != null && here - before in 0..2)
+        endLocator = locator
+        if (heldProgress == null && swipeState != SwipeState.Dragging) ui.progression = 1.0
+        if (!askedFinished && wasNear && ui.returnTo == null) {
+            val book = app.library.books.value.firstOrNull { it.id == bookId } ?: return
+            askedFinished = true
+            if (book.status != ReadStatus.Finished) ui.askFinished = true
+        }
     }
 
     private fun updatePageCount(locator: org.readium.r2.shared.publication.Locator) {
@@ -239,6 +283,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             if (count <= 0) return@launch
             ui.chapterPage = cur.coerceIn(1, count)
             ui.chapterPages = count
+            checkEnd(locator, cur, count)
             bookScreens(locator.href.toString().substringBefore('#'), cur.coerceIn(1, count), count)
             val key = "${locator.href}#$cur"
             val now = SystemClock.elapsedRealtime()
@@ -1614,6 +1659,11 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         loadHeroes(session.bookId)
         val initial = settings
         refreshBoot()
+        supportFragmentManager.registerFragmentLifecycleCallbacks(object : androidx.fragment.app.FragmentManager.FragmentLifecycleCallbacks() {
+            override fun onFragmentViewCreated(fm: androidx.fragment.app.FragmentManager, f: androidx.fragment.app.Fragment, v: View, savedInstanceState: Bundle?) {
+                rasterWebViews(v)
+            }
+        }, true)
 
         supportFragmentManager.fragmentFactory = EpubNavigatorFactory(session.publication)
             .createFragmentFactory(
@@ -1654,6 +1704,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         startJsQueue()
         ReaderReveal.run = { x, y, apply -> themeReveal(x, y, apply) }
         bookArea = findViewById(R.id.book_area)
+        bookArea.postDelayed(blankWatch, 1000)
         snapshot = findViewById(R.id.page_snapshot)
         curl = PageCurlView(this).also { v ->
             v.elevation = 17 * resources.displayMetrics.density
@@ -1889,6 +1940,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         updatePageCount(locator)
                         val position = locator.locations.position
                         val previous = lastPosition
+                        positionBefore = previous
                         if (position != null && previous != null && position > previous && position - previous <= 3) {
                             pagesSinceTrack += position - previous
                         }
@@ -2847,6 +2899,45 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
     }
 
+    private fun rasterWebViews(root: View) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        fun walk(v: View) {
+            if (v is android.webkit.WebView) {
+                if (!v.settings.offscreenPreRaster) v.settings.offscreenPreRaster = true
+                return
+            }
+            if (v is android.view.ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+        }
+        walk(root)
+    }
+
+    private val hiddenSince = java.util.WeakHashMap<View, Long>()
+
+    private val blankWatch = object : Runnable {
+        override fun run() {
+            if (!::bookArea.isInitialized) return
+            val now = SystemClock.uptimeMillis()
+            fun walk(v: View) {
+                if (v is android.webkit.WebView) {
+                    if (v.visibility == View.INVISIBLE) {
+                        val since = hiddenSince.getOrPut(v) { now }
+                        if (now - since > 2500) {
+                            v.visibility = View.VISIBLE
+                            hiddenSince.remove(v)
+                        }
+                    } else {
+                        hiddenSince.remove(v)
+                    }
+                    return
+                }
+                if (v is android.view.ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+            }
+            walk(bookArea)
+            bookArea.removeCallbacks(this)
+            bookArea.postDelayed(this, 1000)
+        }
+    }
+
     private fun preRasterPages() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || !::bookArea.isInitialized) return
         fun walk(v: View) {
@@ -3442,9 +3533,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         pendingLocator = null
         val id = bookId
         val previous = lastSave
+        val end = if (endLocator == locator) 1.0 else null
         lastSave = app.appScope.launch {
             previous?.join()
-            app.library.saveProgress(id, locator)
+            app.library.saveProgress(id, locator, end)
         }
     }
 
@@ -3475,11 +3567,16 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     override fun onResume() {
         super.onResume()
+        if (::bookArea.isInitialized) {
+            bookArea.removeCallbacks(blankWatch)
+            bookArea.postDelayed(blankWatch, 1000)
+        }
         visible = true
         lastActivity = SystemClock.elapsedRealtime()
     }
 
     override fun onPause() {
+        if (::bookArea.isInitialized) bookArea.removeCallbacks(blankWatch)
         if (ui.autoActive && !ui.autoPaused) {
             ui.autoPaused = true
             runAuto()
@@ -3632,6 +3729,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private companion object {
+        const val MIN_TEXT_FOR_RATIO = 2500
         private const val PAGE_COUNT_JS = "(function(){var e=document.scrollingElement;if(!e)return '';var w=window.innerWidth,h=window.innerHeight;if(e.scrollWidth>w+4){var n=Math.max(1,Math.round(e.scrollWidth/w));var c=Math.min(n,Math.round(Math.abs(e.scrollLeft)/w)+1);return c+'|'+n;}var n2=Math.max(1,Math.ceil((e.scrollHeight-4)/h));var c2=Math.min(n2,Math.floor((e.scrollTop+4)/h)+1);return c2+'|'+n2;})()"
 
         const val NAVIGATOR_TAG = "navigator"

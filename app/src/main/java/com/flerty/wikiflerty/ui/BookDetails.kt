@@ -547,7 +547,7 @@ fun BookLookupSheet(book: Book, onDismiss: () -> Unit) {
                             busy = r
                             scope.launch {
                                 app.library.fillDetails(book.id, r.description, r.facts, r.series)
-                                if (app.library.coverFile(book)?.exists() != true && r.cover != null) {
+                                if (app.library.coverFile(book)?.exists() != true && !book.coverRemoved && r.cover != null) {
                                     CoverSearch.download(context, r.cover)?.let { app.library.setCover(book.id, it) }
                                 }
                                 busy = null

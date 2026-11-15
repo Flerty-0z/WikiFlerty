@@ -5,6 +5,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,12 +51,14 @@ fun BookEditSheet(book: Book, onDismiss: () -> Unit) {
     var author by remember { mutableStateOf(book.author) }
     var description by remember { mutableStateOf(book.customDescription) }
     var cover by remember { mutableStateOf<Uri?>(null) }
+    var removeCover by remember { mutableStateOf(false) }
     var editing by remember { mutableIntStateOf(-1) }
     var searching by remember { mutableStateOf(false) }
     val original by produceState("", book.id) { value = app.library.info(book).description }
     val shownDescription = description ?: original
-    val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) cover = uri }
-    val camera = rememberCoverShot { cover = it }
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) { cover = uri; removeCover = false } }
+    val camera = rememberCoverShot { cover = it; removeCover = false }
+    val hasFile = remember(book) { app.library.coverFile(book)?.exists() == true }
     val preview by produceState<ImageBitmap?>(null, cover) {
         value = cover?.let { uri ->
             withContext(Dispatchers.IO) {
@@ -72,10 +77,16 @@ fun BookEditSheet(book: Book, onDismiss: () -> Unit) {
                     .border(1.dp, AppColors.PanelBorder, appCorner(10)),
             ) {
                 val img = preview
-                androidx.compose.animation.Crossfade(img, animationSpec = Motion.fade(220), label = "edit-cover") { bmp ->
-                    if (bmp != null) Image(bmp, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().fillMaxHeight())
-                    else if (app.library.coverFile(book)?.exists() == true) SmallCover(app.library.coverFile(book), Modifier.fillMaxWidth().fillMaxHeight())
-                    else GeneratedCover(title, author, Modifier.fillMaxWidth().fillMaxHeight())
+                val target: Any = img ?: if (hasFile && !removeCover) "file" else "generated"
+                androidx.compose.animation.Crossfade(target, animationSpec = Motion.fade(220), label = "edit-cover") { t ->
+                    when (t) {
+                        is ImageBitmap -> Image(t, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().fillMaxHeight())
+                        "file" -> SmallCover(app.library.coverFile(book), Modifier.fillMaxWidth().fillMaxHeight())
+                        else -> GeneratedCover(title, author, Modifier.fillMaxWidth().fillMaxHeight())
+                    }
+                }
+                CoverRemoveButton(target != "generated" || cover != null, Modifier.align(Alignment.TopEnd)) {
+                    if (cover != null) cover = null else removeCover = true
                 }
             }
             Column(Modifier.weight(1f).height(126.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -94,6 +105,7 @@ fun BookEditSheet(book: Book, onDismiss: () -> Unit) {
             app.appScope.launch {
                 if (changedInfo) app.library.editInfo(book.id, title, author, description ?: shownDescription)
                 if (pickedCover != null) app.library.setCover(book.id, pickedCover)
+                else if (removeCover && hasFile) app.library.removeCover(book.id)
             }
             close()
         }
@@ -108,6 +120,25 @@ fun BookEditSheet(book: Book, onDismiss: () -> Unit) {
             1 -> TextInputSheet("Автор", author, "Автор книги", onDismiss = { editing = -1 }, icon = AppIcons.Pencil, maxLength = 120) { author = it }
             2 -> TextInputSheet("Описание", shownDescription, "О чём книга", onDismiss = { editing = -1 }, maxLength = 4000, multiline = true) { description = it }
         }
+    }
+}
+
+@Composable
+internal fun CoverRemoveButton(visible: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible,
+        modifier = modifier.padding(5.dp),
+        enter = androidx.compose.animation.scaleIn(Motion.tween(200), initialScale = 0.6f) + androidx.compose.animation.fadeIn(Motion.fade(180)),
+        exit = androidx.compose.animation.scaleOut(Motion.tween(160), targetScale = 0.6f) + androidx.compose.animation.fadeOut(Motion.fade(140)),
+    ) {
+        Box(
+            Modifier
+                .size(28.dp)
+                .liveClick(CircleShape, sound = FeedbackSound.Trash, pressedScale = 0.88f, onClick = onClick)
+                .background(Color.Black.copy(alpha = 0.55f), CircleShape)
+                .border(1.dp, Color.White.copy(alpha = 0.35f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) { Icon(AppIcons.Trash, "Убрать обложку", tint = Color.White, modifier = Modifier.size(14.dp)) }
     }
 }
 

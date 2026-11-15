@@ -71,6 +71,7 @@ data class Book(
     val series: List<BookSeries> = emptyList(),
     val tags: List<String> = emptyList(),
     val scan: Int = 0,
+    val coverRemoved: Boolean = false,
 ) {
     fun fact(key: String): String = facts[key].orEmpty()
 
@@ -101,9 +102,12 @@ data class Book(
             put("series", JSONArray().apply { series.forEach { s -> put(JSONObject().put("n", s.name).apply { s.number?.let { put("i", it) } }) } })
         }
         put("tags", JSONArray(tags))
+        if (coverRemoved) put("noCover", true)
     }
 
     fun withMeta(j: JSONObject): Book = copy(
+        coverRemoved = j.optBoolean("noCover", false),
+        coverFileName = if (j.optBoolean("noCover", false)) null else coverFileName,
         status = ReadStatus.of(j.optString("status")) ?: status,
         favorite = j.optBoolean("favorite", favorite),
         shelves = j.optJSONArray("shelves")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } } ?: shelves,

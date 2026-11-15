@@ -7,6 +7,7 @@ import com.flerty.wikiflerty.App
 import com.flerty.wikiflerty.reader.ReaderSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -94,6 +95,8 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
         val engines: List<String?> = if (neuralId != null) listOf(neuralId) else systemEngines(settings.ttsEngine.ifBlank { null })
         val places = startPlaces(publication, start)
         var engineFailed = false
+        var crash: Throwable? = null
+        var empty = false
         for (engine in engines) {
             val factory = factory(publication, engine) ?: run {
                 _problems.emit(Problem("Эту книгу нельзя прочитать вслух"))
@@ -101,23 +104,56 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
             }
             engineFailed = false
             for (place in places) {
-                val result = runCatching { factory.createNavigator(this@ReadAloud, place, preferences(settings)) }.getOrNull() ?: continue
+                val attempt = runCatching { factory.createNavigator(this@ReadAloud, place, preferences(settings)) }
+                attempt.exceptionOrNull()?.let { e ->
+                    android.util.Log.w("ReadAloud", "createNavigator failed", e)
+                    if (crash == null) crash = e
+                }
+                val result = attempt.getOrNull() ?: continue
                 result.getOrNull()?.let { return it }
-                if (result.failureOrNull() is TtsNavigatorFactory.Error.EngineInitialization) {
-                    engineFailed = true
-                    break
+                when (result.failureOrNull()) {
+                    is TtsNavigatorFactory.Error.EngineInitialization -> {
+                        engineFailed = true
+                        break
+                    }
+                    is TtsNavigatorFactory.Error.UnsupportedPublication -> empty = true
+                    else -> Unit
                 }
             }
             if (!engineFailed) break
         }
+        val failure = crash
         _problems.emit(
-            if (engineFailed) {
-                Problem("Синтезатор речи телефона не запустился. Попробуй офлайн-нейроголос — он работает без него", openVoices = true)
-            } else {
-                Problem("Не нашёл текст для чтения на этой странице. Перелистни дальше и попробуй ещё раз")
+            when {
+                engineFailed -> Problem("Синтезатор речи телефона не запустился. Попробуй офлайн-нейроголос — он работает без него", openVoices = true)
+                failure != null && !empty -> Problem("Чтение вслух не запустилось: ${describe(failure)}. Пришли этот скрин в @F1erty0z")
+                hasText(publication, start) -> Problem("Не получилось подготовить текст к чтению. Пришли этот скрин в @F1erty0z" + (failure?.let { " (${describe(it)})" } ?: ""))
+                else -> Problem("Не нашёл текст для чтения на этой странице. Перелистни дальше и попробуй ещё раз")
             },
         )
         return null
+    }
+
+    private fun describe(e: Throwable): String {
+        val root = generateSequence(e) { it.cause }.last()
+        val name = root.javaClass.simpleName.ifBlank { root.javaClass.name.substringAfterLast('.') }
+        val msg = root.message?.replace('\n', ' ')?.take(70)
+        return if (msg.isNullOrBlank()) name else "$name — $msg"
+    }
+
+    @OptIn(org.readium.r2.shared.ExperimentalReadiumApi::class)
+    private suspend fun hasText(publication: Publication, start: Locator?): Boolean = withContext(Dispatchers.Default) {
+        runCatching {
+            val content = publication.findService(org.readium.r2.shared.publication.services.content.ContentService::class)?.content(start) ?: return@runCatching false
+            val it = content.iterator()
+            var n = 0
+            while (n < 40 && it.hasNext()) {
+                val element = it.next()
+                if (element is org.readium.r2.shared.publication.services.content.Content.TextualElement && !element.text.isNullOrBlank()) return@runCatching true
+                n++
+            }
+            false
+        }.getOrDefault(false)
     }
 
     private fun factory(publication: Publication, engine: String?) =
