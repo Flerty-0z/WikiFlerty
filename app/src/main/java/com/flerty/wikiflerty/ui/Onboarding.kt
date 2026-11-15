@@ -108,13 +108,13 @@ enum class NewsTarget { None, Stats, Custom, Library, LibraryView, Guide, Ai }
 
 class NewsItem(val group: String, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None, val query: String = "")
 
-const val NewsRelease = 337
+const val NewsRelease = 338
 
 val WhatsNewItems = listOf(
-    NewsItem("Синхронизация", AppIcons.Cloud, "Переносится всё", "Порядок книг, полки, цели, карточки слов, свой фон и мелкие настройки теперь тоже на всех устройствах"),
-    NewsItem("Библиотека", AppIcons.Shelf, "Полки серий и тегов", "Нажми на название полки — откроется серия или тег. Там же полку можно убрать из шкафа", NewsTarget.Library),
-    NewsItem("Библиотека", AppIcons.Series, "Добавление в серию", "Выбор книг теперь в том же виде, что и для полок", NewsTarget.Library),
-    NewsItem("Исправления", AppIcons.Check, "Правки", "Синхронизация работает экономнее, мелкие правки оформления"),
+    NewsItem("Интерфейс", AppIcons.Panel, "Шторки по размеру", "Шторки подстраиваются под содержимое: без пустоты, длинные — до 75% экрана"),
+    NewsItem("Чтение", AppIcons.Pages, "Загиб страницы", "При быстром листании загиб больше не обрывается"),
+    NewsItem("Чтение", AppIcons.Percent, "Прогресс в страницах", "Режим «Страницы» в «Панели» теперь показывает номер страницы"),
+    NewsItem("Оформление", AppIcons.Palette, "Шаблоны", "Листья в «Утренней газете», исправлены листья в «Пластилине», свой фон в «Старинной библиотеке» виден за полками"),
 )
 
 @Composable
