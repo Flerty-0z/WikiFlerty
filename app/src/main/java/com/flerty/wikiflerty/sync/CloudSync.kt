@@ -560,6 +560,7 @@ class CloudSync(private val app: App) {
                 }
                 "c" -> {
                     val book = books.firstOrNull { it.fingerprint == fp } ?: return@forEach
+                    if (book.coverRemoved) return@forEach
                     val current = app.library.customCover(book)?.let { seconds(it.lastModified()) } ?: -1L
                     if (at <= current) return@forEach
                     val bytes = fetch() ?: return@forEach

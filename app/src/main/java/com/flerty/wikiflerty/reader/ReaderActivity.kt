@@ -2081,8 +2081,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 launch {
                     session.navigator.location.collect { location ->
                         val locator = location.utteranceLocator
-                        val wordTint = ttsWordTint(settings.ttsColor, settings.ttsWordColor)
-                        val word = location.tokenLocator?.takeIf { wordTint != 0L }
+                        val wordTint = settings.ttsWordColor
+                        val word = location.tokenLocator
                         val sameLine = locator == lastTtsHighlight
                         if (sameLine && word == lastTtsWord) return@collect
                         lastTtsHighlight = locator
@@ -2090,10 +2090,11 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         navigator.applyDecorations(
                             listOfNotNull(
                                 Decoration("tts", locator, Decoration.Style.Highlight(tint = settings.ttsColor.toInt())),
-                                word?.let { Decoration("tts-word", it, TtsWordStyle(wordTint.toInt())) },
+                                word?.let { Decoration("tts-word", it, Decoration.Style.Highlight(tint = wordTint.toInt(), isActive = wordTint != 0L)) },
                             ),
                             TTS_GROUP,
                         )
+                        if (word != null && settings.ttsFollow) followWord(word)
                         if (sameLine) return@collect
                         if (settings.ttsFollow && !turning && android.os.SystemClock.uptimeMillis() - manualTurnAt > 1500) navigator.go(locator, animated = false)
                     }
@@ -2103,6 +2104,18 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private var ttsSettingsSeen: ReaderSettings? = null
+    private var ttsPageJob: Job? = null
+
+    private fun followWord(word: org.readium.r2.shared.publication.Locator) {
+        ttsPageJob?.cancel()
+        ttsPageJob = lifecycleScope.launch {
+            delay(160)
+            if (turning || android.os.SystemClock.uptimeMillis() - manualTurnAt < 1500) return@launch
+            val out = runCatching { navigator.evaluateJavascript(TTS_WORD_OUT_JS) }.getOrNull().orEmpty()
+            if (!out.contains("out")) return@launch
+            if (out.contains("next") && !settings.scroll) navigator.goForward(animated = false) else navigator.go(word, animated = false)
+        }
+    }
 
     private fun applyListeningSettings(s: ReaderSettings) {
         val before = ttsSettingsSeen
@@ -2138,7 +2151,6 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private fun navigatorConfiguration() = EpubNavigatorFragment.Configuration {
         servedAssets += "fonts/.*"
-        decorationTemplates = decorationTemplates.copy().apply { set(TtsWordStyle::class, TtsWordStyle.template) }
         disablePageTurnsWhileScrolling = true
         selectionActionModeCallback = selectionCallback
         registerJavascriptInterface(TextSelection.BRIDGE) {
@@ -3853,6 +3865,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private companion object {
         var lastReboot = 0L
+        private const val TTS_WORD_OUT_JS = "(function(){var c=document.getElementById('tts-word');if(!c)return '';var bs=c.querySelectorAll('*');if(!bs.length)bs=[c];var w=window.innerWidth,h=window.innerHeight,seen=false,right=false,any=false;for(var i=0;i<bs.length;i++){var r=bs[i].getBoundingClientRect();if(!r.width&&!r.height)continue;any=true;if(r.right>1&&r.left<w-1&&r.bottom>1&&r.top<h-1){seen=true;break;}if(r.left>=w-1||r.top>=h-1)right=true;}if(!any||seen)return 'in';return right?'out-next':'out';})()"
         const val MIN_TEXT_FOR_RATIO = 2500
         private const val PAGE_COUNT_JS = "(function(){var e=document.scrollingElement;if(!e)return '';var w=window.innerWidth,h=window.innerHeight;if(e.scrollWidth>w+4){var n=Math.max(1,Math.round(e.scrollWidth/w));var c=Math.min(n,Math.round(Math.abs(e.scrollLeft)/w)+1);return c+'|'+n;}var n2=Math.max(1,Math.ceil((e.scrollHeight-4)/h));var c2=Math.min(n2,Math.floor((e.scrollTop+4)/h)+1);return c2+'|'+n2;})()"
 

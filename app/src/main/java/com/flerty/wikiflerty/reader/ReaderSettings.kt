@@ -162,7 +162,7 @@ data class ReaderSettings(
     val ttsSpeed: Double = 1.0,
     val ttsPitch: Double = 1.0,
     val ttsColor: Long = 0xFFF2C46B,
-    val ttsWordColor: Long = 0xFF2563EB,
+    val ttsWordColor: Long = 0xFF8AB4F8,
     val ttsFollow: Boolean = true,
     val ttsJump: Boolean = true,
     val autoNight: Boolean = false,

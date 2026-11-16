@@ -56,30 +56,6 @@ import kotlinx.coroutines.launch
 
 val TtsColors = listOf(0xFFF2C46B, 0xFF7ED3A0, 0xFF8AB4F8, 0xFFF28B9B, 0xFFC3A6F5, 0xFFB0B4BC)
 
-val TtsWordColors = listOf(0xFF2563EB, 0xFF16A34A, 0xFFDC2626, 0xFF9333EA, 0xFFDB2777, 0xFF0891B2, 0xFF1F2937)
-
-private fun hue(c: Long): Float {
-    val hsv = FloatArray(3)
-    android.graphics.Color.colorToHSV(c.toInt(), hsv)
-    return if (hsv[1] < 0.18f) -1f else hsv[0]
-}
-
-private fun clash(a: Long, b: Long): Boolean {
-    val ha = hue(a)
-    val hb = hue(b)
-    if (ha < 0f || hb < 0f) return false
-    val d = kotlin.math.abs(ha - hb).let { minOf(it, 360f - it) }
-    return d < 40f
-}
-
-fun ttsWordChoices(sentence: Long): List<Long> = TtsWordColors.filterNot { clash(it, sentence) }
-
-fun ttsWordTint(sentence: Long, word: Long): Long {
-    if (word == 0L) return 0L
-    val choices = ttsWordChoices(sentence)
-    return if (word in choices) word else choices.maxByOrNull { c -> val h = hue(c); val hs = hue(sentence); if (h < 0 || hs < 0) 0f else kotlin.math.abs(h - hs).let { minOf(it, 360f - it) } } ?: word
-}
-
 @Composable
 private fun ColorDot(color: Long, selected: Boolean, onClick: () -> Unit, content: (@Composable () -> Unit)? = null) {
     val ring by androidx.compose.animation.animateColorAsState(if (selected) AppColors.Text else Color.Transparent, com.flerty.wikiflerty.ui.Motion.fade(200), label = "dot-ring")
@@ -449,12 +425,12 @@ fun TtsOptions(
     }
 
     Group("Выделение слова", AppIcons.TextSize) {
-        val effective = ttsWordTint(settings.ttsColor, settings.ttsWordColor)
+        val effective = settings.ttsWordColor
         androidx.compose.foundation.layout.FlowRow(Modifier.animateContentSize(com.flerty.wikiflerty.ui.Motion.tween(260)), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             ColorDot(0L, effective == 0L, onClick = { onSettingsChange { it.copy(ttsWordColor = 0L) } }) {
                 Icon(AppIcons.Close, "Без выделения слова", tint = AppColors.Muted, modifier = Modifier.size(14.dp))
             }
-            ttsWordChoices(settings.ttsColor).forEach { color ->
+            TtsColors.forEach { color ->
                 androidx.compose.runtime.key(color) {
                     ColorDot(color, effective == color, onClick = { onSettingsChange { it.copy(ttsWordColor = color) } })
                 }
