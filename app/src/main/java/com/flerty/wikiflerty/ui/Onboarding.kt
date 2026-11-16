@@ -108,13 +108,12 @@ enum class NewsTarget { None, Stats, Custom, Library, LibraryView, Guide, Ai }
 
 class NewsItem(val group: String, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None, val query: String = "")
 
-const val NewsRelease = 341
+const val NewsRelease = 342
 
 val WhatsNewItems = listOf(
-    NewsItem("Библиотека", AppIcons.FolderSearch, "Автоимпорт из папки", "Выбери папку в «Добавить книгу» — новые книги из неё будут добавляться сами"),
-    NewsItem("Чтение вслух", AppIcons.Voice, "Выделение слова", "Голос подсвечивает текущее слово, цвет — в параметрах чтения вслух. Страница листается сразу, как чтение переходит на следующую"),
-    NewsItem("Чтение", AppIcons.Pages, "Без пустых страниц", "Если страница не прорисовалась, читалка сама её восстановит — без чёрного экрана и перезапуска"),
-    NewsItem("Исправления", AppIcons.Sparkle, "Правки", "Удалённые обложки больше не возвращаются, копия сохраняет свои обложки и фон, анимации в «Чтение вслух», «Далее» не перекрывает каплю"),
+    NewsItem("Чтение вслух", AppIcons.Pages, "Листает за голосом", "Страница перелистывается сразу, как чтение переходит на следующую — не дожидаясь конца предложения"),
+    NewsItem("Чтение вслух", AppIcons.Voice, "Выделение на любом движке", "Если движок не сообщает слова, читалка сама подстраивается под темп голоса"),
+    NewsItem("Исправления", AppIcons.Sparkle, "Правки", "Цвета выделения слова в один ряд"),
 )
 
 @Composable
