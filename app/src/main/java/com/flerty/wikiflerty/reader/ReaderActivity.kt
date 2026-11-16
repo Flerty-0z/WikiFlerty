@@ -349,7 +349,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             onToggle = ::toggleBookmark,
             onOpen = { mark ->
                 ui.hideAll()
-                PdfLocators.toText(mark.locator, pdfMap)?.let { navigator.go(it, animated = false) }
+                PdfLocators.toText(mark.locator, pdfMap)?.let { aim(it); navigator.go(it, animated = false) }
                 resyncListening()
             },
             onDelete = { mark -> lifecycleScope.launch { app.bookmarks.delete(listOf(mark.id)) } },
@@ -1150,6 +1150,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 app.readerSession?.publication?.locateProgression(f)
             } ?: return@launch
             endSelection()
+            aim(target)
             navigator.go(target, animated = false)
             resyncListening()
         }
@@ -1855,7 +1856,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         onSettingsChange = { transform -> app.readerSettings.update(transform) },
                         onTocSelect = { item ->
                             val target = item.locator
-                            if (target != null) navigator.go(target, animated = false) else navigator.go(item.link, animated = false)
+                            if (target != null) { aim(target); navigator.go(target, animated = false) } else navigator.go(item.link, animated = false)
                             resyncListening()
                         },
                         onBack = { finish() },
@@ -2966,7 +2967,31 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         walk(root)
     }
 
-    private val hiddenSince = java.util.WeakHashMap<View, Long>()
+    private class Stuck(val since: Long, var stage: Int = 0, var at: Long = since)
+
+    private val stuck = java.util.WeakHashMap<android.webkit.WebView, Stuck>()
+
+    private fun onScreen(v: View): Boolean {
+        val r = Rect()
+        if (!v.isShown || !v.getGlobalVisibleRect(r)) return false
+        val area = Rect()
+        if (!bookArea.getGlobalVisibleRect(area)) return false
+        return r.width() > area.width() / 2 && Rect.intersects(r, area)
+    }
+
+    private fun wake(v: android.webkit.WebView) {
+        v.alpha = 0.02f
+        v.visibility = View.VISIBLE
+        v.invalidate()
+        runCatching {
+            v.postVisualStateCallback(SystemClock.uptimeMillis(), object : android.webkit.WebView.VisualStateCallback() {
+                override fun onComplete(requestId: Long) {
+                    if (stuck.remove(v) == null) return
+                    v.animate().alpha(1f).setStartDelay(300).setDuration(if (com.flerty.wikiflerty.ui.Motion.enabled) 180 else 0).start()
+                }
+            })
+        }
+    }
 
     private val blankWatch = object : Runnable {
         override fun run() {
@@ -2974,14 +2999,29 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             val now = SystemClock.uptimeMillis()
             fun walk(v: View) {
                 if (v is android.webkit.WebView) {
-                    if (v.visibility == View.INVISIBLE) {
-                        val since = hiddenSince.getOrPut(v) { now }
-                        if (now - since > 2500) {
-                            v.visibility = View.VISIBLE
-                            hiddenSince.remove(v)
+                    val waiting = v.visibility == View.INVISIBLE || v.alpha < 0.5f
+                    if (!waiting || !onScreen(v.parent as? View ?: v)) {
+                        if (!waiting) stuck.remove(v)
+                        return
+                    }
+                    val s = stuck.getOrPut(v) { Stuck(now) }
+                    when {
+                        s.stage in 1..2 && now - s.at <= (if (s.stage == 1) 2500 else 4000) -> wake(v)
+                        s.stage == 0 && now - s.at > 2200 -> {
+                            s.stage = 1
+                            s.at = now
+                            wake(v)
                         }
-                    } else {
-                        hiddenSince.remove(v)
+                        s.stage == 1 && now - s.at > 2500 -> {
+                            s.stage = 2
+                            s.at = now
+                            runCatching { v.reload() }
+                            wake(v)
+                        }
+                        s.stage == 2 && now - s.at > 4000 && now - lastReboot > 30_000 -> {
+                            s.stage = 3
+                            reboot()
+                        }
                     }
                     return
                 }
@@ -2989,8 +3029,34 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             }
             walk(bookArea)
             bookArea.removeCallbacks(this)
-            bookArea.postDelayed(this, 1000)
+            bookArea.postDelayed(this, 600)
         }
+    }
+
+    private var restarting = false
+
+    private fun reboot() {
+        if (isFinishing || isDestroyed || !::navigator.isInitialized) return
+        val session = app.readerSession ?: return
+        val now = navigator.currentLocator.value
+        val here = goTarget?.takeIf { SystemClock.uptimeMillis() - goTargetAt < 15_000 && it.href.toString().substringBefore('#') != now.href.toString().substringBefore('#') } ?: now
+        val start = if (here.locations.progression != null) here.copy(text = org.readium.r2.shared.publication.Locator.Text()) else here
+        flushProgress()
+        restarting = true
+        lastReboot = SystemClock.uptimeMillis()
+        app.readerSession = ReaderSession(session.bookId, session.publication, start)
+        startActivity(Intent(this, ReaderActivity::class.java))
+        finish()
+        @Suppress("DEPRECATION")
+        overridePendingTransition(0, 0)
+    }
+
+    private var goTarget: org.readium.r2.shared.publication.Locator? = null
+    private var goTargetAt = 0L
+
+    private fun aim(target: org.readium.r2.shared.publication.Locator) {
+        goTarget = target
+        goTargetAt = SystemClock.uptimeMillis()
     }
 
     private fun preRasterPages() {
@@ -3656,10 +3722,12 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         if (ReaderReveal.run != null) ReaderReveal.run = null
         flushProgress()
         super.onDestroy()
-        if (isFinishing) {
+        if (isFinishing && !restarting) {
             if (mySession != null) app.readAloud.stop()
             app.ambient.stopAll()
             app.closeReader()
+        } else if (restarting && mySession != null) {
+            app.readAloud.stop()
         }
     }
 
@@ -3784,6 +3852,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private companion object {
+        var lastReboot = 0L
         const val MIN_TEXT_FOR_RATIO = 2500
         private const val PAGE_COUNT_JS = "(function(){var e=document.scrollingElement;if(!e)return '';var w=window.innerWidth,h=window.innerHeight;if(e.scrollWidth>w+4){var n=Math.max(1,Math.round(e.scrollWidth/w));var c=Math.min(n,Math.round(Math.abs(e.scrollLeft)/w)+1);return c+'|'+n;}var n2=Math.max(1,Math.ceil((e.scrollHeight-4)/h));var c2=Math.min(n2,Math.floor((e.scrollTop+4)/h)+1);return c2+'|'+n2;})()"
 
