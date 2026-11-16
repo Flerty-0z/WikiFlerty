@@ -2093,7 +2093,7 @@ private fun TextOptions(
     }
     SwitchRow("Переносы", settings.hyphens, icon = AppIcons.Wrap) { v -> onSettingsChange { it.copy(hyphens = v) } }
     SwitchRow("Бионическое чтение", settings.bionic, icon = AppIcons.Eye) { v -> onSettingsChange { it.copy(bionic = v) } }
-    SwitchRow("Слова из словаря", settings.markWords, icon = AppIcons.Dictionary) { v -> onSettingsChange { it.copy(markWords = v) } }
+    SwitchRow("Слова из словаря", settings.markWords, icon = AppIcons.TextSize) { v -> onSettingsChange { it.copy(markWords = v) } }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     Column(Modifier.alpha(if (settings.scroll) 0.45f else 1f)) {
         Segmented(
