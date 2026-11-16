@@ -389,6 +389,19 @@ object Backup {
                     zip.closeEntry()
                 }
             }
+            app.library.books.value.forEach { book ->
+                val fp = book.fingerprint ?: return@forEach
+                val cover = app.library.customCover(book) ?: return@forEach
+                zip.putNextEntry(ZipEntry("covers/$fp.jpg"))
+                cover.inputStream().use { it.copyTo(zip) }
+                zip.closeEntry()
+            }
+            listOf(app.style.backgroundImage, app.style.backgroundVideo).forEach { file ->
+                if (!file.exists()) return@forEach
+                zip.putNextEntry(ZipEntry("background/${file.name}"))
+                file.inputStream().use { it.copyTo(zip) }
+                zip.closeEntry()
+            }
             if (includeBooks) {
                 app.library.books.value.forEach { book ->
                     val file = if (book.isPdf) app.library.pdfFile(book) else app.library.bookFile(book)
@@ -407,6 +420,8 @@ object Backup {
         var booksAdded = 0
         val avatars = mutableMapOf<Pair<String, String>, ByteArray>()
         val faces = mutableMapOf<String, ByteArray>()
+        val covers = mutableMapOf<String, ByteArray>()
+        val backgrounds = mutableMapOf<String, ByteArray>()
         try {
             val input = context.contentResolver.openInputStream(source) ?: throw IllegalStateException("Не удалось открыть файл")
             val bytes = input.use { it.readBytes() }
@@ -418,6 +433,12 @@ object Backup {
                         val entry = zip.nextEntry ?: break
                         when {
                             entry.name == "backup.json" -> backup = JSONObject(zip.readBytes().toString(Charsets.UTF_8))
+                            entry.name.startsWith("covers/") && entry.name.endsWith(".jpg") -> {
+                                covers[entry.name.removePrefix("covers/").removeSuffix(".jpg")] = zip.readBytes()
+                            }
+                            entry.name.startsWith("background/") -> {
+                                backgrounds[entry.name.removePrefix("background/")] = zip.readBytes()
+                            }
                             entry.name.startsWith("people/") && entry.name.endsWith(".jpg") -> {
                                 faces[entry.name.removePrefix("people/").removeSuffix(".jpg")] = zip.readBytes()
                             }
@@ -447,6 +468,22 @@ object Backup {
                 }
                 faces.forEach { (id, bytes) ->
                     if (!app.characters.avatar(id).exists()) app.characters.applyAvatar(id, bytes, System.currentTimeMillis())
+                }
+                covers.forEach { (fp, bytes) ->
+                    val book = app.library.books.value.firstOrNull { it.fingerprint == fp } ?: return@forEach
+                    if (book.coverRemoved || app.library.customCover(book) != null) return@forEach
+                    app.library.applyCover(book.id, bytes, System.currentTimeMillis())
+                }
+                if (backgrounds.isNotEmpty() && app.sync.store.state.value.syncSettings) {
+                    backgrounds.forEach { (name, bytes) ->
+                        val file = when (name) {
+                            app.style.backgroundImage.name -> app.style.backgroundImage
+                            app.style.backgroundVideo.name -> app.style.backgroundVideo
+                            else -> return@forEach
+                        }
+                        runCatching { file.writeBytes(bytes) }
+                    }
+                    app.style.backgroundTick.value++
                 }
             }
         } finally {
