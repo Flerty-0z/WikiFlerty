@@ -168,27 +168,33 @@ private fun anchors(units: List<ShelfUnit>): Map<ShelfUnit, String> {
 
 private fun pinned(content: List<ShelfUnit>, pins: List<PropPin>): List<ShelfUnit> {
     val names = anchors(content)
-    val known = names.values.toSet()
-    val by = pins.groupBy { if (it.after.isEmpty() || it.after in known) it.after else "?" }
-    fun props(key: String) = by[key].orEmpty().map { ShelfUnit.Prop(it.variant, "p:" + it.id) }
-    val out = mutableListOf<ShelfUnit>()
-    out += props("")
-    content.forEach { u ->
-        out += u
-        names[u]?.let { out += props(it) }
+    val index = HashMap<String, Int>()
+    content.forEachIndexed { i, u -> names[u]?.let { index[it] = i + 1 } }
+    val by = pins.groupBy { pin ->
+        when {
+            pin.after.isEmpty() -> 0
+            pin.after.startsWith("#") -> (pin.after.drop(1).toIntOrNull() ?: 0).coerceIn(0, content.size)
+            else -> index[pin.after] ?: content.size
+        }
     }
-    out += props("?")
+    fun props(at: Int) = by[at].orEmpty().map { ShelfUnit.Prop(it.variant, "p:" + it.id) }
+    val out = mutableListOf<ShelfUnit>()
+    out += props(0)
+    content.forEachIndexed { i, u ->
+        out += u
+        out += props(i + 1)
+    }
     return out
 }
 
 private fun pinsOf(units: List<ShelfUnit>): List<PropPin> {
-    val names = anchors(units)
-    var after = ""
+    var count = 0
     val pins = mutableListOf<PropPin>()
     units.forEach { u ->
         when (u) {
-            is ShelfUnit.Prop -> pins += PropPin(u.key.removePrefix("p:"), u.index, after)
-            else -> names[u]?.let { after = it }
+            is ShelfUnit.Prop -> pins += PropPin(u.key.removePrefix("p:"), u.index, "#$count")
+            is ShelfUnit.Add -> Unit
+            else -> count++
         }
     }
     return pins
@@ -651,7 +657,21 @@ private class ShelfDrag {
         return if (dist < 60f) best else null
     }
 
+    var frozen: Map<String, List<PropPin>>? = null
+
+    fun freezeProps() {
+        frozen = null
+        if (PropPlace.of(AppStyle.tune.propPlace) != PropPlace.Custom) return
+        val now = layout().mapValues { pinsOf(it.value) }
+        frozen = now
+        preview = now
+    }
+
     fun finish() {
+        frozen?.let { pins ->
+            frozen = null
+            if (pins != AppStyle.tune.pins.filterKeys { it in pins.keys }) onPropDrop(AppStyle.tune.pins + pins)
+        }
         if (prop != null) {
             if (phase != 1) return
             slotAt()?.let { c -> if (autoscroll || System.currentTimeMillis() - appliedAt >= 170) applySlot(c) }
@@ -953,6 +973,7 @@ private fun DragGhost(drag: ShelfDrag) {
             drag.destSpec = null
             drag.pointer = null
             drag.bookPreview = null
+            drag.preview = null
         }
     }
     fun lerp(a: Float, b: Float, t: Float) = a + (b - a) * t
@@ -1064,6 +1085,7 @@ private fun Modifier.shelfDraggable(book: Book, plank: String, spec: LyingSpec? 
                     drag.dest = null
                     drag.pointer = c.positionInWindow() + offset
                     drag.book = book
+                    drag.freezeProps()
                     drag.phase = 1
                     haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                     feedback?.play(FeedbackSound.Pick)

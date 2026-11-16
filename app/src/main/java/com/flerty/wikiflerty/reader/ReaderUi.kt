@@ -276,12 +276,22 @@ data class SelectionHandles(val start: androidx.compose.ui.geometry.Offset?, val
 
 @Composable
 private fun SelectionHandleLayer(state: ReaderUiState, handleStyle: String) {
-    val h = state.handles ?: return
-    if (state.sheet != null) return
+    val kept = remember { arrayOf<SelectionHandles?>(null) }
+    state.handles?.let { kept[0] = it }
+    val showDots = state.handles != null && state.sheet == null
     val color = Color(state.handleColor)
     val style = HandleStyle.of(handleStyle)
-    h.start?.let { HandleDot(it, true, color, state, style) }
-    h.end?.let { HandleDot(it, false, color, state, style) }
+    AnimatedVisibility(showDots, enter = fadeIn(Motion.fade(120)), exit = fadeOut(Motion.fade(220))) {
+        val k = kept[0]
+        if (k != null) {
+            Box(Modifier.fillMaxSize()) {
+                k.start?.let { HandleDot(it, true, color, state, style) }
+                k.end?.let { HandleDot(it, false, color, state, style) }
+            }
+        }
+    }
+    val h = state.handles ?: return
+    if (state.sheet != null) return
     val end = h.end
     val last = remember { arrayOf<androidx.compose.ui.geometry.Offset?>(null) }
     if (end != null && h.more) last[0] = end
@@ -297,10 +307,11 @@ private fun SelectionHandleLayer(state: ReaderUiState, handleStyle: String) {
         modifier = Modifier.offset {
             val p = last[0] ?: androidx.compose.ui.geometry.Offset.Zero
             val floor = (if (state.flagTop > 0f) state.flagTop else screenH - 64.dp.toPx()) - 6.dp.toPx()
-            val below = p.y + 26.dp.toPx()
-            val y = if (below + pillH <= floor) below else floor - pillH
+            val y = minOf(p.y + 6.dp.toPx(), floor - pillH)
             val edge = 12.dp.toPx()
-            val x = (p.x + 16.dp.toPx() - pillW[0]).coerceIn(edge, maxOf(edge, screenW - pillW[0] - edge))
+            val gap = 30.dp.toPx()
+            val left = p.x - gap - pillW[0]
+            val x = (if (left >= edge) left else p.x + gap).coerceIn(edge, maxOf(edge, screenW - pillW[0] - edge))
             androidx.compose.ui.unit.IntOffset(x.roundToInt(), y.roundToInt())
         },
     ) {
@@ -902,7 +913,7 @@ fun ReaderOverlay(
     AnimatedVisibility(
         visible = selection != null && state.sheet == null,
         enter = fadeIn(Motion.fade(220)),
-        exit = fadeOut(Motion.fade(160)),
+        exit = fadeOut(Motion.fade(260)) + scaleOut(Motion.tween(280), targetScale = 0.92f),
     ) {
         val last = remember { arrayOf<SelectionInfo?>(null) }
         selection?.let { last[0] = it }

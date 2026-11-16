@@ -600,11 +600,12 @@ internal object TextSelection {
               var el = hits[i].r.startContainer.parentElement;
               var fs = sizes.get(el);
               if (fs === undefined) { fs = el ? parseFloat(getComputedStyle(el).fontSize) || 16 : 16; sizes.set(el, fs); }
-              var h = Math.max(13, fs), w = h * (hits[i].q ? 20 : 26) / 30;
+              var q = hits[i].q;
+              var h = Math.max(13, fs) * (q ? 0.82 : 1), w = h * (q ? 20 : 26) / 30;
               var f = document.createElement("i");
-              if (hits[i].q) f.className = "q";
-              f.style.left = (b.left - o.left - fs * (hits[i].q ? 0.3 : 0.22)) + "px";
-              f.style.top = (b.top - o.top + b.height * 0.2 - h * 0.52) + "px";
+              if (q) f.className = "q";
+              f.style.left = (q ? b.left - o.left - w * 0.62 : b.left - o.left - fs * 0.22) + "px";
+              f.style.top = (q ? b.top - o.top + b.height * 0.2 - h * 0.62 : b.top - o.top + b.height * 0.2 - h * 0.52) + "px";
               f.style.width = w + "px";
               f.style.height = h + "px";
               hits[i].flag = f;
