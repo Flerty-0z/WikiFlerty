@@ -108,13 +108,13 @@ enum class NewsTarget { None, Stats, Custom, Library, LibraryView, Guide, Ai }
 
 class NewsItem(val group: String, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None, val query: String = "")
 
-const val NewsRelease = 340
+const val NewsRelease = 341
 
 val WhatsNewItems = listOf(
-    NewsItem("Чтение", AppIcons.TextSize, "Слова из словаря", "Слова из твоего словаря отмечаются в книге красным «?». Нажми — откроется определение. Выключается в «Текст»"),
-    NewsItem("Библиотека", AppIcons.Search, "Поиск при выборе книг", "Новая полка, серия и анкета персонажа: поиск и подгрузка, даже если книг тысячи", NewsTarget.Library),
-    NewsItem("Чтение", AppIcons.Person, "Точнее флажки", "Флажок больше не цепляется к похожим именам и чужим частям имени"),
-    NewsItem("Исправления", AppIcons.Sparkle, "Правки", "Часы и минуты вместо длинных минут, стабильное число страниц, декор не сдвигается при перестановке книг, плавное меню выделения"),
+    NewsItem("Библиотека", AppIcons.FolderSearch, "Автоимпорт из папки", "Выбери папку в «Добавить книгу» — новые книги из неё будут добавляться сами"),
+    NewsItem("Чтение вслух", AppIcons.Voice, "Выделение слова", "Голос подсвечивает текущее слово, цвет — в параметрах чтения вслух. Страница листается сразу, как чтение переходит на следующую"),
+    NewsItem("Чтение", AppIcons.Pages, "Без пустых страниц", "Если страница не прорисовалась, читалка сама её восстановит — без чёрного экрана и перезапуска"),
+    NewsItem("Исправления", AppIcons.Sparkle, "Правки", "Удалённые обложки больше не возвращаются, копия сохраняет свои обложки и фон, анимации в «Чтение вслух», «Далее» не перекрывает каплю"),
 )
 
 @Composable
