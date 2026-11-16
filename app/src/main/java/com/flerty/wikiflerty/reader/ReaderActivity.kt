@@ -2071,6 +2071,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 lastTtsHighlight = null
                 lastTtsWord = null
                 navigator.applyDecorations(emptyList(), TTS_GROUP)
+                navigator.applyDecorations(emptyList(), TTS_WORD_GROUP)
                 return@collectLatest
             }
             ui.ttsActive = true
@@ -2087,12 +2088,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         if (sameLine && word == lastTtsWord) return@collect
                         lastTtsHighlight = locator
                         lastTtsWord = word
+                        if (!sameLine) navigator.applyDecorations(listOf(Decoration("tts", locator, Decoration.Style.Highlight(tint = settings.ttsColor.toInt()))), TTS_GROUP)
                         navigator.applyDecorations(
-                            listOfNotNull(
-                                Decoration("tts", locator, Decoration.Style.Highlight(tint = settings.ttsColor.toInt())),
-                                word?.let { Decoration("tts-word", it, Decoration.Style.Highlight(tint = wordTint.toInt(), isActive = wordTint != 0L)) },
-                            ),
-                            TTS_GROUP,
+                            listOfNotNull(word?.let { Decoration("tts-word", it, Decoration.Style.Highlight(tint = wordTint.toInt(), isActive = wordTint != 0L)) }),
+                            TTS_WORD_GROUP,
                         )
                         if (word != null && settings.ttsFollow) followWord(word)
                         if (sameLine) return@collect
@@ -3865,13 +3864,14 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private companion object {
         var lastReboot = 0L
-        private const val TTS_WORD_OUT_JS = "(function(){var c=document.getElementById('tts-word');if(!c)return '';var bs=c.querySelectorAll('*');if(!bs.length)bs=[c];var w=window.innerWidth,h=window.innerHeight,seen=false,right=false,any=false;for(var i=0;i<bs.length;i++){var r=bs[i].getBoundingClientRect();if(!r.width&&!r.height)continue;any=true;if(r.right>1&&r.left<w-1&&r.bottom>1&&r.top<h-1){seen=true;break;}if(r.left>=w-1||r.top>=h-1)right=true;}if(!any||seen)return 'in';return right?'out-next':'out';})()"
+        private const val TTS_WORD_OUT_JS = "(function(){var c=document.querySelector('[data-group=\"tts-word\"]');if(!c)return '';var bs=c.querySelectorAll('*');var w=window.innerWidth,h=window.innerHeight,seen=false,right=false,any=false;for(var i=0;i<bs.length;i++){if(bs[i].style.position!=='absolute')continue;var r=bs[i].getBoundingClientRect();if(!r.width&&!r.height)continue;any=true;if(r.right>1&&r.left<w-1&&r.bottom>1&&r.top<h-1){seen=true;break;}if(r.left>=w-1||r.top>=h-1)right=true;}if(!any||seen)return 'in';return right?'out-next':'out';})()"
         const val MIN_TEXT_FOR_RATIO = 2500
         private const val PAGE_COUNT_JS = "(function(){var e=document.scrollingElement;if(!e)return '';var w=window.innerWidth,h=window.innerHeight;if(e.scrollWidth>w+4){var n=Math.max(1,Math.round(e.scrollWidth/w));var c=Math.min(n,Math.round(Math.abs(e.scrollLeft)/w)+1);return c+'|'+n;}var n2=Math.max(1,Math.ceil((e.scrollHeight-4)/h));var c2=Math.min(n2,Math.floor((e.scrollTop+4)/h)+1);return c2+'|'+n2;})()"
 
         const val NAVIGATOR_TAG = "navigator"
         const val NOTES_GROUP = "notes"
         const val TTS_GROUP = "tts"
+        const val TTS_WORD_GROUP = "tts-word"
         const val SEARCH_GROUP = "search"
         const val AUTO_TICK = 100L
         const val SEARCH_LIMIT = 500

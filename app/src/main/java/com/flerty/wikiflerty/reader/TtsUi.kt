@@ -57,17 +57,25 @@ import kotlinx.coroutines.launch
 val TtsColors = listOf(0xFFF2C46B, 0xFF7ED3A0, 0xFF8AB4F8, 0xFFF28B9B, 0xFFC3A6F5, 0xFFB0B4BC)
 
 @Composable
-private fun ColorDot(color: Long, selected: Boolean, onClick: () -> Unit, content: (@Composable () -> Unit)? = null) {
+private fun DotRow(count: Int, content: @Composable (androidx.compose.ui.unit.Dp) -> Unit) {
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val dot = minOf(40.dp, maxWidth / count)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { content(dot) }
+    }
+}
+
+@Composable
+private fun ColorDot(color: Long, selected: Boolean, onClick: () -> Unit, size: androidx.compose.ui.unit.Dp = 40.dp, content: (@Composable () -> Unit)? = null) {
     val ring by androidx.compose.animation.animateColorAsState(if (selected) AppColors.Text else Color.Transparent, com.flerty.wikiflerty.ui.Motion.fade(200), label = "dot-ring")
     val grow by androidx.compose.animation.core.animateFloatAsState(if (selected) 1f else 0.86f, androidx.compose.animation.core.spring(dampingRatio = 0.55f, stiffness = 520f), label = "dot-grow")
     Box(
-        Modifier.size(40.dp)
+        Modifier.size(size)
             .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.85f, onClick = onClick)
             .border(2.dp, ring, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         Box(
-            Modifier.size(28.dp).graphicsLayer { scaleX = grow; scaleY = grow }.clip(CircleShape).then(if (content == null) Modifier.background(Color(color)) else Modifier.border(1.5.dp, AppColors.Line, CircleShape)),
+            Modifier.size(size * 0.7f).graphicsLayer { scaleX = grow; scaleY = grow }.clip(CircleShape).then(if (content == null) Modifier.background(Color(color)) else Modifier.border(1.5.dp, AppColors.Line, CircleShape)),
             contentAlignment = Alignment.Center,
         ) { content?.invoke() }
     }
@@ -417,22 +425,22 @@ fun TtsOptions(
     )
 
     Group("Цвет подсветки", AppIcons.Palette) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        DotRow(TtsColors.size + 1) { dot ->
             TtsColors.forEach { color ->
-                ColorDot(color, settings.ttsColor == color, onClick = { onSettingsChange { it.copy(ttsColor = color) } })
+                ColorDot(color, settings.ttsColor == color, onClick = { onSettingsChange { it.copy(ttsColor = color) } }, size = dot)
             }
         }
     }
 
     Group("Выделение слова", AppIcons.TextSize) {
         val effective = settings.ttsWordColor
-        androidx.compose.foundation.layout.FlowRow(Modifier.animateContentSize(com.flerty.wikiflerty.ui.Motion.tween(260)), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            ColorDot(0L, effective == 0L, onClick = { onSettingsChange { it.copy(ttsWordColor = 0L) } }) {
+        DotRow(TtsColors.size + 1) { dot ->
+            ColorDot(0L, effective == 0L, onClick = { onSettingsChange { it.copy(ttsWordColor = 0L) } }, size = dot) {
                 Icon(AppIcons.Close, "Без выделения слова", tint = AppColors.Muted, modifier = Modifier.size(14.dp))
             }
             TtsColors.forEach { color ->
                 androidx.compose.runtime.key(color) {
-                    ColorDot(color, effective == color, onClick = { onSettingsChange { it.copy(ttsWordColor = color) } })
+                    ColorDot(color, effective == color, onClick = { onSettingsChange { it.copy(ttsWordColor = color) } }, size = dot)
                 }
             }
         }

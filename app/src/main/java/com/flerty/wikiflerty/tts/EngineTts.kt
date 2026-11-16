@@ -99,6 +99,13 @@ class EngineTts private constructor(
     private var state: State = State.Available(engine)
     private var closed = false
 
+    private val texts = java.util.concurrent.ConcurrentHashMap<String, String>()
+    @Volatile private var nativeRanges = false
+    @Volatile private var unitMs = 62.0
+    private var guess: kotlinx.coroutines.Job? = null
+    private var guessId: String? = null
+    private var guessAt = 0L
+
     private val _settings = MutableStateFlow(resolve(initialPreferences))
     override val settings: StateFlow<AndroidTtsSettings> = _settings.asStateFlow()
 
@@ -138,6 +145,7 @@ class EngineTts private constructor(
     }
 
     override fun stop() {
+        scope.launch { endGuess(null, done = false) }
         when (val now = state) {
             is State.Available -> now.engine.stop()
             is State.Failure -> Unit
@@ -155,8 +163,69 @@ class EngineTts private constructor(
         (state as? State.Available)?.let { clean(it.engine) }
     }
 
-    private fun doSpeak(engine: TextToSpeech, request: Request): Boolean =
-        engine.chooseVoice(request) && engine.speak(request.text, TextToSpeech.QUEUE_ADD, null, request.id.value) == TextToSpeech.SUCCESS
+    private fun doSpeak(engine: TextToSpeech, request: Request): Boolean {
+        texts[request.id.value] = request.text
+        if (texts.size > 64) texts.keys.take(texts.size - 64).forEach { texts.remove(it) }
+        return engine.chooseVoice(request) && engine.speak(request.text, TextToSpeech.QUEUE_ADD, null, request.id.value) == TextToSpeech.SUCCESS
+    }
+
+    private fun weights(text: String): Pair<List<IntRange>, IntArray> {
+        val words = Regex("\\S+").findAll(text).map { it.range }.toList()
+        val bounds = IntArray(words.size + 1)
+        words.forEachIndexed { i, r ->
+            val w = text.substring(r.first, r.last + 1)
+            val pause = when (w.lastOrNull()) {
+                ',', ';', ':', '—', '–', ')' -> 3
+                '.', '!', '?', '…' -> 5
+                else -> 0
+            }
+            bounds[i + 1] = bounds[i] + w.count { it.isLetterOrDigit() }.coerceAtLeast(1) + 1 + pause
+        }
+        return words to bounds
+    }
+
+    private fun startGuess(id: String) {
+        guess?.cancel()
+        guessId = id
+        guessAt = android.os.SystemClock.uptimeMillis()
+        if (nativeRanges) return
+        val text = texts[id] ?: return
+        val (words, bounds) = weights(text)
+        if (words.isEmpty()) return
+        val l = listener ?: return
+        guess = scope.launch {
+            var last = -1
+            while (true) {
+                if (nativeRanges) return@launch
+                val speed = _settings.value.speed.coerceIn(0.3, 4.0)
+                val target = (android.os.SystemClock.uptimeMillis() - guessAt) * speed / unitMs
+                var w = 0
+                while (w < words.lastIndex && bounds[w + 1] <= target) w++
+                if (w != last) {
+                    last = w
+                    l.onRange(TtsEngine.RequestId(id), words[w])
+                }
+                if (w == words.lastIndex) return@launch
+                kotlinx.coroutines.delay(40)
+            }
+        }
+    }
+
+    private fun endGuess(id: String?, done: Boolean) {
+        if (id != null && id != guessId) return
+        guess?.cancel()
+        guess = null
+        val text = guessId?.let { texts.remove(it) }
+        if (done && !nativeRanges && text != null) {
+            val total = weights(text).second.last()
+            val took = android.os.SystemClock.uptimeMillis() - guessAt
+            if (total >= 12 && took > 500) {
+                val measured = (took * _settings.value.speed.coerceIn(0.3, 4.0) / total).coerceIn(30.0, 160.0)
+                unitMs = unitMs * 0.6 + measured * 0.4
+            }
+        }
+        guessId = null
+    }
 
     private fun attachListener(engine: TextToSpeech) {
         engine.setOnUtteranceProgressListener(listener?.let { Progress(it) })
@@ -211,24 +280,35 @@ class EngineTts private constructor(
         return true
     }
 
-    private class Progress(private val listener: TtsEngine.Listener<AndroidTtsEngine.Error>) : UtteranceProgressListener() {
-        override fun onStart(utteranceId: String) = listener.onStart(TtsEngine.RequestId(utteranceId))
+    private inner class Progress(private val listener: TtsEngine.Listener<AndroidTtsEngine.Error>) : UtteranceProgressListener() {
+        override fun onStart(utteranceId: String) {
+            listener.onStart(TtsEngine.RequestId(utteranceId))
+            scope.launch { startGuess(utteranceId) }
+        }
 
         override fun onStop(utteranceId: String, interrupted: Boolean) {
+            scope.launch { endGuess(utteranceId, done = false) }
             val id = TtsEngine.RequestId(utteranceId)
             if (interrupted) listener.onInterrupted(id) else listener.onFlushed(id)
         }
 
-        override fun onDone(utteranceId: String) = listener.onDone(TtsEngine.RequestId(utteranceId))
+        override fun onDone(utteranceId: String) {
+            scope.launch { endGuess(utteranceId, done = true) }
+            listener.onDone(TtsEngine.RequestId(utteranceId))
+        }
 
         @Deprecated("Deprecated in Java")
         override fun onError(utteranceId: String) = onError(utteranceId, -1)
 
-        override fun onError(utteranceId: String, errorCode: Int) =
+        override fun onError(utteranceId: String, errorCode: Int) {
+            scope.launch { endGuess(utteranceId, done = false) }
             listener.onError(TtsEngine.RequestId(utteranceId), errorOf(errorCode))
+        }
 
-        override fun onRangeStart(utteranceId: String, start: Int, end: Int, frame: Int) =
+        override fun onRangeStart(utteranceId: String, start: Int, end: Int, frame: Int) {
+            nativeRanges = true
             listener.onRange(TtsEngine.RequestId(utteranceId), start until end)
+        }
     }
 }
 
