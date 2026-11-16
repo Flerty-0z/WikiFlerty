@@ -108,13 +108,13 @@ enum class NewsTarget { None, Stats, Custom, Library, LibraryView, Guide, Ai }
 
 class NewsItem(val group: String, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None, val query: String = "")
 
-const val NewsRelease = 339
+const val NewsRelease = 340
 
 val WhatsNewItems = listOf(
-    NewsItem("Библиотека", AppIcons.Trash, "Убрать обложку", "Изменить книгу → корзина в углу обложки. Останется базовая с названием", NewsTarget.Library),
-    NewsItem("Чтение", AppIcons.Pages, "Номера страниц", "Число страниц в книге больше не скачет"),
-    NewsItem("Чтение", AppIcons.Check, "100% в конце", "На последней странице книги теперь 100%, а не 50% или 98%"),
-    NewsItem("Исправления", AppIcons.Sparkle, "Правки", "Текст больше не пропадает при быстром листании, понятные ошибки чтения вслух"),
+    NewsItem("Чтение", AppIcons.TextSize, "Слова из словаря", "Слова из твоего словаря отмечаются в книге красным «?». Нажми — откроется определение. Выключается в «Текст»"),
+    NewsItem("Библиотека", AppIcons.Search, "Поиск при выборе книг", "Новая полка, серия и анкета персонажа: поиск и подгрузка, даже если книг тысячи", NewsTarget.Library),
+    NewsItem("Чтение", AppIcons.Person, "Точнее флажки", "Флажок больше не цепляется к похожим именам и чужим частям имени"),
+    NewsItem("Исправления", AppIcons.Sparkle, "Правки", "Часы и минуты вместо длинных минут, стабильное число страниц, декор не сдвигается при перестановке книг, плавное меню выделения"),
 )
 
 @Composable

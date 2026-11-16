@@ -605,7 +605,7 @@ internal object TextSelection {
               var f = document.createElement("i");
               if (q) f.className = "q";
               f.style.left = (q ? b.left - o.left - w * 0.62 : b.left - o.left - fs * 0.22) + "px";
-              f.style.top = (q ? b.top - o.top + b.height * 0.2 - h * 0.62 : b.top - o.top + b.height * 0.2 - h * 0.52) + "px";
+              f.style.top = (q ? b.top - o.top + b.height * 0.4 - h * 0.5 : b.top - o.top + b.height * 0.2 - h * 0.52) + "px";
               f.style.width = w + "px";
               f.style.height = h + "px";
               hits[i].flag = f;
