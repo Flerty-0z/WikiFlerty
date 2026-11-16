@@ -386,11 +386,17 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
         lifecycleScope.launch {
             val start = runCatching { navigator.firstVisibleElementLocator() }.getOrNull() ?: navigator.currentLocator.value
+            val snippet = pageSnippet()
             ui.sheet = null
             ui.panelsVisible = false
-            app.readAloud.start(pub, bookId, start, settings)
+            app.readAloud.start(pub, bookId, start, settings, snippet)
         }
     }
+
+    private suspend fun pageSnippet(): String? = runCatching {
+        val raw = navigator.evaluateJavascript(PAGE_SNIPPET_JS) ?: return@runCatching null
+        org.json.JSONArray("[$raw]").optString(0).takeIf { it.isNotBlank() }
+    }.getOrNull()
 
     private val mySession: ReadAloudSession? get() = app.readAloud.session.value?.takeIf { it.bookId == bookId }
 
@@ -403,7 +409,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
         lifecycleScope.launch {
             delay(350)
-            runCatching { navigator.firstVisibleElementLocator() }.getOrNull()?.let { app.readAloud.go(it) }
+            val snippet = pageSnippet()
+            runCatching { navigator.firstVisibleElementLocator() }.getOrNull()?.let { app.readAloud.go(it, snippet) }
         }
     }
     private var bookTitle: String = ""
@@ -3864,6 +3871,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private companion object {
         var lastReboot = 0L
+        private const val PAGE_SNIPPET_JS = "(function(){if(!document.caretRangeFromPoint||!document.body)return '';var w=window.innerWidth,h=window.innerHeight,xs=[14,w*0.2,w*0.4,w*0.6];for(var y=4;y<h;y+=6){for(var i=0;i<xs.length;i++){var r=document.caretRangeFromPoint(xs[i],y);if(!r)continue;var n=r.startContainer;if(!n||n.nodeType!==3||!/\\S/.test(n.data))continue;var p=n.parentNode;if(p&&/^(SCRIPT|STYLE|TITLE)$/i.test(p.nodeName))continue;var b=n.parentElement&&n.parentElement.getBoundingClientRect();if(b&&(b.right<=0||b.left>=w))continue;var o=Math.min(r.startOffset,n.data.length);while(o>0&&/\\S/.test(n.data.charAt(o-1)))o--;var out=n.data.slice(o);var tw=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null);tw.currentNode=n;var m;while(out.length<200&&(m=tw.nextNode())){var q=m.parentNode;if(q&&/^(SCRIPT|STYLE)$/i.test(q.nodeName))continue;out+=m.data;}return out.slice(0,200);}}return '';})()"
         private const val TTS_WORD_OUT_JS = "(function(){var c=document.querySelector('[data-group=\"tts-word\"]');if(!c)return '';var bs=c.querySelectorAll('*');var w=window.innerWidth,h=window.innerHeight,seen=false,right=false,any=false;for(var i=0;i<bs.length;i++){if(bs[i].style.position!=='absolute')continue;var r=bs[i].getBoundingClientRect();if(!r.width&&!r.height)continue;any=true;if(r.right>1&&r.left<w-1&&r.bottom>1&&r.top<h-1){seen=true;break;}if(r.left>=w-1||r.top>=h-1)right=true;}if(!any||seen)return 'in';return right?'out-next':'out';})()"
         const val MIN_TEXT_FOR_RATIO = 2500
         private const val PAGE_COUNT_JS = "(function(){var e=document.scrollingElement;if(!e)return '';var w=window.innerWidth,h=window.innerHeight;if(e.scrollWidth>w+4){var n=Math.max(1,Math.round(e.scrollWidth/w));var c=Math.min(n,Math.round(Math.abs(e.scrollLeft)/w)+1);return c+'|'+n;}var n2=Math.max(1,Math.ceil((e.scrollHeight-4)/h));var c2=Math.min(n2,Math.floor((e.scrollTop+4)/h)+1);return c2+'|'+n2;})()"

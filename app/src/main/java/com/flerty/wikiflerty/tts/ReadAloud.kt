@@ -8,6 +8,7 @@ import com.flerty.wikiflerty.reader.ReaderSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -62,13 +63,14 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
     private var watchJob: Job? = null
     private var starting = false
 
-    fun start(publication: Publication, bookId: String, start: Locator?, settings: ReaderSettings) {
+    fun start(publication: Publication, bookId: String, start: Locator?, settings: ReaderSettings, snippet: String? = null) {
         if (starting) return
         starting = true
         stop()
         scope.launch {
             try {
                 val navigator = open(publication, start, settings) ?: return@launch
+                if (!snippet.isNullOrBlank()) align(navigator, snippet, start)
                 _session.value = ReadAloudSession(bookId, navigator)
                 app.startService(Intent(app, ReadAloudService::class.java))
                 watch(navigator, bookId)
@@ -290,7 +292,58 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
     fun next() = _session.value?.navigator?.skipToNextUtterance()
     fun previous() = _session.value?.navigator?.skipToPreviousUtterance()
 
-    fun go(locator: Locator) = _session.value?.navigator?.go(locator)
+    private var goJob: Job? = null
+
+    fun go(locator: Locator, snippet: String? = null) {
+        val navigator = _session.value?.navigator ?: return
+        goJob?.cancel()
+        if (snippet.isNullOrBlank()) {
+            navigator.go(locator)
+            return
+        }
+        goJob = scope.launch {
+            val playing = navigator.playback.value.playWhenReady
+            if (playing) navigator.pause()
+            navigator.go(locator)
+            withTimeoutOrNull(600) { navigator.location.drop(1).first() }
+            align(navigator, snippet, locator)
+            if (playing) navigator.play()
+        }
+    }
+
+    private fun squash(t: String): String = buildString(t.length) {
+        t.forEach { c ->
+            if (!c.isWhitespace() && c != '\u00AD') append(if (c == 'ё' || c == 'Ё') 'е' else c.lowercaseChar())
+        }
+    }
+
+    private fun fits(utterance: String, page: String): Boolean {
+        val u = squash(utterance)
+        if (u.isEmpty()) return false
+        if (page.length >= 20 && u.contains(page.take(20))) return true
+        val top = minOf(u.length, page.length)
+        for (k in top downTo 8) if (u.endsWith(page.substring(0, k))) return true
+        return u.length < 8 && page.startsWith(u)
+    }
+
+    private suspend fun align(navigator: AndroidTtsNavigator, snippet: String, start: Locator?) {
+        val page = squash(snippet).take(48)
+        if (page.length < 8) return
+        val deadline = android.os.SystemClock.uptimeMillis() + 3000
+        var steps = 0
+        while (steps < 1500 && android.os.SystemClock.uptimeMillis() < deadline) {
+            val now = navigator.location.value
+            if (fits(now.utterance, page)) return
+            if (!navigator.hasNextUtterance()) break
+            navigator.skipToNextUtterance()
+            withTimeoutOrNull(500) { navigator.location.first { it != now } } ?: break
+            steps++
+        }
+        if (steps > 0 && start != null) {
+            navigator.go(start)
+            withTimeoutOrNull(600) { navigator.location.drop(1).first() }
+        }
+    }
 
     fun apply(settings: ReaderSettings) {
         _session.value?.navigator?.submitPreferences(preferences(settings))
