@@ -88,12 +88,7 @@ fun TtsBar(playing: Boolean, speed: Double, actions: TtsActions, modifier: Modif
             Icon(if (playing) AppIcons.Pause else AppIcons.Play, if (playing) "Пауза" else "Продолжить", tint = accentContent, modifier = Modifier.size(24.dp))
         }
         BarButton(AppIcons.SkipNext, "Следующее предложение", FeedbackSound.Tap, actions.onNext)
-        Box(
-            Modifier.size(48.dp).liveClick(CircleShape, sound = FeedbackSound.Open, onClick = actions.onOpenSettings),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(String.format(Locale.US, "%.1f×", speed), color = AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-        }
+        BarButton(AppIcons.Sliders, "Параметры чтения вслух", FeedbackSound.Open, actions.onOpenSettings)
     }
 }
 
@@ -348,6 +343,31 @@ fun TtsOptions(
                 Box(
                     Modifier.size(40.dp)
                         .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.85f) { onSettingsChange { it.copy(ttsColor = color) } }
+                        .border(2.dp, if (selected) AppColors.Text else Color.Transparent, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) { Box(Modifier.size(28.dp).clip(CircleShape).background(Color(color))) }
+            }
+        }
+    }
+
+    Group("Выделение слова", AppIcons.TextSize) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            val off = settings.ttsWordColor == 0L
+            Box(
+                Modifier.size(40.dp)
+                    .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.85f) { onSettingsChange { it.copy(ttsWordColor = 0L) } }
+                    .border(2.dp, if (off) AppColors.Text else Color.Transparent, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(Modifier.size(28.dp).clip(CircleShape).border(1.5.dp, AppColors.Line, CircleShape), contentAlignment = Alignment.Center) {
+                    Icon(AppIcons.Close, "Без выделения слова", tint = AppColors.Muted, modifier = Modifier.size(14.dp))
+                }
+            }
+            TtsColors.forEach { color ->
+                val selected = settings.ttsWordColor == color
+                Box(
+                    Modifier.size(40.dp)
+                        .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.85f) { onSettingsChange { it.copy(ttsWordColor = color) } }
                         .border(2.dp, if (selected) AppColors.Text else Color.Transparent, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) { Box(Modifier.size(28.dp).clip(CircleShape).background(Color(color))) }

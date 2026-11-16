@@ -207,6 +207,10 @@ class App : Application() {
                 started++
                 if (started == 1) {
                     cloud.request(2_500)
+                    appScope.launch {
+                        kotlinx.coroutines.delay(4_000)
+                        com.flerty.wikiflerty.ui.AutoImport.run(this@App)
+                    }
                     ticker?.cancel()
                     ticker = appScope.launch {
                         while (true) {

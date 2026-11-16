@@ -331,6 +331,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private var publication: Publication? = null
     private var lastTtsHighlight: Locator? = null
+    private var lastTtsWord: Locator? = null
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
     private var pendingQuoteSave: Triple<QuoteDraft, QuoteLook, QuoteFormat>? = null
     private val storagePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -2067,6 +2068,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 ui.ttsActive = false
                 ui.ttsPlaying = false
                 lastTtsHighlight = null
+                lastTtsWord = null
                 navigator.applyDecorations(emptyList(), TTS_GROUP)
                 return@collectLatest
             }
@@ -2078,12 +2080,19 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 launch {
                     session.navigator.location.collect { location ->
                         val locator = location.utteranceLocator
-                        if (locator == lastTtsHighlight) return@collect
+                        val word = location.tokenLocator?.takeIf { settings.ttsWordColor != 0L }
+                        val sameLine = locator == lastTtsHighlight
+                        if (sameLine && word == lastTtsWord) return@collect
                         lastTtsHighlight = locator
+                        lastTtsWord = word
                         navigator.applyDecorations(
-                            listOf(Decoration("tts", locator, Decoration.Style.Highlight(tint = settings.ttsColor.toInt()))),
+                            listOfNotNull(
+                                Decoration("tts", locator, Decoration.Style.Highlight(tint = settings.ttsColor.toInt())),
+                                word?.let { Decoration("tts-word", it, Decoration.Style.Highlight(tint = settings.ttsWordColor.toInt(), isActive = true)) },
+                            ),
                             TTS_GROUP,
                         )
+                        if (sameLine) return@collect
                         if (settings.ttsFollow && !turning && android.os.SystemClock.uptimeMillis() - manualTurnAt > 1500) navigator.go(locator, animated = false)
                     }
                 }
@@ -2107,7 +2116,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         if (before.ttsVoice != s.ttsVoice || before.ttsSpeed != s.ttsSpeed || before.ttsPitch != s.ttsPitch) {
             app.readAloud.apply(s)
         }
-        if (before.ttsColor != s.ttsColor) lastTtsHighlight = null
+        if (before.ttsColor != s.ttsColor || before.ttsWordColor != s.ttsWordColor) {
+            lastTtsHighlight = null
+            lastTtsWord = null
+        }
     }
 
     private suspend fun showHighlights(notes: List<Note>) {

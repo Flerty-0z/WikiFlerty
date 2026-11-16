@@ -250,7 +250,7 @@ private fun sizeLabel(size: Long): String? = when {
     else -> String.format(java.util.Locale.US, "%.1f МБ", size / 1048576.0)
 }
 
-private fun folderLabel(tree: Uri): String {
+internal fun folderLabel(tree: Uri): String {
     val id = runCatching { DocumentsContract.getTreeDocumentId(tree) }.getOrNull().orEmpty()
     val path = id.substringAfter(':', id).trimEnd('/')
     return path.substringAfterLast('/').ifEmpty { "Память телефона" }

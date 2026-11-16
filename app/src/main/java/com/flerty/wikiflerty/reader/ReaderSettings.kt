@@ -162,6 +162,7 @@ data class ReaderSettings(
     val ttsSpeed: Double = 1.0,
     val ttsPitch: Double = 1.0,
     val ttsColor: Long = 0xFFF2C46B,
+    val ttsWordColor: Long = 0xFF8AB4F8,
     val ttsFollow: Boolean = true,
     val ttsJump: Boolean = true,
     val autoNight: Boolean = false,
@@ -260,6 +261,7 @@ data class ReaderSettings(
         put("ttsSpeed", ttsSpeed)
         put("ttsPitch", ttsPitch)
         put("ttsColor", String.format("#%08X", ttsColor))
+        put("ttsWordColor", String.format("#%08X", ttsWordColor))
         put("ttsFollow", ttsFollow)
         put("ttsJump", ttsJump)
         put("autoNight", autoNight)
@@ -343,6 +345,7 @@ data class ReaderSettings(
                 ttsSpeed = json.optDouble("ttsSpeed", d.ttsSpeed).coerceIn(0.3, 4.0),
                 ttsPitch = json.optDouble("ttsPitch", d.ttsPitch).coerceIn(0.3, 3.0),
                 ttsColor = runCatching { json.getString("ttsColor").removePrefix("#").toLong(16) }.getOrDefault(d.ttsColor),
+                ttsWordColor = runCatching { json.getString("ttsWordColor").removePrefix("#").toLong(16) }.getOrDefault(d.ttsWordColor),
                 ttsFollow = json.optBoolean("ttsFollow", d.ttsFollow),
                 ttsJump = json.optBoolean("ttsJump", d.ttsJump),
                 autoNight = json.optBoolean("autoNight", d.autoNight),

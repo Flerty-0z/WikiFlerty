@@ -784,6 +784,7 @@ private fun AddBookSheet(onDismiss: () -> Unit, onFile: () -> Unit, onScan: () -
                     .clip(appCorner(3))
                     .background(Brush.verticalGradient(listOf(AppColors.PanelBorder, AppColors.Panel))),
             )
+            AutoImportRow(Modifier.padding(top = 14.dp))
             Text(
                 "EPUB · FB2 · TXT · PDF",
                 color = AppColors.Faint,
