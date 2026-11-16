@@ -156,7 +156,12 @@ fun TagCloudSheet(active: List<String>, onApply: (List<String>) -> Unit, onDismi
     val books by app.library.books.collectAsStateWithLifecycle()
     val prefs by app.libraryPrefs.prefs.collectAsStateWithLifecycle()
     val counts = remember(books) { tagCounts(books) }
-    val picked = remember { mutableStateListOf<String>().apply { addAll(active) } }
+    val picked = remember {
+        mutableStateListOf<String>().apply {
+            addAll(active)
+            if (focus != null && none { it.equals(focus, true) }) add(focus)
+        }
+    }
     var editing by remember { mutableStateOf(focus) }
     var rename by remember { mutableStateOf<String?>(null) }
     var delete by remember { mutableStateOf<String?>(null) }

@@ -108,12 +108,11 @@ enum class NewsTarget { None, Stats, Custom, Library, LibraryView, Guide, Ai }
 
 class NewsItem(val group: String, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None, val query: String = "")
 
-const val NewsRelease = 342
+const val NewsRelease = 343
 
 val WhatsNewItems = listOf(
-    NewsItem("Чтение вслух", AppIcons.Pages, "Листает за голосом", "Страница перелистывается сразу, как чтение переходит на следующую — не дожидаясь конца предложения"),
-    NewsItem("Чтение вслух", AppIcons.Voice, "Выделение на любом движке", "Если движок не сообщает слова, читалка сама подстраивается под темп голоса"),
-    NewsItem("Исправления", AppIcons.Sparkle, "Правки", "Цвета выделения слова в один ряд"),
+    NewsItem("Чтение вслух", AppIcons.Voice, "С видимой страницы", "Чтение вслух начинается ровно с той страницы, что на экране, а не с начала главы"),
+    NewsItem("Библиотека", AppIcons.Hash, "Тег с полки", "Нажатие на название полки тега сразу выбирает тег — остаётся нажать «Показать»"),
 )
 
 @Composable
