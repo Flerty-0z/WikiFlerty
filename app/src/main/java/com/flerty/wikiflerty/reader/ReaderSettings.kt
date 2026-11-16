@@ -116,6 +116,7 @@ data class ReaderSettings(
     val margins: Double = 1.0,
     val bold: Boolean = false,
     val bionic: Boolean = false,
+    val markWords: Boolean = true,
     val kitStyle: Boolean = true,
     val italic: Boolean = false,
     val justify: Boolean = true,
@@ -212,6 +213,7 @@ data class ReaderSettings(
         put("margins", margins)
         put("bold", bold)
         put("bionic", bionic)
+        put("markWords", markWords)
         put("kitStyle", kitStyle)
         put("italic", italic)
         put("justify", justify)
@@ -285,6 +287,7 @@ data class ReaderSettings(
                 margins = json.optDouble("margins", d.margins).coerceIn(0.0, 4.0),
                 bold = json.optBoolean("bold", d.bold),
                 bionic = json.optBoolean("bionic", d.bionic),
+                markWords = json.optBoolean("markWords", d.markWords),
                 kitStyle = json.optBoolean("kitStyle", d.kitStyle),
                 italic = json.optBoolean("italic", d.italic),
                 justify = json.optBoolean("justify", d.justify),

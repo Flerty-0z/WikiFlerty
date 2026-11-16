@@ -158,7 +158,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
         if (libraryPrefsState.dailyGoalPages) "Привет! Сегодня $todayPagesRead/${libraryPrefsState.dailyGoalMinutes} стр."
         else "Привет! Сегодня $todayMinutes/${libraryPrefsState.dailyGoalMinutes} мин"
     } else {
-        "Привет! Сегодня $todayMinutes мин"
+        "Привет! Сегодня " + StatsCalc.duration(todayMinutes * 60_000L)
     }
     var addMenu by remember { mutableStateOf(false) }
     var paperSheet by remember { mutableStateOf(false) }

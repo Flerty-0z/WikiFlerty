@@ -26,7 +26,21 @@ internal object TextSelection {
 
     fun script(accent: String): String = SCRIPT.replace("__ACCENT__", accent) + "\n" + NOTES + "\n" + AUTO + "\n" + PEOPLE.replace("__ACCENT__", accent) + "\n" + FEED + "\n" + BIONIC + "\n" + KITBOOK + "\n" + IMAGES + "\n" + BREAKS
 
-    fun peopleCall(people: List<com.flerty.wikiflerty.data.BookCharacter>): String {
+    private val WORD_ENDINGS = listOf(
+        "ться", "ется", "ются", "лась", "лось", "лись", "ыми", "ими", "ами", "ями", "ого", "его", "ому", "ему", "ешь", "ишь", "ете", "ите", "лся",
+        "ой", "ей", "ою", "ею", "ом", "ем", "ам", "ям", "ах", "ях", "ов", "ев", "ий", "ия", "ию", "ии", "ый", "ое", "ее", "ая", "яя", "ые", "ие", "ым", "им", "ую", "юю", "ых", "их",
+        "ть", "ти", "ла", "ло", "ли", "ет", "ют", "ут", "ит", "ат", "ят", "ся", "сь",
+        "а", "я", "о", "е", "и", "ы", "у", "ю", "ь", "й", "л",
+    )
+
+    private fun wordStem(word: String): String {
+        val w = word.lowercase().replace('ё', 'е')
+        if (w.length <= 3) return w
+        val end = WORD_ENDINGS.firstOrNull { w.endsWith(it) && w.length - it.length >= 3 }
+        return if (end != null) w.dropLast(end.length) else w
+    }
+
+    fun peopleCall(people: List<com.flerty.wikiflerty.data.BookCharacter>, words: List<com.flerty.wikiflerty.data.DictionaryEntry> = emptyList()): String {
         fun stem(word: String): Pair<String, Int> {
             var stem = word.lowercase().replace('ё', 'е').replace("\u00AD", "")
             if (stem.length == 3 && stem.last() in "аеиоуыэюя") return stem.dropLast(1) to -2
@@ -61,9 +75,24 @@ internal object TextSelection {
         val singles = org.json.JSONArray()
         owners.forEach { (st, ids) ->
             val pick = exact[st] ?: ids
-            if (pick.size == 1) singles.put(org.json.JSONArray().put(st).put(tolerance[st] ?: 0).put(pick.first()))
+            if (pick.size == 1) singles.put(org.json.JSONArray().put(st).put(tolerance[st] ?: 0).put(pick.first()).put(if (exact[st] == null) 1 else 0))
         }
-        val data = org.json.JSONObject().put("p", phrases).put("s", singles)
+        val marks = org.json.JSONArray()
+        words.asSequence()
+            .map { it to it.word.trim() }
+            .filter { (_, w) -> w.length in 2..40 && w.any { it.isLetter() } }
+            .take(3000)
+            .forEach { (e, w) ->
+                val parts = w.split(Regex("[\\s\\-\u2010\u2011]+")).map { it.trim('.', ',', '«', '»', '"', '\'', '(', ')', '!', '?', ':', ';') }.filter { it.isNotEmpty() }
+                if (parts.isEmpty() || parts.size > 4) return@forEach
+                val list = org.json.JSONArray()
+                parts.forEach { part ->
+                    val low = part.lowercase().replace('ё', 'е')
+                    list.put(org.json.JSONArray().put(wordStem(part)).put(if (low.length <= 3) 0 else 1))
+                }
+                marks.put(org.json.JSONArray().put(list).put("w:" + e.id))
+            }
+        val data = org.json.JSONObject().put("p", phrases).put("s", singles).put("w", marks)
         return "window.__wfPeople && window.__wfPeople($data)"
     }
 
@@ -343,6 +372,8 @@ internal object TextSelection {
           var hits = [];
           var word = /(^|[^\p{L}\p{N}\u00AD])(\p{Lu}[\p{L}\u00AD]*)/gu;
           var tail = /^[аяыиуюеео]?[йюмх]?$/;
+          var wEnding = /^(|а|я|о|е|и|ы|у|ю|ь|й|л|ой|ей|ою|ею|ом|ем|ам|ям|ах|ях|ов|ев|ий|ия|ию|ии|ием|ый|ое|ее|ая|яя|ые|ие|ым|им|ую|юю|ых|их|ыми|ими|ами|ями|ого|его|ому|ему|ть|ти|ла|ло|ли|ет|ют|ут|ит|ат|ят|ешь|ишь|ете|ите|ся|сь|ться|тся|лся|лась|лось|лись|ется|ются|ешься|ишься|ая|ую|ое|ой)$/;
+          var ending = /^(|ь|й|а|я|у|ю|е|и|ы|о|ой|ей|ою|ею|ом|ем|ым|им|ах|ях|ам|ям|ами|ями|ов|ев|ий|ия|ию|ием|ии|ая|ого|его|ому|ему|ую|юю|ые|ых|s)$/;
           window.__wfPeople = function (list, force) {
             var key = JSON.stringify(list || []);
             if (!force && window.__wfPeopleKey === key) return;
@@ -350,15 +381,37 @@ internal object TextSelection {
             window.__wfPeopleLast = list;
             hits = [];
             try { if (window.CSS && CSS.highlights) CSS.highlights.delete("wf-hero"); } catch (x) {}
-            var singleList = (list && list.s) || [], phraseList = (list && list.p) || [];
-            if (!document.body || (!singleList.length && !phraseList.length)) { place(); return; }
+            var singleList = (list && list.s) || [], phraseList = (list && list.p) || [], wordList = (list && list.w) || [];
+            if (!document.body || (!singleList.length && !phraseList.length && !wordList.length)) { place(); return; }
+            var wordIdx = {};
+            wordList.forEach(function (ph) { var f = ph[0][0][0]; (wordIdx[f] = wordIdx[f] || []).push({ w: ph[0], id: ph[1] }); });
+            function fitsW(low, ws) {
+              if (!ws[1]) return low === ws[0];
+              return low.indexOf(ws[0]) === 0 && low.length - ws[0].length <= 6 && wEnding.test(low.slice(ws[0].length));
+            }
+            var anyWord = /(^|[^\p{L}\p{N}\u00AD])([\p{L}][\p{L}\u00AD]*)/gu;
             var singles = {}, phrases = {};
-            singleList.forEach(function (k) { singles[k[0]] = { s: k[1], id: k[2] }; });
+            singleList.forEach(function (k) { singles[k[0]] = { s: k[1], id: k[2], part: k[3] === 1 }; });
             phraseList.forEach(function (ph) { var f = ph[0][0][0]; (phrases[f] = phrases[f] || []).push({ w: ph[0], id: ph[1] }); });
             function fits(low, ws) {
               if (low.indexOf(ws[0]) !== 0) return false;
               if (ws[1] < 0) return low.length - ws[0].length <= -ws[1] && tail.test(low.slice(ws[0].length));
-              return low.length - ws[0].length <= ws[1];
+              return low.length - ws[0].length <= ws[1] && ending.test(low.slice(ws[0].length));
+            }
+            function opensSentence(text, tok) {
+              var before = text.slice(0, tok.start).replace(/[\s\u00a0]+$/, "");
+              return !before.length || /[.!?…:;"«»„“”\u2014\u2013\-]$/.test(before);
+            }
+            function lonePart(text, tokens, i, id) {
+              var p = tokens[i - 1], n = tokens[i + 1], t = tokens[i];
+              function near(a, b) { var g = text.slice(a.end, b.start); return g.length <= 2 && /^[\s\u00a0\-\u2010\u2011]+$/.test(g); }
+              function same(u) {
+                for (var k = u.low.length; k >= Math.max(2, u.low.length - 3); k--) { var o = singles[u.low.slice(0, k)]; if (o && o.id === id) return true; }
+                return false;
+              }
+              if (p && near(p, t) && !opensSentence(text, p) && !same(p)) return true;
+              if (n && near(t, n) && !same(n)) return true;
+              return false;
             }
             var BLOCK = "p,div,li,h1,h2,h3,h4,h5,h6,blockquote,td,th,dd,dt,section,article,figcaption,body";
             var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
@@ -375,9 +428,54 @@ internal object TextSelection {
               }
               return null;
             }
+            function scanWords(run, taken) {
+              if (!wordList.length) return;
+              var text = run.text;
+              anyWord.lastIndex = 0;
+              var m, toks = [];
+              while ((m = anyWord.exec(text))) {
+                var st = m.index + m[1].length;
+                toks.push({ low: m[2].toLowerCase().replace(/ё/g, "е").replace(/\u00AD/g, ""), start: st, end: st + m[2].length });
+              }
+              for (var i = 0; i < toks.length; i++) {
+                var t = toks[i], best = null, size = 0;
+                var busy = false;
+                for (var z = 0; z < taken.length; z++) if (t.start < taken[z][1] && t.end > taken[z][0]) { busy = true; break; }
+                if (busy) continue;
+                for (var k = t.low.length; k >= Math.max(1, t.low.length - 6); k--) {
+                  var group = wordIdx[t.low.slice(0, k)];
+                  if (!group) continue;
+                  for (var g = 0; g < group.length; g++) {
+                    var ph = group[g];
+                    if (ph.w.length <= size || !fitsW(t.low, ph.w[0])) continue;
+                    var ok = true;
+                    for (var q = 1; q < ph.w.length; q++) {
+                      var u = toks[i + q];
+                      if (!u) { ok = false; break; }
+                      var gap = text.slice(toks[i + q - 1].end, u.start);
+                      if (gap.length > 3 || !/^[\s\u00a0\-\u2010\u2011]+$/.test(gap) || !fitsW(u.low, ph.w[q])) { ok = false; break; }
+                    }
+                    if (ok) { best = ph.id; size = ph.w.length; }
+                  }
+                }
+                if (!best) continue;
+                var a = locate(run, t.start), b = locate(run, toks[i + size - 1].end);
+                if (a && b) {
+                  try {
+                    var r = document.createRange();
+                    r.setStart(a.node, a.off);
+                    r.setEnd(b.node, b.off);
+                    hits.push({ r: r, id: best, end: toks[i + size - 1].end, q: true });
+                  } catch (x) {}
+                }
+                i += size - 1;
+              }
+            }
             function scan(run) {
               var text = run.text;
               if (!text || text.length < 2) return;
+              var taken = [];
+              var mark = hits.length;
               word.lastIndex = 0;
               var m, tokens = [];
               while ((m = word.exec(text))) {
@@ -406,7 +504,10 @@ internal object TextSelection {
                 if (!best) {
                   for (var k2 = t.low.length; k2 >= Math.max(2, t.low.length - 3); k2--) {
                     var one = singles[t.low.slice(0, k2)];
-                    if (one && fits(t.low, [t.low.slice(0, k2), one.s])) { best = one.id; size = 1; break; }
+                    if (one && fits(t.low, [t.low.slice(0, k2), one.s])) {
+                      if (one.part && lonePart(text, tokens, i, one.id)) break;
+                      best = one.id; size = 1; break;
+                    }
                   }
                 }
                 if (!best) continue;
@@ -421,13 +522,15 @@ internal object TextSelection {
                       var r = document.createRange();
                       r.setStart(a.node, a.off);
                       r.setEnd(b.node, b.off);
-                      prev = { r: r, id: best, end: endAt };
+                      prev = { r: r, id: best, end: endAt, start: startAt };
                       hits.push(prev);
                     } catch (x) {}
                   }
                 }
                 i += size - 1;
               }
+              for (var h = mark; h < hits.length; h++) taken.push([hits[h].start, hits[h].end]);
+              scanWords(run, taken);
             }
             var run = null, n;
             while ((n = walker.nextNode())) {
@@ -449,7 +552,8 @@ internal object TextSelection {
             st.textContent =
               "#wf-hero-flags,#wf-hero-flags i{margin:0!important;padding:0!important;border:0!important;background-color:transparent!important;pointer-events:none!important;-webkit-user-select:none;user-select:none}" +
               "#wf-hero-flags{position:absolute!important;left:0;top:0;width:0;height:0;z-index:2;transition:opacity .3s ease}" +
-              "#wf-hero-flags i{position:absolute!important;display:block!important;background-repeat:no-repeat!important;background-size:100% 100%!important;background-image:" + flag + "!important;transform-origin:15% 95%;transition:transform .16s ease}";
+              "#wf-hero-flags i{position:absolute!important;display:block!important;background-repeat:no-repeat!important;background-size:100% 100%!important;background-image:" + flag + "!important;transform-origin:15% 95%;transition:transform .16s ease}" +
+              "#wf-hero-flags i.q{background-image:" + qmark + "!important;transform-origin:50% 90%}";
             place();
           };
           var flag = 'url("data:image/svg+xml,' + encodeURIComponent(
@@ -458,6 +562,12 @@ internal object TextSelection {
             "<path d='M3.6 2.2h18.2c1.5 0 2.3 1.6 1.4 2.8l-2.9 4 2.9 4c.9 1.2.1 2.8-1.4 2.8H3.6z' fill='__ACCENT__'/>" +
             "<path d='M10.6 6.6c.3-1.5 1.6-2.4 3.2-2.4 1.9 0 3.2 1.1 3.2 2.7 0 1.2-.7 1.9-1.6 2.5-.8.5-1 .8-1 1.6' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round'/>" +
             "<circle cx='14.4' cy='13.3' r='1.05' fill='white'/></svg>") + '")';
+          var qmark = 'url("data:image/svg+xml,' + encodeURIComponent(
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 30'>" +
+            "<path d='M5.2 9.2c.5-3 2.8-4.9 5.6-4.9 3.2 0 5.6 2 5.6 4.9 0 2.2-1.2 3.5-2.9 4.6-1.5 1-2 1.6-2 3.2v1' fill='none' stroke='white' stroke-opacity='.55' stroke-width='5.2' stroke-linecap='round' stroke-linejoin='round'/>" +
+            "<circle cx='11.5' cy='23.6' r='2.6' fill='white' fill-opacity='.55'/>" +
+            "<path d='M5.2 9.2c.5-3 2.8-4.9 5.6-4.9 3.2 0 5.6 2 5.6 4.9 0 2.2-1.2 3.5-2.9 4.6-1.5 1-2 1.6-2 3.2v1' fill='none' stroke='#E5484D' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/>" +
+            "<circle cx='11.5' cy='23.6' r='1.7' fill='#E5484D'/></svg>") + '")';
           var layer = null, pending = 0, sizes = new Map();
           function place() {
             var host = document.documentElement;
@@ -490,9 +600,10 @@ internal object TextSelection {
               var el = hits[i].r.startContainer.parentElement;
               var fs = sizes.get(el);
               if (fs === undefined) { fs = el ? parseFloat(getComputedStyle(el).fontSize) || 16 : 16; sizes.set(el, fs); }
-              var h = Math.max(13, fs), w = h * 26 / 30;
+              var h = Math.max(13, fs), w = h * (hits[i].q ? 20 : 26) / 30;
               var f = document.createElement("i");
-              f.style.left = (b.left - o.left - fs * 0.22) + "px";
+              if (hits[i].q) f.className = "q";
+              f.style.left = (b.left - o.left - fs * (hits[i].q ? 0.3 : 0.22)) + "px";
               f.style.top = (b.top - o.top + b.height * 0.2 - h * 0.52) + "px";
               f.style.width = w + "px";
               f.style.height = h + "px";

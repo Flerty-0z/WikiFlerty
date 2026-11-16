@@ -942,35 +942,7 @@ fun ShelfDialogView(dialog: ShelfDialog, shelves: List<String>, onDismiss: () ->
             },
         )
         if (taken) Text("Такая полка уже есть", color = Danger, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
-        SettingsGroup("Книги на полке · ${chosen.size}/${books.size}") {
-            Column(Modifier.padding(vertical = 6.dp)) {
-                books.sortedBy { it.title.lowercase() }.forEachIndexed { index, b ->
-                    if (index > 0) ListDivider()
-                    val on = b.id in chosen
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 58.dp)
-                            .liveClick(appCorner(12), sound = FeedbackSound.Toggle, pressedScale = 0.98f) { chosen = if (on) chosen - b.id else chosen + b.id }
-                            .padding(vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        BookCover(b.id, 32.dp)
-                        Text(b.title, color = if (on) AppColors.Accent else AppColors.Text, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                        Box(
-                            Modifier
-                                .size(24.dp)
-                                .clip(appCorner(7))
-                                .background(if (on) AppColors.Accent else Color.Transparent)
-                                .border(1.5.dp, if (on) AppColors.Accent else AppColors.Line, appCorner(7)),
-                            contentAlignment = Alignment.Center,
-                        ) { if (on) Icon(AppIcons.Check, null, tint = AppColors.OnAccent, modifier = Modifier.size(15.dp)) }
-                    }
-                }
-                if (books.isEmpty()) Text("Сначала добавь книги", color = AppColors.Faint, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
-            }
-        }
+        BookPickList("Книги на полке", books, chosen, onToggle = { b -> chosen = if (b.id in chosen) chosen - b.id else chosen + b.id })
         AppButton(if (dialog is ShelfDialog.Create) "Создать полку" else "Применить", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true) {
             if (ready) {
                 save()
@@ -1003,6 +975,109 @@ fun ShelfDialogView(dialog: ShelfDialog, shelves: List<String>, onDismiss: () ->
                 },
                 onDismiss = { confirmDelete = false },
             )
+        }
+    }
+}
+
+
+private const val PICK_PAGE = 50
+
+@Composable
+internal fun BookPickList(
+    title: String,
+    books: List<com.flerty.wikiflerty.data.Book>,
+    selected: Collection<String>,
+    onToggle: (com.flerty.wikiflerty.data.Book) -> Unit,
+    sortKey: ((com.flerty.wikiflerty.data.Book) -> Int)? = null,
+    note: (com.flerty.wikiflerty.data.Book) -> String? = { null },
+    empty: String = "Сначала добавь книги",
+) {
+    var query by remember { mutableStateOf("") }
+    var limit by remember { androidx.compose.runtime.mutableIntStateOf(PICK_PAGE) }
+    val first = remember { selected.toSet() }
+    val sorted = remember(books) {
+        books.sortedWith(
+            compareBy<com.flerty.wikiflerty.data.Book> { if (it.id in first) 0 else 1 }
+                .thenBy { sortKey?.invoke(it) ?: 0 }
+                .thenBy(String.CASE_INSENSITIVE_ORDER) { it.title },
+        )
+    }
+    val shown = remember(sorted, query) {
+        val q = query.trim().lowercase()
+        if (q.isEmpty()) sorted else sorted.filter { it.title.lowercase().contains(q) || it.author.lowercase().contains(q) }
+    }
+    LaunchedEffect(query) { limit = PICK_PAGE }
+    if (books.size > 8) SearchField(query, { query = it }, Modifier.fillMaxWidth(), placeholder = "Название или автор")
+    SettingsGroup("$title · ${selected.size}/${books.size}") {
+        Column(Modifier.padding(vertical = 6.dp)) {
+            shown.take(limit).forEachIndexed { i, b ->
+                androidx.compose.runtime.key(b.id) {
+                    if (i > 0) ListDivider()
+                    BookPickRow(b, b.id in selected, note(b)) { onToggle(b) }
+                }
+            }
+            if (shown.isEmpty()) {
+                Text(if (books.isEmpty()) empty else "Ничего не нашлось", color = AppColors.Faint, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
+            }
+            if (shown.size > limit) {
+                ListDivider()
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.98f) { limit += PICK_PAGE * 2 }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                ) {
+                    Icon(AppIcons.Chevron, null, tint = AppColors.Accent, modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = 90f })
+                    Text("Показать ещё · ${shown.size - limit}", color = AppColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BookPickRow(b: com.flerty.wikiflerty.data.Book, on: Boolean, note: String?, onClick: () -> Unit) {
+    val tint by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent else AppColors.Text, Motion.fade(200), label = "pick-tint")
+    val fill by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent else Color.Transparent, Motion.fade(200), label = "pick-fill")
+    val edge by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent else AppColors.Line, Motion.fade(200), label = "pick-edge")
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 58.dp)
+            .liveClick(appCorner(12), sound = FeedbackSound.Toggle, pressedScale = 0.98f, onClick = onClick)
+            .padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        BookCover(b.id, 32.dp)
+        Column(Modifier.weight(1f)) {
+            Text(b.title, color = tint, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            val last = remember { arrayOf("") }
+            if (note != null) last[0] = note
+            androidx.compose.animation.AnimatedVisibility(
+                visible = note != null,
+                enter = androidx.compose.animation.expandVertically(Motion.tween(220)) + androidx.compose.animation.fadeIn(Motion.fade(200)),
+                exit = androidx.compose.animation.shrinkVertically(Motion.tween(200)) + androidx.compose.animation.fadeOut(Motion.fade(140)),
+            ) {
+                Text(last[0], color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+        Box(
+            Modifier
+                .size(24.dp)
+                .clip(appCorner(7))
+                .background(fill)
+                .border(1.5.dp, edge, appCorner(7)),
+            contentAlignment = Alignment.Center,
+        ) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = on,
+                enter = androidx.compose.animation.scaleIn(Motion.tween(180), initialScale = 0.5f) + androidx.compose.animation.fadeIn(Motion.fade(160)),
+                exit = androidx.compose.animation.scaleOut(Motion.tween(140), targetScale = 0.5f) + androidx.compose.animation.fadeOut(Motion.fade(120)),
+            ) { Icon(AppIcons.Check, null, tint = AppColors.OnAccent, modifier = Modifier.size(15.dp)) }
         }
     }
 }

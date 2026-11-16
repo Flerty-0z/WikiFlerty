@@ -146,12 +146,16 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         return listOf("b1", s.font, s.fontSize, s.lineHeight, s.margins, s.bold, s.columns, s.justify, s.hyphens, s.scroll, v.width / 8, v.height / 8).joinToString("|")
     }
 
+    private var fixedTotal = 0
+
     private fun loadScreens(key: String) {
         screensByHref.clear()
         screensKey = key
+        fixedTotal = 0
         val raw = getSharedPreferences("reader_screens", MODE_PRIVATE).getString(bookId, null) ?: return
         val json = runCatching { org.json.JSONObject(raw) }.getOrNull() ?: return
         if (json.optString("key") != key) return
+        fixedTotal = json.optInt("total", 0)
         val map = json.optJSONObject("pages") ?: return
         map.keys().forEach { k -> map.optInt(k).takeIf { it > 0 }?.let { screensByHref[k] = it } }
     }
@@ -159,7 +163,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private fun saveScreens() {
         val map = org.json.JSONObject()
         screensByHref.forEach { (k, v) -> map.put(k, v) }
-        val json = org.json.JSONObject().put("key", screensKey).put("pages", map)
+        val json = org.json.JSONObject().put("key", screensKey).put("pages", map).put("total", fixedTotal)
         getSharedPreferences("reader_screens", MODE_PRIVATE).edit().putString(bookId, json.toString()).apply()
     }
 
@@ -245,8 +249,14 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             ui.bookPages = 0
             return
         }
-        ui.bookPages = total
-        ui.bookPage = (before + cur).coerceIn(1, total)
+        if (fixedTotal <= 0) {
+            fixedTotal = total
+            saveScreens()
+        }
+        val shown = fixedTotal
+        val last = weights.lastOrNull()?.href == href && cur >= count
+        ui.bookPages = shown
+        ui.bookPage = if (last) shown else kotlin.math.round((before + cur).toDouble() * shown / total).toInt().coerceIn(1, shown)
     }
 
     private var endLocator: org.readium.r2.shared.publication.Locator? = null
@@ -826,7 +836,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private fun refreshBoot() {
         bootScript = runCatching {
-            selectionScript + "\n;window.__wfBionic && window.__wfBionic(${settings.bionic});\n" + kitCall() + ";\n" + TextSelection.peopleCall(peopleNow)
+            selectionScript + "\n;window.__wfBionic && window.__wfBionic(${settings.bionic});\n" + kitCall() + ";\n" + TextSelection.peopleCall(peopleNow, wordsShown())
         }.getOrDefault("")
     }
 
@@ -946,6 +956,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 feedJump(false)
             }
             else -> when {
+                type.startsWith("person:w:") -> {
+                    app.feedback.play(FeedbackSound.Open)
+                    showWord(type.removePrefix("person:w:"))
+                }
                 type.startsWith("person:") -> {
                     app.feedback.play(FeedbackSound.Open)
                     showPerson(type.removePrefix("person:"))
@@ -957,6 +971,19 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private var peopleNow: List<com.flerty.wikiflerty.data.BookCharacter> = emptyList()
+    private var wordsNow: List<com.flerty.wikiflerty.data.DictionaryEntry> = emptyList()
+    private var lastMarkWords: Boolean? = null
+
+    private fun wordsShown(): List<com.flerty.wikiflerty.data.DictionaryEntry> = if (settings.markWords) wordsNow else emptyList()
+
+    private fun showWord(id: String) {
+        val entry = wordsNow.firstOrNull { it.id == id } ?: return
+        ui.panelsVisible = false
+        ui.footnote = null
+        ui.translate = null
+        ui.person = null
+        ui.word = entry
+    }
 
     private var translateJob: Job? = null
     private var translateLocator: org.readium.r2.shared.publication.Locator? = null
@@ -1026,6 +1053,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         ui.panelsVisible = false
         ui.footnote = null
         ui.translate = null
+        ui.word = null
         ui.person = person
         app.feedback.play(FeedbackSound.Open)
     }
@@ -1033,7 +1061,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private fun applyPeople() {
         if (!::navigator.isInitialized) return
         refreshBoot()
-        val call = TextSelection.peopleCall(peopleNow)
+        val call = TextSelection.peopleCall(peopleNow, wordsShown())
         lifecycleScope.launch { runCatching { navigator.evaluateJavascript(call) } }
     }
 
@@ -1383,7 +1411,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 runCatching { navigator.evaluateJavascript(selectionScript) }
                 runCatching { navigator.evaluateJavascript("window.__wfBionic && window.__wfBionic(${settings.bionic})") }
                 runCatching { navigator.evaluateJavascript(kitCall()) }
-                runCatching { navigator.evaluateJavascript(TextSelection.peopleCall(peopleNow)) }
+                runCatching { navigator.evaluateJavascript(TextSelection.peopleCall(peopleNow, wordsShown())) }
                 applyColumns(settings)
             }
         }
@@ -1682,7 +1710,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                                         runCatching { navigator.evaluateJavascript(selectionScript) }
                                         runCatching { navigator.evaluateJavascript("window.__wfBionic && window.__wfBionic(${settings.bionic})") }
                                         runCatching { navigator.evaluateJavascript(kitCall()) }
-                                        runCatching { navigator.evaluateJavascript(TextSelection.peopleCall(peopleNow)) }
+                                        runCatching { navigator.evaluateJavascript(TextSelection.peopleCall(peopleNow, wordsShown())) }
                                         delay(160)
                                         runCatching { navigator.evaluateJavascript("1") }
                                     }
@@ -1775,6 +1803,13 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val peopleKey = app.library.books.value.firstOrNull { it.id == session.bookId }?.statsKey
         val bookPeople = app.characters.characters.map { list ->
             list.filter { it.bookId == session.bookId || (peopleKey != null && peopleKey in it.books) }.sortedBy { it.name.lowercase() }
+        }
+        lifecycleScope.launch {
+            app.dictionary.entries.map { list -> list.sortedByDescending { it.createdAt } }.distinctUntilChanged().collect { list ->
+                wordsNow = list
+                ui.word = ui.word?.let { w -> list.firstOrNull { it.id == w.id } }
+                if (settings.markWords) applyPeople()
+            }
         }
         lifecycleScope.launch {
             bookPeople.distinctUntilChanged().collect { list ->
@@ -1981,11 +2016,17 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                             applyKitTexture()
                             launch { runCatching { navigator.evaluateJavascript(kitCall()) } }
                         }
+                        if (lastMarkWords != null && s.markWords != lastMarkWords) {
+                            lastMarkWords = s.markWords
+                            if (!s.markWords) ui.word = null
+                            applyPeople()
+                        }
+                        lastMarkWords = s.markWords
                         if (s.bionic != lastBionic) {
                             lastBionic = s.bionic
                             launch {
                                 runCatching { navigator.evaluateJavascript("window.__wfBionic && window.__wfBionic(${s.bionic})") }
-                                runCatching { navigator.evaluateJavascript(TextSelection.peopleCall(peopleNow)) }
+                                runCatching { navigator.evaluateJavascript(TextSelection.peopleCall(peopleNow, wordsShown())) }
                             }
                         }
                         if (s.columns != lastColumns || s.scroll != lastColumnsScroll || layoutKey != lastColumnsLayout) {

@@ -46,6 +46,20 @@ private fun pick(list: List<Long>, seed: Int) = Color(list[(seed and 0x7FFFFFFF)
 
 private fun Color.lum() = 0.299f * red + 0.587f * green + 0.114f * blue
 
+internal fun generatedCoverColor(title: String, author: String): Color {
+    val seed = title.hashCode() * 31 + author.hashCode()
+    return when (AppStyle.decor) {
+        Decor.Library -> pick(LibraryHues, seed)
+        Decor.Zen -> pick(ZenHues, seed)
+        Decor.Comic -> pick(ComicHues, seed)
+        Decor.News -> pick(NewsHues, seed)
+        Decor.Sea -> pick(SeaHues, seed)
+        Decor.Clay -> pick(ClayHues, seed)
+        Decor.Frost -> pick(FrostHues, seed)
+        Decor.None -> pick(PlainHues, seed)
+    }
+}
+
 @Composable
 fun GeneratedCover(title: String, author: String, modifier: Modifier = Modifier) {
     val decor = AppStyle.decor

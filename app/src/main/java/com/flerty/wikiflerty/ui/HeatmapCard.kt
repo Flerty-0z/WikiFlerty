@@ -337,7 +337,7 @@ private fun DayDetail(selected: LocalDate, days: Map<String, Map<String, DayEntr
                 Box(Modifier.width(5.dp).height(18.dp).clip(CircleShape).background(cellColor(level(entry?.ms ?: 0)).let { if (minutes == 0L) (if (frozen) IceColor else AppColors.Line) else it }))
                 Text(
                     dayTitle(day) + when {
-                        minutes > 0 -> " · $minutes мин"
+                        minutes > 0 -> " · " + StatsCalc.duration(minutes * 60_000)
                         frozen -> " · заморозка ❄"
                         read.isEmpty() -> " · без чтения"
                         else -> ""

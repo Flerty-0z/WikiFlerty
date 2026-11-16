@@ -1521,14 +1521,15 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
 @Composable
 private fun rememberCoverTones(book: Book): List<Color> {
     val app = LocalContext.current.applicationContext as App
-    val fallback = remember(book.id) {
-        val hues = listOf(0xFF3B5F7A, 0xFF8A3B2B, 0xFF5F7A4E, 0xFF7A4FA0, 0xFF2C2F5A, 0xFFB2763A, 0xFF1F6F8B, 0xFF6E2F3F)
-        val c = Color(hues[(book.id.hashCode() and 0x7FFFFFFF) % hues.size])
+    val decor = AppStyle.decor
+    val fallback = remember(book.title, book.author, decor) {
+        val c = generatedCoverColor(book.title, book.author)
         listOf(darken(c, 0.8f), c, lighten(c, 0.1f), c, darken(c, 0.8f))
     }
-    val file = app.library.coverFile(book)
-    val tones by produceState(CoverCache.peekTones(file) ?: fallback, file) {
-        if (file == null || CoverCache.peekTones(file) != null) return@produceState
+    val file = app.library.coverFile(book)?.takeIf { book.coverFileName != null }
+    val tones by produceState(CoverCache.peekTones(file) ?: fallback, file, fallback) {
+        value = CoverCache.peekTones(file) ?: fallback
+        if (file == null || !file.exists() || CoverCache.peekTones(file) != null) return@produceState
         val t = withContext(Dispatchers.IO) { CoverCache.load(file, 64)?.let { coverTones(it.asAndroidBitmap()) } }
         if (t != null) {
             CoverCache.putTones(file, t)

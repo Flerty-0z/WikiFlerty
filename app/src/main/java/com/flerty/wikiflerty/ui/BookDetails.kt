@@ -983,70 +983,19 @@ private fun SeriesAddSheet(name: String, next: Double, inSeries: Set<String>, on
     val books by app.library.books.collectAsStateWithLifecycle()
     val choices = remember(books, inSeries) { books.filter { it.id !in inSeries && !it.paper }.sortedBy { it.title.lowercase() } }
     val picked = remember { androidx.compose.runtime.mutableStateListOf<String>() }
-    var query by remember { mutableStateOf("") }
-    val shown = remember(choices, query) {
-        val q = query.trim().lowercase()
-        if (q.isEmpty()) choices else choices.filter { it.title.lowercase().contains(q) || it.author.lowercase().contains(q) }
-    }
     AppSheet(onDismiss, title = "Добавить в серию") {
         val close = sheetClose(onDismiss)
         if (choices.isEmpty()) {
             EmptyNote(AppIcons.Book, "Все книги уже в серии", "")
         }
-        if (choices.size > 5) {
-            SearchField(query, { query = it }, Modifier.fillMaxWidth(), placeholder = "Название или автор")
-            if (shown.isEmpty()) EmptyNote(AppIcons.Search, "Ничего не нашлось", "")
-        }
-        if (shown.isNotEmpty()) {
-            SettingsGroup("Книги · ${picked.size}/${choices.size}") {
-                Column(Modifier.padding(vertical = 6.dp)) {
-                    shown.forEachIndexed { i, b ->
-                        if (i > 0) ListDivider()
-                        val on = b.id in picked
-                        val tint by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent else AppColors.Text, Motion.fade(200), label = "pick-tint")
-                        val fill by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent else Color.Transparent, Motion.fade(200), label = "pick-fill")
-                        val edge by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent else AppColors.Line, Motion.fade(200), label = "pick-edge")
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 58.dp)
-                                .liveClick(appCorner(12), sound = FeedbackSound.Toggle, pressedScale = 0.98f) { if (on) picked.remove(b.id) else picked.add(b.id) }
-                                .padding(vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            BookCover(b.id, 32.dp)
-                            Column(Modifier.weight(1f)) {
-                                Text(b.title, color = tint, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                val index = picked.indexOf(b.id)
-                                val label = remember { arrayOf("") }
-                                if (index >= 0) label[0] = "Том " + BookSeries(name, next + index).numberLabel.orEmpty()
-                                androidx.compose.animation.AnimatedVisibility(
-                                    visible = on,
-                                    enter = androidx.compose.animation.expandVertically(Motion.tween(220)) + androidx.compose.animation.fadeIn(Motion.fade(200)),
-                                    exit = androidx.compose.animation.shrinkVertically(Motion.tween(200)) + androidx.compose.animation.fadeOut(Motion.fade(140)),
-                                ) {
-                                    Text(label[0], color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, modifier = Modifier.padding(top = 2.dp))
-                                }
-                            }
-                            Box(
-                                Modifier
-                                    .size(24.dp)
-                                    .clip(appCorner(7))
-                                    .background(fill)
-                                    .border(1.5.dp, edge, appCorner(7)),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                androidx.compose.animation.AnimatedVisibility(
-                                    visible = on,
-                                    enter = androidx.compose.animation.scaleIn(Motion.tween(180), initialScale = 0.5f) + androidx.compose.animation.fadeIn(Motion.fade(160)),
-                                    exit = androidx.compose.animation.scaleOut(Motion.tween(140), targetScale = 0.5f) + androidx.compose.animation.fadeOut(Motion.fade(120)),
-                                ) { Icon(AppIcons.Check, null, tint = AppColors.OnAccent, modifier = Modifier.size(15.dp)) }
-                            }
-                        }
-                    }
-                }
-            }
+        if (choices.isNotEmpty()) {
+            BookPickList(
+                "Книги",
+                choices,
+                picked,
+                onToggle = { b -> if (b.id in picked) picked.remove(b.id) else picked.add(b.id) },
+                note = { b -> picked.indexOf(b.id).takeIf { it >= 0 }?.let { "Том " + BookSeries(name, next + it).numberLabel.orEmpty() } },
+            )
         }
         if (choices.isNotEmpty()) {
             AppButton(if (picked.isEmpty()) "Выбери книги" else "Добавить · ${picked.size}", primary = picked.isNotEmpty(), modifier = Modifier.fillMaxWidth(), labeled = true) {

@@ -346,6 +346,7 @@ internal fun PersonProfileSheet(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 ProfileLabel("Судьба", Modifier.weight(1f))
                                 SmallAction(if (person.fateHidden) AppIcons.EyeOff else AppIcons.Eye, "Скрывать как спойлер", if (person.fateHidden) FeedbackSound.Uncheck else FeedbackSound.Check, active = person.fateHidden) {
+                                    fateShown = false
                                     actions.onUpdate(person.copy(fateHidden = !person.fateHidden))
                                 }
                             }
@@ -415,8 +416,7 @@ internal fun PersonProfileSheet(
             BookLinkSheet(
                 books = books.filter { it.id != person.bookId && it.statsKey !in person.books },
                 series = (home ?: books.firstOrNull { it.id == homeBookId })?.series?.map { it.name.lowercase() }.orEmpty(),
-                cover = { app.library.coverFile(it) },
-                onPick = { b -> actions.onUpdate(person.copy(books = (person.books + b.statsKey).distinct())) },
+                onApply = { list -> actions.onUpdate(person.copy(books = (person.books + list.map { it.statsKey }).distinct())) },
                 onDismiss = { linking = false },
             )
         }
@@ -622,36 +622,26 @@ private fun ProfileButton(text: String, icon: ImageVector, onClick: () -> Unit) 
 }
 
 @Composable
-private fun BookLinkSheet(books: List<Book>, series: List<String>, cover: (Book) -> File?, onPick: (Book) -> Unit, onDismiss: () -> Unit) {
-    val sorted = remember(books, series) {
-        books.sortedWith(compareBy<Book> { b -> if (b.series.any { it.name.lowercase() in series }) 0 else 1 }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.title })
-    }
+private fun BookLinkSheet(books: List<Book>, series: List<String>, onApply: (List<Book>) -> Unit, onDismiss: () -> Unit) {
+    val picked = remember { androidx.compose.runtime.mutableStateListOf<String>() }
     AppSheet(onDismiss, title = "Привязать книгу") {
         val close = sheetClose(onDismiss)
-        if (sorted.isEmpty()) {
+        if (books.isEmpty()) {
             HintNote("Других книг в библиотеке нет", AppIcons.Info)
-        }
-        sorted.take(120).forEach { b ->
-            val shape = appCorner(14)
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .sheetReveal()
-                    .liveClick(shape, sound = FeedbackSound.Check, pressedScale = 0.98f) {
-                        onPick(b)
-                        close()
-                    }
-                    .fieldSurface(shape)
-                    .padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                SmallCover(cover(b), Modifier.size(width = 34.dp, height = 51.dp), title = b.title, author = b.author)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(b.title, color = AppColors.Text, fontSize = 14.5.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    val sub = b.series.firstOrNull()?.label ?: b.author
-                    if (sub.isNotBlank()) Text(sub, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
+        } else {
+            com.flerty.wikiflerty.ui.BookPickList(
+                "Книги",
+                books,
+                picked,
+                onToggle = { b -> if (b.id in picked) picked.remove(b.id) else picked.add(b.id) },
+                sortKey = { b -> if (b.series.any { it.name.lowercase() in series }) 0 else 1 },
+                note = { b -> b.series.firstOrNull()?.label ?: b.author.takeIf { it.isNotBlank() } },
+            )
+            com.flerty.wikiflerty.ui.AppButton(if (picked.isEmpty()) "Выбери книги" else "Привязать · ${picked.size}", primary = picked.isNotEmpty(), modifier = Modifier.fillMaxWidth(), labeled = true) {
+                if (picked.isEmpty()) return@AppButton
+                val ids = picked.toSet()
+                onApply(books.filter { it.id in ids })
+                close()
             }
         }
     }

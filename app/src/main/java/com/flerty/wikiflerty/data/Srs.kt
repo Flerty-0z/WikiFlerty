@@ -124,7 +124,7 @@ object Srs {
         val days = ms.toDouble() / DAY
         return when {
             minutes < 60 -> "$minutes мин"
-            days < 1 -> "${minutes / 60} ч"
+            days < 1 -> if (minutes % 60 == 0L || minutes >= 600) "${minutes / 60} ч" else "${minutes / 60} ч ${minutes % 60} мин"
             days < 30 -> "${days.roundToLong().coerceAtLeast(1)} дн"
             days < 365 -> "${(days / 30).roundToLong()} мес"
             else -> String.format(java.util.Locale.US, "%.1f г", days / 365)

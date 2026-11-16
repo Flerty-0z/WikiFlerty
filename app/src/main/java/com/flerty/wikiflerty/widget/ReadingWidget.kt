@@ -64,7 +64,7 @@ class ReadingWidget : AppWidgetProvider() {
             val today = when {
                 goal > 0 && app.libraryPrefs.prefs.value.dailyGoalPages -> "сегодня $pagesToday/$goal стр."
                 goal > 0 -> "сегодня $minutes/$goal мин"
-                else -> "сегодня $minutes мин"
+                else -> "сегодня " + com.flerty.wikiflerty.ui.StatsCalc.duration(todayMs)
             }
             val art = WidgetArt(context, skin)
             ids.forEach { id ->

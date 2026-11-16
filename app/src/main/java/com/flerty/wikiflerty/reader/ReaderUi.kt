@@ -224,6 +224,7 @@ class ReaderUiState {
     var pageTurning by mutableStateOf(false)
     var quote by mutableStateOf<QuoteDraft?>(null)
     var person by mutableStateOf<com.flerty.wikiflerty.data.BookCharacter?>(null)
+    var word by mutableStateOf<com.flerty.wikiflerty.data.DictionaryEntry?>(null)
     var personDraft by mutableStateOf<PersonDraft?>(null)
     var peopleFocus by mutableStateOf<String?>(null)
     var personAi by mutableStateOf<String?>(null)
@@ -421,13 +422,14 @@ fun ReaderOverlay(
     val feedback = LocalFeedback.current
     val view = LocalView.current
 
-    BackHandler(enabled = state.illustration != null || state.sheet != null || state.panelsVisible || state.selection != null || state.footnote != null || state.person != null || state.translate != null) {
+    BackHandler(enabled = state.illustration != null || state.sheet != null || state.panelsVisible || state.selection != null || state.footnote != null || state.person != null || state.word != null || state.translate != null) {
         val sheet = state.sheet
         when {
             state.illustration != null -> state.illustration = null
             state.footnote != null -> state.footnote = null
             state.translate != null && sheet == null -> translateActions?.onClose?.invoke() ?: run { state.translate = null }
             state.person != null && sheet == null -> state.person = null
+            state.word != null && sheet == null -> state.word = null
             state.selection != null && sheet == null -> noteActions.onSelectionClose()
             sheet == null -> state.panelsVisible = false
             sheet == ReaderSheet.Fonts -> state.sheet = ReaderSheet.Text
@@ -830,6 +832,22 @@ fun ReaderOverlay(
     }
 
     AnimatedVisibility(
+        visible = state.word != null && state.sheet == null,
+        enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(260)) { it / 3 },
+        exit = fadeOut(Motion.fade(160)) + slideOutVertically(Motion.tween(200)) { it / 3 },
+        modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.systemBars).padding(bottom = popupLift),
+    ) {
+        val last = remember { arrayOf<com.flerty.wikiflerty.data.DictionaryEntry?>(null) }
+        state.word?.let { last[0] = it }
+        val entry = last[0]
+        if (entry != null) {
+            androidx.compose.runtime.key(entry.id) {
+                WordPopup(entry, onClose = { state.word = null }, modifier = Modifier.blockTaps())
+            }
+        }
+    }
+
+    AnimatedVisibility(
         visible = state.translate != null && state.sheet == null && translateActions != null,
         enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(260)) { it / 3 },
         exit = fadeOut(Motion.fade(160)) + slideOutVertically(Motion.tween(200)) { it / 3 },
@@ -1065,7 +1083,7 @@ internal fun ProgressFlag(info: FlagInfo, settings: ReaderSettings, onClick: (()
             chap -> add("pages" to "${info.chapterPage}/${info.chapterPages}")
         }
         if (settings.flagPercent) add("percent" to "${(info.progression * 100).roundToInt().coerceIn(0, 100)}%")
-        if (settings.flagTimeLeft) info.minutesLeft?.let { add("left" to if (it < 1) "<1 мин" else "≈$it мин") }
+        if (settings.flagTimeLeft) info.minutesLeft?.let { add("left" to if (it < 1) "<1 мин" else "≈" + com.flerty.wikiflerty.ui.StatsCalc.duration(it * 60_000L)) }
         if (settings.flagClock && clock.isNotEmpty()) add("clock" to clock)
     }
     val showChapter = settings.flagChapter && !info.chapter.isNullOrBlank()
@@ -1641,6 +1659,7 @@ internal fun RoundIconButton(
     description: String,
     filled: Boolean = false,
     sound: FeedbackSound = FeedbackSound.Tap,
+    iconModifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     Box(
@@ -1650,7 +1669,7 @@ internal fun RoundIconButton(
             .background(if (filled) AppColors.Line else Color.Transparent),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = description, tint = AppColors.Text, modifier = Modifier.size(if (filled) 18.dp else 22.dp))
+        Icon(icon, contentDescription = description, tint = AppColors.Text, modifier = iconModifier.size(if (filled) 18.dp else 22.dp))
     }
 }
 
@@ -2074,6 +2093,7 @@ private fun TextOptions(
     }
     SwitchRow("Переносы", settings.hyphens, icon = AppIcons.Wrap) { v -> onSettingsChange { it.copy(hyphens = v) } }
     SwitchRow("Бионическое чтение", settings.bionic, icon = AppIcons.Eye) { v -> onSettingsChange { it.copy(bionic = v) } }
+    SwitchRow("Слова из словаря", settings.markWords, icon = AppIcons.Dictionary) { v -> onSettingsChange { it.copy(markWords = v) } }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     Column(Modifier.alpha(if (settings.scroll) 0.45f else 1f)) {
         Segmented(
