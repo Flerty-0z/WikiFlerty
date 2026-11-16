@@ -19,6 +19,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
@@ -290,33 +291,48 @@ private fun SelectionHandleLayer(state: ReaderUiState, handleStyle: String) {
             }
         }
     }
-    val h = state.handles ?: return
-    if (state.sheet != null) return
-    val end = h.end
-    val last = remember { arrayOf<androidx.compose.ui.geometry.Offset?>(null) }
-    if (end != null && h.more) last[0] = end
+    val h = state.handles
+    val end = h?.end
+    val showNext = h != null && h.more && end != null && state.sheet == null
     val density = androidx.compose.ui.platform.LocalDensity.current
     val screenW = with(density) { androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp.toPx() }
     val screenH = with(density) { androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp.toPx() }
-    val pillW = remember { floatArrayOf(with(density) { 104.dp.toPx() }) }
+    var pillW by remember { mutableFloatStateOf(with(density) { 104.dp.toPx() }) }
     val pillH = with(density) { 34.dp.toPx() }
+    val target = remember { arrayOf<androidx.compose.ui.geometry.Offset?>(null) }
+    if (showNext && end != null) {
+        val floor = (if (state.flagTop > 0f) state.flagTop else screenH - with(density) { 64.dp.toPx() }) - with(density) { 6.dp.toPx() }
+        val y = minOf(end.y + with(density) { 6.dp.toPx() }, floor - pillH)
+        val edge = with(density) { 12.dp.toPx() }
+        val gap = with(density) { 30.dp.toPx() }
+        val left = end.x - gap - pillW
+        val x = (if (left >= edge) left else end.x + gap + with(density) { 20.dp.toPx() }).coerceIn(edge, maxOf(edge, screenW - pillW - edge))
+        target[0] = androidx.compose.ui.geometry.Offset(x, y)
+    }
+    val spot = target[0]
+    val pos = remember { androidx.compose.animation.core.Animatable(androidx.compose.ui.geometry.Offset.Zero, androidx.compose.ui.geometry.Offset.Companion.VectorConverter) }
+    val placed = remember { booleanArrayOf(false) }
+    LaunchedEffect(spot, showNext) {
+        if (spot == null) return@LaunchedEffect
+        if (!placed[0] || !showNext) {
+            pos.snapTo(spot)
+            placed[0] = showNext
+        } else {
+            pos.animateTo(spot, androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 520f))
+        }
+    }
+    LaunchedEffect(showNext) { if (!showNext) placed[0] = false }
     androidx.compose.animation.AnimatedVisibility(
-        visible = h.more && end != null,
-        enter = fadeIn(Motion.fade(180)) + scaleIn(androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 520f), initialScale = 0.7f),
-        exit = fadeOut(Motion.fade(140)) + scaleOut(Motion.tween(160), targetScale = 0.8f),
+        visible = showNext,
+        enter = fadeIn(Motion.fade(220)) + scaleIn(androidx.compose.animation.core.spring(dampingRatio = 0.62f, stiffness = 420f), initialScale = 0.6f),
+        exit = fadeOut(Motion.fade(220)) + scaleOut(Motion.tween(240), targetScale = 0.7f),
         modifier = Modifier.offset {
-            val p = last[0] ?: androidx.compose.ui.geometry.Offset.Zero
-            val floor = (if (state.flagTop > 0f) state.flagTop else screenH - 64.dp.toPx()) - 6.dp.toPx()
-            val y = minOf(p.y + 6.dp.toPx(), floor - pillH)
-            val edge = 12.dp.toPx()
-            val gap = 30.dp.toPx()
-            val left = p.x - gap - pillW[0]
-            val x = (if (left >= edge) left else p.x + gap).coerceIn(edge, maxOf(edge, screenW - pillW[0] - edge))
-            androidx.compose.ui.unit.IntOffset(x.roundToInt(), y.roundToInt())
+            val p = if (placed[0]) pos.value else (spot ?: androidx.compose.ui.geometry.Offset.Zero)
+            androidx.compose.ui.unit.IntOffset(p.x.roundToInt(), p.y.roundToInt())
         },
     ) {
         val nextFeedback = com.flerty.wikiflerty.ui.LocalFeedback.current
-        SelectionNextBar(color, Modifier.onSizeChanged { pillW[0] = it.width.toFloat() }) {
+        SelectionNextBar(color, Modifier.onSizeChanged { pillW = it.width.toFloat() }) {
             nextFeedback?.play(FeedbackSound.Page)
             state.onSelectionNext?.invoke()
         }
