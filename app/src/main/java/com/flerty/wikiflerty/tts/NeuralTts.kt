@@ -305,11 +305,34 @@ class NeuralTts(
             return
         }
         val words = Regex("\\S+").findAll(text).map { it.range }.toList()
+        val bounds = IntArray(words.size + 1)
+        words.forEachIndexed { i, r ->
+            val w = text.substring(r.first, r.last + 1)
+            val pause = when (w.lastOrNull()) {
+                ',', ';', ':', '—', '–', ')' -> 3
+                '.', '!', '?', '…' -> 5
+                else -> 0
+            }
+            bounds[i + 1] = bounds[i] + w.count { it.isLetterOrDigit() }.coerceAtLeast(1) + 1 + pause
+        }
+        val totalWeight = bounds.last().coerceAtLeast(1)
+        val loud = 700
+        var speechStart = 0
+        while (speechStart < samples.size && kotlin.math.abs(samples[speechStart].toInt()) < loud) speechStart++
+        var speechEnd = samples.size - 1
+        while (speechEnd > speechStart && kotlin.math.abs(samples[speechEnd].toInt()) < loud) speechEnd--
+        if (speechEnd - speechStart < pcm.rate / 10) {
+            speechStart = 0
+            speechEnd = samples.size
+        }
+        val lead = pcm.rate * 6 / 100
+        val stamp = android.media.AudioTimestamp()
+        val speed = _settings.value.speed.coerceIn(0.5, 3.0)
         val startHead = t.playbackHeadPosition.toLong() and 0xFFFFFFFFL
         t.play()
         var written = 0
         var lastWord = -1
-        val step = pcm.rate / 10
+        val step = pcm.rate / 25
         var lastHead = -1L
         var stallSince = 0L
         var padded = 0
@@ -343,9 +366,17 @@ class NeuralTts(
                     break
                 }
             }
-            val fraction = (played.toDouble() / samples.size).coerceIn(0.0, 1.0)
+            val heard = if (played > 0 && t.getTimestamp(stamp)) {
+                val ahead = ((System.nanoTime() - stamp.nanoTime).coerceIn(0L, 400_000_000L) * pcm.rate * speed / 1e9).toLong()
+                (stamp.framePosition - startHead + ahead).coerceIn(0L, played)
+            } else {
+                played
+            }
+            val fraction = ((heard + lead - speechStart).toDouble() / (speechEnd - speechStart).coerceAtLeast(1)).coerceIn(0.0, 1.0)
             if (words.isNotEmpty()) {
-                val w = (fraction * words.size).toInt().coerceIn(0, words.lastIndex)
+                val target = fraction * totalWeight
+                var w = 0
+                while (w < words.lastIndex && bounds[w + 1] <= target) w++
                 if (w != lastWord) {
                     lastWord = w
                     val range = words[w]

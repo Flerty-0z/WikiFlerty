@@ -2080,7 +2080,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 launch {
                     session.navigator.location.collect { location ->
                         val locator = location.utteranceLocator
-                        val word = location.tokenLocator?.takeIf { settings.ttsWordColor != 0L }
+                        val wordTint = ttsWordTint(settings.ttsColor, settings.ttsWordColor)
+                        val word = location.tokenLocator?.takeIf { wordTint != 0L }
                         val sameLine = locator == lastTtsHighlight
                         if (sameLine && word == lastTtsWord) return@collect
                         lastTtsHighlight = locator
@@ -2088,7 +2089,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         navigator.applyDecorations(
                             listOfNotNull(
                                 Decoration("tts", locator, Decoration.Style.Highlight(tint = settings.ttsColor.toInt())),
-                                word?.let { Decoration("tts-word", it, Decoration.Style.Highlight(tint = settings.ttsWordColor.toInt(), isActive = true)) },
+                                word?.let { Decoration("tts-word", it, TtsWordStyle(wordTint.toInt())) },
                             ),
                             TTS_GROUP,
                         )
@@ -2136,6 +2137,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private fun navigatorConfiguration() = EpubNavigatorFragment.Configuration {
         servedAssets += "fonts/.*"
+        decorationTemplates = decorationTemplates.copy().apply { set(TtsWordStyle::class, TtsWordStyle.template) }
         disablePageTurnsWhileScrolling = true
         selectionActionModeCallback = selectionCallback
         registerJavascriptInterface(TextSelection.BRIDGE) {

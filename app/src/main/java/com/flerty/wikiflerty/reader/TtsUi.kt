@@ -26,6 +26,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.using
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -52,6 +56,47 @@ import java.util.Locale
 import kotlinx.coroutines.launch
 
 val TtsColors = listOf(0xFFF2C46B, 0xFF7ED3A0, 0xFF8AB4F8, 0xFFF28B9B, 0xFFC3A6F5, 0xFFB0B4BC)
+
+val TtsWordColors = listOf(0xFF2563EB, 0xFF16A34A, 0xFFDC2626, 0xFF9333EA, 0xFFDB2777, 0xFF0891B2, 0xFF1F2937)
+
+private fun hue(c: Long): Float {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(c.toInt(), hsv)
+    return if (hsv[1] < 0.18f) -1f else hsv[0]
+}
+
+private fun clash(a: Long, b: Long): Boolean {
+    val ha = hue(a)
+    val hb = hue(b)
+    if (ha < 0f || hb < 0f) return false
+    val d = kotlin.math.abs(ha - hb).let { minOf(it, 360f - it) }
+    return d < 40f
+}
+
+fun ttsWordChoices(sentence: Long): List<Long> = TtsWordColors.filterNot { clash(it, sentence) }
+
+fun ttsWordTint(sentence: Long, word: Long): Long {
+    if (word == 0L) return 0L
+    val choices = ttsWordChoices(sentence)
+    return if (word in choices) word else choices.maxByOrNull { c -> val h = hue(c); val hs = hue(sentence); if (h < 0 || hs < 0) 0f else kotlin.math.abs(h - hs).let { minOf(it, 360f - it) } } ?: word
+}
+
+@Composable
+private fun ColorDot(color: Long, selected: Boolean, onClick: () -> Unit, content: (@Composable () -> Unit)? = null) {
+    val ring by androidx.compose.animation.animateColorAsState(if (selected) AppColors.Text else Color.Transparent, com.flerty.wikiflerty.ui.Motion.fade(200), label = "dot-ring")
+    val grow by androidx.compose.animation.core.animateFloatAsState(if (selected) 1f else 0.86f, androidx.compose.animation.core.spring(dampingRatio = 0.55f, stiffness = 520f), label = "dot-grow")
+    Box(
+        Modifier.size(40.dp)
+            .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.85f, onClick = onClick)
+            .border(2.dp, ring, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier.size(28.dp).graphicsLayer { scaleX = grow; scaleY = grow }.clip(CircleShape).then(if (content == null) Modifier.background(Color(color)) else Modifier.border(1.5.dp, AppColors.Line, CircleShape)),
+            contentAlignment = Alignment.Center,
+        ) { content?.invoke() }
+    }
+}
 
 class TtsActions(
     val onStart: () -> Unit,
@@ -172,7 +217,8 @@ private fun PiperVoiceList(selected: String, onSelect: (String) -> Unit) {
             ) {
                 com.flerty.wikiflerty.ui.SettingIcon(AppIcons.Voice)
                 Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp)) {
-                    Text(v.title, color = if (isSel) AppColors.Accent else AppColors.Text, fontSize = 15.sp, fontWeight = if (isSel) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1)
+                    val titleColor by androidx.compose.animation.animateColorAsState(if (isSel) AppColors.Accent else AppColors.Text, com.flerty.wikiflerty.ui.Motion.fade(220), label = "voice-title")
+                    Text(v.title, color = titleColor, fontSize = 15.sp, fontWeight = if (isSel) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1)
                     Text(
                         when {
                             p != null -> "Скачиваю… ${(p * 100).toInt()}%"
@@ -194,22 +240,43 @@ private fun PiperVoiceList(selected: String, onSelect: (String) -> Unit) {
                         }
                     }
                 }
-                when {
-                    has && !isSel -> Box(
-                        Modifier.size(36.dp).liveClick(CircleShape, sound = FeedbackSound.Close) { com.flerty.wikiflerty.tts.PiperVoices.delete(context, v.id) },
-                        contentAlignment = Alignment.Center,
-                    ) { Icon(AppIcons.Trash, "Удалить голос", tint = AppColors.Faint, modifier = Modifier.size(17.dp)) }
-                    !has && p == null -> Icon(AppIcons.Download, "Скачать", tint = AppColors.Accent, modifier = Modifier.size(20.dp))
-                    else -> Unit
+                val trail = when {
+                    has && !isSel -> 1
+                    !has && p == null -> 2
+                    else -> 0
+                }
+                androidx.compose.animation.AnimatedContent(
+                    trail,
+                    transitionSpec = {
+                        (androidx.compose.animation.fadeIn(com.flerty.wikiflerty.ui.Motion.tween(200, 40)) + androidx.compose.animation.scaleIn(com.flerty.wikiflerty.ui.Motion.tween(220), initialScale = 0.7f)) togetherWith
+                            (androidx.compose.animation.fadeOut(com.flerty.wikiflerty.ui.Motion.tween(120)) + androidx.compose.animation.scaleOut(com.flerty.wikiflerty.ui.Motion.tween(160), targetScale = 0.7f)) using
+                            androidx.compose.animation.SizeTransform(clip = false) { _, _ -> com.flerty.wikiflerty.ui.Motion.tween(220) }
+                    },
+                    contentAlignment = Alignment.Center,
+                    label = "voice-trail",
+                ) { t ->
+                    when (t) {
+                        1 -> Box(
+                            Modifier.size(36.dp).liveClick(CircleShape, sound = FeedbackSound.Close) { com.flerty.wikiflerty.tts.PiperVoices.delete(context, v.id) },
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(AppIcons.Trash, "Удалить голос", tint = AppColors.Faint, modifier = Modifier.size(17.dp)) }
+                        2 -> Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) { Icon(AppIcons.Download, "Скачать", tint = AppColors.Accent, modifier = Modifier.size(20.dp)) }
+                        else -> Spacer(Modifier.size(1.dp))
+                    }
                 }
                 Box(Modifier.padding(start = 6.dp).size(22.dp), contentAlignment = Alignment.Center) {
-                    if (isSel) Icon(AppIcons.Check, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp))
+                    androidx.compose.animation.AnimatedVisibility(
+                        isSel,
+                        enter = androidx.compose.animation.fadeIn(com.flerty.wikiflerty.ui.Motion.tween(200)) + androidx.compose.animation.scaleIn(androidx.compose.animation.core.spring(dampingRatio = 0.5f, stiffness = 600f), initialScale = 0.4f),
+                        exit = androidx.compose.animation.fadeOut(com.flerty.wikiflerty.ui.Motion.tween(140)) + androidx.compose.animation.scaleOut(com.flerty.wikiflerty.ui.Motion.tween(160), targetScale = 0.4f),
+                    ) { Icon(AppIcons.Check, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp)) }
                 }
             }
         }
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun TtsOptions(
     settings: ReaderSettings,
@@ -223,7 +290,16 @@ fun TtsOptions(
     val context = LocalContext.current
 
     val shape = appCorner(18)
-    if (!active) {
+    androidx.compose.animation.AnimatedContent(
+        active,
+        transitionSpec = {
+            (androidx.compose.animation.fadeIn(com.flerty.wikiflerty.ui.Motion.tween(260, 60)) + androidx.compose.animation.scaleIn(com.flerty.wikiflerty.ui.Motion.tween(300), initialScale = 0.94f)) togetherWith
+                (androidx.compose.animation.fadeOut(com.flerty.wikiflerty.ui.Motion.tween(140)) + androidx.compose.animation.scaleOut(com.flerty.wikiflerty.ui.Motion.tween(200), targetScale = 0.96f)) using
+                androidx.compose.animation.SizeTransform(clip = false) { _, _ -> com.flerty.wikiflerty.ui.Motion.tween(300) }
+        },
+        label = "tts-start",
+    ) { isActive ->
+    if (!isActive) {
         Row(
             Modifier.fillMaxWidth().heightIn(min = 54.dp).liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onClick = actions.onStart).accentHighlight(shape),
             verticalAlignment = Alignment.CenterVertically,
@@ -240,7 +316,18 @@ fun TtsOptions(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
             ) {
-                com.flerty.wikiflerty.ui.ActionLabel(if (playing) "Пауза" else "Слушать", accentContent, fontSize = 14.sp, iconSize = 23.dp, icon = if (playing) AppIcons.Pause else AppIcons.Play)
+                androidx.compose.animation.AnimatedContent(
+                    playing,
+                    transitionSpec = {
+                        (androidx.compose.animation.fadeIn(com.flerty.wikiflerty.ui.Motion.tween(200, 40)) + androidx.compose.animation.scaleIn(com.flerty.wikiflerty.ui.Motion.tween(240), initialScale = 0.8f)) togetherWith
+                            (androidx.compose.animation.fadeOut(com.flerty.wikiflerty.ui.Motion.tween(120)) + androidx.compose.animation.scaleOut(com.flerty.wikiflerty.ui.Motion.tween(160), targetScale = 0.8f)) using
+                            androidx.compose.animation.SizeTransform(clip = false) { _, _ -> com.flerty.wikiflerty.ui.Motion.tween(220) }
+                    },
+                    contentAlignment = Alignment.Center,
+                    label = "tts-play",
+                ) { on ->
+                    com.flerty.wikiflerty.ui.ActionLabel(if (on) "Пауза" else "Слушать", accentContent, fontSize = 14.sp, iconSize = 23.dp, icon = if (on) AppIcons.Pause else AppIcons.Play)
+                }
             }
             Row(
                 Modifier.weight(1f).heightIn(min = 54.dp).liveClick(shape, sound = FeedbackSound.Close, onClick = actions.onStop)
@@ -252,8 +339,9 @@ fun TtsOptions(
             }
         }
     }
+    }
 
-    Column(Modifier.clip(appCorner(16)).background(AppColors.Field).padding(horizontal = 14.dp, vertical = 4.dp)) {
+    Column(Modifier.clip(appCorner(16)).background(AppColors.Field).animateContentSize(com.flerty.wikiflerty.ui.Motion.tween(300)).padding(horizontal = 14.dp, vertical = 4.dp)) {
         val engines by produceState(emptyList<com.flerty.wikiflerty.tts.TtsEngineInfo>()) { value = ReadAloud.engines(context) }
         androidx.compose.runtime.LaunchedEffect(settings.ttsEngine) {
             if (settings.ttsEngine == NeuralVoices.GEMINI || settings.ttsEngine == NeuralVoices.OPENAI) {
@@ -276,9 +364,24 @@ fun TtsOptions(
             onSettingsChange { it.copy(ttsEngine = id, ttsVoice = if (NeuralVoices.isNeural(id)) NeuralVoices.voices(id).first().id else "", ttsVoiceLanguage = "") }
         }
 
-        if (settings.ttsEngine == NeuralVoices.PIPER) {
+        val voiceKind = when {
+            settings.ttsEngine == NeuralVoices.PIPER -> 0
+            NeuralVoices.isNeural(settings.ttsEngine) -> 1
+            else -> 2
+        }
+        androidx.compose.animation.AnimatedContent(
+            voiceKind,
+            transitionSpec = {
+                androidx.compose.animation.fadeIn(com.flerty.wikiflerty.ui.Motion.tween(240, 80)) togetherWith
+                    androidx.compose.animation.fadeOut(com.flerty.wikiflerty.ui.Motion.tween(120)) using
+                    androidx.compose.animation.SizeTransform(clip = true) { _, _ -> com.flerty.wikiflerty.ui.Motion.tween(300) }
+            },
+            label = "tts-voices",
+        ) { kind ->
+        Column {
+        if (kind == 0) {
             PiperVoiceList(settings.ttsVoice) { id -> onSettingsChange { it.copy(ttsVoice = id, ttsVoiceLanguage = "") } }
-        } else if (NeuralVoices.isNeural(settings.ttsEngine)) {
+        } else if (kind == 1) {
             val list = NeuralVoices.voices(settings.ttsEngine)
             PickerRow(
                 label = "Голос",
@@ -315,6 +418,8 @@ fun TtsOptions(
             onSettingsChange { it.copy(ttsVoice = voice?.name.orEmpty(), ttsVoiceLanguage = voice?.language?.code.orEmpty()) }
         }
         }
+        }
+        }
     }
 
     StepSlider(
@@ -339,38 +444,21 @@ fun TtsOptions(
     Group("Цвет подсветки", AppIcons.Palette) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             TtsColors.forEach { color ->
-                val selected = settings.ttsColor == color
-                Box(
-                    Modifier.size(40.dp)
-                        .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.85f) { onSettingsChange { it.copy(ttsColor = color) } }
-                        .border(2.dp, if (selected) AppColors.Text else Color.Transparent, CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) { Box(Modifier.size(28.dp).clip(CircleShape).background(Color(color))) }
+                ColorDot(color, settings.ttsColor == color, onClick = { onSettingsChange { it.copy(ttsColor = color) } })
             }
         }
     }
 
     Group("Выделение слова", AppIcons.TextSize) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            val off = settings.ttsWordColor == 0L
-            Box(
-                Modifier.size(40.dp)
-                    .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.85f) { onSettingsChange { it.copy(ttsWordColor = 0L) } }
-                    .border(2.dp, if (off) AppColors.Text else Color.Transparent, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(Modifier.size(28.dp).clip(CircleShape).border(1.5.dp, AppColors.Line, CircleShape), contentAlignment = Alignment.Center) {
-                    Icon(AppIcons.Close, "Без выделения слова", tint = AppColors.Muted, modifier = Modifier.size(14.dp))
-                }
+        val effective = ttsWordTint(settings.ttsColor, settings.ttsWordColor)
+        androidx.compose.foundation.layout.FlowRow(Modifier.animateContentSize(com.flerty.wikiflerty.ui.Motion.tween(260)), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ColorDot(0L, effective == 0L, onClick = { onSettingsChange { it.copy(ttsWordColor = 0L) } }) {
+                Icon(AppIcons.Close, "Без выделения слова", tint = AppColors.Muted, modifier = Modifier.size(14.dp))
             }
-            TtsColors.forEach { color ->
-                val selected = settings.ttsWordColor == color
-                Box(
-                    Modifier.size(40.dp)
-                        .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.85f) { onSettingsChange { it.copy(ttsWordColor = color) } }
-                        .border(2.dp, if (selected) AppColors.Text else Color.Transparent, CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) { Box(Modifier.size(28.dp).clip(CircleShape).background(Color(color))) }
+            ttsWordChoices(settings.ttsColor).forEach { color ->
+                androidx.compose.runtime.key(color) {
+                    ColorDot(color, effective == color, onClick = { onSettingsChange { it.copy(ttsWordColor = color) } })
+                }
             }
         }
     }
@@ -378,7 +466,7 @@ fun TtsOptions(
     SwitchRow("Листать за голосом", settings.ttsFollow, icon = AppIcons.Pages) { v -> onSettingsChange { it.copy(ttsFollow = v) } }
     SwitchRow("Голос за листанием", settings.ttsJump, icon = AppIcons.Voice) { v -> onSettingsChange { it.copy(ttsJump = v) } }
 
-    if (active) {
+    com.flerty.wikiflerty.ui.Appear(active) {
         PickerRow(
             label = "Таймер сна",
             icon = AppIcons.Moon,
