@@ -257,6 +257,11 @@ class App : Application() {
         return Result.success(Unit)
     }
 
+    fun restartReader(at: Locator) {
+        val session = readerSession ?: return
+        readerSession = ReaderSession(session.bookId, session.publication, at)
+    }
+
     fun closeReader() {
         readerSession?.publication?.close()
         readerSession = null

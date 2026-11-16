@@ -3037,14 +3037,14 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private fun reboot() {
         if (isFinishing || isDestroyed || !::navigator.isInitialized) return
-        val session = app.readerSession ?: return
+        if (app.readerSession == null) return
         val now = navigator.currentLocator.value
         val here = goTarget?.takeIf { SystemClock.uptimeMillis() - goTargetAt < 15_000 && it.href.toString().substringBefore('#') != now.href.toString().substringBefore('#') } ?: now
         val start = if (here.locations.progression != null) here.copy(text = org.readium.r2.shared.publication.Locator.Text()) else here
         flushProgress()
         restarting = true
         lastReboot = SystemClock.uptimeMillis()
-        app.readerSession = ReaderSession(session.bookId, session.publication, start)
+        app.restartReader(start)
         startActivity(Intent(this, ReaderActivity::class.java))
         finish()
         @Suppress("DEPRECATION")
