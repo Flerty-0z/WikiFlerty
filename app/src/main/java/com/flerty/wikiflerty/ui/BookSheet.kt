@@ -201,7 +201,8 @@ fun AppSheet(
                                     Brush.radialGradient(listOf(colors[1].copy(alpha = a * 0.62f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(size.width, 0f), radius = size.width * 0.72f),
                                 )
                             }
-                        },
+                        }
+                        .kitTexture(),
                 ) {
                     SheetStack(pages, sheetMaxHeight()) {
                         Column(Modifier.fillMaxWidth().pageDepth(pages, null).sheetResize()) {
@@ -298,6 +299,7 @@ private fun SheetPageLayer(pages: SheetPages, page: SheetPage, closeAll: () -> U
                 }
                 .pageDepth(pages, page)
                 .drawBehind { drawRect(panel, size = androidx.compose.ui.geometry.Size(size.width, size.height + 4000.dp.toPx())) }
+                .kitTexture(extend = 4000.dp)
                 .sheetResize()
                 .pointerInput(Unit) { detectTapGestures { } },
         ) {
