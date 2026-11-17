@@ -108,13 +108,13 @@ enum class NewsTarget { None, Stats, Custom, Library, LibraryView, Guide, Ai }
 
 class NewsItem(val group: String, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None, val query: String = "")
 
-const val NewsRelease = 344
+const val NewsRelease = 345
 
 val WhatsNewItems = listOf(
-    NewsItem("Оформление", AppIcons.Book, "Книга открывается в 3D", "Обложка раскрывается, как настоящая книга, и переходит в чтение"),
-    NewsItem("Оформление", AppIcons.Palette, "Фактура шаблонов", "Окна и панели получили материал: бумага, васи, газета, блики воды, пластилин, иней"),
-    NewsItem("Чтение вслух", AppIcons.Voice, "С выключенным экраном", "Чтение больше не останавливается после одного предложения, а книги с нестандартной разметкой теперь озвучиваются"),
-    NewsItem("Чтение вслух", AppIcons.Speed, "Скорость и тон нейроголоса", "Для офлайн-нейроголоса скорость и тон работают на любом телефоне"),
+    NewsItem("Чтение вслух", AppIcons.Headphones, "Слушать отсюда", "Выдели текст — и чтение вслух начнётся с этого места. Музыка из других приложений больше не глушится и не останавливает чтение"),
+    NewsItem("Чтение вслух", AppIcons.Palette, "Насыщенность выделения", "Ползунок в настройках чтения вслух делает подсветку ярче или мягче"),
+    NewsItem("Библиотека", AppIcons.Share, "Поделиться файлом", "Кнопка в карточке книги отправляет файл куда угодно"),
+    NewsItem("Исправления", AppIcons.Sparkle, "Правки", "Позиция не сбрасывается при повороте экрана, чтение вслух находит текст в большем числе книг, ровный баннер в анкете персонажа"),
 )
 
 @Composable
