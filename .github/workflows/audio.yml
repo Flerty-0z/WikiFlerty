@@ -1,0 +1,32 @@
+name: Audio
+
+on:
+  workflow_dispatch:
+    inputs:
+      parts:
+        description: "voice sfx music"
+        required: false
+        default: "voice sfx music"
+
+permissions:
+  contents: write
+
+jobs:
+  audio:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+        run: python3 tools/video/audio.py audio ${{ inputs.parts }}
+
+      - name: Hand over
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          zip -qrj audio.zip audio
+          T="audio-${{ github.run_number }}"
+          gh release create "$T" audio.zip --draft --title "$T" --notes "" --target "${{ github.sha }}"
