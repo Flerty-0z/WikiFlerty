@@ -10,6 +10,10 @@ on:
         description: "Сколько голосов"
         required: false
         default: "5"
+      names:
+        description: "Начала имён голосов через запятую"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -45,6 +49,7 @@ jobs:
         env:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           VOICE_COUNT: ${{ inputs.count }}
+          VOICE_NAMES: ${{ inputs.names }}
         run: python3 tools/record/voices.py voice "${{ inputs.text }}"
 
       - name: Hand over

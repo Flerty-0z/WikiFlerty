@@ -17,7 +17,11 @@ with open(f"{out}/voices.txt", "w") as f:
         f.write(f'{v["voice_id"]}\t{v["name"]}\t{v.get("category")}\t{labels.get("gender","")}\t{labels.get("accent","")}\t{labels.get("description","")}\t{labels.get("use_case","")}\n')
 own = [v for v in voices if v.get("category") != "premade"]
 premade = [v for v in voices if v.get("category") == "premade"]
-picks = (own + premade)[: int(os.environ.get("VOICE_COUNT", "5"))]
+wanted = [w.strip().lower() for w in os.environ.get("VOICE_NAMES", "").split(",") if w.strip()]
+if wanted:
+    picks = [v for w in wanted for v in voices if v["name"].lower().startswith(w)][: int(os.environ.get("VOICE_COUNT", "8"))]
+else:
+    picks = (own + premade)[: int(os.environ.get("VOICE_COUNT", "5"))]
 for i, v in enumerate(picks, 1):
     try:
         audio = call(f'https://api.elevenlabs.io/v1/text-to-speech/{v["voice_id"]}?output_format=mp3_44100_128', {
