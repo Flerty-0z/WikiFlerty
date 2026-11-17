@@ -44,7 +44,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -115,7 +114,6 @@ internal fun ReaderTimerChip(bookId: String, hidden: Boolean, modifier: Modifier
                         running = w.running,
                         pulse = { pulse.value },
                         onToggle = { if (w.running) app.readingTimer.pause() else app.readingTimer.resume() },
-                        onStop = { app.readingTimer.stop() },
                         onFold = { app.readingTimer.setFolded(true) },
                     )
                 }
@@ -161,7 +159,6 @@ private fun TimerBody(
     running: Boolean,
     pulse: () -> Float,
     onToggle: () -> Unit,
-    onStop: () -> Unit,
     onFold: () -> Unit,
 ) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -203,7 +200,6 @@ private fun TimerBody(
         Box(Modifier.graphicsLayer { alpha = if (!running && pulse() < 0.6f) 0.5f else 1f }) {
             RollingClock(text, size = 16.sp)
         }
-        TimerButton(AppIcons.Stop, "Стоп", filled = false, sound = FeedbackSound.Open, onClick = onStop)
         Box(
             Modifier
                 .size(30.dp)
@@ -232,15 +228,4 @@ private fun TimerBody(
             Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(16.dp))
         }
     }
-}
-
-@Composable
-private fun TimerButton(icon: ImageVector, description: String, filled: Boolean, sound: FeedbackSound, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .size(30.dp)
-            .liveClick(CircleShape, sound = sound, pressedScale = 0.9f, onClick = onClick)
-            .then(if (filled) Modifier.accentHighlight(CircleShape) else Modifier.border(1.dp, AppColors.Accent.copy(alpha = 0.45f), CircleShape)),
-        contentAlignment = Alignment.Center,
-    ) { Icon(icon, description, tint = if (filled) accentContent else AppColors.Accent, modifier = Modifier.size(12.dp)) }
 }
