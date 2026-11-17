@@ -16,22 +16,29 @@ adb shell am broadcast -a com.android.systemui.demo -e command battery -e level 
 adb shell am broadcast -a com.android.systemui.demo -e command network -e wifi show -e level 4
 adb shell am broadcast -a com.android.systemui.demo -e command notifications -e visible false
 for f in demo/*.epub; do adb push "$f" /sdcard/Download/; done
+SLOW="${SLOW:-10}"
+adb shell wm size 720x1600
+adb shell wm density 300
+adb shell settings put global animator_duration_scale "$SLOW"
+adb shell settings put global transition_animation_scale "$SLOW"
+adb shell settings put global window_animation_scale "$SLOW"
+echo "$SLOW" > "$OUT/slow.txt"
 
-adb shell screenrecord --bit-rate 16000000 --time-limit 90 /sdcard/rec.mp4 &
+adb shell screenrecord --bit-rate 12000000 --time-limit 170 /sdcard/rec.mp4 &
 sleep 2
 adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1
-sleep 10
+sleep 25
 shot s01; tree t01
-adb shell input tap 540 2100
-sleep 3
+adb shell input tap 360 1490
+sleep 25
 shot s02; tree t02
-adb shell input swipe 540 1700 540 700 500
-sleep 3
+adb shell input tap 360 1490
+sleep 25
 shot s03; tree t03
 adb shell input keyevent KEYCODE_BACK
-sleep 3
+sleep 25
 shot s04
-sleep 60
+sleep 30
 adb shell pkill -INT screenrecord
 sleep 4
 adb pull /sdcard/rec.mp4 "$OUT/rec.mp4"
