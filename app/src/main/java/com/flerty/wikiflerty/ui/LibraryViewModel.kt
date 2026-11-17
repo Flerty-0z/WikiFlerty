@@ -84,6 +84,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             _messages.tryEmit("Это бумажная книга — отмечай чтение в её карточке")
             return
         }
+        BookOpening.begin(app, book)
         if (book.isPdf) {
             openPdf(book, startAt)
             return
@@ -92,7 +93,10 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             _busy.value = "Открываю…"
             app.prepareReader(book, startAt)
                 .onSuccess { _openReader.emit(Unit) }
-                .onFailure { _messages.emit(it.message ?: "Не удалось открыть книгу") }
+                .onFailure {
+                    BookOpening.fail()
+                    _messages.emit(it.message ?: "Не удалось открыть книгу")
+                }
             _busy.value = null
         }
     }
@@ -109,7 +113,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             val original = !b.pdfText
             if (original) {
                 if (!app.library.pdfFile(b).exists()) {
-                    _messages.emit("Файл книги не найден")
+                    BookOpening.fail(); _messages.emit("Файл книги не найден")
                     return@launch
                 }
                 val page = startAt?.let { com.flerty.wikiflerty.reader.PdfLocators.pageOf(it, map, map?.pages ?: b.positions) } ?: -1
@@ -121,7 +125,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             _busy.value = "Открываю…"
             app.prepareReader(b.copy(locatorJson = null), start)
                 .onSuccess { _openReader.emit(Unit) }
-                .onFailure { _messages.emit(it.message ?: "Не удалось открыть книгу") }
+                .onFailure { BookOpening.fail(); _messages.emit(it.message ?: "Не удалось открыть книгу") }
             _busy.value = null
         }
     }

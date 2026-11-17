@@ -1188,7 +1188,7 @@ private fun rememberCover(file: File?): ImageBitmap? {
 @Composable
 private fun CoverBox(book: Book, file: File?, modifier: Modifier, small: Boolean = false, showStatus: Boolean = true, plaque: Boolean = false, inPages: Boolean = false, bare: Boolean = false) {
     val cover = rememberCover(file)
-    Box(modifier.background(AppColors.Field), contentAlignment = Alignment.Center) {
+    Box(modifier.openSource(book.id).background(AppColors.Field), contentAlignment = Alignment.Center) {
         if (cover != null) {
             Image(cover, book.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         } else if (androidx.compose.runtime.remember(file) { file == null || !file.exists() }) {

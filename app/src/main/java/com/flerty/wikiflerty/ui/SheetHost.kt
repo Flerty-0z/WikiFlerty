@@ -40,7 +40,7 @@ class SheetControl internal constructor(val close: () -> Unit, private val shown
 }
 
 @Composable
-private fun DialogWindowSetup(holder: Array<android.view.Window?>? = null) {
+internal fun DialogWindowSetup(holder: Array<android.view.Window?>? = null) {
     val view = LocalView.current
     val light = AppStyle.light
     DisposableEffect(view, light) {

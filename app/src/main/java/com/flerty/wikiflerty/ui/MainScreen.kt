@@ -127,18 +127,22 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
 
     LaunchedEffect(Unit) {
         libraryViewModel.openReader.collect {
-            context.startActivity(Intent(context, ReaderActivity::class.java))
-            (context as? android.app.Activity)?.let { com.flerty.wikiflerty.reader.ReaderTransitions.opened(it) }
+            BookOpening.deliver {
+                context.startActivity(Intent(context, ReaderActivity::class.java))
+                (context as? android.app.Activity)?.let { com.flerty.wikiflerty.reader.ReaderTransitions.opened(it) }
+            }
         }
     }
     LaunchedEffect(Unit) {
         libraryViewModel.openPdf.collect { (id, page) ->
+            BookOpening.deliver {
             context.startActivity(
                 Intent(context, com.flerty.wikiflerty.reader.PdfReaderActivity::class.java)
                     .putExtra(com.flerty.wikiflerty.reader.PdfReaderActivity.EXTRA_BOOK, id)
                     .putExtra(com.flerty.wikiflerty.reader.PdfReaderActivity.EXTRA_PAGE, page),
             )
             (context as? android.app.Activity)?.let { com.flerty.wikiflerty.reader.ReaderTransitions.opened(it) }
+            }
         }
     }
     LaunchedEffect(Unit) {
@@ -276,6 +280,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 },
             )
             if (paperSheet) PaperBookSheet(null) { paperSheet = false }
+            BookOpeningLayer()
             OnboardingHost(
                 libraryEmpty = libraryBooks.isEmpty(),
                 onAddBook = { addMenu = true },
