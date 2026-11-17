@@ -44,7 +44,7 @@ import kotlinx.coroutines.withContext
 data class FoundBook(val uri: Uri, val name: String, val folder: String, val size: Long, val known: Boolean)
 
 object BookScanner {
-    private val extensions = listOf(".epub", ".fb2", ".fb2.zip", ".txt", ".pdf")
+    private val extensions = listOf(".epub", ".fb2", ".fb2.zip", ".txt", ".pdf", ".mobi", ".azw3", ".azw", ".prc", ".docx", ".odt", ".rtf", ".html", ".htm", ".md", ".cbz", ".cbr")
     private const val MIN_TXT = 10 * 1024L
     private const val MAX_DEPTH = 8
 
@@ -240,6 +240,15 @@ private fun formatLabel(name: String): String {
         lower.endsWith(".epub") -> "EPUB"
         lower.endsWith(".fb2.zip") || lower.endsWith(".fb2") -> "FB2"
         lower.endsWith(".pdf") -> "PDF"
+        lower.endsWith(".mobi") || lower.endsWith(".prc") -> "MOBI"
+        lower.endsWith(".azw3") || lower.endsWith(".azw") -> "AZW3"
+        lower.endsWith(".docx") -> "DOCX"
+        lower.endsWith(".odt") -> "ODT"
+        lower.endsWith(".rtf") -> "RTF"
+        lower.endsWith(".html") || lower.endsWith(".htm") -> "HTML"
+        lower.endsWith(".md") -> "MD"
+        lower.endsWith(".cbz") -> "CBZ"
+        lower.endsWith(".cbr") -> "CBR"
         else -> "TXT"
     }
 }

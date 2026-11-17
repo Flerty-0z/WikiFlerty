@@ -79,6 +79,7 @@ dependencies {
 
     implementation(libs.androidx.profileinstaller)
     implementation(libs.readium.shared)
+    implementation("com.github.junrar:junrar:7.5.5")
     implementation(libs.readium.streamer)
     implementation(libs.readium.navigator)
     implementation(libs.readium.navigator.media.tts)

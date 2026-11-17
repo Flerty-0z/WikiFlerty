@@ -48,22 +48,26 @@ class LibraryRepository(
             val input = context.contentResolver.openInputStream(uri)
                 ?: return@withContext Result.failure(Exception("Не удалось прочитать файл"))
             input.use { stream -> source.outputStream().use { stream.copyTo(it) } }
-            val kind = BookConverter.detect(source)
+            val shownName = displayName(uri)
+            val kind = BookConverter.detect(source, shownName)
             var converted: FileMeta? = null
             when (kind) {
                 BookConverter.Kind.Epub -> if (!source.renameTo(file)) {
                     source.copyTo(file, overwrite = true)
                     source.delete()
                 }
-                BookConverter.Kind.Fb2, BookConverter.Kind.Fb2Zip, BookConverter.Kind.Txt, BookConverter.Kind.Html -> {
-                    val name = displayName(uri)?.substringBeforeLast('.')?.removeSuffix(".fb2")?.takeIf { it.isNotBlank() } ?: "Без названия"
+                BookConverter.Kind.Fb2, BookConverter.Kind.Fb2Zip, BookConverter.Kind.Txt, BookConverter.Kind.Html, BookConverter.Kind.Md,
+                BookConverter.Kind.Docx, BookConverter.Kind.Odt, BookConverter.Kind.Rtf, BookConverter.Kind.Mobi, BookConverter.Kind.Cbz, BookConverter.Kind.Cbr -> {
+                    val name = shownName?.substringBeforeLast('.')?.removeSuffix(".fb2")?.takeIf { it.isNotBlank() } ?: "Без названия"
                     try {
-                        converted = BookConverter.toEpub(source, kind, file, name, fingerprintOf(source).take(24))
+                        converted = BookConverter.toEpub(source, kind, file, name, fingerprintOf(source).take(24), shownName)
                     } catch (e: Throwable) {
                         file.delete()
-                        if (e is com.flerty.wikiflerty.data.convert.NotABookException) return@withContext Result.failure(Exception(e.message))
-                        val what = if (kind == BookConverter.Kind.Txt) "текстовый файл" else "FB2"
-                        return@withContext Result.failure(Exception("Не удалось прочитать $what: файл повреждён или в необычном формате"))
+                        if (e is com.flerty.wikiflerty.data.convert.NotABookException || e is com.flerty.wikiflerty.data.convert.DrmException) return@withContext Result.failure(Exception(e.message))
+                        val own = (e as? IllegalArgumentException)?.message?.takeIf { m -> m.any { it in 'а'..'я' || it in 'А'..'Я' } }
+                        if (own != null) return@withContext Result.failure(Exception(own))
+                        if (e is OutOfMemoryError) return@withContext Result.failure(Exception("Файл слишком большой для телефона"))
+                        return@withContext Result.failure(Exception("Не удалось прочитать ${kind.label}: файл повреждён или в необычном формате"))
                     } finally {
                         source.delete()
                     }
@@ -74,7 +78,7 @@ class LibraryRepository(
                 }
                 BookConverter.Kind.Unknown -> {
                     source.delete()
-                    return@withContext Result.failure(Exception("Этот формат не поддерживается. Подойдут EPUB, FB2, TXT и PDF"))
+                    return@withContext Result.failure(Exception("Этот формат не поддерживается. Подойдут EPUB, FB2, MOBI, AZW3, DOCX, ODT, RTF, TXT, HTML, PDF и комиксы CBZ/CBR"))
                 }
             }
             val fingerprint = fingerprintOf(file)

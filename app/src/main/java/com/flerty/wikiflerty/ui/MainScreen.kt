@@ -791,7 +791,7 @@ private fun AddBookSheet(onDismiss: () -> Unit, onFile: () -> Unit, onScan: () -
             )
             AutoImportRow(Modifier.padding(top = 14.dp))
             Text(
-                "EPUB · FB2 · TXT · PDF",
+                "EPUB · FB2 · MOBI · AZW3 · DOCX · RTF · TXT · PDF · CBZ",
                 color = AppColors.Faint,
                 fontSize = 11.sp,
                 letterSpacing = 1.sp,

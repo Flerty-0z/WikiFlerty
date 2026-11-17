@@ -1109,6 +1109,15 @@ internal fun shareBookFile(context: android.content.Context, app: App, book: Boo
                 "pdf" -> "application/pdf"
                 "fb2" -> "application/x-fictionbook+xml"
                 "txt" -> "text/plain"
+                "mobi", "azw", "prc" -> "application/x-mobipocket-ebook"
+                "azw3" -> "application/vnd.amazon.mobi8-ebook"
+                "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                "odt" -> "application/vnd.oasis.opendocument.text"
+                "rtf" -> "application/rtf"
+                "html", "htm" -> "text/html"
+                "md" -> "text/markdown"
+                "cbz" -> "application/vnd.comicbook+zip"
+                "cbr" -> "application/vnd.comicbook-rar"
                 else -> "application/octet-stream"
             }
             val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", file)

@@ -26,3 +26,7 @@
 -dontwarn com.gemalto.jp2.**
 -dontwarn org.bouncycastle.**
 -keep class com.tom_roush.pdfbox.pdmodel.font.** { *; }
+
+-dontwarn com.github.junrar.**
+-dontwarn org.slf4j.**
+-keep class com.github.junrar.** { *; }
