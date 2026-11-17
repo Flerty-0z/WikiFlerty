@@ -1,0 +1,39 @@
+name: Demo books
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  books:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe sources
+        run: |
+          mkdir -p probe
+          try() {
+            code=$(curl -sL -o "probe/$1" -w "%{http_code} %{size_download} %{time_total}" --connect-timeout 15 --max-time 60 "$2")
+            echo "$1 $code" | tee -a probe/report.txt
+          }
+          try gutenberg_ru.epub "https://www.gutenberg.org/cache/epub/2554/pg2554-images-3.epub"
+          try gutenberg_files.epub "https://gutenberg.pglaf.org/cache/epub/1342/pg1342-images-3.epub"
+          try standard.epub "https://standardebooks.org/ebooks/jane-austen/pride-and-prejudice/downloads/jane-austen_pride-and-prejudice.epub"
+          try wikisource_raw.txt "https://ru.wikisource.org/w/index.php?title=%D0%9A%D0%B0%D0%BF%D0%B8%D1%82%D0%B0%D0%BD%D1%81%D0%BA%D0%B0%D1%8F_%D0%B4%D0%BE%D1%87%D0%BA%D0%B0_(%D0%9F%D1%83%D1%88%D0%BA%D0%B8%D0%BD)/%D0%93%D0%BB%D0%B0%D0%B2%D0%B0_I&action=raw"
+          try wsexport.epub "https://ws-export.wmcloud.org/?lang=ru&title=%D0%9F%D0%B8%D0%BA%D0%BE%D0%B2%D0%B0%D1%8F_%D0%B4%D0%B0%D0%BC%D0%B0_(%D0%9F%D1%83%D1%88%D0%BA%D0%B8%D0%BD)&format=epub"
+          try librusec.html "http://lib.ru/LITRA/PUSHKIN/dochka.txt"
+          try ilibrary.html "https://ilibrary.ru/text/107/p.1/index.html"
+          try rvb.html "https://rvb.ru/pushkin/01text/06prose/01prose/0861.htm"
+          try az.html "http://az.lib.ru/p/pushkin_a_s/text_0110.shtml"
+          try flibusta.zip "https://flibusta.is/b/150406/fb2"
+          ls -la probe
+
+      - name: Hand over
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          zip -qr probe.zip probe
+          T="probe-${{ github.run_number }}"
+          gh release create "$T" probe.zip --draft --title "$T" --notes "" --repo "${{ github.repository }}"
