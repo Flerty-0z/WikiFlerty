@@ -1420,6 +1420,13 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
                 .then(if (decor == Decor.Comic) Modifier.hardShadow(shape, 4.dp) else Modifier)
                 .then(if (onEdit != null) Modifier.liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.99f, onLongClick = onEdit, onClick = onEdit) else Modifier)
                 .drawBehind {
+                    if (EInk.on) {
+                        val r = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())
+                        drawRoundRect(Color.White, cornerRadius = r)
+                        drawRoundRect(Color.Black, cornerRadius = r, style = Stroke(1.5.dp.toPx()))
+                        if (highlighted) drawRoundRect(Color.Black.copy(alpha = 0.15f), cornerRadius = r)
+                        return@drawBehind
+                    }
                     when (decor) {
                         Decor.Zen -> {
                             val seg = 46.dp.toPx()
@@ -1476,10 +1483,12 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
             contentAlignment = Alignment.Center,
         ) {
             if (name != null) {
-                val plaque = decor == Decor.Library
+                val eink = EInk.on
+                val plaque = decor == Decor.Library && !eink
                 Text(
                     if (decor == Decor.News) name.uppercase() else name,
                     color = when {
+                        eink -> Color.Black
                         plaque -> Color(0xFF3A2A12)
                         decor == Decor.Comic -> Color(0xFF111111)
                         decor == Decor.News || decor == Decor.Sea -> AppColors.Text
@@ -1488,8 +1497,8 @@ private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
                         light -> Color(0xFF3A2612)
                         else -> Color(0xFFF7EBD8)
                     },
-                    fontSize = 11.sp,
-                    fontWeight = if (decor == Decor.Comic || decor == Decor.News || decor == Decor.Clay) FontWeight.ExtraBold else FontWeight.SemiBold,
+                    fontSize = if (eink) 12.sp else 11.sp,
+                    fontWeight = if (eink || decor == Decor.Comic || decor == Decor.News || decor == Decor.Clay) FontWeight.ExtraBold else FontWeight.SemiBold,
                     letterSpacing = if (decor == Decor.News) 1.5.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
