@@ -10,3 +10,4 @@ app/src/main/assets/fonts/
 *.keystore
 *.jks
 app/src/main/jniLibs/
+__pycache__/

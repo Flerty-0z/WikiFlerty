@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">WikiFlerty Studio</string>
+    <string name="studio_driver">WikiFlerty Studio — сценарии</string>
+    <string name="studio_driver_desc">Проходит сценарий съёмки ролика: нажимает кнопки и листает экраны в WikiFlerty Studio.</string>
+</resources>

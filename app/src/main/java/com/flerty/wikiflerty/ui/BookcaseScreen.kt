@@ -1,5 +1,7 @@
 package com.flerty.wikiflerty.ui
 
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.layout.onPlaced
@@ -1298,7 +1300,8 @@ private fun StandingBook(book: Book, lean: Boolean, modifier: Modifier = Modifie
                     rotationZ = -7f
                 }
             }
-            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.96f, onLongClick = if (LocalShelfDrag.current?.enabled == true) null else onClick, onClick = onClick),
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.96f, onLongClick = if (LocalShelfDrag.current?.enabled == true) null else onClick, onClick = onClick)
+            .semantics { contentDescription = book.title },
     ) {
         BookCover(book.id, BookWidth)
     }
@@ -1321,7 +1324,7 @@ private fun BookStack(books: List<Book>, modifier: Modifier = Modifier, plank: S
 @Composable
 private fun LyingBook(book: Book, width: Dp, top: Boolean, pagesOut: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val shape = appCorner(3)
-    LyingFace(book, width, top, pagesOut, modifier.liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onLongClick = if (LocalShelfDrag.current?.enabled == true) null else onClick, onClick = onClick))
+    LyingFace(book, width, top, pagesOut, modifier.liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onLongClick = if (LocalShelfDrag.current?.enabled == true) null else onClick, onClick = onClick).semantics { contentDescription = book.title })
 }
 
 private class LyingSpec(val width: Dp, val top: Boolean, val pagesOut: Boolean)

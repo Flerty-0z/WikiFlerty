@@ -1,0 +1,78 @@
+name: Studio
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  studio:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Download reading fonts
+        run: |
+          mkdir -p app/src/main/assets/fonts
+          grep -v '^#' app/fonts.txt | while read -r name path; do
+            [ -z "$name" ] && continue
+            url="https://github.com/google/fonts/raw/main/$(echo "$path" | sed 's/\[/%5B/g; s/\]/%5D/g')"
+            curl -fsSL --retry 3 -o "app/src/main/assets/fonts/$name" "$url" || rm -f "app/src/main/assets/fonts/$name"
+          done
+
+      - name: Studio content
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pip install --quiet pillow
+          mkdir -p fonts
+          curl -fsSL --retry 3 -o fonts/Oswald.ttf "https://github.com/google/fonts/raw/main/ofl/oswald/Oswald%5Bwght%5D.ttf"
+          curl -fsSL --retry 3 -o fonts/Playfair.ttf "https://github.com/google/fonts/raw/main/ofl/playfairdisplay/PlayfairDisplay%5Bwght%5D.ttf"
+          curl -fsSL --retry 3 -o fonts/Lobster-Regular.ttf "https://github.com/google/fonts/raw/main/ofl/lobster/Lobster-Regular.ttf"
+          A=app/src/studio/assets/studio
+          mkdir -p $A/library $A/files $A/scenarios
+          id=$(gh api "repos/${{ github.repository }}/releases?per_page=100" -q '[.[] | select(.tag_name=="demo-library")][0].assets[0].id' || true)
+          if [ -n "$id" ]; then
+            gh api -H "Accept: application/octet-stream" "repos/${{ github.repository }}/releases/assets/$id" > library.zip && unzip -oq library.zip -d $A/library
+          else
+            python3 tools/record/library.py $A/library fonts
+          fi
+          python3 tools/studio/makefiles.py $A/files fonts
+          cp tools/studio/scenarios/*.json $A/scenarios/
+          ls -la $A/library $A/files $A/scenarios
+
+      - name: Signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: echo "$KEYSTORE_BASE64" | tr -d ' \n\r' | base64 -d > app/release.keystore
+
+      - name: Build
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          set -o pipefail
+          ./gradlew assembleStudio --stacktrace 2>&1 | tee build.log
+
+      - name: Report build errors
+        if: failure()
+        run: |
+          grep -E "^e: |error:|ERROR:|Missing class|What went wrong" -A3 build.log | head -60 | while IFS= read -r line; do
+            [ -n "$line" ] && echo "::error::${line}"
+          done
+
+      - name: Hand over
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p out
+          cp app/build/outputs/apk/studio/app-arm64-v8a-studio.apk "out/WikiFlerty-Studio-${{ github.run_number }}.apk"
+          gh release delete studio --cleanup-tag -y --repo "${{ github.repository }}" 2>/dev/null || true
+          gh release create studio out/*.apk --draft --title "WikiFlerty Studio" --notes "" --target "${{ github.sha }}" --repo "${{ github.repository }}"

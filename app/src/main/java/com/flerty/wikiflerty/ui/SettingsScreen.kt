@@ -151,7 +151,9 @@ fun SettingsScreen(modifier: Modifier = Modifier, onAbout: (() -> Unit)? = null)
 
 @Composable
 private fun SettingsHome(onAbout: (() -> Unit)?, onOpen: (SettingsPage) -> Unit) {
+    val studioContext = LocalContext.current
     val rows = listOfNotNull<Triple<androidx.compose.ui.graphics.vector.ImageVector, Pair<String, String>, () -> Unit>>(
+        if (com.flerty.wikiflerty.BuildConfig.BUILD_TYPE == "studio") Triple(AppIcons.Video, "Сценарий" to "Съёмка роликов") { studioContext?.let { c -> runCatching { c.startActivity(android.content.Intent().setClassName(c, "com.flerty.wikiflerty.studio.StudioActivity")) } } } else null,
         Triple(AppIcons.Help, "Подсказки" to "Все функции и где их найти") { onOpen(SettingsPage.Guide) },
         Triple(AppIcons.Sparkle, "ИИ-помощник" to "Ключи, модели, перевод") { onOpen(SettingsPage.Ai) },
         Triple(AppIcons.Theme, "Кастомизация" to "Цвета, форма, фон") { onOpen(SettingsPage.Custom) },

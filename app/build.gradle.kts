@@ -37,6 +37,12 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
+        create("studio") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".studio"
+            versionNameSuffix = "-studio"
+            matchingFallbacks += listOf("release")
+        }
     }
 
     compileOptions {
