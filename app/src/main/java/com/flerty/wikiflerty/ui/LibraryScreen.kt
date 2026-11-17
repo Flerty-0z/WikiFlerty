@@ -1561,7 +1561,7 @@ private fun EmptyLibrary(onAddBook: () -> Unit, onScan: () -> Unit, modifier: Mo
         Text("Здесь будут твои книги", color = AppColors.Text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Добавь книгу в формате EPUB, FB2, TXT или PDF из памяти телефона.",
+            "Добавь книгу из памяти телефона: EPUB, FB2, MOBI, DOCX, PDF, комиксы и другие форматы.",
             color = AppColors.Muted,
             fontSize = 14.sp,
             lineHeight = 20.sp,

@@ -9,15 +9,16 @@ shot() { adb exec-out screencap -p > "$OUT/$1.png"; }
 tree() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; adb pull /sdcard/ui.xml "$OUT/$1.xml" >/dev/null 2>&1; }
 
 adb install -r app/build/outputs/apk/release/app-universal-release.apk || exit 1
+for f in demo/*.epub; do adb push "$f" /sdcard/Download/; done
+SLOW="${SLOW:-5}"
+adb shell wm density 300
 adb shell settings put global sysui_demo_allowed 1
 adb shell am broadcast -a com.android.systemui.demo -e command enter
 adb shell am broadcast -a com.android.systemui.demo -e command clock -e hhmm 1200
 adb shell am broadcast -a com.android.systemui.demo -e command battery -e level 100 -e plugged false
 adb shell am broadcast -a com.android.systemui.demo -e command network -e wifi show -e level 4
 adb shell am broadcast -a com.android.systemui.demo -e command notifications -e visible false
-for f in demo/*.epub; do adb push "$f" /sdcard/Download/; done
-SLOW="${SLOW:-5}"
-adb shell wm density 300
+
 adb shell settings put global animator_duration_scale "$SLOW"
 adb shell settings put global transition_animation_scale "$SLOW"
 adb shell settings put global window_animation_scale "$SLOW"
