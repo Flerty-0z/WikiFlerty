@@ -112,7 +112,10 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
                     if (crash == null) crash = e
                 }
                 val result = attempt.getOrNull() ?: continue
-                result.getOrNull()?.let { return it }
+                result.getOrNull()?.let {
+                    shareAudio(it)
+                    return it
+                }
                 when (result.failureOrNull()) {
                     is TtsNavigatorFactory.Error.EngineInitialization -> {
                         engineFailed = true
@@ -125,6 +128,7 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
             if (!engineFailed) break
         }
         val failure = crash
+        lastCrash = crash
         _problems.emit(
             when {
                 engineFailed -> Problem("Синтезатор речи телефона не запустился. Попробуй офлайн-нейроголос — он работает без него", openVoices = true)
@@ -136,6 +140,19 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
         return null
     }
 
+    private var lastCrash: Throwable? = null
+
+    private fun shareAudio(navigator: AndroidTtsNavigator) {
+        runCatching {
+            navigator.asMedia3Player().setAudioAttributes(
+                androidx.media3.common.AudioAttributes.Builder()
+                    .setUsage(androidx.media3.common.C.USAGE_VOICE_COMMUNICATION_SIGNALLING)
+                    .build(),
+                false,
+            )
+        }
+    }
+
     private suspend fun clue(publication: Publication, start: Locator?): String = withContext(Dispatchers.IO) {
         runCatching {
             val name = start?.href?.toString()?.substringBefore('#')?.substringAfterLast('/')
@@ -144,7 +161,7 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
             val bytes = link?.let { publication.get(it)?.read()?.getOrNull() }
             val text = bytes?.let { String(it, Charsets.UTF_8) }
             val body = text?.substringAfter("<body", "")?.replace(Regex("<[^>]*>"), " ")?.replace(Regex("\\s+"), " ")?.trim()?.length ?: -1
-            "$type · ${bytes?.size ?: -1} Б · ${body} симв · ${publication.readingOrder.size} гл"
+            "$type · ${bytes?.size ?: -1} Б · ${body} симв · ${publication.readingOrder.size} гл" + (SafeContent.lastIssue?.let { " · $it" } ?: "") + (lastCrash?.let { " · ${describe(it)}" } ?: "")
         }.getOrElse { it.javaClass.simpleName }
     }
 

@@ -99,6 +99,7 @@ enum class SelectionButton(val id: String, val title: String) {
     Person("person", "Персонаж"),
     Copy("copy", "Копировать"),
     Chapter("chapter", "Глава"),
+    Listen("listen", "Слушать отсюда"),
     ;
 
     companion object {
@@ -163,6 +164,7 @@ data class ReaderSettings(
     val ttsPitch: Double = 1.0,
     val ttsColor: Long = 0xFFF2C46B,
     val ttsWordColor: Long = 0xFF8AB4F8,
+    val ttsStrength: Double = 0.3,
     val ttsFollow: Boolean = true,
     val ttsJump: Boolean = true,
     val autoNight: Boolean = false,
@@ -262,6 +264,7 @@ data class ReaderSettings(
         put("ttsPitch", ttsPitch)
         put("ttsColor", String.format("#%08X", ttsColor))
         put("ttsWordColor", String.format("#%08X", ttsWordColor))
+        put("ttsStrength", ttsStrength)
         put("ttsFollow", ttsFollow)
         put("ttsJump", ttsJump)
         put("autoNight", autoNight)
@@ -346,6 +349,7 @@ data class ReaderSettings(
                 ttsPitch = json.optDouble("ttsPitch", d.ttsPitch).coerceIn(0.3, 3.0),
                 ttsColor = runCatching { json.getString("ttsColor").removePrefix("#").toLong(16) }.getOrDefault(d.ttsColor),
                 ttsWordColor = runCatching { json.getString("ttsWordColor").removePrefix("#").toLong(16) }.getOrDefault(d.ttsWordColor),
+                ttsStrength = json.optDouble("ttsStrength", d.ttsStrength).coerceIn(0.1, 0.9),
                 ttsFollow = json.optBoolean("ttsFollow", d.ttsFollow),
                 ttsJump = json.optBoolean("ttsJump", d.ttsJump),
                 autoNight = json.optBoolean("autoNight", d.autoNight),

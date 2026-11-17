@@ -505,6 +505,10 @@ fun BookSheet(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 RoundButton(AppIcons.Close, "Закрыть", AppColors.Muted, FeedbackSound.Close, close)
                 FavoriteButton(book.favorite) { scope.launch { app.library.setFavorite(book.id, !book.favorite) } }
+                if (!book.paper) {
+                    val context = LocalContext.current
+                    RoundButton(AppIcons.Share, "Поделиться файлом", AppColors.Muted, FeedbackSound.Open) { shareBookFile(context, app, book) }
+                }
             }
         }
 
@@ -1080,6 +1084,46 @@ private fun BookPickRow(b: com.flerty.wikiflerty.data.Book, on: Boolean, note: S
                 enter = androidx.compose.animation.scaleIn(Motion.tween(180), initialScale = 0.5f) + androidx.compose.animation.fadeIn(Motion.fade(160)),
                 exit = androidx.compose.animation.scaleOut(Motion.tween(140), targetScale = 0.5f) + androidx.compose.animation.fadeOut(Motion.fade(120)),
             ) { Icon(AppIcons.Check, null, tint = AppColors.OnAccent, modifier = Modifier.size(15.dp)) }
+        }
+    }
+}
+
+
+internal fun shareBookFile(context: android.content.Context, app: App, book: Book) {
+    val source = app.library.bookFile(book)
+    if (!source.exists()) {
+        android.widget.Toast.makeText(context, "Файл книги не найден", android.widget.Toast.LENGTH_SHORT).show()
+        return
+    }
+    app.appScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        val result = runCatching {
+            val dir = java.io.File(context.cacheDir, "share").apply { mkdirs() }
+            dir.listFiles()?.filter { it.isFile && System.currentTimeMillis() - it.lastModified() > 60 * 60_000L }?.forEach { it.delete() }
+            val ext = source.extension.ifBlank { "epub" }
+            val base = listOf(book.author.takeIf { it.isNotBlank() }, book.title).filterNotNull().joinToString(" — ")
+                .replace(Regex("[\\\\/:*?\"<>|\\n\\r\\t]"), " ").replace(Regex("\\s+"), " ").trim().take(90).ifBlank { "book" }
+            val file = java.io.File(dir, "$base.$ext")
+            source.copyTo(file, overwrite = true)
+            val mime = when (ext.lowercase()) {
+                "epub" -> "application/epub+zip"
+                "pdf" -> "application/pdf"
+                "fb2" -> "application/x-fictionbook+xml"
+                "txt" -> "text/plain"
+                else -> "application/octet-stream"
+            }
+            val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+            android.content.Intent(android.content.Intent.ACTION_SEND)
+                .setType(mime)
+                .putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                .putExtra(android.content.Intent.EXTRA_SUBJECT, book.title)
+                .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+            result.onSuccess { intent ->
+                runCatching { context.startActivity(android.content.Intent.createChooser(intent, book.title).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            }.onFailure {
+                android.widget.Toast.makeText(context, "Не удалось отправить файл", android.widget.Toast.LENGTH_SHORT).show()
+            }
         }
     }
 }

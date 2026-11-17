@@ -446,6 +446,16 @@ fun TtsOptions(
         }
     }
 
+    StepSlider(
+        label = "Насыщенность выделения",
+        icon = AppIcons.Palette,
+        value = settings.ttsStrength,
+        range = 0.1..0.9,
+        step = 0.05,
+        format = { "${(it * 100).toInt()}%" },
+        onCommit = { v -> onSettingsChange { it.copy(ttsStrength = v) } },
+    )
+
     SwitchRow("Листать за голосом", settings.ttsFollow, icon = AppIcons.Pages) { v -> onSettingsChange { it.copy(ttsFollow = v) } }
     SwitchRow("Голос за листанием", settings.ttsJump, icon = AppIcons.Voice) { v -> onSettingsChange { it.copy(ttsJump = v) } }
 

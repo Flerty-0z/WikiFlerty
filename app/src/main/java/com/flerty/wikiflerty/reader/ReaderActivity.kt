@@ -377,7 +377,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         )
     }
 
-    private fun startListening() {
+    private fun startListening(from: org.readium.r2.shared.publication.Locator? = null, fromText: String? = null) {
         val pub = publication ?: return
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -385,8 +385,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
         lifecycleScope.launch {
-            val start = runCatching { navigator.firstVisibleElementLocator() }.getOrNull() ?: navigator.currentLocator.value
-            val snippet = pageSnippet()
+            val start = from ?: runCatching { navigator.firstVisibleElementLocator() }.getOrNull() ?: navigator.currentLocator.value
+            val snippet = fromText ?: pageSnippet()
             ui.sheet = null
             ui.panelsVisible = false
             app.readAloud.start(pub, bookId, start, settings, snippet)
@@ -1272,6 +1272,20 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     }
                 }
             },
+            onSelectionListen = {
+                val selection = ui.selection
+                if (selection != null) {
+                    val snippet = selection.text.replace(Regex("\\s+"), " ").trim().take(120)
+                    val at = selection.locator
+                    endSelection()
+                    if (mySession != null) {
+                        app.readAloud.go(at, snippet)
+                        app.readAloud.session.value?.navigator?.play()
+                    } else {
+                        startListening(at, snippet)
+                    }
+                }
+            },
             onSelectionChapter = {
                 val selection = ui.selection
                 if (selection != null) {
@@ -2097,9 +2111,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         if (sameLine && word == lastTtsWord) return@collect
                         lastTtsHighlight = locator
                         lastTtsWord = word
-                        if (!sameLine) navigator.applyDecorations(listOf(Decoration("tts", locator, Decoration.Style.Highlight(tint = settings.ttsColor.toInt()))), TTS_GROUP)
+                        val strength = settings.ttsStrength.toFloat()
+                        if (!sameLine) navigator.applyDecorations(listOf(Decoration("tts", locator, TtsMark(settings.ttsColor.toInt(), strength, false))), TTS_GROUP)
                         navigator.applyDecorations(
-                            listOfNotNull(word?.let { Decoration("tts-word", it, Decoration.Style.Highlight(tint = wordTint.toInt(), isActive = wordTint != 0L)) }),
+                            listOfNotNull(word?.let { Decoration("tts-word", it, TtsMark(wordTint.toInt(), if (wordTint == 0L) 0f else (strength + 0.12f).coerceAtMost(0.95f), wordTint != 0L)) }),
                             TTS_WORD_GROUP,
                         )
                         if (word != null && settings.ttsFollow) followWord(word)
@@ -2143,7 +2158,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         if (before.ttsVoice != s.ttsVoice || before.ttsSpeed != s.ttsSpeed || before.ttsPitch != s.ttsPitch) {
             app.readAloud.apply(s)
         }
-        if (before.ttsColor != s.ttsColor || before.ttsWordColor != s.ttsWordColor) {
+        if (before.ttsColor != s.ttsColor || before.ttsWordColor != s.ttsWordColor || before.ttsStrength != s.ttsStrength) {
             lastTtsHighlight = null
             lastTtsWord = null
         }
@@ -2163,6 +2178,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private fun navigatorConfiguration() = EpubNavigatorFragment.Configuration {
         servedAssets += "fonts/.*"
+        decorationTemplates = decorationTemplates.copy().apply { set(TtsMark::class, TtsMark.template) }
         disablePageTurnsWhileScrolling = true
         selectionActionModeCallback = selectionCallback
         registerJavascriptInterface(TextSelection.BRIDGE) {
@@ -3756,6 +3772,25 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         flushProgress()
         super.onStop()
         app.cloud.request(2_000)
+    }
+
+    private var rotateJob: Job? = null
+    private var rotateKeep: org.readium.r2.shared.publication.Locator? = null
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        val keep = rotateKeep ?: if (::navigator.isInitialized) navigator.currentLocator.value else null
+        super.onConfigurationChanged(newConfig)
+        if (keep == null || !::navigator.isInitialized) return
+        rotateKeep = keep
+        rotateJob?.cancel()
+        rotateJob = lifecycleScope.launch {
+            for (wait in longArrayOf(350, 500, 700)) {
+                delay(wait)
+                navigator.go(keep, animated = false)
+            }
+            delay(400)
+            rotateKeep = null
+        }
     }
 
     override fun onDestroy() {

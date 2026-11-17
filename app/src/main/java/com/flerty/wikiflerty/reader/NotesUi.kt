@@ -109,6 +109,7 @@ class NoteActions(
     val onSelectionQuote: () -> Unit = {},
     val onSelectionPerson: () -> Unit = {},
     val onSelectionChapter: () -> Unit = {},
+    val onSelectionListen: () -> Unit = {},
     val onSelectionTranslate: () -> Unit = {},
     val onSelectionDictionary: () -> Unit = {},
 )
@@ -215,6 +216,7 @@ private fun SelectionAction(button: SelectionButton, markerColor: Long, actions:
         SelectionButton.Person -> actions.onSelectionPerson
         SelectionButton.Copy -> actions.onSelectionCopy
         SelectionButton.Chapter -> actions.onSelectionChapter
+        SelectionButton.Listen -> actions.onSelectionListen
     }
     MenuAction(
         button.title,
@@ -247,6 +249,7 @@ internal fun SelectionIcon(button: SelectionButton, markerColor: Long, tint: Col
                 SelectionButton.Quote -> AppIcons.Quote
                 SelectionButton.Person -> AppIcons.Person
                 SelectionButton.Chapter -> AppIcons.Toc
+                SelectionButton.Listen -> AppIcons.Headphones
                 else -> AppIcons.Copy
             },
             null,

@@ -44,7 +44,7 @@ class ReadiumServices(context: Context) {
                 container = TransformingContainer(container, ::boot)
                 manifest = manifest.copy(readingOrder = manifest.readingOrder.map(::readable))
                 servicesBuilder.contentServiceFactory = org.readium.r2.shared.publication.services.content.DefaultContentService.createFactory(
-                    listOf(org.readium.r2.shared.publication.services.content.iterators.HtmlResourceContentIterator.Factory(), LenientHtml),
+                    listOf(com.flerty.wikiflerty.tts.SafeContent),
                 )
             },
         ).getOrElse {
@@ -83,21 +83,6 @@ private fun readable(link: org.readium.r2.shared.publication.Link): org.readium.
     val path = link.href.toString().substringBefore('#').substringBefore('?').lowercase()
     val html = path.endsWith(".xhtml") || path.endsWith(".html") || path.endsWith(".htm") || path.endsWith(".xml") || type == null || type.subtype.contains("xml") || type.subtype.contains("html")
     return if (html) link.copy(mediaType = org.readium.r2.shared.util.mediatype.MediaType.XHTML) else link
-}
-
-private object LenientHtml : org.readium.r2.shared.publication.services.content.iterators.ResourceContentIteratorFactory {
-    override suspend fun create(
-        manifest: org.readium.r2.shared.publication.Manifest,
-        servicesHolder: org.readium.r2.shared.publication.PublicationServicesHolder,
-        readingOrderIndex: Int,
-        resource: Resource,
-        mediaType: org.readium.r2.shared.util.mediatype.MediaType,
-        locator: org.readium.r2.shared.publication.Locator,
-    ): org.readium.r2.shared.publication.services.content.Content.Iterator? {
-        if (mediaType.isBitmap || mediaType.isAudio || mediaType.isVideo || mediaType.matches(org.readium.r2.shared.util.mediatype.MediaType.PDF)) return null
-        return org.readium.r2.shared.publication.services.content.iterators.HtmlResourceContentIterator.Factory()
-            .create(manifest, servicesHolder, readingOrderIndex, resource, org.readium.r2.shared.util.mediatype.MediaType.XHTML, locator)
-    }
 }
 
 class ReaderSession(
