@@ -45,11 +45,17 @@ jobs:
         run: ./gradlew assembleRelease -Puniversal=true --stacktrace
 
       - name: Demo books
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p demo
-          python3 tools/record/makebook.py demo/dorogi.epub "Северные дороги" 1
-          python3 tools/record/makebook.py demo/bereg.epub "Дальний берег" 2
-          python3 tools/record/makebook.py demo/zima.epub "Тихая зима" 3
+          id=$(gh api "repos/${{ github.repository }}/releases?per_page=100" -q '[.[] | select(.tag_name=="demo-library")][0].assets[0].id' || true)
+          if [ -n "$id" ]; then
+            gh api -H "Accept: application/octet-stream" "repos/${{ github.repository }}/releases/assets/$id" > library.zip && unzip -oq library.zip -d demo
+          fi
+          if [ -z "$(ls demo)" ]; then
+            python3 tools/record/makebook.py demo/dorogi.epub "Северные дороги" 1
+          fi
           ls -la demo
 
       - name: Enable KVM

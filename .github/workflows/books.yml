@@ -10,24 +10,21 @@ jobs:
   books:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe sources
+      - uses: actions/checkout@v4
+
+      - name: Build library
         run: |
-          mkdir -p probe
-          try() {
-            code=$(curl -sL -o "probe/$1" -w "%{http_code} %{size_download} %{time_total}" --connect-timeout 15 --max-time 60 "$2" || true)
-            echo "$1 $code" | tee -a probe/report.txt
-          }
-          for a in p/pushkin_a_s g/gogolx_n_w d/dostoewskij_f_m t/tolstoj_lew_nikolaewich l/lermontow_m_j t/turgenew_i_s c/chehow_a_p b/bulgakow_m_a k/kuprin_a_i; do
-            try "idx_$(basename $a).html" "http://az.lib.ru/$a/"
-          done
-          try az_text.html "http://az.lib.ru/p/pushkin_a_s/text_0110.shtml"
-          ls -la probe
+          pip install --quiet pillow
+          mkdir -p fonts
+          curl -fsSL --retry 3 -o fonts/Oswald.ttf "https://github.com/google/fonts/raw/main/ofl/oswald/Oswald%5Bwght%5D.ttf"
+          curl -fsSL --retry 3 -o fonts/Playfair.ttf "https://github.com/google/fonts/raw/main/ofl/playfairdisplay/PlayfairDisplay%5Bwght%5D.ttf"
+          python3 tools/record/library.py library fonts
+          ls -la library
 
       - name: Hand over
-        if: always()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          zip -qr probe.zip probe
-          T="probe-${{ github.run_number }}"
-          gh release create "$T" probe.zip --draft --title "$T" --notes "" --repo "${{ github.repository }}"
+          zip -qrj library.zip library
+          gh release delete demo-library --cleanup-tag -y --repo "${{ github.repository }}" 2>/dev/null || true
+          gh release create demo-library library.zip --draft --title demo-library --notes "" --repo "${{ github.repository }}"
