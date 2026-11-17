@@ -55,12 +55,13 @@ class LibraryRepository(
                     source.copyTo(file, overwrite = true)
                     source.delete()
                 }
-                BookConverter.Kind.Fb2, BookConverter.Kind.Fb2Zip, BookConverter.Kind.Txt -> {
+                BookConverter.Kind.Fb2, BookConverter.Kind.Fb2Zip, BookConverter.Kind.Txt, BookConverter.Kind.Html -> {
                     val name = displayName(uri)?.substringBeforeLast('.')?.removeSuffix(".fb2")?.takeIf { it.isNotBlank() } ?: "Без названия"
                     try {
                         converted = BookConverter.toEpub(source, kind, file, name, fingerprintOf(source).take(24))
                     } catch (e: Throwable) {
                         file.delete()
+                        if (e is com.flerty.wikiflerty.data.convert.NotABookException) return@withContext Result.failure(Exception(e.message))
                         val what = if (kind == BookConverter.Kind.Txt) "текстовый файл" else "FB2"
                         return@withContext Result.failure(Exception("Не удалось прочитать $what: файл повреждён или в необычном формате"))
                     } finally {

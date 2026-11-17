@@ -108,9 +108,10 @@ enum class NewsTarget { None, Stats, Custom, Library, LibraryView, Guide, Ai }
 
 class NewsItem(val group: String, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None, val query: String = "")
 
-const val NewsRelease = 346
+const val NewsRelease = 347
 
 val WhatsNewItems = listOf(
+    NewsItem("Библиотека", AppIcons.Book, "Книги со страниц сайтов", "Если вместо книги скачалась веб-страница, читалка вытащит из неё текст, а не покажет код"),
     NewsItem("Чтение вслух", AppIcons.Voice, "Книги из официальных магазинов", "Озвучка теперь читает книги, где раньше писала «не нашёл текст»"),
     NewsItem("Чтение вслух", AppIcons.Headphones, "Слушать отсюда", "Чтение начинается ровно с выделенного места"),
     NewsItem("Исправления", AppIcons.Sparkle, "Правки", "Знак «?» словаря стоит после слова и не перекрывает флажок персонажа, ползунок насыщенности показывает ровные проценты"),
