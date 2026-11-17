@@ -16,10 +16,18 @@ library.FONTS = FONTS
 os.makedirs(OUT, exist_ok=True)
 
 
-def get(url, timeout=90):
-    req = urllib.request.Request(url, headers={"User-Agent": "WikiFlertyStudio/1.0 (demo builder)"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.read()
+def get(url, timeout=150, tries=3):
+    import time
+    last = None
+    for attempt in range(tries):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "WikiFlertyStudio/1.0 (demo builder)"})
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.read()
+        except Exception as e:
+            last = e
+            time.sleep(5 + attempt * 10)
+    raise last
 
 
 def book(path):
@@ -135,8 +143,10 @@ def comic_pages():
         if len(pages) >= 8:
             break
         try:
-            url = "https://commons.wikimedia.org/wiki/Special:FilePath/" + urllib.parse.quote(name.replace(" ", "_")) + "?width=1400"
-            data = get(url, 60)
+            import time
+            time.sleep(3)
+            url = "https://commons.wikimedia.org/wiki/Special:FilePath/" + urllib.parse.quote(name.replace(" ", "_")) + "?width=1280"
+            data = get(url, 60, 2)
             if data[:2] == b"\xff\xd8" and len(data) > 50_000:
                 pages.append(data)
                 print("comic page", name)

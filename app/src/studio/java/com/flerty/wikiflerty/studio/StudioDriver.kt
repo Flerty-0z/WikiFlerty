@@ -66,7 +66,7 @@ class StudioDriver : AccessibilityService() {
 
     fun run(scenario: Scenario, showTouches: Boolean, onDone: (Boolean, String) -> Unit) {
         job?.cancel()
-        touches?.enabled = showTouches
+        touches?.show = showTouches
         job = scope.launch {
             var failure: String? = null
             for ((i, step) in scenario.steps.withIndex()) {
@@ -251,7 +251,7 @@ class StudioDriver : AccessibilityService() {
 }
 
 private class TouchLayer(context: Context) : View(context) {
-    var enabled = true
+    var show = true
     private val density = context.resources.displayMetrics.density
     private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -265,7 +265,7 @@ private class TouchLayer(context: Context) : View(context) {
     private val marks = ArrayList<Mark>()
 
     fun tap(x: Float, y: Float, hold: Long) {
-        if (!enabled) return
+        if (!show) return
         post {
             marks += Mark(x, y, x, y, SystemClock.uptimeMillis(), hold, false)
             invalidate()
@@ -273,7 +273,7 @@ private class TouchLayer(context: Context) : View(context) {
     }
 
     fun swipe(x1: Float, y1: Float, x2: Float, y2: Float, duration: Long) {
-        if (!enabled) return
+        if (!show) return
         post {
             marks += Mark(x1, y1, x2, y2, SystemClock.uptimeMillis(), duration, true)
             invalidate()
