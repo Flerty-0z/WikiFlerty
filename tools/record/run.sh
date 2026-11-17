@@ -9,7 +9,15 @@ shot() { adb exec-out screencap -p > "$OUT/$1.png"; }
 tree() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; adb pull /sdcard/ui.xml "$OUT/$1.xml" >/dev/null 2>&1; }
 
 adb install -r app/build/outputs/apk/release/app-universal-release.apk || exit 1
-for f in demo/*.epub; do adb push "$f" /sdcard/Download/; done
+adb root >/dev/null 2>&1; sleep 3
+adb shell "setprop persist.sys.locale ru-RU; setprop ctl.restart zygote"
+sleep 20
+adb wait-for-device
+until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 3; done
+sleep 10
+adb shell mkdir -p /sdcard/Books
+for f in demo/*; do adb push "$f" /sdcard/Books/; done
+adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Books >/dev/null 2>&1
 SLOW="${SLOW:-5}"
 adb shell wm density 300
 adb shell settings put global sysui_demo_allowed 1
@@ -24,24 +32,16 @@ adb shell settings put global transition_animation_scale "$SLOW"
 adb shell settings put global window_animation_scale "$SLOW"
 echo "$SLOW" > "$OUT/slow.txt"
 
-adb shell screenrecord --bit-rate 12000000 --time-limit 170 /sdcard/rec.mp4 &
-sleep 2
-adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1
-tap() { python3 tools/record/ui.py tap "$1" "${2:-90}"; }
-tap "Позже" 120
-shot s01
-tap "Пропустить" 60
-sleep 10
-shot s02; tree t02
-adb shell input swipe 360 1200 360 400 3000
-sleep 15
-shot s03; tree t03
-adb shell input swipe 360 400 360 1200 3000
-sleep 15
-shot s04
-adb shell pkill -INT screenrecord
-sleep 4
-adb pull /sdcard/rec.mp4 "$OUT/rec.mp4"
+tap() { python3 tools/record/ui.py tap "$1" "${2:-60}"; }
+wait_for() { python3 tools/record/ui.py find "$1" "${2:-60}"; }
+swipe() { adb shell input swipe $1 $2 $3 $4 "${5:-600}"; }
+rec_start() { adb shell "screenrecord --bit-rate 12000000 --time-limit ${2:-170} /sdcard/$1.mp4" & REC_PID=$!; sleep 1; }
+rec_stop() { adb shell pkill -INT screenrecord; wait $REC_PID 2>/dev/null; sleep 2; adb pull "/sdcard/$1.mp4" "$OUT/$1.mp4"; adb shell rm -f "/sdcard/$1.mp4"; }
+step=0
+snap() { step=$((step+1)); n=$(printf "%02d_%s" $step "$1"); shot "$n"; tree "$n"; }
+
+source "tools/record/scenes/$SCENARIO.sh"
+
 adb shell dumpsys gfxinfo $PKG > "$OUT/gfx.txt"
-adb logcat -d -t 3000 > "$OUT/logcat.txt"
+adb logcat -d -t 4000 > "$OUT/logcat.txt"
 ls -la "$OUT"

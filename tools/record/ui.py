@@ -15,13 +15,16 @@ def nodes(xml):
             yield text, desc, (x1 + x2) // 2, (y1 + y2) // 2
 
 def find(label, timeout=60, exact=False):
+    options = [o for o in label.split("|") if o]
     end = time.time() + timeout
     while time.time() < end:
-        for text, desc, x, y in nodes(dump()):
-            for v in (text, desc):
-                if v and ((v == label) if exact else (label in v)):
-                    return x, y
-        time.sleep(2)
+        found = list(nodes(dump()))
+        for o in options:
+            for text, desc, x, y in found:
+                for v in (text, desc):
+                    if v and ((v == o) if exact else (o.lower() in v.lower())):
+                        return x, y
+        time.sleep(1.5)
     return None
 
 if __name__ == "__main__":
