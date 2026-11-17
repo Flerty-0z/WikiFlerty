@@ -1,0 +1,57 @@
+name: Voice
+
+on:
+  workflow_dispatch:
+    inputs:
+      text:
+        description: "Текст для образцов"
+        required: true
+      count:
+        description: "Сколько голосов"
+        required: false
+        default: "5"
+
+permissions:
+  contents: write
+
+jobs:
+  voice:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check secrets
+        env:
+          EL: ${{ secrets.ELEVENLABS_API_KEY }}
+          AP: ${{ secrets.AI_PROVIDER }}
+          AK: ${{ secrets.AI_API_KEY }}
+        run: |
+          mkdir -p voice
+          {
+            echo "ELEVENLABS_API_KEY: $([ -n "$EL" ] && echo yes || echo no)"
+            echo "AI_PROVIDER: ${AP:-no}"
+            echo "AI_API_KEY: $([ -n "$AK" ] && echo yes || echo no)"
+          } | tee voice/secrets.txt
+          if [ "$AP" = "gemini" ] && [ -n "$AK" ]; then
+            code=$(curl -s -o gemini.json -w "%{http_code}" -H "Content-Type: application/json" -H "x-goog-api-key: $AK" \
+              -d '{"contents":[{"parts":[{"text":"Ответь одним словом: работает"}]}]}' \
+              "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent")
+            echo "gemini http: $code" | tee -a voice/secrets.txt
+            python3 -c "import json;d=json.load(open('gemini.json'));c=d.get('candidates');print(c[0]['content']['parts'][0]['text'] if c else d.get('error',{}).get('message',''))" | tee -a voice/secrets.txt || true
+            rm -f gemini.json
+          fi
+
+      - name: Samples
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          VOICE_COUNT: ${{ inputs.count }}
+        run: python3 tools/record/voices.py voice "${{ inputs.text }}"
+
+      - name: Hand over
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          zip -qr voice.zip voice
+          T="voice-${{ github.run_number }}"
+          gh release create "$T" voice.zip --draft --title "$T" --notes "" --target "${{ github.sha }}"
