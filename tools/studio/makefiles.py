@@ -21,7 +21,7 @@ def get(url, timeout=150, tries=3):
     last = None
     for attempt in range(tries):
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "WikiFlertyStudio/1.0 (demo builder)"})
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0" if "lib.ru" in url else "WikiFlertyStudio/1.0 (demo builder)"})
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 return r.read()
         except Exception as e:
@@ -30,7 +30,22 @@ def get(url, timeout=150, tries=3):
     raise last
 
 
-def book(path):
+LIB = sys.argv[3] if len(sys.argv) > 3 else None
+
+
+def book(path, epub=None):
+    if LIB and epub and os.path.exists(os.path.join(LIB, epub)):
+        import re
+        z = zipfile.ZipFile(os.path.join(LIB, epub))
+        names = sorted([n for n in z.namelist() if re.search(r"/c\d+\.xhtml$", n)], key=lambda n: int(re.search(r"c(\d+)\.xhtml", n).group(1)))
+        out = []
+        for n in names:
+            t = z.read(n).decode("utf-8")
+            h = re.search(r"<h2>(.*?)</h2>", t)
+            paras = [html.unescape(re.sub(r"<i>", "\u0001", re.sub(r"</i>", "\u0002", p))) for p in re.findall(r"<p>(.*?)</p>", t, re.S)]
+            paras = [re.sub(r"<[^>]+>", "", p) for p in paras]
+            out.append([html.unescape(h.group(1)) if h else "", paras])
+        return [c for c in out if c[1]]
     p = library.Blocks()
     p.feed(library.content(get("http://az.lib.ru/" + path).decode("cp1251", "replace")))
     p.flush()
@@ -203,21 +218,21 @@ def comic_zip(path):
 def main():
     made = []
     try:
-        chaps = book("p/pushkin_a_s/text_0426.shtml")
+        chaps = book("p/pushkin_a_s/text_0426.shtml", "08.epub")
         jpg = library.cover("Пиковая дама", "Александр Пушкин", ("#141414", "#000000", "#e8e2d4"), 7)
         mobi(os.path.join(OUT, "Пиковая дама.mobi"), "Пиковая дама", "Александр Пушкин", chaps, jpg)
         made.append("mobi")
     except Exception as e:
         print("mobi fail", e)
     try:
-        chaps = book("c/chehow_a_p/text_1899_dama_s_sobachkoy.shtml")
+        chaps = book("c/chehow_a_p/text_1899_dama_s_sobachkoy.shtml", "06.epub")
         docx(os.path.join(OUT, "Дама с собачкой.docx"), "Дама с собачкой", "Антон Чехов", chaps)
         made.append("docx")
     except Exception as e:
         print("docx fail", e)
     try:
-        chaps = book("t/turgenew_i_s/text_0110.shtml")
-        rtf(os.path.join(OUT, "Ася.rtf"), "Ася", "Иван Тургенев", chaps)
+        chaps = book("d/dostoewskij_f_m/text_0230.shtml", "03.epub")
+        rtf(os.path.join(OUT, "Белые ночи.rtf"), "Белые ночи", "Фёдор Достоевский", chaps)
         made.append("rtf")
     except Exception as e:
         print("rtf fail", e)

@@ -51,13 +51,15 @@ jobs:
           fi
           if [ "$(ls $A/files | wc -l)" -lt 5 ]; then
             rm -rf $A/files && mkdir -p $A/files
-            python3 tools/studio/makefiles.py $A/files fonts
+            mkdir -p shelf && cp $A/library/*.epub shelf/
+            python3 tools/studio/makefiles.py $A/files fonts shelf
             if [ "$(ls $A/files | wc -l)" -ge 5 ]; then
               (cd $A/files && zip -q ../../../../../../files.zip *)
               gh release delete studio-files --cleanup-tag -y --repo "${{ github.repository }}" 2>/dev/null || true
               gh release create studio-files files.zip --draft --title studio-files --notes "" --repo "${{ github.repository }}"
             fi
           fi
+          rm -f $A/library/03.epub $A/library/06.epub $A/library/08.epub
           cp tools/studio/scenarios/*.json $A/scenarios/
           ls -la $A/library $A/files $A/scenarios
 
