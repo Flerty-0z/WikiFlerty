@@ -50,6 +50,7 @@ data class LibraryPrefs(
     val seriesShelves: List<String> = emptyList(),
     val plankOrder: List<String> = emptyList(),
     val bookOrder: List<String> = emptyList(),
+    val restShelves: List<Int> = emptyList(),
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("filter", filter)
@@ -72,6 +73,7 @@ data class LibraryPrefs(
         put("seriesShelves", JSONArray(seriesShelves))
         put("plankOrder", JSONArray(plankOrder))
         put("bookOrder", JSONArray(bookOrder))
+        put("restShelves", JSONArray(restShelves))
     }
 
     companion object {
@@ -93,6 +95,7 @@ data class LibraryPrefs(
             tagShelves = j.optJSONArray("tagShelves")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
             plankOrder = j.optJSONArray("plankOrder")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
             bookOrder = j.optJSONArray("bookOrder")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
+            restShelves = j.optJSONArray("restShelves")?.let { a -> (0 until a.length()).map { a.optInt(it) }.filter { it > 0 } }.orEmpty(),
             seriesShelves = j.optJSONArray("seriesShelves")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
             shelves = j.optJSONArray("shelves")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
         )

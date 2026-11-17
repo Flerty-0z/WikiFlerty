@@ -149,6 +149,37 @@ private fun manualOrder(books: List<Book>, order: List<String>): List<Book> {
     return books.sortedWith(compareBy<Book> { pos[it.id] ?: -1 }.thenByDescending { it.addedAt })
 }
 
+private const val REST_SHELF = 6
+
+private fun restLayout(count: Int, stored: List<Int>): List<Int> {
+    val out = mutableListOf<Int>()
+    var left = count
+    for (s in stored) {
+        if (left <= 0) break
+        val n = minOf(s.coerceAtLeast(1), left)
+        out += n
+        left -= n
+    }
+    while (left > 0) {
+        val n = minOf(REST_SHELF, left)
+        out += n
+        left -= n
+    }
+    return out
+}
+
+private fun moveBetweenRest(ids: List<String>, sizes: List<Int>, id: String, from: Int, to: Int): Pair<List<String>, List<Int>>? {
+    if (from !in sizes.indices || to !in sizes.indices) return null
+    val order = ids.toMutableList()
+    if (!order.remove(id)) return null
+    val next = sizes.toMutableList()
+    next[from] -= 1
+    val end = (0..to).sumOf { next[it] }
+    order.add(end.coerceIn(0, order.size), id)
+    next[to] += 1
+    return order to next.filter { it > 0 }
+}
+
 private fun movedOrder(all: List<String>, plank: List<String>, id: String): List<String>? {
     if (id !in plank || plank.size < 2) return null
     val members = plank.toSet()
@@ -369,7 +400,18 @@ fun LibraryScreen(
                         }
                     }
                     val rest = ordered.filter { b -> b.shelves.none { it in shelves } }
-                    named + if (rest.isNotEmpty() || named.isEmpty()) listOf(PlankSpec("rest", if (named.isEmpty()) null else "Без полки", rest, { addBook() }, null, wrap = named.isEmpty())) else emptyList()
+                    if (named.isEmpty()) {
+                        val sizes = restLayout(rest.size, prefs.restShelves)
+                        var at = 0
+                        if (sizes.isEmpty()) listOf(PlankSpec("rest:0", null, emptyList(), { addBook() }, null, wrap = false))
+                        else sizes.mapIndexed { k, n ->
+                            val part = rest.subList(at, at + n)
+                            at += n
+                            PlankSpec("rest:$k", null, part, if (k == sizes.lastIndex) ({ addBook() }) else null, null, wrap = false)
+                        }
+                    } else {
+                        named + if (rest.isNotEmpty()) listOf(PlankSpec("rest", "Без полки", rest, { addBook() }, null, wrap = false)) else emptyList()
+                    }
                 } else {
                     val edit = if (active.isShelf) ({ controls.shelfDialog = ShelfDialog.Edit(active.title) }) else null
                     listOf(PlankSpec(active.id, if (active.isShelf) active.title else null, shown, edit ?: if (q.isEmpty()) ({ addBook() }) else null, edit, wrap = true, sortable = q.isEmpty()))
@@ -386,8 +428,17 @@ fun LibraryScreen(
                     onReorder = if (prefs.sort == LibrarySort.Manual) { book, _, ids ->
                         movedOrder(orderNow.map { it.id }, ids, book.id)?.let { next -> app.libraryPrefs.update { it.copy(bookOrder = next) } }
                     } else null,
-                    onMove = if (active.id == "all" && q.isEmpty() && (shelves.isNotEmpty() || prefs.tagShelves.isNotEmpty() || prefs.seriesShelves.isNotEmpty())) { book, from, to ->
-                        if (to.startsWith("series:")) {
+                    onMove = if (active.id == "all" && q.isEmpty() && (planks.size > 1 || shelves.isNotEmpty() || prefs.tagShelves.isNotEmpty() || prefs.seriesShelves.isNotEmpty())) { book, from, to ->
+                        if (from.startsWith("rest:") && to.startsWith("rest:")) {
+                            val i = from.removePrefix("rest:").toIntOrNull()
+                            val j = to.removePrefix("rest:").toIntOrNull()
+                            val ids = orderNow.map { it.id }
+                            if (i != null && j != null && i != j) {
+                                moveBetweenRest(ids, restLayout(ids.size, app.libraryPrefs.prefs.value.restShelves), book.id, i, j)?.let { (order, sizes) ->
+                                    app.libraryPrefs.update { it.copy(sort = LibrarySort.Manual, bookOrder = order, restShelves = sizes) }
+                                }
+                            }
+                        } else if (to.startsWith("series:")) {
                         } else if (to.startsWith(TagFilterPrefix)) {
                             app.appScope.launch { app.library.addTag(book.id, to.removePrefix(TagFilterPrefix)) }
                         } else {
