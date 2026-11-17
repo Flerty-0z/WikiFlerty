@@ -9,6 +9,63 @@ object BookConverter {
         Docx("DOCX"), Odt("ODT"), Rtf("RTF"), Mobi("MOBI/AZW3"), Cbz("CBZ"), Cbr("CBR"), Pdf("PDF"), Unknown("файл")
     }
 
+    class Unwrapped(val name: String?, val fbd: ByteArray?)
+
+    private val bookExt = setOf("epub", "fb2", "mobi", "azw3", "azw", "prc", "pdf", "docx", "odt", "rtf", "txt", "html", "htm", "md", "cbz", "cbr", "zip")
+    private val sideExt = setOf("fbd", "nfo", "url", "sfv", "md5", "diz")
+
+    private fun extOf(name: String) = name.substringAfterLast('/').substringAfterLast('.', "").lowercase()
+
+    fun unwrap(source: File, name: String?): Unwrapped {
+        var current = name
+        var fbd: ByteArray? = null
+        repeat(3) {
+            val head = ByteArray(2)
+            if (source.inputStream().use { it.read(head) } < 2 || head[0] != 'P'.code.toByte() || head[1] != 'K'.code.toByte()) return Unwrapped(current, fbd)
+            val inner = File(source.path + ".in")
+            val step = runCatching {
+                ZipFile(source).use { zip ->
+                    val files = zip.entries().asSequence().filter { e ->
+                        val n = e.name.substringAfterLast('/')
+                        !e.isDirectory && !e.name.startsWith("__MACOSX/") && !n.startsWith(".") && n.isNotEmpty()
+                    }.toList()
+                    val books = files.filter { extOf(it.name) in bookExt }
+                    if (books.size != 1) return@use null
+                    val rest = files.filter { it !== books[0] }
+                    val images = rest.count { ComicConverter.isImageName(it.name) }
+                    if (images > 1 || rest.any { extOf(it.name) !in sideExt && !ComicConverter.isImageName(it.name) }) return@use null
+                    val side = rest.firstOrNull { extOf(it.name) == "fbd" }?.let { e -> zip.getInputStream(e).use { it.readBytes() } }
+                    zip.getInputStream(books[0]).use { i -> inner.outputStream().use { i.copyTo(it) } }
+                    books[0].name.substringAfterLast('/') to side
+                }
+            }.getOrNull()
+            if (step == null) {
+                inner.delete()
+                return Unwrapped(current, fbd)
+            }
+            if (!source.delete() || !inner.renameTo(source)) {
+                inner.copyTo(source, overwrite = true)
+                inner.delete()
+            }
+            current = step.first
+            if (step.second != null) fbd = step.second
+        }
+        return Unwrapped(current, fbd)
+    }
+
+    class Hint(val title: String?, val authors: List<String>, val language: String?, val meta: com.flerty.wikiflerty.data.FileMeta?)
+
+    fun hint(fbd: ByteArray?): Hint? {
+        if (fbd == null || fbd.isEmpty()) return null
+        return runCatching {
+            val c = Fb2Converter("hint")
+            c.describe(fbd.inputStream())
+            val head = c.head ?: return null
+            val base = c.meta ?: com.flerty.wikiflerty.data.FileMeta()
+            Hint(head.title, head.authors, head.language, com.flerty.wikiflerty.data.FileMeta(head.annotation.orEmpty(), base.facts, base.series))
+        }.getOrNull()
+    }
+
     fun detect(file: File, name: String? = null): Kind {
         val ext = name?.lowercase()?.substringAfterLast('.', "").orEmpty()
         val head = ByteArray(4096)
@@ -43,8 +100,22 @@ object BookConverter {
         return if (ext == "md" || ext == "markdown") Kind.Md else Kind.Txt
     }
 
-    fun toEpub(source: File, kind: Kind, target: File, fallbackTitle: String, identifier: String, name: String? = null): com.flerty.wikiflerty.data.FileMeta? {
+    fun toEpub(source: File, kind: Kind, target: File, fallbackTitle: String, identifier: String, name: String? = null, hint: Hint? = null): com.flerty.wikiflerty.data.FileMeta? {
         val ext = name?.lowercase()?.substringAfterLast('.', "").orEmpty()
+        val own = convert(source, kind, target, fallbackTitle, identifier, ext, hint)
+        val extra = hint?.meta ?: return own
+        return (own ?: com.flerty.wikiflerty.data.FileMeta()).over(extra)
+    }
+
+    private fun apply(doc: RichDoc, hint: Hint?): RichDoc {
+        if (hint == null) return doc
+        hint.title?.let { doc.title = it }
+        if (hint.authors.isNotEmpty()) doc.authors = hint.authors
+        if (doc.language.isNullOrBlank()) hint.language?.let { doc.language = it }
+        return doc
+    }
+
+    private fun convert(source: File, kind: Kind, target: File, fallbackTitle: String, identifier: String, ext: String, hint: Hint?): com.flerty.wikiflerty.data.FileMeta? {
         return when (kind) {
             Kind.Fb2 -> source.inputStream().buffered().use { input -> Fb2Converter(identifier).let { c -> c.convert(input, target, fallbackTitle); c.meta } }
             Kind.Fb2Zip -> ZipFile(source).use { zip ->
@@ -59,15 +130,15 @@ object BookConverter {
                 val page = ext !in setOf("html", "htm", "xhtml", "xht", "shtml", "mht")
                 val doc = HtmlConverter.read(source, fallbackTitle, page)
                 if (page && doc.blocks.sumOf { b -> (b as? Block.Para)?.runs?.plain?.length ?: 0 } < 3000) throw NotABookException()
-                finish(doc, target, identifier)
+                finish(apply(doc, hint), target, identifier)
             }
-            Kind.Md -> finish(MarkdownConverter.read(source, fallbackTitle), target, identifier)
-            Kind.Docx -> finish(DocxConverter.read(source, fallbackTitle), target, identifier)
-            Kind.Odt -> finish(OdtConverter.read(source, fallbackTitle), target, identifier)
-            Kind.Rtf -> finish(RtfConverter.read(source, fallbackTitle), target, identifier)
-            Kind.Mobi -> finish(MobiConverter.read(source, fallbackTitle), target, identifier)
-            Kind.Cbz -> comic(ComicConverter.convertZip(source, target, fallbackTitle, identifier))
-            Kind.Cbr -> comic(ComicConverter.convertRar(source, target, fallbackTitle, identifier))
+            Kind.Md -> finish(apply(MarkdownConverter.read(source, fallbackTitle), hint), target, identifier)
+            Kind.Docx -> finish(apply(DocxConverter.read(source, fallbackTitle), hint), target, identifier)
+            Kind.Odt -> finish(apply(OdtConverter.read(source, fallbackTitle), hint), target, identifier)
+            Kind.Rtf -> finish(apply(RtfConverter.read(source, fallbackTitle), hint), target, identifier)
+            Kind.Mobi -> finish(apply(MobiConverter.read(source, fallbackTitle), hint), target, identifier)
+            Kind.Cbz -> comic(ComicConverter.convertZip(source, target, fallbackTitle, identifier, hint))
+            Kind.Cbr -> comic(ComicConverter.convertRar(source, target, fallbackTitle, identifier, hint))
             else -> throw IllegalArgumentException("unsupported")
         }
     }
@@ -79,7 +150,7 @@ object BookConverter {
     }
 
     private fun comic(meta: ComicConverter.FileMetaLite): com.flerty.wikiflerty.data.FileMeta? {
-        val series = meta.series?.let { s -> listOf(com.flerty.wikiflerty.data.BookSeries(s, meta.number?.replace(',', '.')?.toDoubleOrNull())) }.orEmpty()
+        val series = meta.series?.let { s -> listOf(com.flerty.wikiflerty.data.BookSeries(s, meta.number?.replace(',', '.')?.toDoubleOrNull()?.takeIf { it > 0 })) }.orEmpty()
         return com.flerty.wikiflerty.data.FileMeta(description = meta.summary.orEmpty(), series = series)
     }
 }

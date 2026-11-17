@@ -53,6 +53,9 @@ object MobiConverter {
         val exthFlags = if (isMobi) u32(rec, 128).toInt() else 0
         val fdst = if (isMobi && headerLength >= 0xB0) u32(rec, 0xC0).toInt() else -1
         val extraFlags = if (isMobi && headerLength >= 0xE4) u16(rec, 0xF2) else 0
+        val ncxIndex = if (isMobi && headerLength >= 0xE8) u32(rec, 0xF4).toInt() else -1
+        val fragIndex = if (isMobi && headerLength >= 0xEC) u32(rec, 0xF8).toInt() else -1
+        val skelIndex = if (isMobi && headerLength >= 0xF0) u32(rec, 0xFC).toInt() else -1
         val exth = HashMap<Int, MutableList<ByteArray>>()
 
         init {
@@ -262,13 +265,141 @@ object MobiConverter {
         return if (h.textLength in 1..all.size) all.copyOf(h.textLength) else all
     }
 
+    private val latin = Charsets.ISO_8859_1
+
+    private fun index(r: Records, h: Header, at: Int): MobiIndex? =
+        if (at <= 0 || at == -1 || at >= 0x7FFFFFF) null else MobiIndex.read({ r.get(h.start + it) }, at)
+
+    private fun base32(s: String): Int? = s.trim().toIntOrNull(32)
+
+    private fun anchorAt(text: String, pos: Int): Int {
+        var p = pos.coerceIn(0, text.length)
+        val lt = text.lastIndexOf('<', p - 1)
+        val gt = text.lastIndexOf('>', p - 1)
+        if (lt > gt) p = lt
+        return p
+    }
+
+    private fun insertAnchors(text: String, anchors: Map<Int, List<String>>): String {
+        if (anchors.isEmpty()) return text
+        val out = StringBuilder(text.length + anchors.size * 24)
+        var last = 0
+        anchors.toSortedMap().forEach { (pos, ids) ->
+            val p = anchorAt(text, pos).coerceAtLeast(last)
+            out.append(text, last, p)
+            ids.distinct().forEach { out.append("<a id=\"").append(it).append("\"></a>") }
+            last = p
+        }
+        out.append(text, last, text.length)
+        return out.toString()
+    }
+
+    private fun ncxOrder(ncx: MobiIndex): List<Pair<MobiIndex.Entry, Int>> {
+        val list = ncx.entries
+        if (list.none { it.tag(22) != null }) return list.map { it to (it.tag(4) ?: 0) }
+        val seen = BooleanArray(list.size)
+        val out = ArrayList<Pair<MobiIndex.Entry, Int>>()
+        fun walk(i: Int, depth: Int) {
+            if (i !in list.indices || seen[i] || depth > 8) return
+            seen[i] = true
+            out += list[i] to depth
+            val a = list[i].tag(22)
+            val b = list[i].tag(23)
+            if (a != null && b != null && b >= a) for (c in a..b) walk(c, depth + 1)
+        }
+        list.indices.filter { list[it].tag(21) == null && (list[it].tag(4) ?: 0) == 0 }.forEach { walk(it, 0) }
+        list.indices.filter { !seen[it] }.forEach { out += list[it] to (list[it].tag(4) ?: 0) }
+        return out
+    }
+
+    private class Kf8(val parts: List<String>, val css: String, val toc: List<TocItem>)
+
+    private fun kf8(r: Records, h: Header, raw: ByteArray): Kf8? {
+        var flow0 = raw
+        val css = StringBuilder()
+        if (h.fdst > 0) {
+            val f = r.get(h.start + h.fdst)
+            if (f.size >= 12 && String(f, 0, 4, latin) == "FDST") {
+                val sections = u32(f, 8).toInt()
+                for (i in 0 until sections) {
+                    val s0 = u32(f, 12 + i * 8).toInt()
+                    val e0 = u32(f, 16 + i * 8).toInt()
+                    if (s0 < 0 || e0 > raw.size || e0 <= s0) continue
+                    if (i == 0) flow0 = raw.copyOfRange(s0, e0)
+                    else {
+                        val chunk = String(raw, s0, e0 - s0, Charsets.UTF_8)
+                        if (!chunk.trimStart().startsWith("<")) css.append(chunk).append('\n')
+                    }
+                }
+            }
+        }
+        val skel = index(r, h, h.skelIndex) ?: return null
+        val frag = index(r, h, h.fragIndex) ?: return null
+        val text = String(flow0, latin)
+        class Frag(val insert: Int, val length: Int)
+        val frags = frag.entries.map { e -> Frag(e.ident.trim().toIntOrNull() ?: -1, e.tag(6, 1) ?: 0) }
+        class Part(val start: Int, val end: Int, var body: String)
+        val parts = ArrayList<Part>()
+        var fp = 0
+        for (e in skel.entries) {
+            val count = e.tag(1) ?: 0
+            val skelPos = e.tag(6) ?: continue
+            val skelLen = e.tag(6, 1) ?: continue
+            if (skelPos < 0 || skelPos + skelLen > text.length) return null
+            var body = text.substring(skelPos, skelPos + skelLen)
+            var base = skelPos + skelLen
+            repeat(count) {
+                val f = frags.getOrNull(fp++) ?: return@repeat
+                if (base + f.length > text.length) return@repeat
+                val slice = text.substring(base, base + f.length)
+                var at = (f.insert - skelPos).coerceIn(0, body.length)
+                if (at < body.length && body[at] != '<') {
+                    val near = body.lastIndexOf('>', at - 1)
+                    if (near >= 0 && at - near < 8) at = near + 1
+                }
+                body = body.substring(0, at) + slice + body.substring(at)
+                base += f.length
+            }
+            parts += Part(skelPos, base, body)
+        }
+        if (parts.isEmpty()) return null
+        val link = Regex("kindle:pos:fid:([0-9A-Va-v]+):off:([0-9A-Va-v]+)")
+        val targets = HashMap<Int, MutableMap<Int, MutableList<String>>>()
+        fun target(fid: Int, off: Int): String {
+            val id = "kp${fid}_$off"
+            val f = frag.entries.getOrNull(fid) ?: return id
+            val pos = (f.ident.trim().toIntOrNull() ?: return id) + off
+            val pi = parts.indexOfFirst { pos >= it.start && pos < it.end }.takeIf { it >= 0 } ?: return id
+            targets.getOrPut(pi) { HashMap() }.getOrPut(pos - parts[pi].start) { mutableListOf() } += id
+            return id
+        }
+        parts.forEach { p ->
+            p.body = link.replace(p.body) { m ->
+                val fid = base32(m.groupValues[1]) ?: return@replace m.value
+                val off = base32(m.groupValues[2]) ?: return@replace m.value
+                "#" + target(fid, off)
+            }
+        }
+        val toc = ArrayList<TocItem>()
+        index(r, h, h.ncxIndex)?.let { ncx ->
+            ncxOrder(ncx).forEach { (e, depth) ->
+                val label = ncx.text(e.tag(3))?.trim()?.takeIf { it.isNotEmpty() } ?: return@forEach
+                val fid = e.tag(6) ?: return@forEach
+                val off = e.tag(6, 1) ?: 0
+                toc += TocItem(label, target(fid, off), depth)
+            }
+        }
+        val out = parts.mapIndexed { i, p -> String(insertAnchors(p.body, targets[i].orEmpty()).toByteArray(latin), Charsets.UTF_8) }
+        return Kf8(out, css.toString(), toc)
+    }
+
     fun read(file: File, fallbackTitle: String): RichDoc {
         val r = Records(file)
         val h0 = Header(r.get(0), 0)
         if (h0.encryption != 0) throw DrmException()
         var kf8 = if (h0.version == 8) h0 else null
         if (kf8 == null) {
-            val boundary = (0 until r.size).firstOrNull { i -> r.get(i).let { it.size >= 8 && String(it, 0, 8, Charsets.ISO_8859_1) == "BOUNDARY" } }
+            val boundary = (0 until r.size).firstOrNull { i -> r.get(i).let { it.size >= 8 && String(it, 0, 8, latin) == "BOUNDARY" } }
             if (boundary != null && boundary + 1 < r.size) {
                 val cand = Header(r.get(boundary + 1), boundary + 1)
                 if (cand.isMobi && cand.version == 8 && !h0.isMobi) kf8 = cand
@@ -276,19 +407,7 @@ object MobiConverter {
         }
         val h = kf8 ?: h0
         val charset = h.charset()
-        var text = String(rawText(r, h), charset)
-        if (kf8 != null && h.fdst > 0) {
-            val f = r.get(h.start + h.fdst)
-            if (f.size >= 12 && String(f, 0, 4, Charsets.ISO_8859_1) == "FDST") {
-                val sections = u32(f, 8).toInt()
-                if (sections > 0) {
-                    val raw = rawText(r, h)
-                    val s0 = u32(f, 12).toInt()
-                    val e0 = u32(f, 16).toInt()
-                    if (e0 in (s0 + 1)..raw.size) text = String(raw, s0, e0 - s0, charset)
-                }
-            }
-        }
+        val raw = rawText(r, h)
         val title = h0.text(503) ?: h0.name() ?: h.text(503) ?: h.name() ?: fallbackTitle
         val authors = h0.texts(100).ifEmpty { h.texts(100) }
         val doc = RichDoc(title, authors.flatMap { a -> a.split('&', ';').map { it.trim() } }.filter { it.isNotBlank() }.distinct())
@@ -306,14 +425,60 @@ object MobiConverter {
         }
         val coverIndex = h0.number(201) ?: h.number(201)
         if (coverIndex != null && coverIndex != -1 && coverIndex < 0x7FFFFFFF) image(coverIndex)?.let { doc.cover = it }
-        if (!h.isMobi) {
-            text = text.split('\n').joinToString("") { "<p>" + EpubBuilder.esc(it) + "</p>" }
+        var css = ""
+        val text: String = when {
+            !h.isMobi -> String(raw, charset).split('\n').joinToString("") { "<p>" + EpubBuilder.esc(it) + "</p>" }
+            kf8 != null -> {
+                val k = runCatching { kf8(r, h, raw) }.getOrNull()
+                if (k != null) {
+                    css = k.css
+                    doc.toc += k.toc
+                    k.parts.joinToString("<mbp:pagebreak/>")
+                } else {
+                    var t = String(raw, charset)
+                    if (h.fdst > 0) {
+                        val f = r.get(h.start + h.fdst)
+                        if (f.size >= 20 && String(f, 0, 4, latin) == "FDST") {
+                            val s0 = u32(f, 12).toInt()
+                            val e0 = u32(f, 16).toInt()
+                            if (e0 in (s0 + 1)..raw.size) t = String(raw, s0, e0 - s0, charset)
+                        }
+                    }
+                    t.split(Regex("(?i)(?=<\\?xml|<html[\\s>])")).filter { it.isNotBlank() }.joinToString("<mbp:pagebreak/>")
+                }
+            }
+            else -> {
+                val t = String(raw, latin)
+                val positions = HashMap<Int, MutableList<String>>()
+                Regex("(?i)filepos\\s*=\\s*[\"']?0*(\\d+)").findAll(t).forEach { m ->
+                    val pos = m.groupValues[1].toIntOrNull() ?: return@forEach
+                    if (pos in 0..t.length) positions.getOrPut(pos) { mutableListOf() } += "fp$pos"
+                }
+                index(r, h, h.ncxIndex)?.let { ncx ->
+                    ncxOrder(ncx).forEach { (e, depth) ->
+                        val label = ncx.text(e.tag(3))?.trim()?.takeIf { it.isNotEmpty() } ?: return@forEach
+                        val pos = e.tag(1) ?: return@forEach
+                        if (pos !in 0..t.length) return@forEach
+                        positions.getOrPut(pos) { mutableListOf() } += "fp$pos"
+                        doc.toc += TocItem(label, "fp$pos", depth)
+                    }
+                }
+                if (doc.toc.isEmpty()) {
+                    Regex("(?i)<reference[^>]*type=[\"']?toc[\"']?[^>]*filepos=[\"']?0*(\\d+)").find(t)?.groupValues?.get(1)?.toIntOrNull()?.let { at ->
+                        if (at in 0 until t.length) {
+                            val end = Regex("(?i)<mbp:pagebreak").find(t, at + 1)?.range?.first ?: t.length
+                            Regex("(?is)<a[^>]*filepos=[\"']?0*(\\d+)[^>]*>(.*?)</a>").findAll(t.substring(at, end)).forEach { m ->
+                                val pos = m.groupValues[1].toIntOrNull() ?: return@forEach
+                                val label = Entities.unescape(String(m.groupValues[2].replace(Regex("<[^>]*>"), "").toByteArray(latin), charset)).replace(Regex("\\s+"), " ").trim()
+                                if (label.isNotEmpty() && pos in 0..t.length) doc.toc += TocItem(label, "fp$pos", 0)
+                            }
+                        }
+                    }
+                }
+                String(insertAnchors(t, positions).toByteArray(latin), charset)
+            }
         }
-        if (kf8 != null) {
-            val parts = text.split(Regex("(?i)(?=<\\?xml|<html[\\s>])")).filter { it.isNotBlank() }
-            text = parts.joinToString("<mbp:pagebreak/>")
-        }
-        HtmlBlocks.parse(text, doc) { src, a ->
+        HtmlBlocks.parse(text, doc, HtmlBlocks.css(css)) { src, a ->
             when {
                 src.startsWith("recindex:") -> src.removePrefix("recindex:").trim().toIntOrNull()?.let { image(it - 1) }
                 src.startsWith("kindle:embed:", ignoreCase = true) -> {
@@ -325,7 +490,7 @@ object MobiConverter {
         }
         doc.cover?.let { c ->
             val at = doc.blocks.indexOfFirst { it is Block.Image && it.href == c }
-            if (at in 0..2) doc.blocks.removeAt(at)
+            if (at >= 0 && doc.blocks.subList(0, at).none { it is Block.Para || it is Block.Heading }) doc.blocks.removeAt(at)
         }
         return doc
     }

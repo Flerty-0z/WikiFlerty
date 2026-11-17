@@ -85,10 +85,19 @@ object DocxConverter {
                 styles[id] = Style(name, outline, s.kid("basedOn")?.attr("val"), rpr?.kid("b")?.let { on(it) }, rpr?.kid("i")?.let { on(it) })
             }
             val rels = HashMap<String, String>()
+            val external = HashSet<String>()
             zip.bytes("word/_rels/document.xml.rels")?.let { parse(it) }?.kids()?.forEach { r ->
                 val id = r.attr("Id") ?: return@forEach
                 rels[id] = r.attr("Target") ?: return@forEach
+                if (r.attr("TargetMode") == "External") external += id
             }
+            fun notesOf(path: String, tag: String): Map<String, Element> =
+                zip.bytes(path)?.let { parse(it) }?.kids()?.filter { it.local() == tag && it.attr("type") == null }?.mapNotNull { n -> n.attr("id")?.let { it to n } }?.toMap().orEmpty()
+            val footnotes = notesOf("word/footnotes.xml", "footnote")
+            val endnotes = notesOf("word/endnotes.xml", "endnote")
+            val noteOrder = LinkedHashMap<String, Int>()
+            var currentNote: Int? = null
+            var href: String? = null
             val core = zip.bytes("docProps/core.xml")?.let { parse(it) }
             val title = core?.all("title")?.firstOrNull()?.text()?.trim()?.takeIf { it.isNotBlank() } ?: fallbackTitle
             val author = core?.all("creator")?.firstOrNull()?.text()?.trim()?.takeIf { it.isNotBlank() }
@@ -146,8 +155,11 @@ object DocxConverter {
                 val line = LineBuilder()
                 if (list) line.add("• ")
                 val pending = ArrayList<Block>()
+                val marks = ArrayList<String>()
                 fun flush() {
                     val runs = line.take()
+                    marks.forEach { doc.blocks += Block.Anchor(it) }
+                    marks.clear()
                     if (runs.isNotEmpty()) doc.blocks += if (level > 0) Block.Heading(level, runs) else Block.Para(runs, align)
                     doc.blocks += pending
                     pending.clear()
@@ -160,7 +172,13 @@ object DocxConverter {
                     val va = rpr?.kid("vertAlign")?.attr("val")
                     r.kids().forEach { k ->
                         when (k.local()) {
-                            "t" -> line.add(k.text(), bold, italic, underline, va == "superscript", va == "subscript")
+                            "t" -> line.add(k.text(), bold, italic, underline, va == "superscript", va == "subscript", href)
+                            "footnoteReference", "endnoteReference" -> k.attr("id")?.let { id ->
+                                val key = (if (k.local() == "footnoteReference") "f" else "e") + id
+                                val n = noteOrder.getOrPut(key) { noteOrder.size + 1 }
+                                line.add("[$n]", false, false, false, true, false, "#note_$key")
+                            }
+                            "footnoteRef", "endnoteRef" -> currentNote?.let { line.add("$it. ", true) }
                             "tab" -> line.add(" ")
                             "noBreakHyphen" -> line.add("-")
                             "softHyphen" -> Unit
@@ -179,9 +197,22 @@ object DocxConverter {
                 fun walk(e: Element) {
                     e.kids().forEach { k ->
                         when (k.local()) {
-                            "pPr", "del", "moveFrom", "commentRangeStart", "commentRangeEnd", "bookmarkStart", "bookmarkEnd", "proofErr" -> Unit
+                            "pPr", "del", "moveFrom", "commentRangeStart", "commentRangeEnd", "bookmarkEnd", "proofErr" -> Unit
+                            "bookmarkStart" -> k.attr("name")?.takeIf { it.isNotBlank() && it != "_GoBack" }?.let { marks += "bm_$it" }
                             "r" -> run(k)
-                            "hyperlink", "ins", "smartTag", "fldSimple", "sdt", "sdtContent", "customXml", "moveTo", "dir", "bdo" -> walk(k)
+                            "hyperlink" -> {
+                                val before = href
+                                val anchor = k.attr("anchor")
+                                val rid = k.attr("id")
+                                href = when {
+                                    !anchor.isNullOrBlank() -> "#bm_$anchor"
+                                    rid != null && rid in external -> rels[rid]
+                                    else -> null
+                                }
+                                walk(k)
+                                href = before
+                            }
+                            "ins", "smartTag", "fldSimple", "sdt", "sdtContent", "customXml", "moveTo", "dir", "bdo" -> walk(k)
                         }
                     }
                 }
@@ -203,12 +234,24 @@ object DocxConverter {
                     when (k.local()) {
                         "p" -> paragraph(k)
                         "tbl" -> table(k)
+                        "bookmarkStart" -> k.attr("name")?.takeIf { it.isNotBlank() && it != "_GoBack" }?.let { doc.blocks += Block.Anchor("bm_$it") }
                         "sdt", "sdtContent", "customXml" -> body(k)
                         "sectPr" -> Unit
                     }
                 }
             }
             document.kid("body")?.let { body(it) }
+            if (noteOrder.isNotEmpty()) {
+                doc.blocks += Block.Break
+                doc.blocks += Block.Heading(1, listOf(Run("Примечания")))
+                noteOrder.forEach { (key, n) ->
+                    val note = (if (key[0] == 'f') footnotes else endnotes)[key.substring(1)] ?: return@forEach
+                    doc.blocks += Block.Anchor("note_$key")
+                    currentNote = n
+                    body(note)
+                }
+                currentNote = null
+            }
             if (doc.cover == null) {
                 val first = doc.blocks.take(3).firstOrNull { it is Block.Image } as? Block.Image
                 if (first != null && doc.blocks.indexOf(first) == 0) {
@@ -282,6 +325,9 @@ object OdtConverter {
             val author = (meta?.all("creator")?.firstOrNull() ?: meta?.all("initial-creator")?.firstOrNull())?.text()?.trim()?.takeIf { it.isNotBlank() }
             val doc = RichDoc(title, listOfNotNull(author))
             doc.description = meta?.all("description")?.firstOrNull()?.text()?.trim()?.takeIf { it.isNotBlank() }
+            val notes = ArrayList<Element>()
+            var notePrefix: String? = null
+            var href: String? = null
 
             fun paragraph(p: Element, level0: Int, bullet: Boolean) {
                 val sn = p.attr("style-name")
@@ -290,9 +336,16 @@ object OdtConverter {
                 if (resolve(sn) { s -> if (s.breakBefore) true else null } == true) doc.blocks += Block.Break
                 val line = LineBuilder()
                 if (bullet) line.add("• ")
+                notePrefix?.let {
+                    line.add(it, true)
+                    notePrefix = null
+                }
                 val pending = ArrayList<Block>()
+                val marks = ArrayList<String>()
                 fun flush() {
                     val runs = line.take()
+                    marks.forEach { doc.blocks += Block.Anchor(it) }
+                    marks.clear()
                     if (runs.isNotEmpty()) doc.blocks += if (level > 0) Block.Heading(level, runs) else Block.Para(runs, align)
                     doc.blocks += pending
                     pending.clear()
@@ -301,14 +354,31 @@ object OdtConverter {
                     var n = e.firstChild
                     while (n != null) {
                         if (n.nodeType == Node.TEXT_NODE || n.nodeType == Node.CDATA_SECTION_NODE) {
-                            line.add(n.nodeValue ?: "", b, i, u, pos > 0, pos < 0)
+                            line.add(n.nodeValue ?: "", b, i, u, pos > 0, pos < 0, href)
                         } else if (n is Element) {
                             when (n.local()) {
                                 "span" -> {
                                     val s = n.attr("style-name")
                                     walk(n, resolve(s) { it.bold } ?: b, resolve(s) { it.italic } ?: i, resolve(s) { it.underline } ?: u, resolve(s) { it.pos } ?: pos)
                                 }
-                                "a", "meta", "ruby", "ruby-base" -> walk(n, b, i, u, pos)
+                                "a" -> {
+                                    val before = href
+                                    val target = n.attr("href")?.trim().orEmpty()
+                                    href = when {
+                                        target.startsWith("#") -> "#bm_" + target.substring(1).substringBefore('|')
+                                        target.startsWith("http://", true) || target.startsWith("https://", true) || target.startsWith("mailto:", true) -> target
+                                        else -> null
+                                    }
+                                    walk(n, b, i, u, pos)
+                                    href = before
+                                }
+                                "meta", "ruby", "ruby-base" -> walk(n, b, i, u, pos)
+                                "bookmark", "bookmark-start" -> n.attr("name")?.takeIf { it.isNotBlank() }?.let { marks += "bm_$it" }
+                                "note" -> {
+                                    notes += n
+                                    val k = notes.size
+                                    line.add("[$k]", false, false, false, true, false, "#note_o$k")
+                                }
                                 "s" -> line.add(" ".repeat((n.attr("c")?.toIntOrNull() ?: 1).coerceIn(1, 8)))
                                 "tab" -> line.add(" ")
                                 "line-break" -> if (level > 0) line.add(" ") else flush()
@@ -316,7 +386,7 @@ object OdtConverter {
                                     val href = img.attr("href") ?: return@forEach
                                     zip.bytes(href.removePrefix("./"))?.let { doc.addImage(it) }?.let { pending += Block.Image(it) }
                                 }
-                                "note", "annotation", "bookmark", "bookmark-start", "bookmark-end", "soft-page-break", "change", "change-start", "change-end", "sequence-ref" -> Unit
+                                "annotation", "bookmark-end", "soft-page-break", "change", "change-start", "change-end", "sequence-ref" -> Unit
                                 else -> walk(n, b, i, u, pos)
                             }
                         }
@@ -348,6 +418,19 @@ object OdtConverter {
                 }
             }
             content.all("text").firstOrNull { it.parentNode?.local() == "body" }?.let { body(it) }
+            if (notes.isNotEmpty()) {
+                doc.blocks += Block.Break
+                doc.blocks += Block.Heading(1, listOf(Run("Примечания")))
+                var k = 0
+                while (k < notes.size) {
+                    val note = notes[k]
+                    k++
+                    doc.blocks += Block.Anchor("note_o$k")
+                    notePrefix = "$k. "
+                    note.kids().firstOrNull { it.local() == "note-body" }?.let { body(it) }
+                    notePrefix = null
+                }
+            }
             val first = doc.blocks.firstOrNull()
             if (first is Block.Image) {
                 doc.cover = first.href
@@ -430,9 +513,13 @@ object RtfConverter {
             return runCatching { java.nio.charset.Charset.forName("windows-$c") }.recoverCatching { java.nio.charset.Charset.forName("cp$c") }.getOrDefault(Charsets.ISO_8859_1)
         }
 
+        val notes = ArrayList<String>()
+        val noteBuf = StringBuilder()
+
         fun out(s: String) {
             when (st.dest) {
                 "fonttbl", "stylesheet", "title", "author" -> captured.append(s)
+                "footnote" -> noteBuf.append(s)
                 null -> if (!st.skip) line.add(s, st.bold, st.italic, st.underline, st.sup, st.sub)
                 else -> Unit
             }
@@ -446,6 +533,10 @@ object RtfConverter {
 
         fun flush() {
             drain()
+            if (st.dest == "footnote") {
+                noteBuf.append('\n')
+                return
+            }
             val runs = line.take()
             if (runs.isEmpty()) return
             val level = if (st.level > 0) st.level else styleHeading[st.style] ?: 0
@@ -455,6 +546,10 @@ object RtfConverter {
         fun endGroup() {
             drain()
             val closing = st
+            if (closing.dest == "footnote" && stack.lastOrNull()?.dest != "footnote") {
+                notes += noteBuf.toString()
+                noteBuf.setLength(0)
+            }
             when (closing.dest) {
                 "title" -> captured.toString().trim().takeIf { t -> t.any { it.isLetterOrDigit() } }?.let { infoTitle = it }
                 "author" -> captured.toString().trim().takeIf { t -> t.any { it.isLetterOrDigit() } }?.let { infoAuthor = it }
@@ -542,6 +637,16 @@ object RtfConverter {
                         if (st.skip) continue
                         when (word) {
                             "shppict", "ud", "upr" -> Unit
+                            "footnote" -> if (st.dest == null) {
+                                drain()
+                                val k = notes.size + 1
+                                line.add("[$k]", false, false, false, true, false, "#note_r$k")
+                                st.dest = "footnote"
+                                noteBuf.setLength(0)
+                            } else {
+                                st.dest = "skip"
+                                st.skip = true
+                            }
                             "ansicpg" -> ansi = param ?: ansi
                             "fonttbl", "stylesheet", "info" -> {
                                 drain()
@@ -558,7 +663,11 @@ object RtfConverter {
                                 st.font = param ?: 0
                             }
                             "fcharset" -> if (st.dest == "fonttbl") fontSet = param ?: 0
-                            "s" -> if (st.dest == "stylesheet") styleNo = param ?: 0 else st.style = param ?: 0
+                            "s" -> if (st.dest == "stylesheet") styleNo = param ?: 0 else {
+                                val next = param ?: 0
+                                if (next != st.style && (styleHeading[next] ?: 0) != (styleHeading[st.style] ?: 0)) flush()
+                                st.style = next
+                            }
                             "outlinelevel" -> if (st.dest == "stylesheet") styleOutline = param ?: -1 else st.level = (param ?: -1).let { if (it in 0..5) it + 1 else 0 }
                             "pict" -> {
                                 drain()
@@ -569,7 +678,7 @@ object RtfConverter {
                             }
                             "fldrslt" -> Unit
                             "par" -> flush()
-                            "line" -> if (st.level > 0) out(" ") else flush()
+                            "line" -> if (st.level > 0 || (styleHeading[st.style] ?: 0) > 0) { drain(); out(" ") } else flush()
                             "sect" -> flush()
                             "page" -> {
                                 flush()
@@ -666,6 +775,16 @@ object RtfConverter {
             }
         }
         flush()
+        if (notes.isNotEmpty()) {
+            doc.blocks += Block.Break
+            doc.blocks += Block.Heading(1, listOf(Run("Примечания")))
+            notes.forEachIndexed { i, text ->
+                doc.blocks += Block.Anchor("note_r${i + 1}")
+                text.split('\n').map { it.replace(Regex("\\s+"), " ").trim() }.filter { it.isNotEmpty() }.forEachIndexed { j, part ->
+                    doc.blocks += Block.Para(if (j == 0) listOf(Run("${i + 1}. ", bold = true), Run(part)) else listOf(Run(part)))
+                }
+            }
+        }
         infoTitle?.let { doc.title = it }
         infoAuthor?.let { doc.authors = listOf(it) }
         return doc

@@ -34,7 +34,8 @@ object HtmlConverter {
         val doc = RichDoc(titleOf(html) ?: fallbackTitle)
         Regex("(?is)<meta[^>]+name=[\"']author[\"'][^>]*content=[\"']([^\"']+)").find(html)?.groupValues?.get(1)?.let { doc.authors = listOf(clean(it)) }
         Regex("(?is)<html[^>]*\\blang=[\"']([a-zA-Z-]+)").find(html)?.groupValues?.get(1)?.let { doc.language = it }
-        HtmlBlocks.parse(html, doc) { src, _ ->
+        val styles = Regex("(?is)<style\\b[^>]*>(.*?)</style>").findAll(html).joinToString("\n") { it.groupValues[1] }
+        HtmlBlocks.parse(html, doc, HtmlBlocks.css(styles)) { src, _ ->
             if (src.startsWith("data:image", ignoreCase = true) && src.contains(";base64,")) {
                 runCatching { base64(src.substringAfter(";base64,")) }.getOrNull()?.let { doc.addImage(it) }
             } else null

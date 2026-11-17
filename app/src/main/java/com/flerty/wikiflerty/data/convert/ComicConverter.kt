@@ -21,7 +21,7 @@ object ComicConverter {
 
     private class Page(val name: String, val open: () -> InputStream)
 
-    private class Info(var title: String? = null, var series: String? = null, var number: String? = null, val authors: MutableList<String> = mutableListOf(), var summary: String? = null)
+    private class Info(var title: String? = null, var series: String? = null, var number: String? = null, val authors: MutableList<String> = mutableListOf(), var summary: String? = null, var language: String? = null)
 
     private fun info(xml: ByteArray?): Info {
         val out = Info()
@@ -36,20 +36,33 @@ object ComicConverter {
                     "number" -> out.number = v
                     "writer", "penciller" -> v.split(',').map { it.trim() }.filter { it.isNotEmpty() }.forEach { if (it !in out.authors) out.authors += it }
                     "summary" -> out.summary = v
+                    "languageiso" -> out.language = v
                 }
             }
         }
         return out
     }
 
-    fun convertZip(source: File, target: File, fallbackTitle: String, identifier: String): FileMetaLite = ZipFile(source).use { zip ->
+    private fun Info.merge(hint: BookConverter.Hint?): Info {
+        if (hint == null) return this
+        hint.title?.let { title = it }
+        if (hint.authors.isNotEmpty()) {
+            authors.clear()
+            authors += hint.authors
+        }
+        hint.meta?.description?.takeIf { it.isNotBlank() }?.let { summary = it }
+        language = hint.language ?: language
+        return this
+    }
+
+    fun convertZip(source: File, target: File, fallbackTitle: String, identifier: String, hint: BookConverter.Hint? = null): FileMetaLite = ZipFile(source).use { zip ->
         val entries = zip.entries().asSequence().filter { !it.isDirectory && isImageName(it.name) }.sortedBy { naturalKey(it.name) }.toList()
         if (entries.isEmpty()) throw IllegalArgumentException("no images")
         val meta = info(zip.entries().asSequence().firstOrNull { it.name.substringAfterLast('/').equals("ComicInfo.xml", true) }?.let { e -> zip.getInputStream(e).use { it.readBytes() } })
-        write(target, entries.map { e -> Page(e.name, { zip.getInputStream(e) }) }, meta, fallbackTitle, identifier)
+        write(target, entries.map { e -> Page(e.name, { zip.getInputStream(e) }) }, meta.merge(hint), fallbackTitle, identifier)
     }
 
-    fun convertRar(source: File, target: File, fallbackTitle: String, identifier: String): FileMetaLite {
+    fun convertRar(source: File, target: File, fallbackTitle: String, identifier: String, hint: BookConverter.Hint? = null): FileMetaLite {
         val archive = try {
             com.github.junrar.Archive(source)
         } catch (e: com.github.junrar.exception.UnsupportedRarV5Exception) {
@@ -60,14 +73,29 @@ object ComicConverter {
             if (headers.isEmpty()) throw IllegalArgumentException("no images")
             val infoHeader = rar.fileHeaders.firstOrNull { it.fileName.replace('\\', '/').substringAfterLast('/').equals("ComicInfo.xml", true) }
             val meta = info(infoHeader?.let { h -> rar.getInputStream(h).use { it.readBytes() } })
-            write(target, headers.map { h -> Page(h.fileName.replace('\\', '/'), { rar.getInputStream(h) }) }, meta, fallbackTitle, identifier)
+            write(target, headers.map { h -> Page(h.fileName.replace('\\', '/'), { rar.getInputStream(h) }) }, meta.merge(hint), fallbackTitle, identifier)
         }
     }
 
     class FileMetaLite(val title: String, val authors: List<String>, val series: String?, val number: String?, val summary: String?)
 
+    private fun tidy(name: String): String =
+        name.replace('_', ' ').replace(Regex("(?i)\\s+(cbz|cbr|zip|rar)$"), "").replace(Regex("\\s+"), " ").trim().ifBlank { name }
+
+    private fun guessTitle(names: List<String>): String? {
+        val base = names.map { it.substringAfterLast('/').substringBeforeLast('.') }
+        if (base.size < 2) return null
+        var prefix = base.first()
+        base.forEach { n -> while (!n.startsWith(prefix)) prefix = prefix.dropLast(1) }
+        val t = prefix.replace(Regex("\\([^)]*\\)|\\[[^]]*]"), " ").replace('_', ' ')
+            .replace(Regex("[\\s\\d.#-]+$"), "").replace(Regex("\\s+"), " ").trim()
+        if (t.count { it.isLetter() } < 4) return null
+        val number = Regex("(\\d+)\\s*(\\([^)]*\\)\\s*)*\\d*$").find(prefix.replace('_', ' ').trim())?.groupValues?.get(1)?.trimStart('0')?.takeIf { it.isNotEmpty() && prefix.substringAfter(t, "").contains(Regex("\\d")) }
+        return if (number != null && !t.endsWith(number)) "$t #$number" else t
+    }
+
     private fun write(target: File, pages: List<Page>, meta: Info, fallbackTitle: String, identifier: String): FileMetaLite {
-        val title = meta.title ?: meta.series?.let { s -> meta.number?.let { "$s #$it" } ?: s } ?: fallbackTitle
+        val title = meta.title ?: meta.series?.let { s -> meta.number?.let { "$s #$it" } ?: s } ?: guessTitle(pages.map { it.name }) ?: tidy(fallbackTitle)
         ZipOutputStream(target.outputStream().buffered()).use { zip ->
             val mimetype = "application/epub+zip".toByteArray(Charsets.US_ASCII)
             zip.putNextEntry(ZipEntry("mimetype").apply {
@@ -91,8 +119,14 @@ object ComicConverter {
             pages.forEachIndexed { i, p ->
                 val ext = p.name.substringAfterLast('.', "jpg").lowercase().let { if (it == "jpeg") "jpg" else it }
                 val href = "img/p${i + 1}.$ext"
-                zip.putNextEntry(ZipEntry("OEBPS/$href").apply { method = ZipEntry.DEFLATED })
-                p.open().use { it.copyTo(zip) }
+                val bytes = p.open().use { it.readBytes() }
+                zip.putNextEntry(ZipEntry("OEBPS/$href").apply {
+                    method = ZipEntry.STORED
+                    size = bytes.size.toLong()
+                    compressedSize = bytes.size.toLong()
+                    crc = CRC32().apply { update(bytes) }.value
+                })
+                zip.write(bytes)
                 zip.closeEntry()
                 val mime = when (ext) {
                     "png" -> "image/png"
@@ -121,7 +155,7 @@ object ComicConverter {
 <dc:title>${esc(title)}</dc:title>
 """)
             meta.authors.forEach { opf.append("<dc:creator>${esc(it)}</dc:creator>\n") }
-            opf.append("<dc:language>und</dc:language>\n")
+            opf.append("<dc:language>${esc(meta.language?.takeIf { it.isNotBlank() } ?: "und")}</dc:language>\n")
             meta.summary?.let { opf.append("<dc:description>${esc(it)}</dc:description>\n") }
             opf.append("""<meta property="dcterms:modified">2020-01-01T00:00:00Z</meta>
 <meta name="cover" content="img1"/>

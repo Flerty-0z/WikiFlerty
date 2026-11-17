@@ -49,7 +49,9 @@ class LibraryRepository(
                 ?: return@withContext Result.failure(Exception("Не удалось прочитать файл"))
             input.use { stream -> source.outputStream().use { stream.copyTo(it) } }
             val shownName = displayName(uri)
-            val kind = BookConverter.detect(source, shownName)
+            val wrapped = BookConverter.unwrap(source, shownName)
+            val hint = BookConverter.hint(wrapped.fbd)
+            val kind = BookConverter.detect(source, wrapped.name)
             var converted: FileMeta? = null
             when (kind) {
                 BookConverter.Kind.Epub -> if (!source.renameTo(file)) {
@@ -58,9 +60,9 @@ class LibraryRepository(
                 }
                 BookConverter.Kind.Fb2, BookConverter.Kind.Fb2Zip, BookConverter.Kind.Txt, BookConverter.Kind.Html, BookConverter.Kind.Md,
                 BookConverter.Kind.Docx, BookConverter.Kind.Odt, BookConverter.Kind.Rtf, BookConverter.Kind.Mobi, BookConverter.Kind.Cbz, BookConverter.Kind.Cbr -> {
-                    val name = shownName?.substringBeforeLast('.')?.removeSuffix(".fb2")?.takeIf { it.isNotBlank() } ?: "Без названия"
+                    val name = shownName?.substringBeforeLast('.')?.removeSuffix(".fb2")?.replace('_', ' ')?.trim()?.takeIf { it.isNotBlank() } ?: "Без названия"
                     try {
-                        converted = BookConverter.toEpub(source, kind, file, name, fingerprintOf(source).take(24), shownName)
+                        converted = BookConverter.toEpub(source, kind, file, name, fingerprintOf(source).take(24), wrapped.name, hint)
                     } catch (e: Throwable) {
                         file.delete()
                         if (e is com.flerty.wikiflerty.data.convert.NotABookException || e is com.flerty.wikiflerty.data.convert.DrmException) return@withContext Result.failure(Exception(e.message))
@@ -74,7 +76,7 @@ class LibraryRepository(
                 }
                 BookConverter.Kind.Pdf -> {
                     file.delete()
-                    return@withContext importPdf(id, source, uri)
+                    return@withContext importPdf(id, source, uri, hint)
                 }
                 BookConverter.Kind.Unknown -> {
                     source.delete()
@@ -159,7 +161,7 @@ class LibraryRepository(
         }
     }
 
-    private suspend fun importPdf(id: String, source: File, uri: Uri): Result<Book> {
+    private suspend fun importPdf(id: String, source: File, uri: Uri, hint: BookConverter.Hint? = null): Result<Book> {
         val file = File(booksDir, "$id.pdf")
         try {
             if (!source.renameTo(file)) {
@@ -181,9 +183,9 @@ class LibraryRepository(
                 file.delete()
                 return Result.success(existing)
             }
-            val text = buildPdfText(id, file, meta.title ?: fileTitle ?: "Без названия", fingerprint.take(24))
-            val title = text?.title ?: meta.title ?: fileTitle ?: "Без названия"
-            val author = text?.author ?: meta.author.orEmpty()
+            val text = buildPdfText(id, file, hint?.title ?: meta.title ?: fileTitle ?: "Без названия", fingerprint.take(24))
+            val title = hint?.title ?: text?.title ?: meta.title ?: fileTitle ?: "Без названия"
+            val author = hint?.authors?.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: text?.author ?: meta.author.orEmpty()
             val coverName = PdfSupport.cover(file, 600)?.takeUnless { PdfSupport.isBlank(it) }?.let { bitmap ->
                 val name = "$id.jpg"
                 File(coversDir, name).outputStream().use { out -> bitmap.compress(Bitmap.CompressFormat.JPEG, 88, out) }
