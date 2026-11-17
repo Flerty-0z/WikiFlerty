@@ -452,13 +452,9 @@ private fun ProfileCover(person: BookCharacter, onClose: () -> Unit) {
     val quote = person.quotes.firstOrNull()?.trim()?.trim('«', '»', '"')
     Box(
         Modifier
-            .layout { m, c ->
-                val extra = 32.dp.roundToPx()
-                val p = m.measure(c.copy(minWidth = c.maxWidth + extra, maxWidth = c.maxWidth + extra))
-                layout(c.maxWidth, p.height - 16.dp.roundToPx()) { p.place(-extra / 2, -16.dp.roundToPx()) }
-            }
             .fillMaxWidth()
             .height(124.dp)
+            .clip(appCorner(20))
             .background(
                 Brush.linearGradient(
                     listOf(accent, androidx.compose.ui.graphics.lerp(accent, Color(0xFF6A3A6E), 0.6f), androidx.compose.ui.graphics.lerp(panel, accent, 0.18f)),
@@ -477,7 +473,8 @@ private fun ProfileCover(person: BookCharacter, onClose: () -> Unit) {
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(start = 130.dp, end = 16.dp, bottom = 10.dp),
+                lineHeight = 17.sp,
+                modifier = Modifier.align(Alignment.BottomEnd).fillMaxWidth().padding(start = 116.dp, end = 16.dp, bottom = 12.dp),
             )
         }
         Box(
