@@ -14,7 +14,7 @@ jobs:
         run: |
           mkdir -p probe
           try() {
-            code=$(curl -sL -o "probe/$1" -w "%{http_code} %{size_download} %{time_total}" --connect-timeout 15 --max-time 60 "$2")
+            code=$(curl -sL -o "probe/$1" -w "%{http_code} %{size_download} %{time_total}" --connect-timeout 15 --max-time 60 "$2" || true)
             echo "$1 $code" | tee -a probe/report.txt
           }
           try gutenberg_ru.epub "https://www.gutenberg.org/cache/epub/2554/pg2554-images-3.epub"
