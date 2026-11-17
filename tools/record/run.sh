@@ -17,6 +17,7 @@ adb shell am broadcast -a com.android.systemui.demo -e command network -e wifi s
 adb shell am broadcast -a com.android.systemui.demo -e command notifications -e visible false
 for f in demo/*.epub; do adb push "$f" /sdcard/Download/; done
 SLOW="${SLOW:-5}"
+adb shell wm density 300
 adb shell settings put global animator_duration_scale "$SLOW"
 adb shell settings put global transition_animation_scale "$SLOW"
 adb shell settings put global window_animation_scale "$SLOW"
