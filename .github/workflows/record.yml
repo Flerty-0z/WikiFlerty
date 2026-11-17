@@ -45,10 +45,13 @@ jobs:
         run: ./gradlew assembleRelease -Puniversal=true --stacktrace
 
       - name: Demo books
+        timeout-minutes: 5
         run: |
           mkdir -p demo
-          curl -fsSL --retry 3 -o demo/book1.epub "https://www.gutenberg.org/ebooks/2554.epub3.images" || true
-          curl -fsSL --retry 3 -o demo/book2.epub "https://www.gutenberg.org/ebooks/1342.epub3.images" || true
+          get() { curl -fsSL --retry 2 --connect-timeout 15 --max-time 90 -o "$1" "$2" && [ -s "$1" ] || rm -f "$1"; }
+          get demo/kapitanskaya.epub "https://ws-export.wmcloud.org/?lang=ru&title=%D0%9A%D0%B0%D0%BF%D0%B8%D1%82%D0%B0%D0%BD%D1%81%D0%BA%D0%B0%D1%8F_%D0%B4%D0%BE%D1%87%D0%BA%D0%B0_(%D0%9F%D1%83%D1%88%D0%BA%D0%B8%D0%BD)&format=epub"
+          get demo/pride.epub "https://www.gutenberg.org/cache/epub/1342/pg1342-images-3.epub"
+          get demo/crime.epub "https://www.gutenberg.org/cache/epub/2554/pg2554-images-3.epub"
           ls -la demo
 
       - name: Enable KVM
