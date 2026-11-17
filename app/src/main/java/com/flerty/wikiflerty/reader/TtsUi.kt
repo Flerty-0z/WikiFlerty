@@ -452,8 +452,8 @@ fun TtsOptions(
         value = settings.ttsStrength,
         range = 0.1..0.9,
         step = 0.05,
-        format = { "${(it * 100).toInt()}%" },
-        onCommit = { v -> onSettingsChange { it.copy(ttsStrength = v) } },
+        format = { "${kotlin.math.round(it * 100).toInt()}%" },
+        onCommit = { v -> onSettingsChange { it.copy(ttsStrength = kotlin.math.round(v * 20) / 20.0) } },
     )
 
     SwitchRow("Листать за голосом", settings.ttsFollow, icon = AppIcons.Pages) { v -> onSettingsChange { it.copy(ttsFollow = v) } }

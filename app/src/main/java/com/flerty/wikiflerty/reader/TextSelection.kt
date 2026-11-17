@@ -604,8 +604,10 @@ internal object TextSelection {
               var h = Math.max(13, fs) * (q ? 0.82 : 1), w = h * (q ? 20 : 26) / 30;
               var f = document.createElement("i");
               if (q) f.className = "q";
-              f.style.left = (q ? b.left - o.left - w * 0.62 : b.left - o.left - fs * 0.22) + "px";
-              f.style.top = (q ? b.top - o.top + b.height * 0.4 - h * 0.5 : b.top - o.top + b.height * 0.2 - h * 0.52) + "px";
+              var e = b;
+              if (q) for (var k = rs.length - 1; k >= 0; k--) if (rs[k].width > 0) { e = rs[k]; break; }
+              f.style.left = (q ? e.right - o.left - w * 0.12 : b.left - o.left - fs * 0.22) + "px";
+              f.style.top = (q ? e.top - o.top + e.height * 0.18 - h * 0.5 : b.top - o.top + b.height * 0.2 - h * 0.52) + "px";
               f.style.width = w + "px";
               f.style.height = h + "px";
               hits[i].flag = f;
