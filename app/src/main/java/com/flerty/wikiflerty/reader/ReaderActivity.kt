@@ -1275,14 +1275,17 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             onSelectionListen = {
                 val selection = ui.selection
                 if (selection != null) {
-                    val snippet = selection.text.replace(Regex("\\s+"), " ").trim().take(120)
-                    val at = selection.locator
+                    val tail = selection.locator.text.after.orEmpty()
+                    val snippet = (selection.text + tail).replace(Regex("\\s+"), " ").trim().take(160)
                     endSelection()
-                    if (mySession != null) {
-                        app.readAloud.go(at, snippet)
-                        app.readAloud.session.value?.navigator?.play()
-                    } else {
-                        startListening(at, snippet)
+                    lifecycleScope.launch {
+                        val at = runCatching { navigator.firstVisibleElementLocator() }.getOrNull() ?: selection.locator
+                        if (mySession != null) {
+                            app.readAloud.go(at, snippet)
+                            app.readAloud.session.value?.navigator?.play()
+                        } else {
+                            startListening(at, snippet)
+                        }
                     }
                 }
             },

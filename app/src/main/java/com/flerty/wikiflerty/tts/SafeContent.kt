@@ -31,15 +31,22 @@ object SafeContent : ResourceContentIteratorFactory {
             return null
         }
         val factory = HtmlResourceContentIterator.Factory()
-        val works = runCatching {
-            factory.create(manifest, servicesHolder, readingOrderIndex, InMemoryResource(bytes), MediaType.XHTML, locator.copy(locations = Locator.Locations(progression = 0.0)))?.hasNext() == true
-        }.onFailure { lastIssue = it.javaClass.simpleName + ": " + it.message?.take(60) }.getOrDefault(false)
+        val plain = PlainIterator.of(bytes, locator)
+        val found = runCatching {
+            val probe = factory.create(manifest, servicesHolder, readingOrderIndex, InMemoryResource(bytes), MediaType.XHTML, locator.copy(locations = Locator.Locations(progression = 0.0)))
+            var n = 0
+            while (probe != null && n < 100_000 && probe.hasNext()) {
+                val e = probe.next()
+                if (e is Content.TextualElement && !e.text.isNullOrBlank()) n++
+            }
+            n
+        }.onFailure { lastIssue = it.javaClass.simpleName + ": " + it.message?.take(60) }.getOrDefault(0)
+        val works = found > 0 && found * 2 >= plain.size
         if (works) {
             return runCatching { factory.create(manifest, servicesHolder, readingOrderIndex, InMemoryResource(bytes), MediaType.XHTML, locator) }.getOrNull()
                 ?: PlainIterator.of(bytes, locator)
         }
-        val plain = PlainIterator.of(bytes, locator)
-        if (plain.size > 0) lastIssue = (lastIssue ?: "empty") + " → plain"
+        if (plain.size > 0) lastIssue = (lastIssue ?: "r$found/${plain.size}") + " → plain"
         return plain
     }
 }

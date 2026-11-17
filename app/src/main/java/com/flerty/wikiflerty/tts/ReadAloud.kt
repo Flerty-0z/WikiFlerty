@@ -361,8 +361,10 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
         if (page.length < 8) return
         val deadline = android.os.SystemClock.uptimeMillis() + 3000
         var steps = 0
+        val home = start?.href?.toString()?.substringBefore('#')
         while (steps < 1500 && android.os.SystemClock.uptimeMillis() < deadline) {
             val now = navigator.location.value
+            if (home != null && steps > 0 && now.utteranceLocator.href.toString().substringBefore('#') != home) break
             if (fits(now.utterance, page)) return
             if (!navigator.hasNextUtterance()) break
             navigator.skipToNextUtterance()
