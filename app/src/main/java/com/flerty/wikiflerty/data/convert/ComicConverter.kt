@@ -79,6 +79,39 @@ object ComicConverter {
 
     class FileMetaLite(val title: String, val authors: List<String>, val series: String?, val number: String?, val summary: String?)
 
+    private const val CHUNK = 20
+
+    fun sizeOf(b: ByteArray): Pair<Int, Int>? {
+        fun u8(i: Int) = b[i].toInt() and 0xFF
+        fun be16(i: Int) = (u8(i) shl 8) or u8(i + 1)
+        fun be32(i: Int) = (u8(i) shl 24) or (u8(i + 1) shl 16) or (u8(i + 2) shl 8) or u8(i + 3)
+        return runCatching {
+            when {
+                b.size > 24 && u8(0) == 0x89 && u8(1) == 0x50 -> be32(16) to be32(20)
+                b.size > 10 && u8(0) == 0x47 && u8(1) == 0x49 -> (u8(6) or (u8(7) shl 8)) to (u8(8) or (u8(9) shl 8))
+                b.size > 4 && u8(0) == 0xFF && u8(1) == 0xD8 -> {
+                    var i = 2
+                    var out: Pair<Int, Int>? = null
+                    while (i + 9 < b.size) {
+                        if (u8(i) != 0xFF) { i++; continue }
+                        val m = u8(i + 1)
+                        if (m == 0xFF) { i++; continue }
+                        if (m == 0xD8 || m == 0x01 || m in 0xD0..0xD7) { i += 2; continue }
+                        val len = be16(i + 2)
+                        if (m in 0xC0..0xCF && m != 0xC4 && m != 0xC8 && m != 0xCC) {
+                            out = be16(i + 7) to be16(i + 5)
+                            break
+                        }
+                        if (m == 0xDA || len < 2) break
+                        i += 2 + len
+                    }
+                    out
+                }
+                else -> null
+            }
+        }.getOrNull()?.takeIf { it.first in 1..30000 && it.second in 1..30000 }
+    }
+
     private fun tidy(name: String): String =
         name.replace('_', ' ').replace(Regex("(?i)\\s+(cbz|cbr|zip|rar)$"), "").replace(Regex("\\s+"), " ").trim().ifBlank { name }
 
@@ -114,8 +147,9 @@ object ComicConverter {
             text("META-INF/container.xml", """<?xml version="1.0" encoding="UTF-8"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>
 """)
-            text("OEBPS/style.css", "html, body { margin: 0; padding: 0; }\ndiv.page { text-align: center; margin: 0; padding: 0; text-indent: 0; page-break-after: always; break-after: page; }\ndiv.page img { display: inline-block; max-width: 100%; max-height: 95vh; width: auto; height: auto; object-fit: contain; }\n")
-            val kinds = ArrayList<Pair<String, String>>()
+            text("OEBPS/style.css", "html, body { margin: 0; padding: 0; }\ndiv.page { text-align: center; margin: 0 0 4px; padding: 0; text-indent: 0; break-inside: avoid; page-break-inside: avoid; -webkit-column-break-inside: avoid; break-after: column; -webkit-column-break-after: always; }\ndiv.page img { display: block; margin: 0 auto; max-width: 100%; max-height: 95vh; width: auto; height: auto; object-fit: contain; }\n")
+            class Shot(val href: String, val mime: String, val size: Pair<Int, Int>?)
+            val kinds = ArrayList<Shot>()
             pages.forEachIndexed { i, p ->
                 val ext = p.name.substringAfterLast('.', "jpg").lowercase().let { if (it == "jpeg") "jpg" else it }
                 val href = "img/p${i + 1}.$ext"
@@ -135,11 +169,22 @@ object ComicConverter {
                     "bmp" -> "image/bmp"
                     else -> "image/jpeg"
                 }
-                kinds += href to mime
-                text("OEBPS/p${i + 1}.xhtml", """<?xml version="1.0" encoding="UTF-8"?>
+                kinds += Shot(href, mime, sizeOf(bytes))
+            }
+            val chunks = kinds.indices.chunked(CHUNK)
+            chunks.forEachIndexed { c, part ->
+                val body = StringBuilder()
+                part.forEach { i ->
+                    val shot = kinds[i]
+                    val dims = shot.size?.let { (w, h) -> " width=\"$w\" height=\"$h\"" }.orEmpty()
+                    val lazy = if (i - part.first() >= 2) " loading=\"lazy\"" else ""
+                    body.append("<div class=\"page\" id=\"page${i + 1}\"><img src=\"${shot.href}\"$dims$lazy alt=\"\"/></div>\n")
+                }
+                text("OEBPS/p${c + 1}.xhtml", """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml"><head><meta charset="UTF-8"/><title>${i + 1}</title><link rel="stylesheet" type="text/css" href="style.css"/></head>
-<body><div class="page"><img src="$href" alt=""/></div></body></html>
+<html xmlns="http://www.w3.org/1999/xhtml"><head><meta charset="UTF-8"/><title>${part.first() + 1}–${part.last() + 1}</title><link rel="stylesheet" type="text/css" href="style.css"/></head>
+<body>
+$body</body></html>
 """)
             }
             text("OEBPS/nav.xhtml", """<?xml version="1.0" encoding="UTF-8"?>
@@ -164,12 +209,14 @@ object ComicConverter {
 <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
 <item id="css" href="style.css" media-type="text/css"/>
 """)
-            kinds.forEachIndexed { i, (href, mime) ->
-                opf.append("""<item id="img${i + 1}" href="$href" media-type="$mime"${if (i == 0) " properties=\"cover-image\"" else ""}/>""").append('\n')
-                opf.append("""<item id="p${i + 1}" href="p${i + 1}.xhtml" media-type="application/xhtml+xml"/>""").append('\n')
+            kinds.forEachIndexed { i, shot ->
+                opf.append("""<item id="img${i + 1}" href="${shot.href}" media-type="${shot.mime}"${if (i == 0) " properties=\"cover-image\"" else ""}/>""").append('\n')
+            }
+            chunks.indices.forEach { c ->
+                opf.append("""<item id="p${c + 1}" href="p${c + 1}.xhtml" media-type="application/xhtml+xml"/>""").append('\n')
             }
             opf.append("</manifest>\n<spine>\n")
-            kinds.indices.forEach { i -> opf.append("""<itemref idref="p${i + 1}"/>""").append('\n') }
+            chunks.indices.forEach { c -> opf.append("""<itemref idref="p${c + 1}"/>""").append('\n') }
             opf.append("</spine>\n</package>\n")
             text("OEBPS/content.opf", opf.toString())
         }

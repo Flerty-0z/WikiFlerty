@@ -3004,6 +3004,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             if (v is android.webkit.WebView) {
                 val want = mySession == null
                 if (v.settings.offscreenPreRaster != want) v.settings.offscreenPreRaster = want
+                if (!v.settings.blockNetworkLoads) v.settings.blockNetworkLoads = true
                 return
             }
             if (v is android.view.ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
@@ -3109,6 +3110,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             if (v is android.webkit.WebView) {
                 val want = mySession == null
                 if (v.settings.offscreenPreRaster != want) v.settings.offscreenPreRaster = want
+                if (!v.settings.blockNetworkLoads) v.settings.blockNetworkLoads = true
                 return
             }
             if (v is android.view.ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
@@ -3898,7 +3900,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         feedAt = now
         val target = if (forward) base.copyWithLocations(progression = 0.0) else base.copyWithLocations(progression = 0.9999)
         val targetHref = link.url().toString().substringBefore('#')
-        if (settings.animation == PageAnimation.None || com.flerty.wikiflerty.ui.Motion.ms(100) == 0) {
+        if (!bookKit || settings.animation == PageAnimation.None || com.flerty.wikiflerty.ui.Motion.ms(100) == 0) {
             lifecycleScope.launch {
                 navigator.go(target, animated = false)
                 resyncListening(byTurn = true)

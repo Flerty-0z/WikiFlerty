@@ -58,6 +58,7 @@ class ReadiumServices(context: Context) {
 private const val BOOT = "<script>(function(){" +
     "var st=document.createElement('style');st.id='wf-boot';st.textContent='html{visibility:hidden !important}';" +
     "(document.head||document.documentElement).appendChild(st);" +
+    "var wr=document.createElement('style');wr.textContent='body{overflow-wrap:break-word;word-wrap:break-word}';(document.head||document.documentElement).appendChild(wr);" +
     "function show(){var h=document.getElementById('wf-boot');if(h){h.parentNode.removeChild(h);}}" +
     "setTimeout(show,1500);" +
     "document.addEventListener('DOMContentLoaded',function(){" +

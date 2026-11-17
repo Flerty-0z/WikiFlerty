@@ -241,6 +241,27 @@ class RichDoc(var title: String, var authors: List<String> = emptyList(), var la
         book.write(target)
     }
 
+    private fun tidyPara(p: Block.Para): Block.Para? {
+        val t = p.runs.plain
+        val bare = t.trim()
+        if (bare.length >= 40 && bare.none { it.isWhitespace() } && Regex("\\d{12,}").containsMatchIn(bare) && !bare.contains("://")) return null
+        val glued = Regex("(?<=[\\p{L}\\d])(Глава|Часть|Книга|Chapter|Part)[\\s\u00a0]?[0-9IVXLC]+").findAll(t).toList()
+        if (glued.size < 5) return p
+        val first = glued.first().range.first
+        val stop = t.substring(0, first).indexOfLast { it == '.' || it == '!' || it == '?' || it == '…' }
+        if (stop < 0) return null
+        val keep = stop + 1
+        val out = ArrayList<Run>()
+        var at = 0
+        for (r in p.runs) {
+            if (at >= keep) break
+            val take = minOf(r.text.length, keep - at)
+            out += r.with(text = r.text.substring(0, take))
+            at += r.text.length
+        }
+        return if (out.plain.isBlank()) null else Block.Para(out, p.align, p.quote)
+    }
+
     private fun linkNotes(list: MutableList<Block>) {
         if (list.any { b -> (b as? Block.Para)?.runs?.any { it.href != null } == true }) return
         val number = Regex("^[\\[(]?(\\d{1,4})[\\])]?$")
@@ -329,6 +350,7 @@ class RichDoc(var title: String, var authors: List<String> = emptyList(), var la
         src.forEach { b ->
             when (b) {
                 is Block.Para -> {
+                    val b = tidyPara(b) ?: return@forEach
                     val t = b.runs.plain.trim()
                     if (t.isEmpty()) return@forEach
                     if (Regex("^[*·•\\-–—~#\\s]{3,}$").matches(t) && t.count { !it.isWhitespace() } in 1..12) out += Block.Rule else out += b

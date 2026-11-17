@@ -154,7 +154,9 @@ class EpubBuilder(
 </container>
 """
 
-        private const val CSS = """h1, h2, h3, h4, h5, h6 { text-align: center; text-indent: 0; margin: 1.2em 0 0.8em; line-height: 1.3; }
+        private const val CSS = """html, body { overflow-wrap: break-word; word-wrap: break-word; }
+pre { white-space: pre-wrap; }
+h1, h2, h3, h4, h5, h6 { text-align: center; text-indent: 0; margin: 1.2em 0 0.8em; line-height: 1.3; }
 h1 { font-size: 1.5em; }
 h2 { font-size: 1.3em; }
 h3 { font-size: 1.15em; }
