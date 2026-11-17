@@ -37,7 +37,7 @@ def content(page):
     start = page.find("-->", start) + 3 if start >= 0 else 0
     end = page.find("<!-----", start)
     body = page[start:end if end > 0 else len(page)]
-    body = re.sub(r"(?is)<h4>.*?</h4>", " ", body)
+    body = re.sub(r"(?is)<h4>(?:(?!</h4>).)*?(Источник|Оригинал|OCR|Книга:|Изд|Собрание|Сочинения|http).*?</h4>", " ", body)
     body = re.sub(r"(?is)<script.*?</script>|<!--.*?-->|<form.*?</form>", " ", body)
     return body
 
@@ -59,14 +59,14 @@ class Blocks(HTMLParser):
     def handle_starttag(self, tag, attrs):
         if tag in ("p", "dd", "div", "br", "li", "tr", "blockquote", "center"):
             self.flush()
-        if tag in ("h1", "h2", "h3"):
+        if tag in ("h1", "h2", "h3", "h4", "h5"):
             self.flush()
             self.head += 1
         if tag in ("i", "em"):
             self.buf.append("\u0001")
 
     def handle_endtag(self, tag):
-        if tag in ("h1", "h2", "h3"):
+        if tag in ("h1", "h2", "h3", "h4", "h5"):
             self.flush()
             self.head = max(0, self.head - 1)
         elif tag in ("p", "div", "dd", "li", "center"):
@@ -214,7 +214,11 @@ def main():
             p = Blocks()
             p.feed(content(page))
             p.flush()
-            chaps = chapters(p.out)
+            blocks = p.out
+            while blocks and blocks[0][0] == "p" and re.search(r"https?://|//|\d{4}\s*--|Т\. \d|С\. \d|Книга:|Изд", blocks[0][1]):
+                blocks = blocks[1:]
+            blocks = [b for i, b in enumerate(blocks) if not (i < 8 and re.search(r"https?://", b[1]))]
+            chaps = chapters(blocks)
             if not chaps:
                 print("empty", title)
                 continue
