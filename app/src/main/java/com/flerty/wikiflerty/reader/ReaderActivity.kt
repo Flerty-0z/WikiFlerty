@@ -1197,7 +1197,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             },
             onGoTo = { note ->
                 ui.hideAll()
-                PdfLocators.toText(note.locator, pdfMap)?.let { navigator.go(it, animated = false) }
+                PdfLocators.toText(note.locator, pdfMap)?.let { aim(it); navigator.go(it, animated = false) }
             },
             onSelectionNote = {
                 val selection = ui.selection
@@ -1613,6 +1613,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         ui.sheet = null
         ui.panelsVisible = false
         endSelection()
+        aim(hit.locator)
         navigator.go(hit.locator, animated = false)
         lifecycleScope.launch {
             navigator.applyDecorations(
@@ -1880,7 +1881,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         onSettingsChange = { transform -> app.readerSettings.update(transform) },
                         onTocSelect = { item ->
                             val target = item.locator
-                            if (target != null) { aim(target); navigator.go(target, animated = false) } else navigator.go(item.link, animated = false)
+                            val dest = target ?: session.publication.locatorFromLink(item.link)
+                            if (dest != null) { aim(dest); navigator.go(dest, animated = false) } else navigator.go(item.link, animated = false)
                             resyncListening()
                         },
                         onBack = { finish() },
@@ -1909,6 +1911,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         onReturn = ::goReturn,
                         illustrations = art,
                         illustrationActions = illustrationActions,
+                        bookId = bookId,
                         onCoachDone = {
                             ui.coach = false
                             com.flerty.wikiflerty.ui.Tips.markReaderCoach(this@ReaderActivity)
@@ -2719,6 +2722,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 ui.hideAll()
                 if (locator != null) {
                     rememberReturn()
+                    aim(locator)
                     navigator.go(locator, animated = false)
                 }
             },
@@ -3099,9 +3103,32 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private var goTarget: org.readium.r2.shared.publication.Locator? = null
     private var goTargetAt = 0L
 
+    private var landJob: kotlinx.coroutines.Job? = null
+
+    private fun pageShown(): Boolean = (currentWebView() as? android.webkit.WebView)?.let { it.visibility == View.VISIBLE && it.alpha > 0.5f } == true
+
     private fun aim(target: org.readium.r2.shared.publication.Locator) {
         goTarget = target
         goTargetAt = SystemClock.uptimeMillis()
+        if (!::navigator.isInitialized) return
+        val href = target.href.toString().substringBefore('#')
+        if (navigator.currentLocator.value.href.toString().substringBefore('#') == href) return
+        landJob?.cancel()
+        landJob = lifecycleScope.launch {
+            for (attempt in 0..1) {
+                val arrived = kotlinx.coroutines.withTimeoutOrNull(if (attempt == 0) 1600L else 2000L) {
+                    navigator.currentLocator.first { it.href.toString().substringBefore('#') == href }
+                } != null
+                if (arrived) {
+                    if (pageShown()) return@launch
+                    delay(900)
+                    if (pageShown()) return@launch
+                }
+                if (goTarget !== target) return@launch
+                if (attempt == 0) navigator.go(target, animated = false)
+            }
+            if (goTarget === target && !isFinishing && SystemClock.uptimeMillis() - lastReboot > 20_000) reboot()
+        }
     }
 
     private fun preRasterPages() {
@@ -3826,6 +3853,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         ui.returnTo = null
         val target = if (back.locations.progression != null) back.copy(text = org.readium.r2.shared.publication.Locator.Text()) else back
         lifecycleScope.launch {
+            aim(target)
             navigator.go(target, animated = false)
             resyncListening()
         }
@@ -3899,6 +3927,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val base = pub.locatorFromLink(link) ?: return false
         feedAt = now
         val target = if (forward) base.copyWithLocations(progression = 0.0) else base.copyWithLocations(progression = 0.9999)
+        aim(target)
         val targetHref = link.url().toString().substringBefore('#')
         if (!bookKit || settings.animation == PageAnimation.None || com.flerty.wikiflerty.ui.Motion.ms(100) == 0) {
             lifecycleScope.launch {

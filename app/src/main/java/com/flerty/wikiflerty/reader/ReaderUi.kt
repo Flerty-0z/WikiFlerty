@@ -437,6 +437,7 @@ fun ReaderOverlay(
     onCoachDone: () -> Unit = {},
     illustrations: List<com.flerty.wikiflerty.data.Illustration> = emptyList(),
     illustrationActions: IllustrationActions? = null,
+    bookId: String = "",
 ) {
     val progressText = progressText(state, settings)
     val flagSpace = if (settings.showFlag && state.flagHeight > 0) {
@@ -592,6 +593,10 @@ fun ReaderOverlay(
             modifier = Modifier.align(Alignment.Center),
         ) {
             BrightnessHint(state.brightnessHint ?: 0)
+        }
+
+        if (bookId.isNotEmpty()) {
+            ReaderTimerChip(bookId, hidden = state.panelsVisible, modifier = Modifier.align(Alignment.TopCenter))
         }
 
         AnimatedVisibility(

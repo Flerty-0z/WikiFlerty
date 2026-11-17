@@ -25,6 +25,14 @@ class ReadingTimer(context: Context) {
     private val _watch = MutableStateFlow(load())
     val watch: StateFlow<ReadingWatch?> = _watch.asStateFlow()
 
+    private val _folded = MutableStateFlow(prefs.getBoolean("folded", false))
+    val folded: StateFlow<Boolean> = _folded.asStateFlow()
+
+    fun setFolded(value: Boolean) {
+        _folded.value = value
+        prefs.edit().putBoolean("folded", value).apply()
+    }
+
     private val _result = MutableStateFlow<ReadingSessionResult?>(null)
     val result: StateFlow<ReadingSessionResult?> = _result.asStateFlow()
 
