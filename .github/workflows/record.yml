@@ -9,7 +9,7 @@ on:
         default: "smoke"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   record:
@@ -77,3 +77,16 @@ jobs:
           name: footage
           path: footage/
           retention-days: 7
+
+      - name: Hand over footage
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -d footage ] || exit 0
+          zip -qr footage.zip footage
+          T="footage-${{ github.run_number }}"
+          gh release create "$T" footage.zip --draft --title "$T" --notes "" --target "${{ github.sha }}"
+          gh api "repos/${{ github.repository }}/releases?per_page=50" -q '.[] | select(.draft and (.tag_name | startswith("footage-"))) | .tag_name' | sort -t- -k2 -n | head -n -3 | while read -r old; do
+            gh release delete "$old" -y || true
+          done
