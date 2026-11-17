@@ -662,7 +662,7 @@ fun WikiFlertyTheme(content: @Composable () -> Unit) {
     ) {
         MaterialTheme(colorScheme = colors, typography = typography) {
             CompositionLocalProvider(
-                androidx.compose.foundation.LocalIndication provides KitIndication,
+                androidx.compose.foundation.LocalIndication provides NoRipple,
                 androidx.compose.material3.LocalRippleConfiguration provides null,
             ) {
                 KitTexture.Ticker()
@@ -670,6 +670,19 @@ fun WikiFlertyTheme(content: @Composable () -> Unit) {
             }
         }
     }
+}
+
+private object NoRipple : androidx.compose.foundation.IndicationNodeFactory {
+    override fun create(interactionSource: androidx.compose.foundation.interaction.InteractionSource): androidx.compose.ui.node.DelegatableNode =
+        object : androidx.compose.ui.Modifier.Node(), androidx.compose.ui.node.DrawModifierNode {
+            override fun androidx.compose.ui.graphics.drawscope.ContentDrawScope.draw() {
+                drawContent()
+            }
+        }
+
+    override fun equals(other: Any?): Boolean = other === this
+
+    override fun hashCode(): Int = 7
 }
 
 private fun Typography.withFont(family: androidx.compose.ui.text.font.FontFamily?): Typography {

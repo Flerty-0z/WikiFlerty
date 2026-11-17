@@ -238,8 +238,14 @@ class NeuralTts(
 
     private var cacheVoice: String? = null
 
+    private val piperMode get() = engineId == NeuralVoices.PIPER
+
+    private fun piperPitch(): Double = _settings.value.pitch.coerceIn(0.5, 2.0)
+
+    private fun piperSpeed(): Float = (_settings.value.speed.coerceIn(0.5, 3.0) / piperPitch()).toFloat().coerceIn(0.3f, 4f)
+
     private fun checkVoice() {
-        val v = app.readerSettings.settings.value.ttsVoice
+        val v = app.readerSettings.settings.value.ttsVoice + if (piperMode) "|" + String.format(java.util.Locale.US, "%.2f", piperSpeed()) else ""
         if (v != cacheVoice) {
             cacheVoice = v
             cache.clear()
@@ -327,7 +333,7 @@ class NeuralTts(
         }
         val lead = pcm.rate * 6 / 100
         val stamp = android.media.AudioTimestamp()
-        val speed = _settings.value.speed.coerceIn(0.5, 3.0)
+        val speed = if (piperMode) piperPitch() else _settings.value.speed.coerceIn(0.5, 3.0)
         val startHead = t.playbackHeadPosition.toLong() and 0xFFFFFFFFL
         t.play()
         var written = 0
@@ -432,6 +438,11 @@ class NeuralTts(
     private fun applyParams() {
         val t = track ?: return
         val s = _settings.value
+        if (piperMode) {
+            runCatching { t.playbackParams = PlaybackParams().setSpeed(1f).setPitch(1f) }
+            runCatching { t.playbackRate = (trackRate * piperPitch()).toInt().coerceIn(4000, 96000) }
+            return
+        }
         runCatching {
             t.playbackParams = PlaybackParams()
                 .setSpeed(s.speed.toFloat().coerceIn(0.5f, 3f))
@@ -468,7 +479,7 @@ class NeuralTts(
         val tts = PiperVoices.engine(app, voice) ?: throw NeuralException(
             if (!PiperVoices.supported()) "Офлайн-голоса не поддерживаются на этом телефоне" else "Голос не скачан. Скачай его в настройках чтения вслух",
         )
-        val audio = synchronized(piperLock) { tts.generate(text, 0, 1.0f) }
+        val audio = synchronized(piperLock) { tts.generate(text, 0, piperSpeed()) }
         val f = audio.samples
         val out = ShortArray(f.size) { i -> (f[i].coerceIn(-1f, 1f) * 32767f).toInt().toShort() }
         return Pcm(out, audio.sampleRate)

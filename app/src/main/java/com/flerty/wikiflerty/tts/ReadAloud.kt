@@ -130,10 +130,22 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
                 engineFailed -> Problem("Синтезатор речи телефона не запустился. Попробуй офлайн-нейроголос — он работает без него", openVoices = true)
                 failure != null && !empty -> Problem("Чтение вслух не запустилось: ${describe(failure)}. Пришли этот скрин в @F1erty0z")
                 hasText(publication, start) -> Problem("Не получилось подготовить текст к чтению. Пришли этот скрин в @F1erty0z" + (failure?.let { " (${describe(it)})" } ?: ""))
-                else -> Problem("Не нашёл текст для чтения на этой странице. Перелистни дальше и попробуй ещё раз")
+                else -> Problem("Не нашёл текст для чтения на этой странице. Перелистни дальше и попробуй ещё раз. Если не помогло — пришли этот скрин в @F1erty0z (${clue(publication, start)})")
             },
         )
         return null
+    }
+
+    private suspend fun clue(publication: Publication, start: Locator?): String = withContext(Dispatchers.IO) {
+        runCatching {
+            val name = start?.href?.toString()?.substringBefore('#')?.substringAfterLast('/')
+            val link = publication.readingOrder.firstOrNull { it.url().toString().substringAfterLast('/') == name } ?: publication.readingOrder.firstOrNull()
+            val type = link?.mediaType?.toString() ?: "нет типа"
+            val bytes = link?.let { publication.get(it)?.read()?.getOrNull() }
+            val text = bytes?.let { String(it, Charsets.UTF_8) }
+            val body = text?.substringAfter("<body", "")?.replace(Regex("<[^>]*>"), " ")?.replace(Regex("\\s+"), " ")?.trim()?.length ?: -1
+            "$type · ${bytes?.size ?: -1} Б · ${body} симв · ${publication.readingOrder.size} гл"
+        }.getOrElse { it.javaClass.simpleName }
     }
 
     private fun describe(e: Throwable): String {
@@ -237,6 +249,7 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
                     .distinctUntilChanged()
                     .collectLatest { playing ->
                         _listening.value = if (playing) bookId else null
+                        wake(playing)
                         if (!playing) return@collectLatest
                         since = android.os.SystemClock.elapsedRealtime()
                         try {
@@ -370,7 +383,20 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
 
     override fun onStopRequested() = stop()
 
+    private val wakeLock by lazy {
+        (app.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager)
+            .newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "WikiFlerty:ReadAloud")
+            .apply { setReferenceCounted(false) }
+    }
+
+    private fun wake(on: Boolean) {
+        runCatching {
+            if (on) wakeLock.acquire(6 * 60 * 60 * 1000L) else if (wakeLock.isHeld) wakeLock.release()
+        }
+    }
+
     fun stop() {
+        wake(false)
         sleepJob?.cancel()
         _sleep.value = null
         watchJob?.cancel()

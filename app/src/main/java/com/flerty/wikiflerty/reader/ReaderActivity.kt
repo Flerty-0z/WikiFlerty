@@ -2079,9 +2079,11 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 lastTtsWord = null
                 navigator.applyDecorations(emptyList(), TTS_GROUP)
                 navigator.applyDecorations(emptyList(), TTS_WORD_GROUP)
+                preRasterPages()
                 return@collectLatest
             }
             ui.ttsActive = true
+            preRasterPages()
             coroutineScope {
                 launch {
                     session.navigator.playback.collect { ui.ttsPlaying = it.playWhenReady }
@@ -2102,7 +2104,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         )
                         if (word != null && settings.ttsFollow) followWord(word)
                         if (sameLine) return@collect
-                        if (settings.ttsFollow && !turning && android.os.SystemClock.uptimeMillis() - manualTurnAt > 1500) navigator.go(locator, animated = false)
+                        if (settings.ttsFollow && !turning && android.os.SystemClock.uptimeMillis() - manualTurnAt > 1500) {
+                            navigator.go(locator, animated = false)
+                            refreshPages()
+                        }
                     }
                 }
             }
@@ -2120,6 +2125,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             val out = runCatching { navigator.evaluateJavascript(TTS_WORD_OUT_JS) }.getOrNull().orEmpty()
             if (!out.contains("out")) return@launch
             if (out.contains("next") && !settings.scroll) navigator.goForward(animated = false) else navigator.go(word, animated = false)
+            refreshPages()
         }
     }
 
@@ -2977,7 +2983,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
         fun walk(v: View) {
             if (v is android.webkit.WebView) {
-                if (!v.settings.offscreenPreRaster) v.settings.offscreenPreRaster = true
+                val want = mySession == null
+                if (v.settings.offscreenPreRaster != want) v.settings.offscreenPreRaster = want
                 return
             }
             if (v is android.view.ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
@@ -3081,12 +3088,27 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || !::bookArea.isInitialized) return
         fun walk(v: View) {
             if (v is android.webkit.WebView) {
-                if (!v.settings.offscreenPreRaster) v.settings.offscreenPreRaster = true
+                val want = mySession == null
+                if (v.settings.offscreenPreRaster != want) v.settings.offscreenPreRaster = want
                 return
             }
             if (v is android.view.ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
         }
         walk(bookArea)
+    }
+
+    private fun refreshPages() {
+        if (!::bookArea.isInitialized) return
+        bookArea.postDelayed({
+            fun walk(v: View) {
+                if (v is android.webkit.WebView) {
+                    v.invalidate()
+                    return
+                }
+                if (v is android.view.ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+            }
+            walk(bookArea)
+        }, 160)
     }
 
     private fun incoming(animation: PageAnimation, forward: Boolean) = when (animation) {
