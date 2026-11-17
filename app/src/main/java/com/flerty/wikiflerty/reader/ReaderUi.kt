@@ -113,6 +113,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -2153,9 +2154,47 @@ private fun FontList(
     modifier: Modifier,
 ) {
     val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    val pick = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        busy = true
+        scope.launch {
+            val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { UserFonts.add(context, uri) }
+            busy = false
+            result.onSuccess { e -> onSettingsChange { it.copy(font = e.id) } }
+                .onFailure { e -> android.widget.Toast.makeText(context, e.message?.takeIf { m -> m.any { it in 'а'..'я' } } ?: "Не удалось добавить шрифт", android.widget.Toast.LENGTH_SHORT).show() }
+        }
+    }
+    val ordered = remember(fonts) { fonts.filter { it.own } + fonts.filterNot { it.own } }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(fonts, key = { it.id }) { entry ->
+            item(key = "add-font") {
+                val shape = appCorner(14)
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) { if (!busy) pick.launch(arrayOf("*/*")) }
+                        .border(1.dp, AppColors.Accent.copy(alpha = 0.45f), shape)
+                        .background(AppColors.AccentTint, shape)
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(Modifier.size(34.dp).clip(appCorner(10)).background(AppColors.Accent.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+                        if (busy) {
+                            androidx.compose.material3.CircularProgressIndicator(color = AppColors.Accent, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                        } else {
+                            Icon(AppIcons.Plus, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Свой шрифт", color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text("Файл TTF или OTF — только для текста книги", color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+            items(ordered, key = { it.id }) { entry ->
                 Reveal {
                     val selected = settings.font == entry.id
                     val shape = appCorner(14)
@@ -2183,6 +2222,19 @@ private fun FontList(
                                 softWrap = false,
                                 autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 13.sp, stepSize = 0.25.sp),
                             )
+                        }
+                        if (entry.own) {
+                            Box(
+                                Modifier
+                                    .padding(start = 8.dp)
+                                    .size(32.dp)
+                                    .liveClick(CircleShape, sound = FeedbackSound.Trash, pressedScale = 0.88f) {
+                                        if (selected) onSettingsChange { it.copy(font = "literata") }
+                                        UserFonts.remove(context, entry)
+                                    }
+                                    .border(1.dp, AppColors.Line, CircleShape),
+                                contentAlignment = Alignment.Center,
+                            ) { Icon(AppIcons.Trash, "Удалить шрифт", tint = AppColors.Muted, modifier = Modifier.size(15.dp)) }
                         }
                         AnimatedVisibility(visible = selected, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
                             Box(

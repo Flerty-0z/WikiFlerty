@@ -17,6 +17,7 @@ import org.readium.r2.streamer.PublicationOpener
 import org.readium.r2.streamer.parser.DefaultPublicationParser
 
 class ReadiumServices(context: Context) {
+    private val appContext: Context = context.applicationContext
     private val httpClient = DefaultHttpClient()
 
     private val assetRetriever = AssetRetriever(
@@ -41,7 +42,7 @@ class ReadiumServices(context: Context) {
             asset,
             allowUserInteraction = false,
             onCreatePublication = {
-                container = TransformingContainer(container, ::boot)
+                container = UserFontsContainer(TransformingContainer(container, ::boot), appContext)
                 manifest = manifest.copy(readingOrder = manifest.readingOrder.map(::readable))
                 servicesBuilder.contentServiceFactory = org.readium.r2.shared.publication.services.content.DefaultContentService.createFactory(
                     listOf(com.flerty.wikiflerty.tts.SafeContent),
@@ -65,6 +66,23 @@ private const val BOOT = "<script>(function(){" +
     "try{var b=window.WikiFlertySelection;if(b){if(b.boot){(0,eval)(b.boot());}}}catch(e){}" +
     "show();});" +
     "})();</script>"
+
+private class UserFontsContainer(
+    private val inner: org.readium.r2.shared.util.data.Container<Resource>,
+    private val context: Context,
+) : org.readium.r2.shared.util.data.Container<Resource> {
+    override val entries: Set<Url> get() = inner.entries
+
+    override fun get(url: Url): Resource? {
+        val text = url.toString()
+        if (text.contains(UserFonts.PATH)) {
+            UserFonts.file(context, text)?.let { return org.readium.r2.shared.util.file.FileResource(it) }
+        }
+        return inner[url]
+    }
+
+    override fun close() = inner.close()
+}
 
 private fun boot(url: Url, resource: Resource): Resource {
     val path = url.toString().substringBefore('?').lowercase()

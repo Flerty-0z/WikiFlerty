@@ -9,6 +9,7 @@ enum class FontCategory(val title: String) {
     Serif("С засечками"),
     Sans("Без засечек"),
     Mono("Моно"),
+    Own("Свои"),
     Other("Другое"),
 }
 
@@ -21,7 +22,9 @@ data class FontEntry(
     val italic: String? = null,
     val bold: String? = null,
     val variable: Boolean = false,
+    val file: String? = null,
 ) {
+    val own: Boolean get() = file != null
     val bundled: Boolean get() = regular != null
     val supportsItalic: Boolean get() = italic != null
 
@@ -82,11 +85,12 @@ object FontCatalog {
                 italic = entry.italic?.takeIf { it in files },
                 bold = entry.bold?.takeIf { it in files },
             )
-        }.filter { it.regular == null || it.regular in files }
+        }.filter { it.regular == null || it.regular in files } + UserFonts.list(context)
     }
 
     fun find(fonts: List<FontEntry>, id: String): FontEntry =
         fonts.firstOrNull { it.id == id }
+            ?: UserFonts.entries.value.firstOrNull { it.id == id }
             ?: fonts.firstOrNull { it.id == DEFAULT_ID }
             ?: fonts.first { it.id == "serif" }
 
@@ -128,6 +132,11 @@ object FontCatalog {
     }
 
     fun preview(context: Context, entry: FontEntry): ComposeFontFamily {
+        entry.file?.let { path ->
+            return previewCache.getOrPut(path) {
+                runCatching { ComposeFontFamily(androidx.compose.ui.text.font.Typeface(Typeface.createFromFile(path))) }.getOrDefault(ComposeFontFamily.Serif)
+            }
+        }
         val file = entry.regular ?: return when (entry.id) {
             "sans" -> ComposeFontFamily.SansSerif
             "book" -> ComposeFontFamily.Default

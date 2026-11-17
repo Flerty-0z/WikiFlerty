@@ -793,9 +793,12 @@ private fun AddBookSheet(onDismiss: () -> Unit, onFile: () -> Unit, onScan: () -
             Text(
                 "EPUB · FB2 · MOBI · AZW3 · DOCX · RTF · TXT · PDF · CBZ",
                 color = AppColors.Faint,
-                fontSize = 11.sp,
-                letterSpacing = 1.sp,
-                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+                letterSpacing = 0.5.sp,
+                maxLines = 1,
+                softWrap = false,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 7.sp, maxFontSize = 11.sp, stepSize = 0.25.sp),
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
             )
         }
     }

@@ -118,7 +118,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private var inkTurns = 0
     private val ui = ReaderUiState()
     private lateinit var navigator: EpubNavigatorFragment
-    private lateinit var fonts: List<FontEntry>
+    private val fontState = androidx.compose.runtime.mutableStateOf<List<FontEntry>>(emptyList())
+    private var fonts: List<FontEntry>
+        get() = fontState.value
+        set(value) { fontState.value = value }
     private lateinit var bookArea: View
     private lateinit var snapshot: ImageView
     private lateinit var curl: PageCurlView
@@ -842,9 +845,28 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     @Volatile private var bootScript: String = ""
 
+    private fun userFontsJs(): String {
+        val css = UserFonts.css(this, "__ORIGIN__")
+        return "(function(){var id='wf-user-fonts';var o=document.getElementById(id);if(o)o.remove();var c=${org.json.JSONObject.quote(css)};if(!c)return;" +
+            "var s=document.createElement('style');s.id=id;s.textContent=c.split('__ORIGIN__').join(location.origin);(document.head||document.documentElement).appendChild(s);})();"
+    }
+
+    private fun injectUserFonts() {
+        if (!::bookArea.isInitialized) return
+        val js = userFontsJs()
+        fun walk(v: View) {
+            if (v is android.webkit.WebView) {
+                runCatching { v.evaluateJavascript(js, null) }
+                return
+            }
+            if (v is android.view.ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+        }
+        walk(bookArea)
+    }
+
     private fun refreshBoot() {
         bootScript = runCatching {
-            selectionScript + "\n;window.__wfBionic && window.__wfBionic(${settings.bionic});\n" + kitCall() + ";\n" + TextSelection.peopleCall(peopleNow, wordsShown())
+            userFontsJs() + "\n;" + selectionScript + "\n;window.__wfBionic && window.__wfBionic(${settings.bionic});\n" + kitCall() + ";\n" + TextSelection.peopleCall(peopleNow, wordsShown())
         }.getOrDefault("")
     }
 
@@ -1705,6 +1727,15 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
 
         fonts = FontCatalog.available(this)
+        lifecycleScope.launch {
+            UserFonts.entries.collect { own ->
+                if (fonts.filter { it.own }.map { it.id } == own.map { it.id }) return@collect
+                fonts = FontCatalog.available(this@ReaderActivity)
+                refreshBoot()
+                injectUserFonts()
+                if (::navigator.isInitialized) navigator.submitPreferences(settings.toEpubPreferences(fonts))
+            }
+        }
         publication = session.publication
         bookId = session.bookId
         if (app.library.books.value.firstOrNull { it.id == bookId }?.pdfText == true) {
@@ -2202,6 +2233,19 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     "${android.graphics.Color.blue(accent)}, 0.38)",
             ),
         )
+        fonts.filter { it.own && it.css != null }.forEach { entry ->
+            val name = java.io.File(entry.file!!).name
+            val url = org.readium.r2.shared.util.AbsoluteUrl("https://readium_package/${UserFonts.PATH}$name")
+            if (url != null) {
+                addFontFamilyDeclaration(org.readium.r2.navigator.preferences.FontFamily(entry.css!!)) {
+                    addFontFace {
+                        addSource(url)
+                        setFontStyle(FontStyle.NORMAL)
+                        setFontWeight(100..900)
+                    }
+                }
+            }
+        }
         fonts.filter { it.bundled && it.css != null }.forEach { entry ->
             val regular = "fonts/${entry.regular}"
             val italic = entry.italic?.let { "fonts/$it" }
@@ -2465,6 +2509,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private fun quoteTypeface(): android.graphics.Typeface? {
         val entry = FontCatalog.find(fonts, settings.font)
+        entry.file?.let { path -> return runCatching { android.graphics.Typeface.createFromFile(path) }.getOrNull() }
         val file = entry.regular ?: return if (entry.id == "sans") android.graphics.Typeface.SANS_SERIF else android.graphics.Typeface.SERIF
         return runCatching { android.graphics.Typeface.createFromAsset(assets, "fonts/$file") }.getOrNull()
     }
