@@ -16,10 +16,7 @@ android {
         targetSdk = 37
         versionCode = buildNumber
         versionName = "0.1.${publicNumber ?: buildNumber}"
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
-
-    testBuildType = "studio"
 
     val releaseKeystore = file("release.keystore")
     signingConfigs {
@@ -116,8 +113,4 @@ dependencies {
     implementation("org.apache.commons:commons-compress:1.27.1")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
-
-    androidTestImplementation("androidx.test:runner:1.7.0")
-    androidTestImplementation("androidx.test:core:1.7.0")
-    androidTestImplementation("androidx.test.ext:junit:1.3.0")
 }

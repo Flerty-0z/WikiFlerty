@@ -1,4 +1,4 @@
-package com.flerty.wikiflerty.studio
+package com.flerty.filmer
 
 import android.app.UiAutomation
 import android.os.Build
@@ -20,7 +20,7 @@ class Film {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val self = instrumentation.context
     private val ua: UiAutomation = instrumentation.getUiAutomation(UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES)
-    private val pkg = self.packageName.removeSuffix(".test")
+    private val pkg = "com.flerty.wikiflerty.studio"
     private val out = "/sdcard/wf"
     private val appDir = "/sdcard/Android/data/$pkg/files/wf"
     private val local = File(self.getExternalFilesDir(null), "wf").apply { mkdirs() }

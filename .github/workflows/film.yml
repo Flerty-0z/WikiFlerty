@@ -55,7 +55,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
           set -o pipefail
-          ./gradlew assembleStudio assembleStudioAndroidTest -Puniversal --stacktrace 2>&1 | tee build.log
+          ./gradlew :app:assembleStudio -Puniversal :filmer:assembleDebug :filmer:assembleDebugAndroidTest --stacktrace 2>&1 | tee build.log
           find app/build/outputs/apk -name "*.apk" | sort
 
       - name: Report build errors
@@ -93,8 +93,9 @@ jobs:
         run: |
           APP=$(find app/build/outputs/apk/studio -name "*universal*.apk" | head -1)
           [ -z "$APP" ] && APP=$(find app/build/outputs/apk/studio -name "*.apk" | head -1)
-          TEST=$(find app/build/outputs/apk/androidTest -name "*.apk" | head -1)
-          echo "app=$APP test=$TEST"
+          FILMER=$(find filmer/build/outputs/apk/debug -name "*.apk" | head -1)
+          TEST=$(find filmer/build/outputs/apk/androidTest -name "*.apk" | head -1)
+          echo "app=$APP filmer=$FILMER test=$TEST"
           gcloud firebase test android models list --format=json > models.json
           if [ -z "$DEVICE" ]; then
             DEVICE=$(python3 tools/film/pick.py models.json "$FORM")
@@ -104,7 +105,8 @@ jobs:
           set +e
           gcloud firebase test android run \
             --type instrumentation \
-            --app "$APP" --test "$TEST" \
+            --app "$FILMER" --test "$TEST" \
+            --additional-apks "$APP" \
             --device "model=$M,version=$V,locale=ru,orientation=portrait" \
             --environment-variables "scene=$SCENE" \
             --directories-to-pull /sdcard/wf \
