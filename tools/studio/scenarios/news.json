@@ -17,7 +17,7 @@
    "do": "wait",
    "text": "Моя полка",
    "timeout": 8000,
-   "after": 2600,
+   "after": 6500,
    "mark": "intro"
   },
   {
