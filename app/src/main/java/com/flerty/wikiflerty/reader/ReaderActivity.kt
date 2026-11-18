@@ -2263,7 +2263,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         lastTtsHighlight = locator
                         lastTtsWord = word
                         val strength = settings.ttsStrength.toFloat()
-                        if (!sameLine) navigator.applyDecorations(listOf(Decoration("tts", locator, TtsMark(settings.ttsColor.toInt(), strength, false))), TTS_GROUP)
+                        if (!sameLine) {
+                            com.flerty.wikiflerty.tts.ReadAloud.trace?.invoke("mark ${location.utterance.take(40)}")
+                            navigator.applyDecorations(listOf(Decoration("tts", locator, TtsMark(settings.ttsColor.toInt(), strength, false))), TTS_GROUP)
+                        }
                         navigator.applyDecorations(
                             listOfNotNull(word?.let { Decoration("tts-word", it, TtsMark(wordTint.toInt(), if (wordTint == 0L) 0f else (strength + 0.12f).coerceAtMost(0.95f), wordTint != 0L)) }),
                             TTS_WORD_GROUP,

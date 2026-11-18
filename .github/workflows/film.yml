@@ -140,7 +140,7 @@ jobs:
         run: |
           for f in $(find results -name film.log) $(find results -name screen.txt); do echo "=== $f"; cat "$f"; done
           for f in $(find results -name marks.json); do echo "=== $f"; python3 tools/film/summary.py "$f"; done
-          for f in $(find results -name "logcat*"); do echo "=== $f"; grep -E "WFStudio|FATAL|AndroidRuntime" "$f" | head -150; done
+          for f in $(find results -name "logcat*"); do echo "=== $f"; grep -E "WFStudio|FATAL|AndroidRuntime" "$f" | head -2000; done
 
       - name: Hand over
         if: ${{ always() && (!inputs.reuse || inputs.source != '') }}

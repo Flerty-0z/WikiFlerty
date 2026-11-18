@@ -241,6 +241,11 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
     private fun watch(navigator: AndroidTtsNavigator, bookId: String) {
         watchJob?.cancel()
         watchJob = scope.launch {
+            trace?.let { log ->
+                launch {
+                    navigator.location.map { it.utterance.take(50) }.distinctUntilChanged().collect { log("say ${if (_seeking.value) "~" else ""}$it") }
+                }
+            }
             launch {
                 navigator.playback.collect { playback ->
                     when (val state = playback.state as? TtsNavigator.State) {
