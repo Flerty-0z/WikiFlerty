@@ -110,7 +110,7 @@ jobs:
             --directories-to-pull /sdcard/wf \
             --results-dir "film-${{ github.run_number }}" \
             --timeout 25m \
-            --record-video \
+            --no-record-video \
             --no-performance-metrics 2>&1 | tee run.log
           code=${PIPESTATUS[0]}
           set -e
