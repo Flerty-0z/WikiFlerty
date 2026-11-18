@@ -758,20 +758,48 @@ internal object TextSelection {
           window.__wfSentenceAt = function (fx, fy) {
             if (!document.caretRangeFromPoint || !document.body) return "";
             var x = fx * window.innerWidth, y = fy * window.innerHeight;
-            var r = document.caretRangeFromPoint(x, y);
-            if (!r) return "";
-            var n = r.startContainer;
-            if (!n || n.nodeType !== 3 || !/\S/.test(n.data)) return "";
-            var host = n.parentElement;
-            if (!host || host.closest("a[href], script, style, img, svg")) return "";
-            var probe = document.createRange();
-            probe.selectNodeContents(n);
-            var rects = probe.getClientRects(), hit = false;
-            for (var i = 0; i < rects.length; i++) {
-              var b = rects[i];
-              if (x >= b.left - 8 && x <= b.right + 8 && y >= b.top - 6 && y <= b.bottom + 6) { hit = true; break; }
+            var blocks = "p, li, dd, dt, blockquote, h1, h2, h3, h4, h5, h6, td, th, figcaption, pre, div";
+            var at = function (px, py) {
+              var c = document.caretRangeFromPoint(px, py);
+              if (!c) return null;
+              var t = c.startContainer;
+              if (!t || t.nodeType !== 3 || !/\S/.test(t.data)) return null;
+              var h = t.parentElement;
+              if (!h || h.closest("script, style, img, svg")) return null;
+              var pr = document.createRange();
+              pr.selectNodeContents(t);
+              var rs = pr.getClientRects();
+              for (var i = 0; i < rs.length; i++) {
+                var b = rs[i];
+                if (py >= b.top - 1 && py <= b.bottom + 1 && px >= b.left - 10 && px <= b.right + 10) return { r: c, n: t, host: h, link: !!h.closest("a[href]") };
+              }
+              return null;
+            };
+            var tail = function (py) {
+              var el = document.elementFromPoint(x, py);
+              var bl = el && el.closest ? el.closest(blocks) : null;
+              if (!bl) return null;
+              var pr = document.createRange();
+              pr.selectNodeContents(bl);
+              var rs = pr.getClientRects(), best = null;
+              for (var i = 0; i < rs.length; i++) {
+                var b = rs[i];
+                if (b.width > 0 && py >= b.top - 1 && py <= b.bottom + 1 && b.right < x && (!best || b.right > best.right)) best = b;
+              }
+              return best ? at(best.right - 2, (best.top + best.bottom) / 2) : null;
+            };
+            var steps = [0, -3, 3, -6, 6, -9, 9, -12, 12, -15, 15], hit = null;
+            for (var k = 0; k < steps.length && !hit; k++) {
+              var c = at(x, y + steps[k]);
+              if (c && c.link) { if (k === 0) return ""; c = null; }
+              hit = c;
+            }
+            for (var k = 0; k < steps.length && !hit; k++) {
+              var c = tail(y + steps[k]);
+              if (c && !c.link) hit = c;
             }
             if (!hit) return "";
+            var r = hit.r, n = hit.n, host = hit.host;
             var block = host.closest("p, li, dd, dt, blockquote, h1, h2, h3, h4, h5, h6, td, th, figcaption, pre, div") || document.body;
             var pre = document.createRange();
             pre.setStart(block, 0);
