@@ -565,6 +565,8 @@ class Reel:
         cbox = None
         pcenter = None
         zoomed = False
+        prev_small, still = None, 0
+        self.longest = 0
         last = (None, 0.0)
         for i in range(n):
             t = i / FPS
@@ -597,6 +599,14 @@ class Reel:
                 self.events.append(("zoom", self.clock + t))
             layer = self.text_layer(items, t, dur)
             self.tags_layer(layer, placed, t, dur)
+            if cur is not None:
+                small = np.asarray(cur.resize((36, 80)).convert("L"), dtype=np.int16)
+                if prev_small is not None and np.abs(small - prev_small).mean() < 0.6:
+                    still += 1
+                    self.longest = max(self.longest, still)
+                else:
+                    still = 0
+                prev_small = small
             pop = 0.955 + 0.045 * back_ease(t / 0.3) if beat.get("pop", True) else 1.0
             yield self.compose(ph, layer, self.clock + t, pop)
         for j in range(len(placed)):
@@ -657,6 +667,7 @@ def main():
     if skipped:
         print("skipped (step failed):", skipped)
     files = []
+    qa = []
     timeline = []
     t = 0.0
     for k, b in enumerate(beats, 1):
@@ -668,6 +679,8 @@ def main():
             dur = max(dur, lead + probe(vp) / plan.get("voice_tempo", 1.0) + tail)
         if not b.get("card") and not b.get("stretch"):
             natural = Cuts(footage, b).length
+            if dur - natural > 1.5:
+                print(f"QA: голос «{b.get('title')}» длиннее действия на {dur - natural:.1f}s", flush=True)
             if natural > dur:
                 dur = min(natural, dur * 1.35)
         timeline.append((k, b, t, dur, lead))
@@ -687,6 +700,11 @@ def main():
         n = encode(name, gen)
         files.append(name)
         print(f"beat {k} {b.get('title')} {dur:.2f}s frames={n}", flush=True)
+        if not b.get("card") and getattr(reel, "longest", 0) / FPS > plan.get("max_still", 2.5):
+            warn = f"QA: «{b.get('title')}» стоит на месте {reel.longest / FPS:.1f}s"
+            print(warn, flush=True)
+            qa.append(warn)
+        reel.longest = 0
     if only:
         return
     lst = os.path.join(work, "beats.txt")
@@ -763,6 +781,9 @@ def main():
         run(["ffmpeg", "-v", "error", "-y", *inputs, "-filter_complex", ";".join(filters), "-map", "0:v", "-map", "[aout]",
              "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "-shortest", a.out])
     print("done", a.out, f"{total:.1f}s", "beats", len(beats))
+    open(os.path.join(work, "qa.txt"), "w").write("\n".join(qa))
+    if qa:
+        print("QA warnings:", len(qa))
 
 
 if __name__ == "__main__":

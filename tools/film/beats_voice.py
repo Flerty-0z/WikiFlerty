@@ -49,19 +49,61 @@ if plan.get("sfx_source") == "elevenlabs":
 if not plan.get("voice"):
     print("voice off")
     sys.exit(0)
+def clean(src, dst):
+    import subprocess
+    import numpy as np
+    pcm = subprocess.run(["ffmpeg", "-v", "error", "-i", src, "-ac", "1", "-ar", "16000", "-f", "s16le", "-"], capture_output=True).stdout
+    a = np.frombuffer(pcm, np.int16).astype(float) / 32768
+    w = 160
+    rms = np.array([np.sqrt((a[i:i + w] ** 2).mean()) for i in range(0, len(a) - w, w)])
+    loud = rms > 10 ** (-38 / 20)
+    runs, cur = [], None
+    for i, v in enumerate(loud):
+        if v and cur is None:
+            cur = i
+        if not v and cur is not None:
+            runs.append([cur, i])
+            cur = None
+    if cur is not None:
+        runs.append([cur, len(loud)])
+    merged = []
+    for r in runs:
+        if merged and r[0] - merged[-1][1] < 25:
+            merged[-1][1] = r[1]
+        else:
+            merged.append(r)
+    while len(merged) > 1 and merged[0][1] - merged[0][0] < 30 and merged[1][0] - merged[0][1] >= 25:
+        print("  cut leading fragment", (merged[0][1] - merged[0][0]) * 10, "ms")
+        merged.pop(0)
+    while len(merged) > 1 and merged[-1][1] - merged[-1][0] < 35 and merged[-1][0] - merged[-2][1] >= 25:
+        print("  cut trailing fragment", (merged[-1][1] - merged[-1][0]) * 10, "ms")
+        merged.pop()
+    if not merged:
+        shutil.copy(src, dst)
+        return
+    start = max(0, merged[0][0] * 0.01 - 0.06)
+    end = merged[-1][1] * 0.01 + 0.18
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", src, "-ss", f"{start:.3f}", "-to", f"{end:.3f}", "-af", "afade=t=out:st=%.3f:d=0.08" % max(0, end - start - 0.08), "-b:a", "128k", dst], check=True)
+
+
 said = [(k, b["say"]) for k, b in enumerate(plan["beats"], 1) if b.get("say")]
 for n, (k, text) in enumerate(said):
     prev = said[n - 1][1] if n else ""
     nxt = said[n + 1][1] if n + 1 < len(said) else ""
-    h = hashlib.sha1(f"{voice_id}|{model}|{prev}|{text}|{nxt}".encode()).hexdigest()[:16]
+    ctx = f"{prev}|{text}|{nxt}" if plan.get("voice_context") else f"solo|{text}"
+    h = hashlib.sha1(f"{voice_id}|{model}|{ctx}".encode()).hexdigest()[:16]
     cached = os.path.join(out, f"voice_{h}.mp3")
     if not os.path.exists(cached):
         body = {"text": text, "model_id": model, "voice_settings": {"stability": 0.45, "similarity_boost": 0.8, "style": 0.35, "use_speaker_boost": True}}
-        if prev:
-            body["previous_text"] = prev
-        if nxt:
-            body["next_text"] = nxt
-        open(cached, "wb").write(call(f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?output_format=mp3_44100_128", body))
+        if plan.get("voice_context"):
+            if prev:
+                body["previous_text"] = prev
+            if nxt:
+                body["next_text"] = nxt
+        raw = cached + ".raw.mp3"
+        open(raw, "wb").write(call(f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?output_format=mp3_44100_128", body))
+        clean(raw, cached)
+        os.remove(raw)
         print("new", k, text)
     else:
         print("cached", k)
