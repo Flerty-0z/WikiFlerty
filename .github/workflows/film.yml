@@ -189,7 +189,7 @@ jobs:
           ls -la out
           python3 -c "import json,sys; p=json.load(open(sys.argv[1])); open('caption.txt','w').write(p.get('caption',''))" "$PLAN"
           gh release delete film-video --cleanup-tag -y --repo "${{ github.repository }}" 2>/dev/null || true
-          gh release create film-video out/* --draft --title "Video ${{ github.run_number }}" --notes "" --repo "${{ github.repository }}"
+          gh release create film-video out/*.mp4 $(ls out/*.zip 2>/dev/null) --draft --title "Video ${{ github.run_number }}" --notes "" --repo "${{ github.repository }}"
 
       - name: Telegram
         if: ${{ steps.montage.outcome == 'success' && inputs.send }}

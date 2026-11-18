@@ -252,10 +252,11 @@ class StudioDriver : AccessibilityService() {
                 }
                 if (!click(sub(folder, 4000))) return false
                 delay(1300)
-                if (!click(sub("Использовать эту папку|Use this folder|USE THIS FOLDER|Выбрать эту папку", 4000))) return false
+                if (!click(sub("Использовать эту папку|Use this folder|Выбрать эту папку", 4000, exact = true))) return false
+                delay(1500)
+                click(sub("Разрешить|Allow", 4000, exact = true))
                 delay(1200)
-                click(sub("Разрешить|Allow|ALLOW", 4000))
-                true
+                find(sub("Использовать эту папку|Use this folder", 600, exact = true)) == null
             }
             "back" -> {
                 performGlobalAction(GLOBAL_ACTION_BACK)
@@ -336,8 +337,8 @@ class StudioDriver : AccessibilityService() {
         return tap(r.exactCenterX(), r.exactCenterY(), 70)
     }
 
-    private fun sub(text: String, timeout: Long, desc: Boolean = false) =
-        Step(org.json.JSONObject().put("text", text).put("timeout", timeout).put("desc", desc).put("textonly", !desc))
+    private fun sub(text: String, timeout: Long, desc: Boolean = false, exact: Boolean = false) =
+        Step(org.json.JSONObject().put("text", text).put("timeout", timeout).put("desc", desc).put("textonly", !desc).put("exact", exact))
 
     private suspend fun home(): Boolean {
         val shelf = sub("Моя полка", 900)
