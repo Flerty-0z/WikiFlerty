@@ -48,19 +48,19 @@ private fun backOut(t: Float): Float {
     return 1f + (c + 1f) * u * u * u + c * u * u
 }
 
-private class Twig(val a: Offset, val b: Offset, val start: Float, val end: Float, val width: Float, val depth: Int)
+private class FrostTwig(val a: Offset, val b: Offset, val start: Float, val end: Float, val width: Float, val depth: Int)
 
-private class Flake(val c: Offset, val r: Float, val turn: Float, val at: Float, val glint: Float)
+private class FrostFlake(val c: Offset, val r: Float, val turn: Float, val at: Float, val glint: Float)
 
-private class Drop(val x: Float, val at: Float, val r: Float, val speed: Float, val wobble: Float)
+private class MeltDrop(val x: Float, val at: Float, val r: Float, val speed: Float, val wobble: Float)
 
-private class Ray(val angle: Float, val length: Float, val width: Float, val delay: Float)
+private class BloomRay(val angle: Float, val length: Float, val width: Float, val delay: Float)
 
-private class Star(val angle: Float, val distance: Float, val size: Float, val delay: Float, val color: Int, val twinkle: Float)
+private class BloomStar(val angle: Float, val distance: Float, val size: Float, val delay: Float, val color: Int, val twinkle: Float)
 
-private class Glitter(val x: Float, val delay: Float, val fall: Float, val sway: Float, val size: Float, val color: Int)
+private class BloomGlitter(val x: Float, val delay: Float, val fall: Float, val sway: Float, val size: Float, val color: Int)
 
-private fun growTwigs(out: MutableList<Twig>, r: Random, from: Offset, angle: Float, length: Float, t0: Float, speed: Float, depth: Int, unit: Float) {
+private fun growTwigs(out: MutableList<FrostTwig>, r: Random, from: Offset, angle: Float, length: Float, t0: Float, speed: Float, depth: Int, unit: Float) {
     var at = from
     var dir = angle
     var t = t0
@@ -70,7 +70,7 @@ private fun growTwigs(out: MutableList<Twig>, r: Random, from: Offset, angle: Fl
         dir += (r.nextFloat() - 0.5f) * 0.32f
         val next = Offset(at.x + cos(dir) * piece, at.y + sin(dir) * piece)
         val dt = piece / speed
-        out += Twig(at, next, t, t + dt, (if (depth == 0) 1.5f else if (depth == 1) 1.05f else 0.75f) * unit, depth)
+        out += FrostTwig(at, next, t, t + dt, (if (depth == 0) 1.5f else if (depth == 1) 1.05f else 0.75f) * unit, depth)
         if (depth < 2) {
             val side = if ((k + depth) % 2 == 0) 1f else -1f
             val branch = PI.toFloat() / 3f
@@ -119,9 +119,9 @@ private fun cardPath(size: Size, radius: Float): Path = Path().apply {
     addRoundRect(RoundRect(0f, 0f, size.width, size.height, CornerRadius(radius, radius)))
 }
 
-private fun frostField(seed: Int, size: Size, unit: Float, core: Offset): List<Twig> {
+private fun frostField(seed: Int, size: Size, unit: Float, core: Offset): List<FrostTwig> {
     val r = Random(seed)
-    val out = ArrayList<Twig>()
+    val out = ArrayList<FrostTwig>()
     val h = size.height
     val reach = (h * 0.95f).coerceAtMost(size.width * 0.4f)
     val speed = reach / 0.45f
@@ -152,7 +152,7 @@ fun Modifier.frostBloom(trigger: Int, ice: Color, cornerDp: Float, core: Offset 
         val twigs = frostField(trigger * 41 + 9, size, unit, coreAt)
         val r = Random(trigger * 7 + 3)
         val flakes = List(9) {
-            Flake(
+            FrostFlake(
                 Offset(size.width * (0.12f + r.nextFloat() * 0.8f), size.height * (0.15f + r.nextFloat() * 0.7f)),
                 (5f + r.nextFloat() * 7f) * unit,
                 r.nextFloat() * 60f,
@@ -232,7 +232,7 @@ fun Modifier.thawMelt(trigger: Int, ice: Color, warm: Color, cornerDp: Float, co
         val twigs = frostField(trigger * 53 + 17, size, unit, coreAt)
         val r = Random(trigger * 11 + 5)
         val drops = List(11) {
-            Drop(
+            MeltDrop(
                 size.width * (0.08f + r.nextFloat() * 0.84f),
                 0.12f + r.nextFloat() * 0.45f,
                 (2.2f + r.nextFloat() * 2.2f) * unit,
@@ -314,11 +314,11 @@ fun Modifier.victoryBloom(trigger: Int, colors: List<Color>, reachDp: Float = 13
     val unit = LocalDensity.current.density
     return drawWithCache {
         val r = Random(trigger * 29 + 13)
-        val rays = List(14) { k -> Ray(k * 2f * PI.toFloat() / 14f + r.nextFloat() * 0.2f, 0.6f + r.nextFloat() * 0.5f, 0.05f + r.nextFloat() * 0.05f, r.nextFloat() * 0.12f) }
+        val rays = List(14) { k -> BloomRay(k * 2f * PI.toFloat() / 14f + r.nextFloat() * 0.2f, 0.6f + r.nextFloat() * 0.5f, 0.05f + r.nextFloat() * 0.05f, r.nextFloat() * 0.12f) }
         val stars = List(16) { k ->
-            Star(k * 2f * PI.toFloat() / 16f + (r.nextFloat() - 0.5f) * 0.35f, 0.45f + r.nextFloat() * 0.6f, 0.7f + r.nextFloat() * 0.8f, r.nextFloat() * 0.15f, r.nextInt(colors.size), r.nextFloat() * 6.28f)
+            BloomStar(k * 2f * PI.toFloat() / 16f + (r.nextFloat() - 0.5f) * 0.35f, 0.45f + r.nextFloat() * 0.6f, 0.7f + r.nextFloat() * 0.8f, r.nextFloat() * 0.15f, r.nextInt(colors.size), r.nextFloat() * 6.28f)
         }
-        val glitter = List(26) { Glitter(r.nextFloat() * 2f - 1f, 0.2f + r.nextFloat() * 0.35f, 0.5f + r.nextFloat() * 0.6f, r.nextFloat() * 6.28f, 0.6f + r.nextFloat() * 0.8f, r.nextInt(colors.size)) }
+        val glitter = List(26) { BloomGlitter(r.nextFloat() * 2f - 1f, 0.2f + r.nextFloat() * 0.35f, 0.5f + r.nextFloat() * 0.6f, r.nextFloat() * 6.28f, 0.6f + r.nextFloat() * 0.8f, r.nextInt(colors.size)) }
         val reach = reachDp * unit
         val pill = cardPath(size, size.height / 2f)
         onDrawWithContent {
