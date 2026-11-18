@@ -19,6 +19,10 @@ on:
         description: "Монтировать прошлую съёмку без новой"
         type: boolean
         default: false
+      send:
+        description: "Отправить в Telegram"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -143,7 +147,7 @@ jobs:
 
       - name: Montage
         id: montage
-        if: ${{ inputs.plan != '' && (inputs.reuse || steps.shoot.outputs.code == '0') }}
+        if: ${{ inputs.plan != '' && (inputs.reuse || steps.shoot.outcome == 'success') }}
         env:
           GH_TOKEN: ${{ github.token }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
@@ -176,7 +180,7 @@ jobs:
           gh release create film-video out/* --draft --title "Video ${{ github.run_number }}" --notes "" --repo "${{ github.repository }}"
 
       - name: Telegram
-        if: ${{ steps.montage.outcome == 'success' }}
+        if: ${{ steps.montage.outcome == 'success' && inputs.send }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         run: |
