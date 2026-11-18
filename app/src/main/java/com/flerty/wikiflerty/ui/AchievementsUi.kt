@@ -58,6 +58,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
@@ -671,15 +673,19 @@ private fun ShowcaseMedal(
     val earned = earnedAt != null
     val style = medalStyle(achievement.kind)
     val enter = remember(achievement.id) { Animatable(if (Motion.enabled && achievement.id !in revealed) 0f else 1f) }
-    LaunchedEffect(achievement.id) {
-        if (enter.value >= 1f) return@LaunchedEffect
+    var onScreen by remember(achievement.id) { mutableStateOf(enter.value >= 1f) }
+    val host = LocalView.current
+    var lead by remember(achievement.id) { mutableStateOf(0L) }
+    LaunchedEffect(achievement.id, onScreen) {
+        if (!onScreen || enter.value >= 1f) return@LaunchedEffect
         revealed += achievement.id
-        delay(order.coerceAtMost(6) * 45L)
+        delay(lead)
         enter.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.62f, stiffness = 380f))
     }
     var bloom by remember(achievement.id) { androidx.compose.runtime.mutableIntStateOf(0) }
     if (fresh) {
-        LaunchedEffect(achievement.id) {
+        LaunchedEffect(achievement.id, onScreen) {
+            if (!onScreen) return@LaunchedEffect
             delay(450L + order.coerceAtMost(6) * 140L)
             bloom++
         }
@@ -689,6 +695,16 @@ private fun ShowcaseMedal(
     Column(
         Modifier
             .width(74.dp)
+            .onGloballyPositioned { c ->
+                if (onScreen) return@onGloballyPositioned
+                val r = c.boundsInWindow()
+                val w = host.rootView.width.coerceAtLeast(1)
+                val h = host.rootView.height.coerceAtLeast(1)
+                if (r.width > 1f && r.height > 1f && r.bottom > 0f && r.top < h && r.right > 0f && r.left < w) {
+                    lead = ((r.left / w) * 5).toLong().coerceIn(0, 5) * 55L
+                    onScreen = true
+                }
+            }
             .graphicsLayer {
                 val k = enter.value
                 alpha = k.coerceIn(0f, 1f)

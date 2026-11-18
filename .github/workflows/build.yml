@@ -120,7 +120,7 @@ jobs:
             fi
             gh release create "v0.1.$N" "out/WikiFlerty-0.1.$N-x64.apk" "out/WikiFlerty-0.1.$N-x32.apk" \
               --title "WikiFlerty 0.1.$N" \
-              --notes "" \
+              --notes-file tools/release/announce.txt \
               --latest \
               --target "${{ github.sha }}"
           else
@@ -132,3 +132,17 @@ jobs:
               --latest=false \
               --target "${{ github.sha }}"
           fi
+
+      - name: Announce in Telegram
+        if: ${{ !inputs.store && inputs.public }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          [ -n "$TELEGRAM_BOT_TOKEN" ] || { echo "no bot"; exit 0; }
+          mkdir -p tg
+          kid=$(gh api "repos/$REPO/releases?per_page=100" -q '[.[] | select(.tag_name=="film-kit")][0].assets[0].id' || true)
+          if [ -n "$kid" ]; then gh api -H "Accept: application/octet-stream" "repos/$REPO/releases/assets/$kid" > kit.zip && unzip -oq kit.zip chat.txt -d tg || true; fi
+          python3 tools/release/announce.py tg/chat.txt "0.1.${{ inputs.public }}" tools/release/announce.txt
