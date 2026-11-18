@@ -736,6 +736,25 @@ internal object TextSelection {
             if (r.width < 48 || r.height < 48) return "";
             return JSON.stringify({ src: src, l: r.left / w, t: r.top / h, w: r.width / w, h: r.height / h });
           };
+          function selectorOf(el) {
+            var parts = [];
+            var skip = /^(wf-|readium)/;
+            while (el && el.nodeType === 1 && el !== document.body && el !== document.documentElement) {
+              if (el.id && !skip.test(el.id) && /^[A-Za-z][A-Za-z0-9_-]*$/.test(el.id)) {
+                parts.unshift("#" + el.id);
+                return parts.join(" > ");
+              }
+              var k = 1, sib = el.previousElementSibling;
+              while (sib) {
+                if (sib.tagName === el.tagName && !(sib.id && skip.test(sib.id))) k++;
+                sib = sib.previousElementSibling;
+              }
+              parts.unshift(el.tagName.toLowerCase() + ":nth-of-type(" + k + ")");
+              el = el.parentElement;
+            }
+            parts.unshift("body");
+            return parts.join(" > ");
+          }
           window.__wfSentenceAt = function (fx, fy) {
             if (!document.caretRangeFromPoint || !document.body) return "";
             var x = fx * window.innerWidth, y = fy * window.innerHeight;
@@ -761,15 +780,17 @@ internal object TextSelection {
             var text = block.textContent || "";
             var head = text.slice(0, off);
             var m = head.match(/^[\s\S]*[.!?\u2026][\u00BB"\u201D)\]]*\s+/);
-            var out = text.slice(m ? m[0].length : 0);
-            var next = block.nextElementSibling;
-            while (out.length < 200 && next) {
-              out += " " + (next.textContent || "");
-              next = next.nextElementSibling;
-            }
-            return out.replace(/\s+/g, " ").trim().slice(0, 200);
+            var out = text.slice(m ? m[0].length : 0).replace(/\s+/g, " ").trim().slice(0, 200);
+            if (out.length < 2) return "";
+            var all = document.body.textContent || "";
+            var lead = document.createRange();
+            lead.setStart(document.body, 0);
+            lead.setEndBefore(block);
+            var prog = all.length ? Math.min(1, lead.toString().length / all.length) : 0;
+            return JSON.stringify({ text: out, sel: block === document.body ? "" : selectorOf(block), prog: prog });
           };
           window.addEventListener("click", function (e) {
+            if (document.getElementById("wf-comic")) return;
             var sel = window.getSelection ? String(window.getSelection() || "") : "";
             if (sel.length) return;
             var src = pick(e.target);

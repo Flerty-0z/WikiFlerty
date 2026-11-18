@@ -284,7 +284,15 @@ private fun WatchResult(app: App, book: Book, result: ReadingSessionResult, onDo
         shine++
         feedback?.play(FeedbackSound.Success, view)
     }
-    Box(Modifier.sparkBurst(shine, listOf(AppColors.Good, AppColors.Accent, StarYellow), count = 16, reach = 0.8f)) {
+    val pop = rememberPop(shine)
+    Box(
+        Modifier
+            .graphicsLayer {
+                scaleX = pop.value
+                scaleY = pop.value
+            }
+            .victoryBloom(shine, listOf(AppColors.Good, StarYellow, AppColors.Accent, Color.White)),
+    ) {
         StatePill("Итог сеанса", AppColors.Good)
     }
     StatPanel(

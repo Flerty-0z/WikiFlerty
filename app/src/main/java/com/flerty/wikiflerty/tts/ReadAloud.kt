@@ -325,7 +325,7 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
 
     private var goJob: Job? = null
 
-    fun go(locator: Locator, snippet: String? = null, play: Boolean = false) {
+    fun go(locator: Locator, snippet: String? = null, play: Boolean = false, near: Boolean = false, fallback: Locator? = null) {
         val navigator = _session.value?.navigator ?: return
         goJob?.cancel()
         goJob = scope.launch {
@@ -333,7 +333,12 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
             if (playing) navigator.pause()
             navigator.go(locator)
             withTimeoutOrNull(600) { navigator.location.drop(1).first() }
-            align(navigator, snippet, locator)
+            val found = align(navigator, snippet, locator, if (near) 80 else 2000)
+            if (!found && fallback != null && !snippet.isNullOrBlank()) {
+                navigator.go(fallback)
+                withTimeoutOrNull(600) { navigator.location.drop(1).first() }
+                align(navigator, snippet, fallback)
+            }
             if (playing) navigator.play()
         }
     }
@@ -358,22 +363,24 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
     private fun place(href: String): String =
         android.net.Uri.decode(href.substringBefore('#').substringBefore('?')).trimStart('/')
 
-    private suspend fun align(navigator: AndroidTtsNavigator, snippet: String?, start: Locator?) {
-        val target = start ?: return
+    private suspend fun align(navigator: AndroidTtsNavigator, snippet: String?, start: Locator?, limit: Int = 2000): Boolean {
+        val target = start ?: return false
         val home = place(target.href.toString())
         val page = snippet?.let { squash(it).take(48) }?.takeIf { it.length >= 8 }
-        if (enter(navigator, home, page) || page == null) return
+        if (enter(navigator, home, page, limit)) return true
+        if (page == null) return false
         navigator.go(target)
         withTimeoutOrNull(600) { navigator.location.drop(1).first() }
-        enter(navigator, home, null)
+        enter(navigator, home, null, limit)
+        return false
     }
 
-    private suspend fun enter(navigator: AndroidTtsNavigator, home: String, page: String?): Boolean {
+    private suspend fun enter(navigator: AndroidTtsNavigator, home: String, page: String?, limit: Int = 2000): Boolean {
         val homeIndex = order.indexOf(home)
         val deadline = android.os.SystemClock.uptimeMillis() + 4000
         var steps = 0
         var inside = false
-        while (steps < 2000 && android.os.SystemClock.uptimeMillis() < deadline) {
+        while (steps < limit && android.os.SystemClock.uptimeMillis() < deadline) {
             val now = navigator.location.value
             val here = place(now.utteranceLocator.href.toString())
             if (here == home) {

@@ -110,13 +110,20 @@ fun StreakCard(perDay: Map<LocalDate, DayEntry>, today: LocalDate) {
     val lit = current > 0 && Motion.enabled
 
     Column(
-        Modifier.fillMaxWidth().snowfall(snow, IceColor).thawDrops(thaw, IceColor).fieldSurface(shape).padding(16.dp),
+        Modifier.fillMaxWidth().frostBloom(snow, IceColor, 20f * AppStyle.corners).snowfall(snow, IceColor, count = 12, durationMs = 2800).thawMelt(thaw, IceColor, AppColors.Accent, 20f * AppStyle.corners).fieldSurface(shape).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            val pop = rememberPop(snow + thaw)
             Box(
                 Modifier
                     .size(50.dp)
+                    .graphicsLayer {
+                        val k = pop.value
+                        scaleX = k
+                        scaleY = k
+                        rotationZ = (1f - k) * -70f
+                    }
                     .drawBehind {
                         if (lit) {
                             val w = (kotlin.math.sin(flicker * 2f * Math.PI.toFloat()) + 1f) / 2f

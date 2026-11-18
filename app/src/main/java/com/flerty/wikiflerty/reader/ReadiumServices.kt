@@ -68,12 +68,13 @@ private const val BOOT = "<script>(function(){" +
     "})();</script>"
 
 private const val COMIC = "<style id='wf-comic'>" +
-    "html:root:not(#wf-z){--RS__pageGutter:0px!important;--USER__pageMargins:0!important;--RS__maxLineLength:100vw!important}" +
-    "html:root:not(#wf-z) body{margin:0!important;padding:0!important;max-width:none!important;width:auto!important}" +
+    "html:root:not(#wf-z){--RS__pageGutter:14px!important;--USER__pageMargins:1!important;--RS__maxLineLength:100vw!important}" +
+    "html:root:not(#wf-z) body{max-width:none!important;width:auto!important}" +
     "html:root:not(#wf-z) body div.page{margin:0!important;padding:0!important}" +
-    "html:root:not(#wf-z) body div.page img{max-width:100%!important;max-height:calc(100vh - 12px)!important;width:auto;height:auto;object-fit:contain}" +
+    "html:root:not(#wf-z) body div.page img{max-width:100%!important;max-height:calc(100vh - 64px)!important;width:auto;height:auto;object-fit:contain}" +
     "html:root:not(#wf-z)[style*='readium-scroll-on'] body div.page{margin:0 0 4px!important}" +
     "html:root:not(#wf-z)[style*='readium-scroll-on'] body div.page img{width:100%!important;max-height:none!important;height:auto!important}" +
+    "html:root:not(#wf-z)[style*='readium-scroll-on'] body{padding-top:28px!important;padding-bottom:28px!important}" +
     "</style>"
 
 private class UserFontsContainer(
