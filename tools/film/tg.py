@@ -41,6 +41,16 @@ for k, v in (("chat_id", chat), ("caption", caption[:1000]), ("supports_streamin
 parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"video\"; filename=\"{os.path.basename(video)}\"\r\nContent-Type: video/mp4\r\n\r\n".encode())
 parts.append(open(video, "rb").read())
 parts.append(f"\r\n--{boundary}--\r\n".encode())
-req = urllib.request.Request(api + "sendVideo", data=b"".join(parts), headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
-with urllib.request.urlopen(req, timeout=600) as r:
-    print("sent", json.loads(r.read()).get("ok"))
+import time
+body = b"".join(parts)
+for attempt in range(4):
+    try:
+        req = urllib.request.Request(api + "sendVideo", data=body, headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+        with urllib.request.urlopen(req, timeout=900) as r:
+            print("sent", json.loads(r.read()).get("ok"))
+        break
+    except Exception as e:
+        print("retry", attempt + 1, e)
+        time.sleep(20 * (attempt + 1))
+else:
+    sys.exit("не отправилось")
