@@ -319,6 +319,7 @@ class Warp:
             r = min(rates) if rates else gap
             self.segs.append([x, y, r])
         self.scale = 1.0
+        self.extend = beat.get("extend", "end")
 
     @property
     def length(self):
@@ -329,9 +330,14 @@ class Warp:
             return
         tries = 0
         while self.length < dur * 0.8 and tries < 20:
-            x, y, r = self.segs[-1]
-            self.segs.append([y, y + 0.35, 1.0])
-            self.t1 = y + 0.35
+            if self.extend == "start":
+                x, y, r = self.segs[0]
+                self.segs.insert(0, [x - 0.35, x, 1.0])
+                self.t0 = x - 0.35
+            else:
+                x, y, r = self.segs[-1]
+                self.segs.append([y, y + 0.35, 1.0])
+                self.t1 = y + 0.35
             tries += 1
         self.scale *= self.length / dur
 
