@@ -64,13 +64,26 @@ object Studio {
         val kd = book("Капитанская дочка") ?: return
         app.dictionary.add("ментор", "Наставник и воспитатель: тот, кто учит, опекает и даёт советы.", "Другого ментора я и не желал.", kd.id, kd.title, null)
         app.dictionary.add("недоросль", "Дворянский юноша, ещё не поступивший на службу; в шутку — недоучка.", "Я жил недорослем, гоняя голубей.", kd.id, kd.title, null)
+        app.dictionary.add("борзой", "Порода охотничьих собак: быстрые, поджарые, с узкой мордой.", "мог очень здраво судить о свойствах борзого кобеля", kd.id, kd.title, null)
+        app.dictionary.add("надзор", "Присмотр и наблюдение за кем-то, контроль.", "Под его надзором на двенадцатом году выучился я русской грамоте", kd.id, kd.title, null)
         val sav = app.characters.save(kd.id, null, "Савельич", "Дядька Петруши, верный слуга семьи Гринёвых")
         app.characters.edit(sav.id) { it.copy(role = "Слуга и дядька Петра Гринёва", aliases = listOf("Архип Савельич", "дядька")) }
         val bop = app.characters.save(kd.id, null, "Бопре", "Француз-гувернёр, бывший парикмахер и солдат")
         app.characters.edit(bop.id) { it.copy(role = "Учитель Петруши", aliases = listOf("мусье", "француз")) }
     }
 
+    fun calm(app: App) {
+        val now = System.currentTimeMillis()
+        app.achievements.merge(JSONObject().apply { com.flerty.wikiflerty.data.Achievements.all.forEach { put(it.id, now) } })
+        while (true) {
+            val q = app.achievements.queue.value
+            if (q.isEmpty()) break
+            app.achievements.dismiss(q.first().id, q.size)
+        }
+    }
+
     fun quiet(context: Context) {
+        runCatching { calm(context.applicationContext as App) }
         Tips.markTour(context)
         Tips.markReaderCoach(context)
         Tips.markRelease(context, NewsRelease)

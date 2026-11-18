@@ -241,10 +241,14 @@ class StudioDriver : AccessibilityService() {
                 val folder = step.text ?: "WikiFlerty Studio"
                 delay(1200)
                 if (find(sub(folder, 1500)) == null) {
-                    if (find(sub("Загрузки|Downloads|Скачанные", 800)) == null) click(sub("Показать корневые папки|Show roots", 2500, desc = true))
-                    delay(900)
-                    click(sub("Загрузки|Downloads|Скачанные", 3000))
-                    delay(1300)
+                    if (find(sub("Download", 1200)) == null) {
+                        if (find(sub("Загрузки|Скачанные", 800)) == null) click(sub("Показать корневые папки|Show roots", 2500, desc = true))
+                        delay(900)
+                        click(sub("Загрузки|Скачанные|Downloads", 3000))
+                    } else {
+                        click(sub("Download", 1500))
+                    }
+                    delay(1500)
                 }
                 if (!click(sub(folder, 4000))) return false
                 delay(1300)

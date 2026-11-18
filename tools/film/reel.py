@@ -280,6 +280,22 @@ def place_tags(imgs, y0, maxw=980):
     return out
 
 
+def find_color(img, hexcolor, tol=38):
+    c = np.array([int(hexcolor[i:i + 2], 16) for i in (1, 3, 5)])
+    a = np.asarray(img).astype(int)
+    h = a.shape[0]
+    m = (np.abs(a - c).sum(axis=2) < tol)
+    m[: int(h * 0.04)] = False
+    m[int(h * 0.94):] = False
+    ys, xs = np.nonzero(m)
+    if len(xs) < 6:
+        return None
+    order = np.argsort(ys)
+    y0 = ys[order[0]]
+    sel = np.abs(ys - y0) < 40
+    return float(np.median(xs[sel])), float(np.median(ys[sel]))
+
+
 class Warp:
     def __init__(self, f, beat):
         a, b = f.idx(beat["from"]), f.idx(beat["to"])
@@ -311,6 +327,12 @@ class Warp:
     def fit(self, dur):
         if self.length <= 0:
             return
+        tries = 0
+        while self.length < dur * 0.8 and tries < 20:
+            x, y, r = self.segs[-1]
+            self.segs.append([y, y + 0.35, 1.0])
+            self.t1 = y + 0.35
+            tries += 1
         self.scale *= self.length / dur
 
     def src(self, o):
@@ -393,6 +415,15 @@ class Reel:
         y = min(max(cy - h / 2, 0), f.ph - h)
         return img.crop((int(x), int(y), int(x + w), int(y + h))).resize((PW, f.ph), Image.BICUBIC)
 
+    def zoom_at(self, img, c, z):
+        if z <= 1.001:
+            return img
+        h = self.f.ph
+        w2, h2 = PW / z, h / z
+        x = min(max(c[0] - w2 / 2, 0), PW - w2)
+        y = min(max(c[1] - h2 / 2, 0), h - h2)
+        return img.crop((int(x), int(y), int(x + w2), int(y + h2))).resize((PW, h), Image.BICUBIC)
+
     def compose(self, phone, layer, t_global):
         frame = (self.bg if phone is not None else self.plain).copy()
         if phone is not None:
@@ -419,6 +450,8 @@ class Reel:
         n = int(round(dur * FPS))
         cur = None
         ft = w.t0 - 1 / FPS
+        color = beat.get("zoom_color")
+        cbox = None
         for i in range(n):
             t = i / FPS
             st = w.src(t)
@@ -432,6 +465,12 @@ class Reel:
             if ph is not None and zrect:
                 k = ease((st - (za - 0.4)) / 0.4) * (1 - ease((st - zb) / 0.4))
                 ph = self.zoom(ph, zrect, k)
+            if ph is not None and color:
+                if cbox is None and t >= beat.get("color_at", 0.3):
+                    cbox = find_color(ph, color) or (PW / 2, f.ph / 2)
+                if cbox is not None:
+                    k = ease((t - beat.get("color_at", 0.3)) / 0.6)
+                    ph = self.zoom_at(ph, cbox, 1 + (beat.get("zoom_k", 2.0) - 1) * k)
             layer = self.text_layer(items, t, dur)
             self.tags_layer(layer, placed, t, dur)
             yield self.compose(ph, layer, self.clock + t)

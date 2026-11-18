@@ -414,16 +414,16 @@
   },
   {
    "do": "back",
-   "after": 1000
+   "after": 1600,
+   "mark": "sheet2"
   },
   {
    "do": "tap",
-   "text": "Шрифт",
+   "text": "Текст",
    "exact": true,
-   "desc": true,
    "timeout": 4000,
    "after": 1800,
-   "mark": "sheet2"
+   "mark": "sheet3"
   },
   {
    "do": "tap",
@@ -794,7 +794,8 @@
    "text": "Новогодняя сказка",
    "timeout": 4000,
    "after": 2400,
-   "mark": "ny"
+   "mark": "ny",
+   "optional": true
   },
   {
    "do": "back",

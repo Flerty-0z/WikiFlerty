@@ -1,0 +1,349 @@
+{
+ "voice": false,
+ "latency": 0.3,
+ "caption": "WikiFlerty — что нового: новые форматы, комиксы, автоимпорт, серии, теги, свой шрифт и многое другое.\n\n#читалка #книги #android #booktok",
+ "beats": [
+  {
+   "title": "WIKIFLERTY",
+   "hl": [
+    "WIKIFLERTY"
+   ],
+   "kicker": "что нового",
+   "from": "intro",
+   "to": "intro",
+   "pad": [
+    0.2,
+    2.2
+   ],
+   "dur": 2.4,
+   "size": 150
+  },
+  {
+   "kicker": "теперь открываются",
+   "title": "НОВЫЕ ФОРМАТЫ",
+   "hl": [
+    "ФОРМАТЫ"
+   ],
+   "from": "mobi",
+   "to": "mobitoc",
+   "slow": [
+    "mobitoc"
+   ],
+   "tags": [
+    "MOBI",
+    "AZW3",
+    "DOCX",
+    "ODT",
+    "RTF"
+   ],
+   "dur": 3.8
+  },
+  {
+   "kicker": "из документов",
+   "title": "СНОСКИ",
+   "hl": [
+    "СНОСКИ"
+   ],
+   "from": "note",
+   "to": "note",
+   "pad": [
+    0.4,
+    2.2
+   ],
+   "slow": [
+    "note"
+   ],
+   "dur": 3.0
+  },
+  {
+   "kicker": "архив с Флибусты?",
+   "title": "ПРОСТО ОТКРОЙ",
+   "hl": [
+    "ОТКРОЙ"
+   ],
+   "from": "comic",
+   "to": "comic",
+   "pad": [
+    0.3,
+    1.8
+   ],
+   "tags": [
+    "название",
+    "автор",
+    "серия"
+   ],
+   "dur": 3.2
+  },
+  {
+   "kicker": "CBZ и CBR",
+   "title": "КОМИКСЫ",
+   "hl": [
+    "КОМИКСЫ"
+   ],
+   "from": "comicpages",
+   "to": "comicpages",
+   "dur": 3.0
+  },
+  {
+   "kicker": "или сплошной",
+   "title": "ЛЕНТОЙ",
+   "hl": [
+    "ЛЕНТОЙ"
+   ],
+   "from": "flip",
+   "to": "feedscroll",
+   "slow": [
+    "feedscroll"
+   ],
+   "dur": 3.8
+  },
+  {
+   "kicker": "выбери папку —",
+   "title": "АВТОИМПОРТ",
+   "hl": [
+    "АВТОИМПОРТ"
+   ],
+   "from": "auto",
+   "to": "autodone",
+   "dur": 4.2,
+   "tags": [
+    "книги добавятся сами"
+   ]
+  },
+  {
+   "kicker": "книги без полки",
+   "title": "ПО 6 НА ПОЛКЕ",
+   "hl": [
+    "6"
+   ],
+   "from": "shelves",
+   "to": "shelves+3",
+   "dur": 3.2
+  },
+  {
+   "kicker": "расставляй сам",
+   "title": "БЕЗ СОРТИРОВКИ",
+   "hl": [
+    "СОРТИРОВКИ"
+   ],
+   "from": "sort",
+   "to": "drag",
+   "slow": [
+    "drag"
+   ],
+   "dur": 4.2
+  },
+  {
+   "kicker": "открывается как настоящая",
+   "title": "КНИГА В 3D",
+   "hl": [
+    "3D"
+   ],
+   "from": "kd",
+   "to": "open3d",
+   "slow": [
+    "open3d"
+   ],
+   "dur": 3.6
+  },
+  {
+   "kicker": "у окон и панелей",
+   "title": "ФАКТУРА ШАБЛОНОВ",
+   "hl": [
+    "ФАКТУРА"
+   ],
+   "from": "clay",
+   "to": "news",
+   "tags": [
+    "пластилин",
+    "подводный мир",
+    "газета"
+   ],
+   "dur": 4.4
+  },
+  {
+   "kicker": "нажми на полку —",
+   "title": "СЕРИИ",
+   "hl": [
+    "СЕРИИ"
+   ],
+   "from": "series",
+   "to": "seriesswipe+1",
+   "tags": [
+    "тома каруселью"
+   ],
+   "dur": 3.8
+  },
+  {
+   "kicker": "всё на одной странице",
+   "title": "ТЕГИ",
+   "hl": [
+    "ТЕГИ"
+   ],
+   "from": "tags",
+   "to": "tag2",
+   "dur": 3.4
+  },
+  {
+   "kicker": "если не нравится",
+   "title": "УБРАТЬ ОБЛОЖКУ",
+   "hl": [
+    "ОБЛОЖКУ"
+   ],
+   "from": "edit",
+   "to": "saved",
+   "slow": [
+    "nocover"
+   ],
+   "dur": 3.6
+  },
+  {
+   "kicker": "прямо из карточки",
+   "title": "ПОДЕЛИТЬСЯ ФАЙЛОМ",
+   "hl": [
+    "ФАЙЛОМ"
+   ],
+   "from": "share",
+   "to": "share",
+   "pad": [
+    0.4,
+    2.0
+   ],
+   "dur": 2.8
+  },
+  {
+   "kicker": "выдели текст —",
+   "title": "СЛУШАТЬ ОТСЮДА",
+   "hl": [
+    "ОТСЮДА"
+   ],
+   "from": "select",
+   "to": "listen",
+   "pad": [
+    0.3,
+    1.2
+   ],
+   "dur": 3.8
+  },
+  {
+   "kicker": "голос ведёт по тексту",
+   "title": "ПОДСВЕТКА СЛОВА",
+   "hl": [
+    "СЛОВА"
+   ],
+   "from": "listen",
+   "to": "listen",
+   "pad": [
+    -1.6,
+    5.6
+   ],
+   "gap": 1.0,
+   "dur": 3.4
+  },
+  {
+   "kicker": "если оглавления нет",
+   "title": "НАЙТИ ГЛАВЫ",
+   "hl": [
+    "ГЛАВЫ"
+   ],
+   "from": "rtftoc",
+   "to": "findtoc",
+   "slow": [
+    "findtoc"
+   ],
+   "dur": 3.8
+  },
+  {
+   "kicker": "флажок узнаёт прозвища",
+   "title": "ДРУГИЕ ИМЕНА",
+   "hl": [
+    "ИМЕНА"
+   ],
+   "from": "people",
+   "to": "profilescroll",
+   "tags": [
+    "мусье",
+    "француз"
+   ],
+   "dur": 4.0
+  },
+  {
+   "kicker": "слова из словаря",
+   "title": "ПРЯМО В КНИГЕ",
+   "hl": [
+    "КНИГЕ"
+   ],
+   "from": "marks",
+   "to": "marks",
+   "pad": [
+    0.0,
+    2.6
+   ],
+   "zoom_color": "#E5484D",
+   "zoom_k": 1.9,
+   "dur": 3.2
+  },
+  {
+   "kicker": "TTF или OTF",
+   "title": "СВОЙ ШРИФТ",
+   "hl": [
+    "ШРИФТ"
+   ],
+   "from": "ownfont",
+   "to": "lobsterpage",
+   "slow": [
+    "lobsterpage"
+   ],
+   "dur": 4.0
+  },
+  {
+   "kicker": "пауза и «спрятать за край»",
+   "title": "ТАЙМЕР В КНИГЕ",
+   "hl": [
+    "ТАЙМЕР"
+   ],
+   "from": "fold",
+   "to": "unfold",
+   "dur": 3.4
+  },
+  {
+   "kicker": "без пустоты",
+   "title": "ШТОРКИ ПО РАЗМЕРУ",
+   "hl": [
+    "РАЗМЕРУ"
+   ],
+   "from": "sheet1",
+   "to": "sheet3",
+   "dur": 3.4
+  },
+  {
+   "kicker": "на всех устройствах",
+   "title": "СИНХРОНИЗАЦИЯ",
+   "hl": [
+    "СИНХРОНИЗАЦИЯ"
+   ],
+   "from": "sync",
+   "to": "sync",
+   "pad": [
+    0.3,
+    2.2
+   ],
+   "tags": [
+    "переносится всё"
+   ],
+   "dur": 3.0
+  },
+  {
+   "card": true,
+   "title": "WIKIFLERTY",
+   "hl": [
+    "WIKIFLERTY"
+   ],
+   "kicker": "пиши, что добавить дальше",
+   "sub": "читалка для Android",
+   "dur": 3.2,
+   "fade_out": false,
+   "size": 170
+  }
+ ]
+}
