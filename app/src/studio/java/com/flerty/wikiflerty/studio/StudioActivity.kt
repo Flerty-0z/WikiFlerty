@@ -146,13 +146,23 @@ class StudioActivity : ComponentActivity() {
                 }
                 books to files
             }
+            quiet()
             getSharedPreferences("studio", MODE_PRIVATE).edit().putBoolean("prepared", true).apply()
             prepared = true
             status = "Готово: книг ${result.first}, файлов ${result.second} (в «Загрузки / WikiFlerty Studio»)"
         }
     }
 
+    private fun quiet() {
+        val tips = this
+        com.flerty.wikiflerty.ui.Tips.markTour(tips)
+        com.flerty.wikiflerty.ui.Tips.markReaderCoach(tips)
+        com.flerty.wikiflerty.ui.Tips.markRelease(tips, com.flerty.wikiflerty.ui.NewsRelease)
+        com.flerty.wikiflerty.ui.Tips.markVersion(tips, com.flerty.wikiflerty.ui.Tips.versionCode(tips))
+    }
+
     private fun start(scenario: Scenario) {
+        quiet()
         if (!StudioDriver.enabled(this) || StudioDriver.instance == null) {
             status = "Сначала включи службу сценариев"
             openAccessibility()

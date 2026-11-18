@@ -128,6 +128,30 @@ class StudioDriver : AccessibilityService() {
                 }
                 findOnce(step) != null
             }
+            "show" -> {
+                repeat(4) {
+                    if (findOnce(step) != null) return true
+                    tap(step.x * w, step.y * h, 70)
+                    val end = SystemClock.uptimeMillis() + 2500
+                    while (SystemClock.uptimeMillis() < end) {
+                        if (findOnce(step) != null) return true
+                        delay(250)
+                    }
+                }
+                false
+            }
+            "hide" -> {
+                repeat(4) {
+                    if (findOnce(step) == null) return true
+                    tap(step.x * w, step.y * h, 70)
+                    delay(1500)
+                }
+                findOnce(step) == null
+            }
+            "backIf" -> {
+                if (find(step) != null) performGlobalAction(GLOBAL_ACTION_BACK)
+                true
+            }
             "pick" -> {
                 val target = Step(org.json.JSONObject().put("text", step.text).put("timeout", 3500))
                 if (find(target) == null) {
