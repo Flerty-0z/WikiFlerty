@@ -71,7 +71,12 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
             try {
                 val navigator = open(publication, start, settings) ?: return@launch
                 order = publication.readingOrder.map { place(it.url().toString()) }
-                align(navigator, snippet, start)
+                _seeking.value = true
+                try {
+                    align(navigator, snippet, start)
+                } finally {
+                    _seeking.value = false
+                }
                 _session.value = ReadAloudSession(bookId, navigator)
                 app.achievements.event("tts")
                 app.startService(Intent(app, ReadAloudService::class.java))
@@ -326,21 +331,33 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
 
     private var goJob: Job? = null
 
+    private val _seeking = MutableStateFlow(false)
+    val seeking: StateFlow<Boolean> = _seeking.asStateFlow()
+
+    private suspend fun jump(navigator: AndroidTtsNavigator, locator: Locator) {
+        val before = navigator.location.value
+        navigator.go(locator)
+        withTimeoutOrNull(1500) { navigator.location.first { it != before } }
+    }
+
     fun go(locator: Locator, snippet: String? = null, play: Boolean = false, near: Boolean = false, fallback: Locator? = null) {
         val navigator = _session.value?.navigator ?: return
         goJob?.cancel()
         goJob = scope.launch {
             val playing = navigator.playback.value.playWhenReady || play
-            if (playing) navigator.pause()
-            navigator.go(locator)
-            withTimeoutOrNull(600) { navigator.location.drop(1).first() }
-            val found = align(navigator, snippet, locator, if (near) 80 else 2000)
-            if (!found && fallback != null && !snippet.isNullOrBlank()) {
-                navigator.go(fallback)
-                withTimeoutOrNull(600) { navigator.location.drop(1).first() }
-                align(navigator, snippet, fallback)
+            _seeking.value = true
+            try {
+                if (playing) navigator.pause()
+                jump(navigator, locator)
+                val found = align(navigator, snippet, locator, if (near) 80 else 2000)
+                if (!found && fallback != null && !snippet.isNullOrBlank()) {
+                    jump(navigator, fallback)
+                    align(navigator, snippet, fallback)
+                }
+            } finally {
+                _seeking.value = false
+                if (playing) navigator.play()
             }
-            if (playing) navigator.play()
         }
     }
 
@@ -370,8 +387,7 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
         val page = snippet?.let { squash(it).take(48) }?.takeIf { it.length >= 8 }
         if (enter(navigator, home, page, limit)) return true
         if (page == null) return false
-        navigator.go(target)
-        withTimeoutOrNull(600) { navigator.location.drop(1).first() }
+        jump(navigator, target)
         enter(navigator, home, null, limit)
         return false
     }

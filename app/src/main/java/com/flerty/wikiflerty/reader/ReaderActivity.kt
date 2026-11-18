@@ -2251,7 +2251,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     session.navigator.playback.collect { ui.ttsPlaying = it.playWhenReady }
                 }
                 launch {
-                    session.navigator.location.collect { location ->
+                    kotlinx.coroutines.flow.combine(session.navigator.location, app.readAloud.seeking) { l, busy -> l to busy }.collect { (location, busy) ->
+                        if (busy) return@collect
                         val locator = location.utteranceLocator
                         val wordTint = settings.ttsWordColor
                         val word = location.tokenLocator
