@@ -1740,7 +1740,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 val width = navigator.publicationView.width.toFloat()
                 if (s.edgeTaps && !s.scroll && width > 0f && (x < width * s.edgeZone || x > width * (1 - s.edgeZone))) return plainTap(x)
                 lifecycleScope.launch {
-                    val spot = sentenceAt(x, y)
+                    val spot = sentenceAt(x, y) ?: run {
+                        kotlinx.coroutines.delay(140)
+                        sentenceAt(x, y)
+                    }
                     if (spot == null) {
                         com.flerty.wikiflerty.tts.ReadAloud.trace?.invoke("tap no sentence at ${x.toInt()},${y.toInt()}")
                         plainTap(x)
@@ -1795,7 +1798,16 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val fx = (host[0] + x - at[0]) / web.width
         val fy = (host[1] + y - at[1]) / web.height
         if (fx !in 0f..1f || fy !in 0f..1f) return null
-        val raw = jsString(webJs(web, "window.__wfSentenceAt ? window.__wfSentenceAt($fx, $fy) : ''")) ?: return null
+        val t0 = android.os.SystemClock.uptimeMillis()
+        val rawJs = webJs(web, "window.__wfSentenceAt ? window.__wfSentenceAt($fx, $fy) : '-'")
+        val raw = jsString(rawJs)
+        com.flerty.wikiflerty.tts.ReadAloud.trace?.let { log ->
+            if (raw == null || !raw.startsWith("{")) {
+                val diag = webJs(web, "(function(){var x=$fx*innerWidth,y=$fy*innerHeight,e=document.elementFromPoint(x,y),c=document.caretRangeFromPoint(x,y);return [innerWidth,innerHeight,scrollX,scrollY,e?e.tagName+'.'+e.className:'none',c?c.startContainer.nodeName+':'+c.startOffset:'none',document.readyState].join(' ')})()")
+                log("tap probe ${android.os.SystemClock.uptimeMillis() - t0}ms web=${web.width}x${web.height} at=${at[0]},${at[1]} f=$fx,$fy raw=${rawJs?.take(40)} diag=$diag")
+            }
+        }
+        if (raw == null) return null
         val o = runCatching { org.json.JSONObject(raw) }.getOrNull() ?: return null
         val text = o.optString("text").takeIf { it.length >= 2 } ?: return null
         val head = o.optString("head").takeIf { it.length >= 2 } ?: text
