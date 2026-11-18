@@ -1,0 +1,353 @@
+{
+ "title": "Разведка",
+ "lenient": true,
+ "steps": [
+  {
+   "do": "launch",
+   "fresh": true,
+   "ms": 2500
+  },
+  {
+   "do": "wait",
+   "text": "Моя полка",
+   "timeout": 8000,
+   "after": 2000
+  },
+  {
+   "do": "dump",
+   "text": "shelf"
+  },
+  {
+   "do": "tap",
+   "text": "Вид и сортировка",
+   "desc": true,
+   "timeout": 4000,
+   "after": 1500
+  },
+  {
+   "do": "dump",
+   "text": "sort"
+  },
+  {
+   "do": "back",
+   "after": 1000
+  },
+  {
+   "do": "tap",
+   "text": "Все книги",
+   "timeout": 4000,
+   "after": 1500
+  },
+  {
+   "do": "dump",
+   "text": "show"
+  },
+  {
+   "do": "tap",
+   "text": "Теги",
+   "timeout": 3000,
+   "after": 1500
+  },
+  {
+   "do": "dump",
+   "text": "tags"
+  },
+  {
+   "do": "home",
+   "after": 800
+  },
+  {
+   "do": "tap",
+   "text": "Добавить книгу",
+   "timeout": 5000,
+   "after": 1500
+  },
+  {
+   "do": "dump",
+   "text": "plus"
+  },
+  {
+   "do": "tap",
+   "text": "Выбрать",
+   "exact": true,
+   "timeout": 4000,
+   "after": 2500
+  },
+  {
+   "do": "dump",
+   "text": "tree"
+  },
+  {
+   "do": "back",
+   "after": 1200
+  },
+  {
+   "do": "home",
+   "after": 800
+  },
+  {
+   "do": "swipe",
+   "x": 0.5,
+   "y": 0.8,
+   "x2": 0.5,
+   "y2": 0.35,
+   "ms": 900,
+   "after": 1500
+  },
+  {
+   "do": "dump",
+   "text": "shelf-down"
+  },
+  {
+   "do": "tap",
+   "text": "Школьная классика",
+   "timeout": 4000,
+   "after": 2000
+  },
+  {
+   "do": "dump",
+   "text": "series"
+  },
+  {
+   "do": "home",
+   "after": 800
+  },
+  {
+   "do": "swipe",
+   "x": 0.5,
+   "y": 0.8,
+   "x2": 0.5,
+   "y2": 0.35,
+   "ms": 900,
+   "after": 1500
+  },
+  {
+   "do": "tap",
+   "text": "любимое",
+   "timeout": 4000,
+   "after": 2000
+  },
+  {
+   "do": "dump",
+   "text": "tagshelf"
+  },
+  {
+   "do": "home",
+   "after": 800
+  },
+  {
+   "do": "tap",
+   "text": "Вий",
+   "desc": true,
+   "region": [
+    0,
+    0.3,
+    1,
+    1
+   ],
+   "timeout": 5000,
+   "after": 2000
+  },
+  {
+   "do": "dump",
+   "text": "card"
+  },
+  {
+   "do": "swipe",
+   "x": 0.5,
+   "y": 0.8,
+   "x2": 0.5,
+   "y2": 0.35,
+   "ms": 700,
+   "after": 1200
+  },
+  {
+   "do": "dump",
+   "text": "card-down"
+  },
+  {
+   "do": "tap",
+   "text": "Изменить книгу",
+   "timeout": 4000,
+   "after": 2000
+  },
+  {
+   "do": "dump",
+   "text": "edit"
+  },
+  {
+   "do": "home",
+   "after": 800
+  },
+  {
+   "do": "tap",
+   "text": "Капитанская дочка",
+   "desc": true,
+   "exact": true,
+   "region": [
+    0,
+    0.3,
+    1,
+    1
+   ],
+   "timeout": 5000,
+   "after": 1800
+  },
+  {
+   "do": "tap",
+   "text": "Читать|Продолжить",
+   "timeout": 5000,
+   "after": 3000
+  },
+  {
+   "do": "swipe",
+   "x": 0.85,
+   "y": 0.55,
+   "x2": 0.15,
+   "y2": 0.55,
+   "ms": 450,
+   "after": 1800
+  },
+  {
+   "do": "dump",
+   "text": "page2"
+  },
+  {
+   "do": "swipe",
+   "x": 0.85,
+   "y": 0.55,
+   "x2": 0.15,
+   "y2": 0.55,
+   "ms": 450,
+   "after": 1800
+  },
+  {
+   "do": "dump",
+   "text": "page3"
+  },
+  {
+   "do": "show",
+   "text": "Главы",
+   "exact": true,
+   "after": 1200,
+   "x": 0.5,
+   "y": 0.5
+  },
+  {
+   "do": "tap",
+   "text": "Главы",
+   "exact": true,
+   "timeout": 4000,
+   "after": 2000
+  },
+  {
+   "do": "dump",
+   "text": "toc"
+  },
+  {
+   "do": "back",
+   "after": 1000
+  },
+  {
+   "do": "tap",
+   "text": "Тема",
+   "exact": true,
+   "desc": true,
+   "timeout": 3000,
+   "after": 1800
+  },
+  {
+   "do": "dump",
+   "text": "theme"
+  },
+  {
+   "do": "back",
+   "after": 1000
+  },
+  {
+   "do": "hide",
+   "text": "Главы",
+   "exact": true,
+   "optional": true,
+   "after": 800,
+   "x": 0.5,
+   "y": 0.5
+  },
+  {
+   "do": "longAt",
+   "x": 0.42,
+   "y": 0.42,
+   "ms": 900,
+   "after": 1500
+  },
+  {
+   "do": "dump",
+   "text": "select"
+  },
+  {
+   "do": "tap",
+   "text": "Ещё",
+   "desc": true,
+   "exact": true,
+   "region": [
+    0,
+    0.12,
+    1,
+    0.9
+   ],
+   "timeout": 3000,
+   "after": 1200
+  },
+  {
+   "do": "dump",
+   "text": "select-more"
+  },
+  {
+   "do": "home",
+   "after": 800
+  },
+  {
+   "do": "tap",
+   "text": "Настройки",
+   "desc": true,
+   "timeout": 4000,
+   "after": 1800
+  },
+  {
+   "do": "dump",
+   "text": "settings"
+  },
+  {
+   "do": "tap",
+   "text": "Кастомизация",
+   "timeout": 4000,
+   "after": 1800
+  },
+  {
+   "do": "dump",
+   "text": "custom"
+  },
+  {
+   "do": "back",
+   "after": 1000
+  },
+  {
+   "do": "tap",
+   "text": "Синхронизация",
+   "timeout": 4000,
+   "after": 1800
+  },
+  {
+   "do": "dump",
+   "text": "sync"
+  },
+  {
+   "do": "home",
+   "after": 800
+  },
+  {
+   "do": "pause",
+   "ms": 1000
+  }
+ ]
+}

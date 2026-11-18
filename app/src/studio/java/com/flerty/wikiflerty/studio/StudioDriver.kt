@@ -175,6 +175,10 @@ class StudioDriver : AccessibilityService() {
                 tap(r.exactCenterX() + step.dx * r.width(), r.exactCenterY() + step.dy * r.height(), 70)
             }
             "home" -> home()
+            "dump" -> {
+                screen += "=== dump ${step.text.orEmpty()}\n${screenText()}\n"
+                true
+            }
             "long" -> {
                 val r = find(step) ?: return false
                 tap(r.exactCenterX() + step.dx * r.width(), r.exactCenterY() + step.dy * r.height(), step.ms.takeIf { it > 0 } ?: 800)

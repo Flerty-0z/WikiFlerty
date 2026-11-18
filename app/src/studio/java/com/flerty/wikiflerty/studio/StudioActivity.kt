@@ -269,10 +269,10 @@ class StudioActivity : ComponentActivity() {
     }
 
     companion object {
-        fun saveDownload(context: Context, name: String): Boolean = runCatching {
+        fun saveDownload(context: Context, name: String, folder: String = "WikiFlerty Studio", asset: String = "studio/files/$name"): Boolean = runCatching {
             if (Build.VERSION.SDK_INT >= 29) {
                 val resolver = context.contentResolver
-                val rel = Environment.DIRECTORY_DOWNLOADS + "/WikiFlerty Studio"
+                val rel = Environment.DIRECTORY_DOWNLOADS + "/" + folder
                 resolver.query(
                     MediaStore.Downloads.EXTERNAL_CONTENT_URI,
                     arrayOf(MediaStore.Downloads._ID),
@@ -286,12 +286,12 @@ class StudioActivity : ComponentActivity() {
                     put(MediaStore.Downloads.IS_PENDING, 1)
                 }
                 val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return false
-                resolver.openOutputStream(uri)?.use { out -> context.assets.open("studio/files/$name").use { it.copyTo(out) } }
+                resolver.openOutputStream(uri)?.use { out -> context.assets.open(asset).use { it.copyTo(out) } }
                 resolver.update(uri, ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }, null, null)
                 true
             } else {
-                val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "WikiFlerty Studio").apply { mkdirs() }
-                context.assets.open("studio/files/$name").use { input -> File(dir, name).outputStream().use { input.copyTo(it) } }
+                val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), folder).apply { mkdirs() }
+                context.assets.open(asset).use { input -> File(dir, name).outputStream().use { input.copyTo(it) } }
                 true
             }
         }.getOrDefault(false)

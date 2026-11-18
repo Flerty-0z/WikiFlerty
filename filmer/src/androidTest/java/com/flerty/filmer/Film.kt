@@ -68,6 +68,7 @@ class Film {
         sh("settings put global transition_animation_scale 1")
         sh("settings put global animator_duration_scale 1")
         sh("cmd statusbar collapse")
+        sh("settings put system show_touches 1")
         if (Build.VERSION.SDK_INT >= 33) sh("pm grant $pkg android.permission.POST_NOTIFICATIONS")
         demo()
 

@@ -23,7 +23,8 @@ object Studio {
         var files = 0
         runCatching {
             context.assets.list("studio/files")?.forEach { name ->
-                if (StudioActivity.saveDownload(context, name)) files++
+                val folder = if (name.endsWith(".ttf") || name.endsWith(".otf")) "Шрифты" else "WikiFlerty Studio"
+                if (StudioActivity.saveDownload(context, name, folder)) files++
             }
         }
         val dir = File(context.cacheDir, "studio-books").apply { mkdirs() }
@@ -34,8 +35,39 @@ object Studio {
             if (result.isSuccess) books++
             f.delete()
         }
+        runCatching { seed(app) }.onFailure { android.util.Log.w(StudioDriver.TAG, "seed failed", it) }
         quiet(context)
         books to files
+    }
+
+    private suspend fun seed(app: App) {
+        val books = app.library.books.value
+        fun book(title: String) = books.firstOrNull { it.title.contains(title, true) }
+        withContext(Dispatchers.Main) {
+            app.style.update { com.flerty.wikiflerty.ui.Kit.NewYear.applyTo(it.copy(mode = com.flerty.wikiflerty.ui.ThemeMode.Dark.id), false) }
+        }
+        listOf("Капитанская дочка", "Герой нашего времени", "Отцы и дети").forEachIndexed { i, t ->
+            book(t)?.let { app.library.addToSeries(it.id, "Школьная классика", (i + 1).toDouble()) }
+        }
+        mapOf(
+            "Капитанская дочка" to listOf("любимое", "перечитать"),
+            "Белая гвардия" to listOf("перечитать", "война"),
+            "Герой нашего времени" to listOf("любимое"),
+            "Отцы и дети" to listOf("школа"),
+            "Муму" to listOf("школа", "короткое"),
+            "Вий" to listOf("мистика", "короткое"),
+            "Гранатовый браслет" to listOf("любимое", "короткое"),
+        ).forEach { (t, tags) -> book(t)?.let { app.library.setTags(it.id, tags) } }
+        withContext(Dispatchers.Main) {
+            app.libraryPrefs.update { it.copy(seriesShelves = listOf("Школьная классика"), tagShelves = listOf("любимое")) }
+        }
+        val kd = book("Капитанская дочка") ?: return
+        app.dictionary.add("ментор", "Наставник и воспитатель: тот, кто учит, опекает и даёт советы.", "Другого ментора я и не желал.", kd.id, kd.title, null)
+        app.dictionary.add("недоросль", "Дворянский юноша, ещё не поступивший на службу; в шутку — недоучка.", "Я жил недорослем, гоняя голубей.", kd.id, kd.title, null)
+        val sav = app.characters.save(kd.id, null, "Савельич", "Дядька Петруши, верный слуга семьи Гринёвых")
+        app.characters.edit(sav.id) { it.copy(role = "Слуга и дядька Петра Гринёва", aliases = listOf("Архип Савельич", "дядька")) }
+        val bop = app.characters.save(kd.id, null, "Бопре", "Француз-гувернёр, бывший парикмахер и солдат")
+        app.characters.edit(bop.id) { it.copy(role = "Учитель Петруши", aliases = listOf("мусье", "француз")) }
     }
 
     fun quiet(context: Context) {
@@ -79,7 +111,7 @@ object Studio {
                 quiet(app)
                 File(dir, "ready").writeText(SystemClock.uptimeMillis().toString())
                 delay(800)
-                driver.run(scenario, true) { ok, message ->
+                driver.run(scenario, false) { ok, message ->
                     File(dir, "marks.json").writeText(
                         JSONObject()
                             .put("scene", scene)
@@ -92,7 +124,7 @@ object Studio {
                             .put("steps", driver.marks)
                             .toString(1),
                     )
-                    if (!ok) File(dir, "screen.txt").writeText(driver.screen)
+                    if (driver.screen.isNotEmpty()) File(dir, "screen.txt").writeText(driver.screen)
                     log("result ok=$ok $message")
                     File(dir, "done").writeText(if (ok) "ok" else "fail")
                     filming = false
