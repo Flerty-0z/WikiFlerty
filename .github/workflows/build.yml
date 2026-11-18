@@ -75,7 +75,7 @@ jobs:
           PUBLIC_VERSION: ${{ inputs.public }}
         run: |
           set -o pipefail
-          ./gradlew assembleRelease ${{ inputs.store && '-Puniversal=true' || '' }} --stacktrace 2>&1 | tee build.log
+          ./gradlew :app:assembleRelease ${{ inputs.store && '-Puniversal=true' || '' }} --stacktrace 2>&1 | tee build.log
 
       - name: Report build errors
         if: failure()
