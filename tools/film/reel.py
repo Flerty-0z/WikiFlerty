@@ -320,6 +320,7 @@ class Warp:
             self.segs.append([x, y, r])
         self.scale = 1.0
         self.extend = beat.get("extend", "end")
+        self.stretch = beat.get("stretch", False)
 
     @property
     def length(self):
@@ -329,7 +330,7 @@ class Warp:
         if self.length <= 0:
             return
         tries = 0
-        while self.length < dur * 0.8 and tries < 20:
+        while not self.stretch and self.length < dur * 0.8 and tries < 20:
             if self.extend == "start":
                 x, y, r = self.segs[0]
                 self.segs.insert(0, [x - 0.35, x, 1.0])
