@@ -372,8 +372,10 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
         val navigator = _session.value?.navigator ?: return
         val pub = book ?: return
         goJob?.cancel()
+        val began = android.os.SystemClock.uptimeMillis()
         goJob = scope.launch {
             _seeking.value = true
+            var how = "none"
             try {
                 halt(navigator)
                 val target = squash(sentence)
@@ -385,13 +387,20 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
                     val head = spot.text.take(10)
                     waitText(navigator, 1500) { u -> u.isNotEmpty() && (spot.text.startsWith(u.take(10)) || u.startsWith(head)) }
                     walk(navigator, spot)
+                    how = "spot"
                 } else if (fallback != null) {
                     jump(navigator, fallback)
                     align(navigator, sentence, fallback)
+                    how = "fallback"
                 }
             } finally {
                 _seeking.value = false
                 navigator.play()
+                trace?.let { log ->
+                    val now = navigator.location.value.utterance
+                    val hit = same(squash(now), squash(sentence)) || squash(now).contains(squash(sentence).take(12))
+                    log("jump ${if (hit) "HIT" else "MISS"} ${android.os.SystemClock.uptimeMillis() - began}ms $how | tap=${sentence.take(70)} | now=${now.take(70)}")
+                }
             }
         }
     }
@@ -575,6 +584,7 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
     }
 
     companion object {
+        @Volatile var trace: ((String) -> Unit)? = null
         fun preferences(s: ReaderSettings): AndroidTtsPreferences {
             val voiceLanguage = s.ttsVoiceLanguage.takeIf { s.ttsVoice.isNotBlank() && it.isNotBlank() }?.let { Language(it) }
             val voiceId = AndroidTtsEngine.Voice.Id(s.ttsVoice)

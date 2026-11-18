@@ -1,0 +1,308 @@
+{
+ "title": "Проверка чтения вслух по нажатию",
+ "lenient": true,
+ "steps": [
+  {
+   "do": "launch",
+   "fresh": true,
+   "ms": 2500
+  },
+  {
+   "do": "wait",
+   "text": "Моя полка",
+   "timeout": 10000,
+   "after": 2000
+  },
+  {
+   "do": "open",
+   "text": "Проба разметки",
+   "after": 6000
+  },
+  {
+   "do": "tap",
+   "text": "чтобы начать",
+   "timeout": 1500,
+   "optional": true,
+   "after": 600
+  },
+  {
+   "do": "swipe",
+   "x": 0.85,
+   "y": 0.55,
+   "x2": 0.15,
+   "y2": 0.55,
+   "ms": 450,
+   "after": 1800
+  },
+  {
+   "do": "swipe",
+   "x": 0.85,
+   "y": 0.55,
+   "x2": 0.15,
+   "y2": 0.55,
+   "ms": 450,
+   "after": 1800
+  },
+  {
+   "do": "longAt",
+   "x": 0.45,
+   "y": 0.3,
+   "ms": 900,
+   "after": 1400
+  },
+  {
+   "do": "tap",
+   "text": "Ещё",
+   "desc": true,
+   "exact": true,
+   "region": [
+    0,
+    0.05,
+    1,
+    0.95
+   ],
+   "timeout": 4000,
+   "after": 1200,
+   "scroll": 3,
+   "optional": true
+  },
+  {
+   "do": "tap",
+   "text": "Слушать отсюда",
+   "timeout": 5000,
+   "after": 6000
+  },
+  {
+   "do": "dump",
+   "text": "listening"
+  },
+  {
+   "do": "tapAt",
+   "x": 0.5,
+   "y": 0.62,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.45,
+   "y": 0.22,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.55,
+   "y": 0.4,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.4,
+   "y": 0.74,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.6,
+   "y": 0.3,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.5,
+   "y": 0.5,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.42,
+   "y": 0.68,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.58,
+   "y": 0.18,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.5,
+   "y": 0.78,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.45,
+   "y": 0.35,
+   "after": 3500
+  },
+  {
+   "do": "swipe",
+   "x": 0.85,
+   "y": 0.55,
+   "x2": 0.15,
+   "y2": 0.55,
+   "ms": 450,
+   "after": 2500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.5,
+   "y": 0.25,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.55,
+   "y": 0.55,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.45,
+   "y": 0.72,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.5,
+   "y": 0.42,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.6,
+   "y": 0.65,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.4,
+   "y": 0.15,
+   "after": 3500
+  },
+  {
+   "do": "back",
+   "after": 1500
+  },
+  {
+   "do": "back",
+   "after": 1500
+  },
+  {
+   "do": "open",
+   "text": "Капитанская дочка",
+   "after": 6000
+  },
+  {
+   "do": "tap",
+   "text": "чтобы начать",
+   "timeout": 1500,
+   "optional": true,
+   "after": 600
+  },
+  {
+   "do": "swipe",
+   "x": 0.85,
+   "y": 0.55,
+   "x2": 0.15,
+   "y2": 0.55,
+   "ms": 450,
+   "after": 1800
+  },
+  {
+   "do": "swipe",
+   "x": 0.85,
+   "y": 0.55,
+   "x2": 0.15,
+   "y2": 0.55,
+   "ms": 450,
+   "after": 1800
+  },
+  {
+   "do": "longAt",
+   "x": 0.45,
+   "y": 0.3,
+   "ms": 900,
+   "after": 1400
+  },
+  {
+   "do": "tap",
+   "text": "Ещё",
+   "desc": true,
+   "exact": true,
+   "region": [
+    0,
+    0.05,
+    1,
+    0.95
+   ],
+   "timeout": 4000,
+   "after": 1200,
+   "scroll": 3,
+   "optional": true
+  },
+  {
+   "do": "tap",
+   "text": "Слушать отсюда",
+   "timeout": 5000,
+   "after": 6000
+  },
+  {
+   "do": "dump",
+   "text": "listening"
+  },
+  {
+   "do": "tapAt",
+   "x": 0.5,
+   "y": 0.6,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.45,
+   "y": 0.25,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.55,
+   "y": 0.45,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.4,
+   "y": 0.75,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.6,
+   "y": 0.35,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.5,
+   "y": 0.15,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.45,
+   "y": 0.55,
+   "after": 3500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.55,
+   "y": 0.7,
+   "after": 3500
+  },
+  {
+   "do": "dump",
+   "text": "end"
+  }
+ ]
+}

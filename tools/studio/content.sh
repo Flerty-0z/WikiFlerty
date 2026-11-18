@@ -36,5 +36,6 @@ if [ "$(ls $A/files | wc -l)" -lt 5 ]; then
   fi
 fi
 rm -f $A/library/03.epub $A/library/06.epub $A/library/08.epub
+python3 tools/studio/litres_like.py $A/library/01.epub $A/library/11.epub || true
 cp tools/studio/scenarios/*.json $A/scenarios/
 ls -la $A/library $A/files $A/scenarios

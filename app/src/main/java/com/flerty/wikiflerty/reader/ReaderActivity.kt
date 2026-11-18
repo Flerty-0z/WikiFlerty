@@ -1742,6 +1742,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 lifecycleScope.launch {
                     val spot = sentenceAt(x, y)
                     if (spot == null) {
+                        com.flerty.wikiflerty.tts.ReadAloud.trace?.invoke("tap no sentence at ${x.toInt()},${y.toInt()}")
                         plainTap(x)
                         return@launch
                     }

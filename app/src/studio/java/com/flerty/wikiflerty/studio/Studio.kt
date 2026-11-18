@@ -106,6 +106,7 @@ object Studio {
             android.util.Log.i(StudioDriver.TAG, text)
             File(dir, "app.log").appendText(text + "\n")
         }
+        com.flerty.wikiflerty.tts.ReadAloud.trace = { line -> log("TTS $line") }
         scope.launch {
             runCatching {
                 val prepared = prepare(app)
