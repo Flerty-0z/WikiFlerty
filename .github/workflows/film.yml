@@ -176,6 +176,7 @@ jobs:
           NAME=$(basename "$PLAN" .json)
           if python3 -c "import json,sys; sys.exit(0 if 'beats' in json.load(open(sys.argv[1])) else 1)" "$PLAN"; then
             python3 tools/film/beats_voice.py "$PLAN" audio
+            python3 tools/film/sfx.py audio
             python3 tools/film/reel.py --results results --plan "$PLAN" --audio audio --fonts fonts --out "out/$NAME.mp4" --stills stills
             (cd stills && zip -q ../out/stills.zip *.jpg)
           else

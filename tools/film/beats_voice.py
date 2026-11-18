@@ -35,7 +35,7 @@ kit = {
     "riser": ("short magical riser with soft sparkle", 1.5),
     "hit": ("soft deep cinematic impact with shimmer tail, logo reveal", 2.0),
 }
-if plan.get("sfx", True):
+if plan.get("sfx_source") == "elevenlabs":
     for name, (prompt, sec) in kit.items():
         f = os.path.join(out, f"sfx_{name}.mp3")
         if os.path.exists(f) and os.path.getsize(f) > 2000:
