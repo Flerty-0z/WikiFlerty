@@ -437,6 +437,7 @@ class Reel:
         self.bg = background()
         self.snow = Snow()
         self.clock = 0.0
+        self.events = []
         ph = footage.ph if footage else 1500
         self.mask = Image.new("L", (PW, ph), 0)
         ImageDraw.Draw(self.mask).rounded_rectangle([0, 0, PW - 1, ph - 1], RADIUS, fill=255)
@@ -509,13 +510,20 @@ class Reel:
         y = min(max(c[1] - h2 / 2, 0), h - h2)
         return img.crop((int(x), int(y), int(x + w2), int(y + h2))).resize((PW, h), Image.BICUBIC)
 
-    def compose(self, phone, layer, t_global):
+    def compose(self, phone, layer, t_global, scale=1.0):
         frame = (self.bg if phone is not None else self.plain).copy()
-        if phone is not None:
+        if phone is not None and scale < 0.999:
+            w, h = int(PW * scale), int(phone.height * scale)
+            ph = phone.resize((w, h), Image.BILINEAR)
+            m = self.mask.resize((w, h), Image.BILINEAR)
+            frame.paste(ph, (PX + (PW - w) // 2, PY + (phone.height - h) // 2), m)
+            frame = frame.convert("RGBA")
+        elif phone is not None:
             frame.paste(phone, (PX, PY), self.mask)
-        frame = frame.convert("RGBA")
-        if phone is not None:
+            frame = frame.convert("RGBA")
             frame.alpha_composite(self.frame_layer)
+        else:
+            frame = frame.convert("RGBA")
         self.snow.draw(frame, t_global)
         frame.alpha_composite(layer)
         return frame.convert("RGB")
@@ -555,6 +563,8 @@ class Reel:
         n = int(round(dur * FPS))
         color = beat.get("zoom_color")
         cbox = None
+        pcenter = None
+        zoomed = False
         last = (None, 0.0)
         for i in range(n):
             t = i / FPS
@@ -573,9 +583,24 @@ class Reel:
                 if cbox is not None:
                     k = ease((t - beat.get("color_at", 0.3)) / 0.6)
                     ph = self.zoom_at(ph, cbox, 1 + (beat.get("zoom_k", 2.0) - 1) * k)
+            if ph is not None and not zrect and not color and beat.get("push", True):
+                if pcenter is None:
+                    pcenter = (PW / 2, f.ph * 0.45)
+                ph = self.zoom_at(ph, pcenter, 1 + beat.get("push_k", 0.07) * ease(t / dur))
+            if zrect:
+                k_now = ease((st - (za - 0.4)) / 0.4)
+                if k_now > 0.02 and not zoomed:
+                    zoomed = True
+                    self.events.append(("zoom", self.clock + t))
+            if color and cbox is not None and not zoomed:
+                zoomed = True
+                self.events.append(("zoom", self.clock + t))
             layer = self.text_layer(items, t, dur)
             self.tags_layer(layer, placed, t, dur)
-            yield self.compose(ph, layer, self.clock + t)
+            pop = 0.955 + 0.045 * back_ease(t / 0.3) if beat.get("pop", True) else 1.0
+            yield self.compose(ph, layer, self.clock + t, pop)
+        for j in range(len(placed)):
+            self.events.append(("tag", self.clock + 0.55 + j * 0.12))
         self.clock += dur
 
     def card(self, beat, dur):
@@ -637,15 +662,17 @@ def main():
     for k, b in enumerate(beats, 1):
         dur = b.get("dur", 3.2)
         vp = os.path.join(a.audio, f"beat{plan['beats'].index(b) + 1:02d}.mp3")
+        lead = plan.get("first_lead", 0.55) if k == 1 else 0.12
+        tail = plan.get("last_tail", 1.6) if k == len(beats) else plan.get("voice_gap", 0.55)
         if plan.get("voice") and b.get("say") and os.path.exists(vp):
-            dur = max(dur, probe(vp) / plan.get("voice_tempo", 1.0) + 0.35)
+            dur = max(dur, lead + probe(vp) / plan.get("voice_tempo", 1.0) + tail)
         if not b.get("card") and not b.get("stretch"):
             natural = Cuts(footage, b).length
             if natural > dur:
                 dur = min(natural, dur * 1.35)
-        timeline.append((k, b, t, dur))
+        timeline.append((k, b, t, dur, lead))
         t += dur
-    for k, b, start, dur in timeline:
+    for k, b, start, dur, lead in timeline:
         if only and k not in only:
             reel.clock += dur
             continue
@@ -670,10 +697,10 @@ def main():
     music = os.path.join(a.audio, "music.mp3")
     voices = []
     if plan.get("voice"):
-        for k, b, start, dur in timeline:
+        for k, b, start, dur, lead in timeline:
             p = os.path.join(a.audio, f"beat{plan['beats'].index(b) + 1:02d}.mp3")
             if b.get("say") and os.path.exists(p):
-                voices.append((p, start + 0.1))
+                voices.append((p, start + lead))
     inputs = ["-i", video]
     filters = []
     mix = []
@@ -683,6 +710,28 @@ def main():
         d = int(at * 1000)
         filters.append(f"[{n}:a]atempo={plan.get('voice_tempo', 1.0)},adelay={d}|{d},volume={plan.get('voice_volume', 1.0)}[v{n}]")
         mix.append(f"[v{n}]")
+        n += 1
+    sfx = []
+    whooshes = [x for x in ("w1", "w2", "w3", "w4") if os.path.exists(os.path.join(a.audio, f"sfx_{x}.mp3"))]
+    pops = [x for x in ("p1", "p2") if os.path.exists(os.path.join(a.audio, f"sfx_{x}.mp3"))]
+    if plan.get("sfx", True):
+        for k, b, start, dur, lead in timeline:
+            if k == 1 and os.path.exists(os.path.join(a.audio, "sfx_riser.mp3")):
+                sfx.append(("riser", 0.0, 0.32))
+            if k > 1 and whooshes:
+                sfx.append((whooshes[(k - 2) % len(whooshes)], max(0, start - 0.14), 0.42))
+            if b.get("card") and k == len(timeline) and os.path.exists(os.path.join(a.audio, "sfx_hit.mp3")):
+                sfx.append(("hit", start + 0.05, 0.5))
+        for j, (kind, at) in enumerate(reel.events):
+            if kind == "tag" and pops:
+                sfx.append((pops[j % len(pops)], at, 0.3))
+            if kind == "zoom" and os.path.exists(os.path.join(a.audio, "sfx_zoom.mp3")):
+                sfx.append(("zoom", at, 0.33))
+    for name, at, vol in sfx:
+        inputs += ["-i", os.path.join(a.audio, f"sfx_{name}.mp3")]
+        d = int(at * 1000)
+        filters.append(f"[{n}:a]adelay={d}|{d},volume={vol}[s{n}]")
+        mix.append(f"[s{n}]")
         n += 1
     if os.path.exists(music):
         mlen = probe(music)
