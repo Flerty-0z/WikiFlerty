@@ -1,0 +1,51 @@
+name: Cover
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Съёмка в облаке: film-N"
+        required: true
+      plan:
+        description: План
+        default: tools/film/plans/news.json
+      caption:
+        description: Подпись
+        default: "Обложка для ТикТока"
+
+permissions:
+  contents: write
+
+jobs:
+  cover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SA_JSON }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Cover
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          SOURCE: ${{ inputs.source }}
+          PLAN: ${{ inputs.plan }}
+          CAPTION: ${{ inputs.caption }}
+        run: |
+          which ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null)
+          pip install --quiet --break-system-packages numpy pillow || pip install --quiet numpy pillow
+          mkdir -p results fonts audio
+          gsutil -m -q cp -r "gs://test-lab-asyqad4a514ax-jxj2zb2wsjj30/$SOURCE" results/
+          curl -fsSL --retry 3 -o fonts/Title.ttf "https://github.com/google/fonts/raw/main/ofl/robotocondensed/RobotoCondensed%5Bwght%5D.ttf"
+          curl -fsSL --retry 3 -o fonts/Kicker.ttf "https://github.com/google/fonts/raw/main/ofl/lora/Lora-Italic%5Bwght%5D.ttf"
+          PYTHONPATH=tools/film python3 tools/film/cover.py --results results --plan "$PLAN" --fonts fonts --out cover.jpg
+          kid=$(gh api "repos/${{ github.repository }}/releases?per_page=100" -q '[.[] | select(.tag_name=="film-kit")][0].assets[0].id' || true)
+          if [ -n "$kid" ]; then gh api -H "Accept: application/octet-stream" "repos/${{ github.repository }}/releases/assets/$kid" > kit.zip && unzip -oq kit.zip chat.txt -d audio || true; fi
+          printf '%s' "$CAPTION" > caption.txt
+          python3 tools/film/tg.py audio/chat.txt cover.jpg caption.txt
+          gh release delete film-cover --cleanup-tag -y --repo "${{ github.repository }}" 2>/dev/null || true
+          gh release create film-cover cover.jpg --draft --title "Cover" --notes "" --repo "${{ github.repository }}"

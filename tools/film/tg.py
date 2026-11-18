@@ -38,14 +38,17 @@ boundary = uuid.uuid4().hex
 parts = []
 for k, v in (("chat_id", chat), ("caption", caption[:1000]), ("supports_streaming", "true")):
     parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n".encode())
-parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"video\"; filename=\"{os.path.basename(video)}\"\r\nContent-Type: video/mp4\r\n\r\n".encode())
+is_doc = not video.endswith(".mp4")
+field = "document" if is_doc else "video"
+ctype = "image/jpeg" if is_doc else "video/mp4"
+parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{field}\"; filename=\"{os.path.basename(video)}\"\r\nContent-Type: {ctype}\r\n\r\n".encode())
 parts.append(open(video, "rb").read())
 parts.append(f"\r\n--{boundary}--\r\n".encode())
 import time
 body = b"".join(parts)
 for attempt in range(4):
     try:
-        req = urllib.request.Request(api + "sendVideo", data=body, headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+        req = urllib.request.Request(api + ("sendDocument" if is_doc else "sendVideo"), data=body, headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
         with urllib.request.urlopen(req, timeout=900) as r:
             print("sent", json.loads(r.read()).get("ok"))
         break

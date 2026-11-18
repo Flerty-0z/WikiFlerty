@@ -426,5 +426,38 @@
    "say": "WikiFlerty. Пиши в комментариях, что добавить дальше."
   }
  ],
- "voice_tempo": 1.1
+ "voice_tempo": 1.1,
+ "cover": {
+  "shot": "intro",
+  "shot_offset": 1.5,
+  "top": 250,
+  "phone_y": 780,
+  "phone_w": 600,
+  "lines": [
+   {
+    "text": "WIKIFLERTY",
+    "hl": [
+     "WIKIFLERTY"
+    ],
+    "size": 190,
+    "kicker": "большое обновление",
+    "gap": 0
+   },
+   {
+    "text": "ЧТО НОВОГО",
+    "size": 150
+   }
+  ],
+  "tags": [
+   "MOBI · DOCX · RTF",
+   "КОМИКСЫ",
+   "АВТОИМПОРТ",
+   "СЕРИИ И ТЕГИ",
+   "КНИГА В 3D",
+   "СВОЙ ШРИФТ",
+   "ТАЙМЕР",
+   "И ДРУГОЕ"
+  ],
+  "tags_y": 1330
+ }
 }
