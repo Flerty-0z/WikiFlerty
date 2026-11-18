@@ -52,7 +52,7 @@ class Updates(private val context: Context) {
     }
 
     suspend fun autoCheck() {
-        if (!_auto.value) return
+        if (!_auto.value || com.flerty.wikiflerty.BuildConfig.BUILD_TYPE == "studio") return
         val last = prefs.getLong("lastCheck", 0)
         if (System.currentTimeMillis() - last < 6 * 60 * 60 * 1000L) return
         check()
