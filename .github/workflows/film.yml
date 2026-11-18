@@ -143,7 +143,7 @@ jobs:
           for f in $(find results -name "logcat*"); do echo "=== $f"; grep -E "WFStudio|FATAL|AndroidRuntime" "$f" | head -150; done
 
       - name: Hand over
-        if: ${{ always() && !inputs.reuse }}
+        if: ${{ always() && (!inputs.reuse || inputs.source != '') }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
