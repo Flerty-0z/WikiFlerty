@@ -1,14 +1,27 @@
-import json, os, sys, urllib.request
+import json, os, sys, urllib.request, urllib.error
 
 key = os.environ["ELEVENLABS_API_KEY"]
 out = sys.argv[1]
 os.makedirs(out, exist_ok=True)
 
 
-def call(url, body):
-    req = urllib.request.Request(url, data=json.dumps(body).encode(), headers={"xi-api-key": key, "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=300) as r:
-        return r.read()
+def call(url, body=None):
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(url, data=data, headers={"xi-api-key": key, "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=300) as r:
+            return r.read()
+    except urllib.error.HTTPError as e:
+        print("HTTP", e.code, url.split("?")[0], e.read()[:500].decode("utf-8", "replace"))
+        raise
+
+
+def info():
+    try:
+        sub = json.loads(call("https://api.elevenlabs.io/v1/user/subscription"))
+        print("tier", sub.get("tier"), "used", sub.get("character_count"), "of", sub.get("character_limit"))
+    except Exception as e:
+        print("subscription unknown", e)
 
 
 def voice(lines_file, voice_id):
@@ -49,6 +62,7 @@ def music(prompt, ms):
 
 if __name__ == "__main__":
     what = sys.argv[2:]
+    info()
     if "voice" in what:
         voice(os.environ.get("LINES", "tools/video/lines.txt"), os.environ.get("VOICE_ID", "MYw0upsxdtxs1n97djly"))
     if "sfx" in what:

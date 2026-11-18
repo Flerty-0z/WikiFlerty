@@ -7,6 +7,10 @@ on:
         description: "voice sfx music"
         required: false
         default: "voice sfx music"
+      lines:
+        description: "файл реплик"
+        required: false
+        default: "tools/video/lines.txt"
 
 permissions:
   contents: write
@@ -20,6 +24,7 @@ jobs:
       - name: Generate
         env:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          LINES: ${{ inputs.lines }}
         run: python3 tools/video/audio.py audio ${{ inputs.parts }}
 
       - name: Hand over
