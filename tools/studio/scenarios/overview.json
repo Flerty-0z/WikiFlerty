@@ -305,6 +305,15 @@
    "after": 800
   },
   {
+   "do": "swipe",
+   "x": 0.85,
+   "y": 0.55,
+   "x2": 0.15,
+   "y2": 0.55,
+   "ms": 450,
+   "after": 1600
+  },
+  {
    "do": "show",
    "text": "Главы",
    "exact": true,
@@ -390,7 +399,8 @@
    "timeout": 3000,
    "optional": true,
    "after": 2800,
-   "mark": "note"
+   "mark": "note",
+   "seek": 4
   },
   {
    "do": "backIf",
@@ -425,7 +435,7 @@
   {
    "do": "tap",
    "text": "Маленький Немо",
-   "exact": true,
+   "exact": false,
    "desc": true,
    "timeout": 8000,
    "after": 1800,

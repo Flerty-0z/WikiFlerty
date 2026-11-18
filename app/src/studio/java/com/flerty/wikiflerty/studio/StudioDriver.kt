@@ -163,6 +163,14 @@ class StudioDriver : AccessibilityService() {
             }
             "tap" -> {
                 if (step.json.optBoolean("click", false)) return click(step)
+                val seek = step.json.optInt("seek", 0)
+                if (seek > 0) {
+                    repeat(seek) {
+                        if (findOnce(step) != null) return@repeat
+                        swipe(0.85f * w, 0.55f * h, 0.15f * w, 0.55f * h, 450)
+                        delay(1300)
+                    }
+                }
                 val r = find(step) ?: return false
                 tap(r.exactCenterX() + step.dx * r.width(), r.exactCenterY() + step.dy * r.height(), 70)
             }
@@ -268,7 +276,8 @@ class StudioDriver : AccessibilityService() {
         for (option in wanted) {
             val hits = ArrayList<Pair<Rect, AccessibilityNodeInfo>>()
             roots.forEach { root -> collect(root, option, step.exact, hits, step.json.optBoolean("desc", false), step.json.optBoolean("textonly", false)) }
-            val inside = if (region == null) hits else hits.filter { (r, _) ->
+            val onScreen = hits.filter { (r, _) -> r.exactCenterX() in 0f..w.toFloat() && r.exactCenterY() in 0f..h.toFloat() }
+            val inside = if (region == null) onScreen else onScreen.filter { (r, _) ->
                 val cx = r.exactCenterX() / w
                 val cy = r.exactCenterY() / h
                 cx >= region.optDouble(0) && cy >= region.optDouble(1) && cx <= region.optDouble(2) && cy <= region.optDouble(3)
