@@ -441,6 +441,7 @@ class Reel:
         placed = place_tags(self.titles.tag_images(beat.get("tags")), beat.get("tags_y", 1560))
         w = Warp(f, beat)
         w.fit(dur)
+        print(f"  window {w.t1 - w.t0:.1f}s speed x{w.scale:.2f}", flush=True)
         src = f.frames(w.t0, w.t1 - w.t0)
         zoom = beat.get("zoom")
         zrect = f.rect(zoom) if zoom else None

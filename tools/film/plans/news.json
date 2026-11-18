@@ -289,12 +289,17 @@
    "hl": [
     "ШРИФТ"
    ],
-   "from": "ownfont",
+   "from": "lobster",
    "to": "lobsterpage",
    "slow": [
     "lobsterpage"
    ],
-   "dur": 4.0
+   "dur": 4.0,
+   "pad": [
+    0.2,
+    2.4
+   ],
+   "speed": 2.2
   },
   {
    "kicker": "пауза и «спрятать за край»",
@@ -304,7 +309,14 @@
    ],
    "from": "fold",
    "to": "unfold",
-   "dur": 3.4
+   "dur": 3.4,
+   "zoom": "fold",
+   "zoom_k": 1.8,
+   "zoom_hold": 3.0,
+   "pad": [
+    0.6,
+    1.0
+   ]
   },
   {
    "kicker": "без пустоты",
