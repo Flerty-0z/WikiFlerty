@@ -84,8 +84,12 @@ class StudioActivity : ComponentActivity() {
         prepared = prefs.getBoolean("prepared", false)
         record = prefs.getBoolean("record", true)
         showTouches = prefs.getBoolean("touches", true)
+        intent?.getStringExtra("film")?.let { scene ->
+            Studio.film(this, scene)
+            status = "Съёмка «$scene»…"
+        }
         loadBundled()
-        refresh()
+        if (intent?.getStringExtra("film") == null) refresh()
         setContent { WikiFlertyTheme { Screen() } }
     }
 

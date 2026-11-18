@@ -6,7 +6,8 @@
     <application>
         <activity
             android:name=".studio.StudioActivity"
-            android:exported="false"
+            android:exported="true"
+            android:permission="android.permission.DUMP"
             android:theme="@style/Theme.WikiFlerty" />
 
         <service

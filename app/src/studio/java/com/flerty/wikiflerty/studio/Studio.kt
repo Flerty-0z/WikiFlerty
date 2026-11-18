@@ -5,8 +5,15 @@ import android.net.Uri
 import com.flerty.wikiflerty.App
 import com.flerty.wikiflerty.ui.NewsRelease
 import com.flerty.wikiflerty.ui.Tips
+import android.content.Intent
+import android.os.SystemClock
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.File
 
 object Studio {
@@ -36,6 +43,66 @@ object Studio {
         Tips.markReaderCoach(context)
         Tips.markRelease(context, NewsRelease)
         Tips.markVersion(context, Tips.versionCode(context))
+    }
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    @Volatile
+    var filming = false
+        private set
+
+    fun film(context: Context, scene: String) {
+        if (filming) return
+        filming = true
+        val app = context.applicationContext
+        val dir = File(app.getExternalFilesDir(null), "wf").apply { mkdirs() }
+        dir.listFiles()?.forEach { it.delete() }
+        fun log(text: String) {
+            android.util.Log.i(StudioDriver.TAG, text)
+            File(dir, "app.log").appendText(text + "\n")
+        }
+        scope.launch {
+            runCatching {
+                val prepared = prepare(app)
+                log("prepared books=${prepared.first} files=${prepared.second}")
+                val scenario = scenario(app, scene) ?: error("no scenario $scene")
+                var driver = StudioDriver.instance
+                val end = SystemClock.uptimeMillis() + 20_000
+                while (driver == null && SystemClock.uptimeMillis() < end) {
+                    delay(250)
+                    driver = StudioDriver.instance
+                }
+                driver ?: error("driver not running")
+                quiet(app)
+                app.startActivity(Intent().setClassName(app, "com.flerty.wikiflerty.ui.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+                delay(3000)
+                quiet(app)
+                File(dir, "ready").writeText(SystemClock.uptimeMillis().toString())
+                delay(800)
+                driver.run(scenario, true) { ok, message ->
+                    File(dir, "marks.json").writeText(
+                        JSONObject()
+                            .put("scene", scene)
+                            .put("ok", ok)
+                            .put("message", message)
+                            .put("startedAt", driver.startedAt)
+                            .put("width", app.resources.displayMetrics.widthPixels)
+                            .put("height", app.resources.displayMetrics.heightPixels)
+                            .put("density", app.resources.displayMetrics.density.toDouble())
+                            .put("steps", driver.marks)
+                            .toString(1),
+                    )
+                    if (!ok) File(dir, "screen.txt").writeText(driver.screen)
+                    log("result ok=$ok $message")
+                    File(dir, "done").writeText(if (ok) "ok" else "fail")
+                    filming = false
+                }
+            }.onFailure {
+                log("film failed: $it")
+                File(dir, "done").writeText("error $it")
+                filming = false
+            }
+        }
     }
 
     fun scenario(context: Context, id: String): Scenario? {
