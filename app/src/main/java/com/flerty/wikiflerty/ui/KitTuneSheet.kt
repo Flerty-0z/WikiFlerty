@@ -65,6 +65,16 @@ fun KitTuneSheet(kit: Kit, onDismiss: () -> Unit) {
                 SettingSwitch("Листья, снег и искры", tune.particles, enabled = tune.living, icon = AppIcons.Snow) { v -> set(tune.copy(particles = v)) }
             }
         }
+        if (kit.decor != Decor.None) {
+            TabbedFrame("Фактура", icon = AppIcons.Palette) {
+                Column(Modifier.padding(horizontal = 14.dp)) {
+                    SettingSwitch("Фактура на панелях", tune.texture, hint = "Узор поверх кнопок и карточек", icon = AppIcons.Image) { v -> set(tune.copy(texture = v)) }
+                    SettingSlider("Заметность", tune.textureAmount, 0.1f..1.5f, ::percent, enabled = tune.texture, icon = AppIcons.Eye) { v ->
+                        set(tune.copy(textureAmount = v))
+                    }
+                }
+            }
+        }
         if (propCount(kit.decor) > 0) {
             TabbedFrame("Декор на полках", icon = AppIcons.Shelf) {
                 Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

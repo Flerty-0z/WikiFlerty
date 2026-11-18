@@ -73,6 +73,8 @@ object KitTexture {
 
     internal fun DrawScope.drawTexture(amount: Float, extend: Float = 0f) {
         if (EInk.on) return
+        val tune = AppStyle.tune
+        if (!tune.texture) return
         val decor = kind(AppStyle.kit.decor) ?: return
         val light = AppStyle.light
         val s = shader(decor, light) ?: return
@@ -81,7 +83,7 @@ object KitTexture {
         matrix.setScale(scale, scale)
         if (shift != 0f) matrix.postTranslate(shift * TILE * scale, shift * TILE * scale * 0.38f)
         s.setLocalMatrix(matrix)
-        drawRect(ShaderBrush(s), size = androidx.compose.ui.geometry.Size(size.width, size.height + extend), alpha = (strength(decor, light) * amount).coerceIn(0f, 1f))
+        drawRect(ShaderBrush(s), size = androidx.compose.ui.geometry.Size(size.width, size.height + extend), alpha = (strength(decor, light) * amount * tune.textureAmount).coerceIn(0f, 1f))
     }
 
     @Composable
