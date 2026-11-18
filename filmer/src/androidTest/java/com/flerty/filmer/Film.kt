@@ -23,7 +23,7 @@ class Film {
     private val pkg = "com.flerty.wikiflerty.studio"
     private val out = "/sdcard/wf"
     private val appDir = "/sdcard/Android/data/$pkg/files/wf"
-    private val local = File(self.getExternalFilesDir(null), "wf").apply { mkdirs() }
+    private val local = File(instrumentation.targetContext.filesDir, "wf").apply { mkdirs() }
 
     @Volatile
     private var recording = false
@@ -38,6 +38,19 @@ class Film {
     private fun log(text: String) {
         Log.i("WFStudio", text)
         File(local, "film.log").appendText(text + "\n")
+    }
+
+    private fun put(name: String, file: File) {
+        if (!file.exists()) return
+        if (Build.VERSION.SDK_INT >= 31) {
+            val fds = ua.executeShellCommandRw("sh -c 'cat > $out/$name'")
+            ParcelFileDescriptor.AutoCloseOutputStream(fds[1]).use { o -> file.inputStream().use { it.copyTo(o) } }
+            ParcelFileDescriptor.AutoCloseInputStream(fds[0]).use { it.readBytes() }
+        } else {
+            val ext = File(instrumentation.targetContext.getExternalFilesDir(null), "wf").apply { mkdirs() }
+            file.copyTo(File(ext, name), overwrite = true)
+            sh("cp ${ext.absolutePath}/$name $out/$name")
+        }
     }
 
     @Test
@@ -94,9 +107,9 @@ class Film {
         }
         sh("cp $appDir/screen.txt $out/")
         sh("cp $appDir/app.log $out/")
-        sh("cp ${local.absolutePath}/marks.json $out/")
+        put("marks.json", File(local, "marks.json"))
         log(sh("ls -la $out"))
-        sh("cp ${local.absolutePath}/film.log $out/")
+        put("film.log", File(local, "film.log"))
 
         assertTrue("Съёмка не закончилась", done.isNotEmpty())
         assertTrue("Сценарий: $done", done == "ok")
