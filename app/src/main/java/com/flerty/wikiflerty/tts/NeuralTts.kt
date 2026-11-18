@@ -46,6 +46,7 @@ object NeuralVoices {
     const val GEMINI = "neural:gemini"
     const val OPENAI = "neural:openai"
     const val PIPER = "neural:piper"
+    const val SILENT = "neural:silent"
 
     fun isNeural(engine: String) = engine.startsWith("neural:")
 
@@ -486,6 +487,9 @@ class NeuralTts(
     }
 
     private suspend fun synthesize(text: String): Pcm = withContext(Dispatchers.IO) {
+        if (engineId == NeuralVoices.SILENT) {
+            return@withContext Pcm(ShortArray((text.length * 0.045 * 16_000).toInt().coerceIn(1_600, 160_000)), 16_000)
+        }
         if (engineId == NeuralVoices.PIPER) {
             return@withContext piper(NeuralVoices.voiceOrDefault(engineId, app.readerSettings.settings.value.ttsVoice), text)
         }

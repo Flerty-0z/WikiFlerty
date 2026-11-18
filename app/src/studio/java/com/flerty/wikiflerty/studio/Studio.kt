@@ -107,6 +107,7 @@ object Studio {
             File(dir, "app.log").appendText(text + "\n")
         }
         com.flerty.wikiflerty.tts.ReadAloud.trace = { line -> log("TTS $line") }
+        if (scene == "ttsjump") (app as App).readerSettings.update { it.copy(ttsEngine = com.flerty.wikiflerty.tts.NeuralVoices.SILENT) }
         scope.launch {
             runCatching {
                 val prepared = prepare(app)
