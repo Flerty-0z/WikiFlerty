@@ -29,6 +29,7 @@ import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import com.flerty.wikiflerty.ui.sparkBurst
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -303,6 +304,7 @@ internal fun bookmarkDate(millis: Long): String {
 @Composable
 internal fun BookmarkButton(active: Boolean, onClick: () -> Unit) {
     var pulse by remember { mutableIntStateOf(0) }
+    var spark by remember { mutableIntStateOf(0) }
     val scale = remember { Animatable(1f) }
     LaunchedEffect(pulse) {
         if (pulse > 0) {
@@ -314,8 +316,10 @@ internal fun BookmarkButton(active: Boolean, onClick: () -> Unit) {
     Box(
         Modifier
             .size(44.dp)
+            .sparkBurst(spark, listOf(AppColors.Accent, com.flerty.wikiflerty.ui.StarYellow, androidx.compose.ui.graphics.Color.White), count = 8, reach = 0.55f, durationMs = 560)
             .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.88f) {
                 pulse++
+                if (!active) spark++
                 onClick()
             },
         contentAlignment = Alignment.Center,

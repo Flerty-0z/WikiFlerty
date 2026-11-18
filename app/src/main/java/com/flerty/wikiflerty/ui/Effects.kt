@@ -85,24 +85,62 @@ private fun rememberRun(trigger: Int, durationMs: Int, linear: Boolean = false):
 
 @Composable
 fun Modifier.sparkBurst(trigger: Int, colors: List<Color>, count: Int = 12, reach: Float = 1.1f, durationMs: Int = 650): Modifier {
-    val progress = rememberRun(trigger, durationMs)
+    val progress = rememberRun(trigger, (durationMs * 1.35f).toInt())
     val list = remember(trigger, count) { pieces(trigger * 31 + 7, count, colors.size) }
+    val unit = LocalDensity.current.density
     return drawWithContent {
         drawContent()
         val p = progress.value
         if (p >= 1f) return@drawWithContent
         val base = size.minDimension
         val c = center
-        drawCircle(colors.first().copy(alpha = (1f - p) * 0.18f), base * (0.4f + p * 0.5f), c)
+        val lead = colors.first()
+        val flash = ((p) / 0.3f).coerceIn(0f, 1f)
+        if (flash < 1f) {
+            val hr = base * (0.55f + 0.5f * flash)
+            drawCircle(androidx.compose.ui.graphics.Brush.radialGradient(listOf(Color.White.copy(alpha = 0.35f * (1f - flash)), lead.copy(alpha = 0.22f * (1f - flash)), Color.Transparent), c, hr), hr, c)
+        }
+        val wave = (p / 0.55f).coerceIn(0f, 1f)
+        if (wave < 1f) {
+            val e = 1f - (1f - wave) * (1f - wave)
+            drawCircle(lead.copy(alpha = 0.55f * (1f - wave)), base * (0.35f + reach * 0.75f * e), c, style = androidx.compose.ui.graphics.drawscope.Stroke(width = (2.4f * (1f - wave) + 0.5f) * unit))
+        }
+        val rays = 6
+        val rayT = (p / 0.45f).coerceIn(0f, 1f)
+        if (rayT < 1f) {
+            for (k in 0 until rays) {
+                val ang = k * 2f * PI.toFloat() / rays + trigger * 0.7f
+                val from = base * (0.32f + 0.45f * rayT)
+                val to = from + base * 0.42f * (1f - rayT) * reach
+                drawLine(
+                    Color.White.copy(alpha = 0.6f * (1f - rayT)),
+                    Offset(c.x + cos(ang) * from, c.y + sin(ang) * from),
+                    Offset(c.x + cos(ang) * to, c.y + sin(ang) * to),
+                    strokeWidth = 1.6f * unit * (1f - rayT * 0.5f),
+                    cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                )
+            }
+        }
         list.forEach { s ->
             val t = ((p - s.delay) / (1f - s.delay)).coerceIn(0f, 1f)
-            if (t <= 0f) return@forEach
-            val d = base * (0.3f + reach * s.speed * t)
-            val o = Offset(c.x + cos(s.angle) * d, c.y + sin(s.angle) * d)
-            val a = (1f - t) * (1f - t)
-            val r = base * 0.06f * s.size * (1f - t * 0.5f)
+            if (t <= 0f || t >= 1f) return@forEach
+            val travel = 1f - (1f - t) * (1f - t) * (1f - t)
+            val d = base * (0.3f + reach * s.speed * travel)
+            val o = Offset(c.x + cos(s.angle) * d, c.y + sin(s.angle) * d + t * t * base * 0.25f)
+            val a = (1f - t) * (if (t < 0.08f) t / 0.08f else 1f)
+            val twinkle = 0.75f + 0.25f * sin(t * 22f + s.sway)
+            val r = base * 0.06f * s.size * (1f - t * 0.45f) * twinkle
             val color = colors[s.color]
-            if (s.size > 1f) sparkle(o, r * 1.8f, color.copy(alpha = a)) else drawCircle(color.copy(alpha = a), r, o)
+            val back = Offset(c.x + cos(s.angle) * (d - base * 0.18f * (1f - t)), c.y + sin(s.angle) * (d - base * 0.18f * (1f - t)) + t * t * base * 0.25f)
+            drawLine(color.copy(alpha = a * 0.35f), back, o, strokeWidth = r * 0.8f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            drawCircle(color.copy(alpha = a * 0.3f), r * 2.1f, o)
+            if (s.size > 0.95f) {
+                sparkle(o, r * 1.9f, color.copy(alpha = a))
+                sparkle(o, r * 0.8f, Color.White.copy(alpha = a * 0.9f))
+            } else {
+                drawCircle(color.copy(alpha = a), r, o)
+                drawCircle(Color.White.copy(alpha = a * 0.8f), r * 0.45f, o)
+            }
         }
     }
 }
@@ -117,9 +155,14 @@ fun Modifier.confetti(trigger: Int, colors: List<Color>, count: Int = 70, durati
         val p = progress.value
         if (p >= 1f) return@drawWithContent
         val origin = Offset(size.width / 2f, size.height / 2f)
-        list.forEach { s ->
+        val flash = (p / 0.12f).coerceIn(0f, 1f)
+        if (flash < 1f) {
+            val hr = 90f * unit * (0.5f + flash)
+            drawCircle(androidx.compose.ui.graphics.Brush.radialGradient(listOf(Color.White.copy(alpha = 0.4f * (1f - flash)), Color.Transparent), origin, hr), hr, origin)
+        }
+        list.forEachIndexed { i, s ->
             val t = ((p - s.delay * 0.5f) / (1f - s.delay * 0.5f)).coerceIn(0f, 1f)
-            if (t <= 0f) return@forEach
+            if (t <= 0f) return@forEachIndexed
             val time = t * 2.4f
             val vx = cos(s.angle) * 260f * s.speed * unit
             val vy = -(220f + 260f * s.speed) * unit * (0.6f + 0.4f * kotlin.math.abs(sin(s.angle)))
@@ -128,10 +171,36 @@ fun Modifier.confetti(trigger: Int, colors: List<Color>, count: Int = 70, durati
             val x = origin.x + vx * time * drag + sin(time * 5f + s.sway) * 10f * unit
             val y = origin.y + vy * time * drag + 0.5f * g * time * time
             val a = if (t > 0.75f) (1f - t) / 0.25f else 1f
-            val w = 7f * unit * s.size
-            val h = 4f * unit * s.size
-            rotate(s.spin * t + s.sway * 57f, Offset(x, y)) {
-                drawRect(colors[s.color].copy(alpha = a), Offset(x - w / 2f, y - h / 2f), Size(w, h))
+            val color = colors[s.color]
+            val flip = cos(time * (4f + s.speed * 6f) + s.sway)
+            val shade = 0.55f + 0.45f * kotlin.math.abs(flip)
+            val tone = Color(color.red * shade, color.green * shade, color.blue * shade, color.alpha)
+            when (i % 4) {
+                0, 1 -> {
+                    val w = 7f * unit * s.size
+                    val h = 4f * unit * s.size * (0.2f + 0.8f * kotlin.math.abs(flip))
+                    rotate(s.spin * t + s.sway * 57f, Offset(x, y)) {
+                        drawRect(tone.copy(alpha = a), Offset(x - w / 2f, y - h / 2f), Size(w, h))
+                        if (flip > 0.6f) drawRect(Color.White.copy(alpha = a * 0.35f * flip), Offset(x - w / 2f, y - h / 2f), Size(w, h * 0.35f))
+                    }
+                }
+                2 -> {
+                    val len = 14f * unit * s.size
+                    val path = Path().apply {
+                        moveTo(x - len / 2f, y)
+                        cubicTo(x - len / 6f, y - 5f * unit * flip, x + len / 6f, y + 5f * unit * flip, x + len / 2f, y)
+                    }
+                    rotate(s.spin * t * 0.5f + s.sway * 57f, Offset(x, y)) {
+                        drawPath(path, tone.copy(alpha = a), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.2f * unit, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    }
+                }
+                else -> {
+                    val r = 3.2f * unit * s.size
+                    val tw = 0.6f + 0.4f * sin(time * 14f + s.sway)
+                    drawCircle(color.copy(alpha = a * 0.3f), r * 2f * tw, Offset(x, y))
+                    sparkle(Offset(x, y), r * 1.6f * tw, color.copy(alpha = a))
+                    sparkle(Offset(x, y), r * 0.6f * tw, Color.White.copy(alpha = a))
+                }
             }
         }
     }

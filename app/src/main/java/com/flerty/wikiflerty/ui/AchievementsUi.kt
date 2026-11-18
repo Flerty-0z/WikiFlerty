@@ -394,7 +394,23 @@ private fun ToastCard(achievement: Achievement, count: Int, onClick: () -> Unit)
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(Modifier.size(52.dp), contentAlignment = Alignment.Center) {
+        var shine by remember(achievement.id) { androidx.compose.runtime.mutableIntStateOf(0) }
+        LaunchedEffect(achievement.id) {
+            delay(200)
+            shine++
+        }
+        val pop = rememberPop(shine)
+        Box(
+            Modifier
+                .size(52.dp)
+                .graphicsLayer {
+                    scaleX = pop.value
+                    scaleY = pop.value
+                    rotationY = (1f - pop.value) * 160f
+                }
+                .victoryBloom(shine, listOf(Color(style.from), StarYellow, Color.White), reachDp = 58f, durationMs = 1900),
+            contentAlignment = Alignment.Center,
+        ) {
             Box(
                 Modifier
                     .matchParentSize()

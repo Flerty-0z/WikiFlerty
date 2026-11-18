@@ -581,9 +581,22 @@ private fun StatusTile(status: ReadStatus, open: Boolean, modifier: Modifier, on
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         val tint = AppColors.Accent
+        var won by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+        var before by remember { mutableStateOf(status) }
+        LaunchedEffect(status) {
+            if (status == ReadStatus.Finished && before != ReadStatus.Finished) won++
+            before = status
+        }
+        val pop = rememberPop(won)
         Box(
             Modifier
                 .size(32.dp)
+                .graphicsLayer {
+                    scaleX = pop.value
+                    scaleY = pop.value
+                    rotationZ = (1f - pop.value) * 50f
+                }
+                .victoryBloom(won, listOf(AppColors.Good, StarYellow, tint, Color.White), reachDp = 80f, durationMs = 2000)
                 .clip(appCorner(10))
                 .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.26f), tint.copy(alpha = 0.08f))))
                 .border(1.dp, tint.copy(alpha = 0.18f), appCorner(10)),
