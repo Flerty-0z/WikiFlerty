@@ -72,6 +72,7 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
                 val navigator = open(publication, start, settings) ?: return@launch
                 order = publication.readingOrder.map { place(it.url().toString()) }
                 book = publication
+                chapters.clear()
                 _seeking.value = true
                 try {
                     align(navigator, snippet, start)
@@ -338,7 +339,9 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
     private suspend fun jump(navigator: AndroidTtsNavigator, locator: Locator) {
         val before = navigator.location.value.utteranceLocator
         navigator.go(locator)
-        withTimeoutOrNull(1500) { navigator.location.first { it.utteranceLocator != before } }
+        navigator.skipToNextUtterance()
+        navigator.skipToPreviousUtterance()
+        withTimeoutOrNull(900) { navigator.location.first { it.utteranceLocator != before } }
     }
 
     fun go(locator: Locator, snippet: String? = null, play: Boolean = false, near: Boolean = false, fallback: Locator? = null) {
@@ -363,6 +366,7 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
     }
 
     private var book: Publication? = null
+    private val chapters = java.util.concurrent.ConcurrentHashMap<String, List<Pair<org.readium.r2.shared.publication.services.content.Content.TextElement?, String>>>()
 
     fun jumpTo(page: Locator, sentence: String, prog: Double, fallback: Locator?) {
         val navigator = _session.value?.navigator ?: return
@@ -376,11 +380,13 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
                 val spot = withContext(Dispatchers.Default) { runCatching { locate(pub, page, target, prog) }.getOrNull() }
                 if (spot != null) {
                     navigator.go(spot.locator)
-                    waitText(navigator, 2500) { u -> u.isNotEmpty() && (u.contains(spot.first.take(16)) || spot.first.contains(u.take(16))) }
-                    repeat(spot.index) {
-                        if (!navigator.hasNextUtterance()) return@repeat
-                        step(navigator, forward = true)
+                    if (spot.index > 0) {
+                        repeat(spot.index) { navigator.skipToNextUtterance() }
+                    } else {
+                        navigator.skipToNextUtterance()
+                        navigator.skipToPreviousUtterance()
                     }
+                    waitText(navigator, 1200) { same(it, target) }
                     settle(navigator, target)
                 } else if (fallback != null) {
                     jump(navigator, fallback)
@@ -440,20 +446,25 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
         val home = place(page.href.toString())
         val link = pub.readingOrder.firstOrNull { place(it.url().toString()) == home } ?: return null
         val base = pub.locatorFromLink(link) ?: return null
-        val content = pub.findService(org.readium.r2.shared.publication.services.content.ContentService::class)
-            ?.content(base.copyWithLocations(progression = 0.0)) ?: return null
-        val iterator = content.iterator()
-        val hits = mutableListOf<Pair<Int, org.readium.r2.shared.publication.services.content.Content.TextElement>>()
-        var count = 0
-        while (count < 20_000 && iterator.hasNext()) {
-            val element = iterator.next()
-            if (place(element.locator.href.toString()) != home) break
-            if (element is org.readium.r2.shared.publication.services.content.Content.TextElement) {
-                val text = squash(element.segments.joinToString("") { it.text })
-                if (text.contains(key) || (key.length < 20 && text.endsWith(key))) hits += count to element
+        val elements = chapters[home] ?: run {
+            val content = pub.findService(org.readium.r2.shared.publication.services.content.ContentService::class)
+                ?.content(base.copyWithLocations(progression = 0.0)) ?: return null
+            val iterator = content.iterator()
+            val list = mutableListOf<Pair<org.readium.r2.shared.publication.services.content.Content.TextElement?, String>>()
+            while (list.size < 20_000 && iterator.hasNext()) {
+                val element = iterator.next()
+                if (place(element.locator.href.toString()) != home) break
+                val text = element as? org.readium.r2.shared.publication.services.content.Content.TextElement
+                list += text to (text?.let { t -> squash(t.segments.joinToString("") { it.text }) } ?: "")
             }
-            count++
+            if (chapters.size > 6) chapters.clear()
+            chapters[home] = list
+            list
         }
+        val hits = elements.mapIndexedNotNull { i, (element, text) ->
+            if (element != null && (text.contains(key) || (key.length < 20 && text.endsWith(key)))) i to element else null
+        }
+        val count = elements.size
         val total = count.coerceAtLeast(1)
         val pick = hits.minByOrNull { kotlin.math.abs(it.first.toDouble() / total - prog) }?.second ?: return null
         val tokenizer = org.readium.r2.shared.util.tokenizer.DefaultTextContentTokenizer(org.readium.r2.shared.util.tokenizer.TextUnit.Sentence, pub.metadata.language)
@@ -461,8 +472,9 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
         var first: String? = null
         for (segment in pick.segments) {
             for (range in tokenizer.tokenize(segment.text)) {
-                val part = squash(segment.text.substring(range))
-                if (part.isEmpty()) continue
+                val raw = segment.text.substring(range)
+                if (raw.none { it.isLetterOrDigit() }) continue
+                val part = squash(raw)
                 if (first == null) first = part
                 if (same(part, target)) return Spot(pick.locator, index, first)
                 index++
