@@ -124,6 +124,52 @@ class Footage:
             p.wait()
 
 
+class Warp:
+    def __init__(self, f, scene, scale=1.0):
+        pad0, pad1 = scene.get("pad", [0.4, 0.8])
+        a, b = f.idx(scene["from"]), f.idx(scene["to"])
+        self.t0 = f.step_time(a) - pad0
+        self.t1 = f.step_time(b, "end") + pad1
+        speed = scene.get("speed", 1.8)
+        gap = scene.get("gap", 5.0)
+        keep = scene.get("keep", 0.6)
+        slow = {f.idx(x) for x in scene.get("slow", []) if x in f.names or isinstance(x, int)}
+        spans = []
+        for i in range(a, b + 1):
+            if i not in f.steps:
+                continue
+            hold = scene.get("hold", 1.4) if i in slow else keep
+            spans.append((max(self.t0, f.step_time(i) - 0.35), min(self.t1, f.step_time(i, "end") + hold), 1.0 if i in slow else speed))
+        cuts = sorted({self.t0, self.t1} | {x for s in spans for x in s[:2]})
+        self.segs = []
+        for x, y in zip(cuts, cuts[1:]):
+            m = (x + y) / 2
+            rates = [r for s0, s1, r in spans if s0 <= m <= s1]
+            r = (min(rates) if rates else gap) * scale
+            if self.segs and self.segs[-1][2] == r and abs(self.segs[-1][1] - x) < 1e-9:
+                self.segs[-1] = (self.segs[-1][0], y, r)
+            else:
+                self.segs.append((x, y, r))
+        self.length = sum((y - x) / r for x, y, r in self.segs)
+
+    def out(self, t):
+        acc = 0.0
+        for x, y, r in self.segs:
+            if t <= y:
+                return acc + max(0.0, t - x) / r
+            acc += (y - x) / r
+        return acc
+
+    def src(self, o):
+        acc = 0.0
+        for x, y, r in self.segs:
+            d = (y - x) / r
+            if o <= acc + d:
+                return x + (o - acc) * r
+            acc += d
+        return self.t1
+
+
 class Editor:
     def __init__(self, footage, fonts):
         self.f = footage
@@ -253,11 +299,7 @@ class Editor:
 
     def clip(self, scene, dur):
         f = self.f
-        pad0, pad1 = scene.get("pad", [0.4, 0.8])
-        t0 = f.step_time(scene["from"]) - pad0
-        t1 = f.step_time(scene["to"], "end") + pad1
-        speed = scene.get("speed", 1.0)
-        natural = (t1 - t0) / speed
+        w = Warp(f, scene, scene.get("scale", 1.0))
         zooms = []
         for z in scene.get("zoom", []):
             s = f.steps.get(f.idx(z))
@@ -267,18 +309,18 @@ class Editor:
             if rect:
                 zooms.append((f.step_time(z) - 0.5, f.step_time(z, "end") + scene.get("hold", 1.4), rect))
         cap = self.caption_layer(scene.get("caption", ""))
-        src = f.frames(t0, t1 - t0 + 0.2)
+        src = f.frames(w.t0, w.t1 - w.t0 + 0.2)
         n = int(round(dur * FPS))
         current = None
-        acc = 0.0
+        frame_t = w.t0 - 1 / FPS
         for i in range(n):
-            tt = t0 + min(i / FPS, natural) * speed
-            while acc <= min(i / FPS, natural) * speed + 1e-6:
+            tt = w.src(min(i / FPS, w.length))
+            while frame_t + 1 / FPS <= tt + 1e-6:
                 nxt = next(src, None)
                 if nxt is None:
                     break
                 current = nxt
-                acc += 1 / FPS
+                frame_t += 1 / FPS
             if current is None:
                 continue
             k, rect = 0.0, None
@@ -290,8 +332,7 @@ class Editor:
             ca = ease(i / FPS / 0.3)
             punch = max(0.0, 1 - i / FPS / 0.25) if scene.get("punch", True) else 0.0
             yield self.compose(ph, cap, ca, punch)
-        for _ in src:
-            pass
+        src.close()
 
     def first_frame(self, step):
         t = self.f.step_time(step)
@@ -327,20 +368,22 @@ def main():
             dur = max(scene.get("min", 1.8), vlen + 0.45)
         else:
             f = footage
-            pad0, pad1 = scene.get("pad", [0.4, 0.8])
-            natural = (f.step_time(scene["to"], "end") + pad1 - (f.step_time(scene["from"]) - pad0)) / scene.get("speed", 1.0)
-            dur = max(natural, vlen + 0.45, scene.get("min", 0))
+            w = Warp(f, scene)
+            target = vlen + 0.6 if vlen else scene.get("max", 0)
+            if target and w.length > target and scene.get("fit", plan.get("fit", True)):
+                scene["scale"] = min(3.0, w.length / target)
+                w = Warp(f, scene, scene["scale"])
+            dur = max(w.length, vlen + 0.45, scene.get("min", 0))
             if scene.get("max"):
                 dur = min(dur, max(scene["max"], vlen + 0.45))
-            t0 = f.step_time(scene["from"]) - pad0
             for i in range(f.idx(scene["from"]), f.idx(scene["to"]) + 1):
                 s = f.steps.get(i)
                 if not s or not s["ok"]:
                     continue
-                at = t + (f.step_time(i) - t0) / scene.get("speed", 1.0)
+                at = t + w.out(f.step_time(i))
                 if at - t > dur:
                     continue
-                if s["do"] in ("tap", "show", "pick", "tapAt", "long", "longAt"):
+                if s["do"] in ("tap", "show", "pick", "tapAt", "long", "longAt", "home"):
                     sfx.append(("pop", at, 0.55))
                 elif s["do"] in ("swipe", "repeat"):
                     sfx.append(("swipe", at, 0.45))
