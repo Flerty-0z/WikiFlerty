@@ -1796,15 +1796,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val fx = x / web.width
         val fy = y / web.height
         if (fx !in 0f..1f || fy !in 0f..1f) return null
-        val t0 = android.os.SystemClock.uptimeMillis()
-        val rawJs = webJs(web, "window.__wfSentenceAt ? window.__wfSentenceAt($fx, $fy) : '-'")
-        val raw = jsString(rawJs)
-        com.flerty.wikiflerty.tts.ReadAloud.trace?.let { log ->
-            if (raw == null || !raw.startsWith("{")) {
-                val diag = webJs(web, "(function(){var x=$fx*innerWidth,y=$fy*innerHeight,e=document.elementFromPoint(x,y),c=document.caretRangeFromPoint(x,y);return [innerWidth,innerHeight,scrollX,scrollY,e?e.tagName+'.'+e.className:'none',c?c.startContainer.nodeName+':'+c.startOffset:'none',document.readyState].join(' ')})()")
-                log("tap probe ${android.os.SystemClock.uptimeMillis() - t0}ms web=${web.width}x${web.height} f=$fx,$fy raw=${rawJs?.take(40)} diag=$diag")
-            }
-        }
+        val raw = jsString(webJs(web, "window.__wfSentenceAt ? window.__wfSentenceAt($fx, $fy) : ''"))
         if (raw == null) return null
         val o = runCatching { org.json.JSONObject(raw) }.getOrNull() ?: return null
         val text = o.optString("text").takeIf { it.length >= 2 } ?: return null
@@ -2263,10 +2255,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         lastTtsHighlight = locator
                         lastTtsWord = word
                         val strength = settings.ttsStrength.toFloat()
-                        if (!sameLine) {
-                            com.flerty.wikiflerty.tts.ReadAloud.trace?.invoke("mark ${location.utterance.take(40)}")
-                            navigator.applyDecorations(listOf(Decoration("tts", locator, TtsMark(settings.ttsColor.toInt(), strength, false))), TTS_GROUP)
-                        }
+                        if (!sameLine) navigator.applyDecorations(listOf(Decoration("tts", locator, TtsMark(settings.ttsColor.toInt(), strength, false))), TTS_GROUP)
                         navigator.applyDecorations(
                             listOfNotNull(word?.let { Decoration("tts-word", it, TtsMark(wordTint.toInt(), if (wordTint == 0L) 0f else (strength + 0.12f).coerceAtMost(0.95f), wordTint != 0L)) }),
                             TTS_WORD_GROUP,
