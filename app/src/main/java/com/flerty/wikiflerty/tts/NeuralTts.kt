@@ -611,6 +611,7 @@ class NeuralTts(
         }
         val peak = rms.maxOrNull() ?: 1.0
         val quiet = maxOf(peak * 0.04, 180.0)
+        if (rms.count { it > quiet } < sentences.size * 4) return evenSplit(pcm, sentences)
         var first = rms.indexOfFirst { it > quiet }.coerceAtLeast(0)
         var last = rms.indexOfLast { it > quiet }.coerceAtLeast(first + 1)
         val gaps = mutableListOf<Pair<Int, Int>>()

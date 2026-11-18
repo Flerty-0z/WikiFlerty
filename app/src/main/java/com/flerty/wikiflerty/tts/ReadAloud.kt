@@ -405,6 +405,12 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
                     val now = navigator.location.value.utterance
                     val hit = same(squash(now), squash(sentence)) || squash(now).contains(squash(sentence).take(12))
                     log("jump ${if (hit) "HIT" else "MISS"} ${android.os.SystemClock.uptimeMillis() - began}ms $how | tap=${sentence.take(70)} | now=${now.take(70)}")
+                    scope.launch {
+                        delay(1500)
+                        val later = navigator.location.value.utterance
+                        val stay = same(squash(later), squash(sentence)) || squash(later).contains(squash(sentence).take(12)) || later == now
+                        log("hold ${if (stay) "OK" else "LOST"} | now=${later.take(60)}")
+                    }
                 }
             }
         }
