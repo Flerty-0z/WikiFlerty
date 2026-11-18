@@ -108,7 +108,7 @@ private class PlainIterator(private val elements: List<Content.Element>, start: 
             val progression = locator.locations.progression ?: 0.0
             val start = when {
                 progression >= 1.0 -> elements.size
-                else -> (progression * elements.size).toInt().coerceIn(0, elements.size)
+                else -> (progression * elements.size + 1e-6).toInt().coerceIn(0, elements.size)
             }
             return PlainIterator(elements, start)
         }

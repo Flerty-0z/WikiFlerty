@@ -336,9 +336,9 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
     val seeking: StateFlow<Boolean> = _seeking.asStateFlow()
 
     private suspend fun jump(navigator: AndroidTtsNavigator, locator: Locator) {
-        val before = navigator.location.value
+        val before = navigator.location.value.utteranceLocator
         navigator.go(locator)
-        withTimeoutOrNull(1500) { navigator.location.first { it != before } }
+        withTimeoutOrNull(1500) { navigator.location.first { it.utteranceLocator != before } }
     }
 
     fun go(locator: Locator, snippet: String? = null, play: Boolean = false, near: Boolean = false, fallback: Locator? = null) {
@@ -348,7 +348,7 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
             val playing = navigator.playback.value.playWhenReady || play
             _seeking.value = true
             try {
-                if (playing) navigator.pause()
+                if (playing) halt(navigator)
                 jump(navigator, locator)
                 val found = align(navigator, snippet, locator, if (near) 80 else 2000)
                 if (!found && fallback != null && !snippet.isNullOrBlank()) {
@@ -371,16 +371,17 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
         goJob = scope.launch {
             _seeking.value = true
             try {
-                navigator.pause()
-                val spot = withContext(Dispatchers.Default) { runCatching { locate(pub, page, sentence, prog) }.getOrNull() }
+                halt(navigator)
+                val target = squash(sentence)
+                val spot = withContext(Dispatchers.Default) { runCatching { locate(pub, page, target, prog) }.getOrNull() }
                 if (spot != null) {
-                    jump(navigator, spot.first)
-                    repeat(spot.second) {
-                        val now = navigator.location.value
+                    navigator.go(spot.locator)
+                    waitText(navigator, 2500) { u -> u.isNotEmpty() && (u.contains(spot.first.take(16)) || spot.first.contains(u.take(16))) }
+                    repeat(spot.index) {
                         if (!navigator.hasNextUtterance()) return@repeat
-                        navigator.skipToNextUtterance()
-                        withTimeoutOrNull(800) { navigator.location.first { it != now } }
+                        step(navigator, forward = true)
                     }
+                    settle(navigator, target)
                 } else if (fallback != null) {
                     jump(navigator, fallback)
                     align(navigator, sentence, fallback)
@@ -392,8 +393,48 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
         }
     }
 
-    private suspend fun locate(pub: Publication, page: Locator, sentence: String, prog: Double): Pair<Locator, Int>? {
-        val target = squash(sentence)
+    private class Spot(val locator: Locator, val index: Int, val first: String)
+
+    private fun same(u: String, target: String): Boolean {
+        if (u.isEmpty() || target.isEmpty()) return false
+        val key = target.take(20)
+        return if (u.length >= key.length) u.contains(key) else target.startsWith(u)
+    }
+
+    private suspend fun halt(navigator: AndroidTtsNavigator) {
+        navigator.pause()
+        withTimeoutOrNull(800) { navigator.playback.first { !it.playWhenReady } }
+        delay(60)
+    }
+
+    private suspend fun waitText(navigator: AndroidTtsNavigator, ms: Long, ok: (String) -> Boolean): Boolean =
+        withTimeoutOrNull(ms) { navigator.location.first { ok(squash(it.utterance)) } } != null
+
+    private suspend fun step(navigator: AndroidTtsNavigator, forward: Boolean): Boolean {
+        val now = navigator.location.value.utteranceLocator
+        if (forward) navigator.skipToNextUtterance() else navigator.skipToPreviousUtterance()
+        return withTimeoutOrNull(900) { navigator.location.first { it.utteranceLocator != now } } != null
+    }
+
+    private suspend fun settle(navigator: AndroidTtsNavigator, target: String) {
+        if (same(squash(navigator.location.value.utterance), target)) return
+        var moved = 0
+        while (moved < 12 && navigator.hasNextUtterance()) {
+            if (!step(navigator, true)) break
+            moved++
+            if (same(squash(navigator.location.value.utterance), target)) return
+        }
+        repeat(moved) { step(navigator, false) }
+        var back = 0
+        while (back < 12 && navigator.hasPreviousUtterance()) {
+            if (!step(navigator, false)) break
+            back++
+            if (same(squash(navigator.location.value.utterance), target)) return
+        }
+        repeat(back) { step(navigator, true) }
+    }
+
+    private suspend fun locate(pub: Publication, page: Locator, target: String, prog: Double): Spot? {
         if (target.length < 2) return null
         val key = target.take(20)
         val home = place(page.href.toString())
@@ -417,16 +458,17 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
         val pick = hits.minByOrNull { kotlin.math.abs(it.first.toDouble() / total - prog) }?.second ?: return null
         val tokenizer = org.readium.r2.shared.util.tokenizer.DefaultTextContentTokenizer(org.readium.r2.shared.util.tokenizer.TextUnit.Sentence, pub.metadata.language)
         var index = 0
+        var first: String? = null
         for (segment in pick.segments) {
             for (range in tokenizer.tokenize(segment.text)) {
                 val part = squash(segment.text.substring(range))
                 if (part.isEmpty()) continue
-                val hit = if (part.length >= key.length) part.contains(key) else target.startsWith(part)
-                if (hit) return pick.locator to index
+                if (first == null) first = part
+                if (same(part, target)) return Spot(pick.locator, index, first)
                 index++
             }
         }
-        return pick.locator to 0
+        return Spot(pick.locator, 0, first ?: key)
     }
 
     private fun squash(t: String): String = buildString(t.length) {
@@ -478,7 +520,7 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
             }
             if (!navigator.hasNextUtterance()) return false
             navigator.skipToNextUtterance()
-            withTimeoutOrNull(500) { navigator.location.first { it != now } } ?: return false
+            withTimeoutOrNull(700) { navigator.location.first { it.utteranceLocator != now.utteranceLocator } } ?: return false
             steps++
         }
         return false
