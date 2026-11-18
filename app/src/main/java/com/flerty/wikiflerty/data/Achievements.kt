@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
@@ -337,6 +338,7 @@ class AchievementStore(private val app: App) {
                     e[3] as Int,
                 )
             }
+                .flowOn(kotlinx.coroutines.Dispatchers.Default)
                 .collectLatest { progress ->
                     _progress.value = progress
                     delay(1200)
