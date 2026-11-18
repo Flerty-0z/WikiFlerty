@@ -712,20 +712,23 @@ def main():
         mix.append(f"[v{n}]")
         n += 1
     sfx = []
-    whooshes = [x for x in ("w1", "w2", "w3", "w4") if os.path.exists(os.path.join(a.audio, f"sfx_{x}.mp3"))]
-    pops = [x for x in ("p1", "p2") if os.path.exists(os.path.join(a.audio, f"sfx_{x}.mp3"))]
+    def have(x):
+        q = os.path.join(a.audio, f"sfx_{x}.mp3")
+        return os.path.exists(q) and os.path.getsize(q) > 2000
+    whooshes = [x for x in ("w1", "w2", "w3", "w4") if have(x)]
+    pops = [x for x in ("p1", "p2") if have(x)]
     if plan.get("sfx", True):
         for k, b, start, dur, lead in timeline:
-            if k == 1 and os.path.exists(os.path.join(a.audio, "sfx_riser.mp3")):
+            if k == 1 and have("riser"):
                 sfx.append(("riser", 0.0, 0.32))
             if k > 1 and whooshes:
                 sfx.append((whooshes[(k - 2) % len(whooshes)], max(0, start - 0.14), 0.42))
-            if b.get("card") and k == len(timeline) and os.path.exists(os.path.join(a.audio, "sfx_hit.mp3")):
+            if b.get("card") and k == len(timeline) and have("hit"):
                 sfx.append(("hit", start + 0.05, 0.5))
         for j, (kind, at) in enumerate(reel.events):
             if kind == "tag" and pops:
                 sfx.append((pops[j % len(pops)], at, 0.3))
-            if kind == "zoom" and os.path.exists(os.path.join(a.audio, "sfx_zoom.mp3")):
+            if kind == "zoom" and have("zoom"):
                 sfx.append(("zoom", at, 0.33))
     for name, at, vol in sfx:
         inputs += ["-i", os.path.join(a.audio, f"sfx_{name}.mp3")]

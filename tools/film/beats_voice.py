@@ -29,8 +29,8 @@ kit = {
     "w2": ("smooth soft swish swipe transition", 0.7),
     "w3": ("deep cinematic whoosh pass by, short", 1.0),
     "w4": ("light fast paper flick whoosh", 0.6),
-    "p1": ("soft bubbly pop, satisfying ui sound", 0.4),
-    "p2": ("tiny soft wooden tick pop, ui", 0.4),
+    "p1": ("soft bubbly pop, satisfying ui sound", 0.5),
+    "p2": ("tiny soft wooden tick pop, ui", 0.5),
     "zoom": ("short rising swoosh, camera zoom in", 0.8),
     "riser": ("short magical riser with soft sparkle", 1.5),
     "hit": ("soft deep cinematic impact with shimmer tail, logo reveal", 2.0),
@@ -38,10 +38,11 @@ kit = {
 if plan.get("sfx", True):
     for name, (prompt, sec) in kit.items():
         f = os.path.join(out, f"sfx_{name}.mp3")
-        if os.path.exists(f):
+        if os.path.exists(f) and os.path.getsize(f) > 2000:
             continue
         try:
-            open(f, "wb").write(call("https://api.elevenlabs.io/v1/sound-generation", {"text": prompt, "duration_seconds": sec, "prompt_influence": 0.55}))
+            data = call("https://api.elevenlabs.io/v1/sound-generation", {"text": prompt, "duration_seconds": sec, "prompt_influence": 0.55})
+            open(f, "wb").write(data)
             print("sfx", name)
         except Exception as e:
             print("sfx fail", name, e)
