@@ -176,7 +176,7 @@
   },
   {
    "do": "tap",
-   "text": "Муму",
+   "text": "Герой нашего времени",
    "desc": true,
    "exact": true,
    "region": [
@@ -187,7 +187,8 @@
    ],
    "timeout": 7000,
    "after": 1800,
-   "mark": "card"
+   "mark": "card",
+   "scroll": 3
   },
   {
    "do": "tap",
@@ -237,7 +238,8 @@
    ],
    "timeout": 7000,
    "after": 1800,
-   "mark": "kd"
+   "mark": "kd",
+   "scroll": 3
   },
   {
    "do": "tap",
@@ -378,7 +380,8 @@
     0.9
    ],
    "timeout": 4000,
-   "after": 1200
+   "after": 1200,
+   "scroll": 3
   },
   {
    "do": "tap",
@@ -485,7 +488,8 @@
    ],
    "timeout": 7000,
    "after": 1800,
-   "mark": "mobi"
+   "mark": "mobi",
+   "scroll": 3
   },
   {
    "do": "tap",
@@ -544,7 +548,8 @@
    ],
    "timeout": 7000,
    "after": 1800,
-   "mark": "rtf"
+   "mark": "rtf",
+   "scroll": 3
   },
   {
    "do": "tap",
@@ -601,7 +606,8 @@
    ],
    "timeout": 7000,
    "after": 1800,
-   "mark": "docx"
+   "mark": "docx",
+   "scroll": 3
   },
   {
    "do": "tap",
@@ -630,6 +636,27 @@
   },
   {
    "do": "tap",
+   "text": "Добавить книгу",
+   "desc": true,
+   "timeout": 5000,
+   "after": 1500
+  },
+  {
+   "do": "tap",
+   "text": "Файл",
+   "exact": true,
+   "timeout": 5000,
+   "after": 2500
+  },
+  {
+   "do": "pick",
+   "text": "Mackay_Malenkij-Nemo",
+   "timeout": 8000,
+   "after": 6500,
+   "mark": "zip"
+  },
+  {
+   "do": "tap",
    "text": "Маленький Немо",
    "desc": true,
    "exact": false,
@@ -641,7 +668,8 @@
    ],
    "timeout": 7000,
    "after": 1800,
-   "mark": "comic"
+   "mark": "comic",
+   "scroll": 3
   },
   {
    "do": "tap",

@@ -163,6 +163,14 @@ class StudioDriver : AccessibilityService() {
             }
             "tap" -> {
                 if (step.json.optBoolean("click", false)) return click(step)
+                val scroll = step.json.optInt("scroll", 0)
+                if (scroll > 0) {
+                    repeat(scroll) {
+                        if (findOnce(step) != null) return@repeat
+                        swipe(0.5f * w, 0.72f * h, 0.5f * w, 0.45f * h, 700)
+                        delay(1100)
+                    }
+                }
                 val seek = step.json.optInt("seek", 0)
                 if (seek > 0) {
                     repeat(seek) {
