@@ -285,7 +285,7 @@ def find_color(img, hexcolor, tol=38):
     a = np.asarray(img).astype(int)
     h = a.shape[0]
     m = (np.abs(a - c).sum(axis=2) < tol)
-    m[: int(h * 0.04)] = False
+    m[: int(h * 0.1)] = False
     m[int(h * 0.94):] = False
     ys, xs = np.nonzero(m)
     if len(xs) < 6:
@@ -294,6 +294,84 @@ def find_color(img, hexcolor, tol=38):
     y0 = ys[order[0]]
     sel = np.abs(ys - y0) < 40
     return float(np.median(xs[sel])), float(np.median(ys[sel]))
+
+
+class Cuts:
+    X = 6
+
+    def __init__(self, f, beat):
+        a, b = f.idx(beat["from"]), f.idx(beat["to"])
+        pad0, pad1 = beat.get("pad", [0.25, 0.6])
+        t0 = f.at(a) - pad0
+        t1 = f.at(b, "end") + pad1
+        slow = {f.idx(x) for x in beat.get("slow", []) if not isinstance(x, str) or x.partition("+")[0] in f.names}
+        keep = beat.get("keep", 0.6)
+        spans = []
+        for i in range(a, b + 1):
+            if i not in f.steps:
+                continue
+            tail = beat.get("hold", 1.2) if i in slow else keep
+            spans.append([max(t0, f.at(i) - 0.3), min(t1, f.at(i, "end") + tail)])
+        spans.sort()
+        if spans:
+            spans[0][0] = t0
+            spans[-1][1] = max(spans[-1][1], t1)
+        else:
+            spans = [[t0, t1]]
+        gap = beat.get("min_gap", 0.7)
+        merged = []
+        for x, y in spans:
+            if merged and x - merged[-1][1] < gap:
+                merged[-1][1] = max(merged[-1][1], y)
+            else:
+                merged.append([x, y])
+        self.spans = merged
+        self.extend = beat.get("extend", "end")
+
+    @property
+    def length(self):
+        return sum(y - x for x, y in self.spans) - self.X / FPS * (len(self.spans) - 1)
+
+    def fit(self, dur):
+        d = dur - self.length
+        if d > 0:
+            if self.extend == "start":
+                self.spans[0][0] -= d
+            else:
+                self.spans[-1][1] += d
+        elif d < 0:
+            cut = -d
+            while cut > 1e-6 and self.spans:
+                x, y = self.spans[-1]
+                if y - x - 0.4 > cut or len(self.spans) == 1:
+                    self.spans[-1][1] = y - cut
+                    cut = 0
+                else:
+                    cut -= (y - x) - self.X / FPS
+                    self.spans.pop()
+
+    def frames(self, f):
+        tail = []
+        for k, (x, y) in enumerate(self.spans):
+            n = int(round((y - x) * FPS))
+            got = []
+            for j, img in enumerate(f.frames(x, y - x)):
+                if j >= n:
+                    break
+                got.append((img, x + j / FPS))
+            while got and len(got) < n:
+                got.append(got[-1])
+            start = 0
+            if tail:
+                for j in range(min(self.X, len(got))):
+                    a = (j + 1) / (self.X + 1)
+                    yield Image.blend(tail[j][0], got[j][0], a), got[j][1]
+                start = min(self.X, len(got))
+            last = k == len(self.spans) - 1
+            body = got[start:] if last else got[start:len(got) - self.X]
+            for item in body:
+                yield item
+            tail = [] if last else got[len(got) - self.X:]
 
 
 class Warp:
@@ -446,29 +524,45 @@ class Reel:
         f = self.f
         items, bottom = self.titles.word_images(beat, beat.get("top", 118 if beat.get("kicker") else 190))
         placed = place_tags(self.titles.tag_images(beat.get("tags")), beat.get("tags_y", 1560))
-        w = Warp(f, beat)
-        w.fit(dur)
-        print(f"  window {w.t1 - w.t0:.1f}s speed x{w.scale:.2f}", flush=True)
-        src = f.frames(w.t0, w.t1 - w.t0)
+        if beat.get("stretch"):
+            w = Warp(f, beat)
+            w.fit(dur)
+            print(f"  stretch {w.t1 - w.t0:.1f}s x{w.scale:.2f}", flush=True)
+
+            def stream():
+                src = f.frames(w.t0, w.t1 - w.t0)
+                cur, ft = None, w.t0 - 1 / FPS
+                for i in range(int(round(dur * FPS))):
+                    st = w.src(i / FPS)
+                    while ft + 1 / FPS <= st + 1e-6:
+                        nxt = next(src, None)
+                        if nxt is None:
+                            break
+                        cur, ft = nxt, ft + 1 / FPS
+                    yield cur, st
+                src.close()
+            source = stream()
+        else:
+            c = Cuts(f, beat)
+            c.fit(dur)
+            print(f"  cuts {[(round(x, 1), round(y, 1)) for x, y in c.spans]}", flush=True)
+            source = c.frames(f)
         zoom = beat.get("zoom")
         zrect = f.rect(zoom) if zoom else None
         self.beat_zoom = beat.get("zoom_k", 1.35)
         za = f.at(zoom) - 0.5 if zoom else 0
         zb = f.at(zoom, "end") + beat.get("zoom_hold", 1.5) if zoom else 0
         n = int(round(dur * FPS))
-        cur = None
-        ft = w.t0 - 1 / FPS
         color = beat.get("zoom_color")
         cbox = None
+        last = (None, 0.0)
         for i in range(n):
             t = i / FPS
-            st = w.src(t)
-            while ft + 1 / FPS <= st + 1e-6:
-                nxt = next(src, None)
-                if nxt is None:
-                    break
-                cur = nxt
-                ft += 1 / FPS
+            item = next(source, None)
+            if item is None:
+                item = last
+            last = item
+            cur, st = item
             ph = cur
             if ph is not None and zrect:
                 k = ease((st - (za - 0.4)) / 0.4) * (1 - ease((st - zb) / 0.4))
@@ -482,7 +576,6 @@ class Reel:
             layer = self.text_layer(items, t, dur)
             self.tags_layer(layer, placed, t, dur)
             yield self.compose(ph, layer, self.clock + t)
-        src.close()
         self.clock += dur
 
     def card(self, beat, dur):
@@ -546,6 +639,10 @@ def main():
         vp = os.path.join(a.audio, f"beat{plan['beats'].index(b) + 1:02d}.mp3")
         if plan.get("voice") and b.get("say") and os.path.exists(vp):
             dur = max(dur, probe(vp) / plan.get("voice_tempo", 1.0) + 0.35)
+        if not b.get("card") and not b.get("stretch"):
+            natural = Cuts(footage, b).length
+            if natural > dur:
+                dur = min(natural, dur * 1.35)
         timeline.append((k, b, t, dur))
         t += dur
     for k, b, start, dur in timeline:
@@ -588,7 +685,21 @@ def main():
         mix.append(f"[v{n}]")
         n += 1
     if os.path.exists(music):
-        inputs += ["-stream_loop", "-1", "-i", music]
+        mlen = probe(music)
+        if mlen and mlen < total + 1:
+            reps = int(total // max(1, mlen - 3)) + 1
+            long = os.path.join(work, "music_long.wav")
+            ins = []
+            for _ in range(reps + 1):
+                ins += ["-i", music]
+            chain = "[0:a]"
+            fc = []
+            for r in range(1, reps + 1):
+                fc.append(f"{chain}[{r}:a]acrossfade=d=3:c1=tri:c2=tri[x{r}]")
+                chain = f"[x{r}]"
+            run(["ffmpeg", "-v", "error", "-y", *ins, "-filter_complex", ";".join(fc), "-map", chain, long])
+            music = long
+        inputs += ["-i", music]
         vol = plan.get("music_volume", 0.55 if not voices else 0.28)
         filters.append(f"[{n}:a]atrim=0:{total:.3f},volume={vol},afade=t=in:d=0.6,afade=t=out:st={max(0, total - 1.8):.2f}:d=1.8[m]")
         mix.append("[m]")
