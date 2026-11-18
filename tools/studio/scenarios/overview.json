@@ -46,7 +46,13 @@
    "desc": true,
    "timeout": 8000,
    "after": 1800,
-   "mark": "open"
+   "mark": "open",
+   "region": [
+    0,
+    0.3,
+    1,
+    1
+   ]
   },
   {
    "do": "tap",
@@ -211,7 +217,13 @@
    "desc": true,
    "timeout": 6000,
    "after": 1800,
-   "mark": "card"
+   "mark": "card",
+   "region": [
+    0,
+    0.3,
+    1,
+    1
+   ]
   },
   {
    "do": "tap",
@@ -271,7 +283,13 @@
    "exact": true,
    "desc": true,
    "timeout": 8000,
-   "after": 1800
+   "after": 1800,
+   "region": [
+    0,
+    0.3,
+    1,
+    1
+   ]
   },
   {
    "do": "tap",
@@ -336,7 +354,13 @@
    "exact": true,
    "desc": true,
    "timeout": 8000,
-   "after": 1800
+   "after": 1800,
+   "region": [
+    0,
+    0.3,
+    1,
+    1
+   ]
   },
   {
    "do": "tap",
@@ -405,7 +429,13 @@
    "desc": true,
    "timeout": 8000,
    "after": 1800,
-   "mark": "comic"
+   "mark": "comic",
+   "region": [
+    0,
+    0.3,
+    1,
+    1
+   ]
   },
   {
    "do": "tap",

@@ -267,7 +267,7 @@ class StudioDriver : AccessibilityService() {
         val h = resources.displayMetrics.heightPixels
         for (option in wanted) {
             val hits = ArrayList<Pair<Rect, AccessibilityNodeInfo>>()
-            roots.forEach { root -> collect(root, option, step.exact, hits, step.json.optBoolean("desc", false)) }
+            roots.forEach { root -> collect(root, option, step.exact, hits, step.json.optBoolean("desc", false), step.json.optBoolean("textonly", false)) }
             val inside = if (region == null) hits else hits.filter { (r, _) ->
                 val cx = r.exactCenterX() / w
                 val cy = r.exactCenterY() / h
@@ -278,15 +278,19 @@ class StudioDriver : AccessibilityService() {
         return null
     }
 
-    private fun collect(node: AccessibilityNodeInfo?, wanted: String, exact: Boolean, out: MutableList<Pair<Rect, AccessibilityNodeInfo>>, descOnly: Boolean = false) {
+    private fun collect(node: AccessibilityNodeInfo?, wanted: String, exact: Boolean, out: MutableList<Pair<Rect, AccessibilityNodeInfo>>, descOnly: Boolean = false, textOnly: Boolean = false) {
         node ?: return
-        val values = if (descOnly) listOfNotNull(node.contentDescription?.toString()) else listOfNotNull(node.text?.toString(), node.contentDescription?.toString())
+        val values = when {
+            descOnly -> listOfNotNull(node.contentDescription?.toString())
+            textOnly -> listOfNotNull(node.text?.toString())
+            else -> listOfNotNull(node.text?.toString(), node.contentDescription?.toString())
+        }
         if (values.any { v -> val t = v.trim().lowercase(); if (exact) t == wanted else t.contains(wanted) } && node.isVisibleToUser) {
             val r = Rect()
             node.getBoundsInScreen(r)
             if (r.width() > 0 && r.height() > 0) out += r to node
         }
-        for (i in 0 until node.childCount) collect(node.getChild(i), wanted, exact, out, descOnly)
+        for (i in 0 until node.childCount) collect(node.getChild(i), wanted, exact, out, descOnly, textOnly)
     }
 
     private suspend fun click(step: Step): Boolean {
@@ -299,7 +303,7 @@ class StudioDriver : AccessibilityService() {
     }
 
     private fun sub(text: String, timeout: Long, desc: Boolean = false) =
-        Step(org.json.JSONObject().put("text", text).put("timeout", timeout).put("desc", desc))
+        Step(org.json.JSONObject().put("text", text).put("timeout", timeout).put("desc", desc).put("textonly", !desc))
 
     private suspend fun home(): Boolean {
         val shelf = sub("Моя полка", 900)
