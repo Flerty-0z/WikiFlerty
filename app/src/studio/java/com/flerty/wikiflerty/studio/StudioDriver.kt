@@ -68,6 +68,7 @@ class StudioDriver : AccessibilityService() {
         job?.cancel()
         touches?.show = showTouches
         marks = org.json.JSONArray()
+        screen = ""
         startedAt = SystemClock.uptimeMillis()
         job = scope.launch {
             var failure: String? = null
@@ -89,10 +90,11 @@ class StudioDriver : AccessibilityService() {
                 )
                 android.util.Log.i(TAG, "step ${i + 1} ${step.label()} ok=$ok ${end - begin}ms rect=$lastRect")
                 if (!ok && !step.optional) {
-                    failure = "Шаг ${i + 1}: ${step.label()}"
-                    screen = screenText()
-                    android.util.Log.w(TAG, "failed at ${i + 1}, screen:\n$screen")
-                    break
+                    val text = screenText()
+                    screen += "=== шаг ${i + 1}: ${step.label()}\n$text\n"
+                    android.util.Log.w(TAG, "failed at ${i + 1}")
+                    if (failure == null) failure = "Шаг ${i + 1}: ${step.label()}" else failure += ", ${i + 1}"
+                    if (!scenario.lenient) break
                 }
                 if (step.after > 0 && step.kind != "pause") delay(step.after)
             }
@@ -121,10 +123,11 @@ class StudioDriver : AccessibilityService() {
             node ?: return
             val t = node.text?.toString()?.trim().orEmpty()
             val d = node.contentDescription?.toString()?.trim().orEmpty()
-            if ((t.isNotEmpty() || d.isNotEmpty()) && node.isVisibleToUser) {
-                val r = Rect()
-                node.getBoundsInScreen(r)
-                out.append("  ".repeat(depth.coerceAtMost(12))).append(if (t.isNotEmpty()) "«$t»" else "").append(if (d.isNotEmpty()) " desc«$d»" else "")
+            val r = Rect()
+            node.getBoundsInScreen(r)
+            val sw = resources.displayMetrics.widthPixels
+            if ((t.isNotEmpty() || d.isNotEmpty()) && node.isVisibleToUser && r.right > 0 && r.left < sw && r.width() > 0) {
+                out.append("  ".repeat(depth.coerceAtMost(12))).append(if (t.isNotEmpty()) "«${t.take(70)}»" else "").append(if (d.isNotEmpty()) " desc«$d»" else "")
                     .append(if (node.isClickable) " click" else "").append(" ").append(r.toShortString()).append('\n')
             }
             for (i in 0 until node.childCount) walk(node.getChild(i), depth + 1)

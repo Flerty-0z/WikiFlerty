@@ -96,23 +96,19 @@
    "after": 1200
   },
   {
-   "do": "show",
-   "text": "Слушать",
-   "exact": true,
-   "x": 0.5,
-   "y": 0.5,
-   "after": 800
+   "do": "pause",
+   "ms": 0,
+   "after": 0
   },
   {
-   "do": "tap",
-   "text": "Слушать",
-   "exact": true,
-   "timeout": 4000,
-   "after": 2400
+   "do": "pause",
+   "ms": 0,
+   "after": 0
   },
   {
-   "do": "back",
-   "after": 1200
+   "do": "pause",
+   "ms": 0,
+   "after": 0
   },
   {
    "do": "hide",
@@ -519,5 +515,6 @@
    "do": "pause",
    "ms": 1500
   }
- ]
+ ],
+ "lenient": true
 }

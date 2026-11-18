@@ -27,7 +27,7 @@ class Step(val json: JSONObject) {
     }
 }
 
-class Scenario(val id: String, val title: String, val note: String, val steps: List<Step>) {
+class Scenario(val id: String, val title: String, val note: String, val steps: List<Step>, val lenient: Boolean = false) {
     companion object {
         fun parse(id: String, raw: String): Scenario? = runCatching {
             val o = JSONObject(raw)
@@ -37,6 +37,7 @@ class Scenario(val id: String, val title: String, val note: String, val steps: L
                 title = o.optString("title", id),
                 note = o.optString("note", ""),
                 steps = (0 until arr.length()).map { Step(arr.getJSONObject(it)) },
+                lenient = o.optBoolean("lenient", false),
             )
         }.getOrNull()
     }
