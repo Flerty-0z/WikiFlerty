@@ -1,0 +1,41 @@
+name: Bot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ping
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: |
+          mkdir -p audio
+          kid=$(gh api "repos/${{ github.repository }}/releases?per_page=100" -q '[.[] | select(.tag_name=="film-kit")][0].assets[0].id' || true)
+          if [ -n "$kid" ]; then gh api -H "Accept: application/octet-stream" "repos/${{ github.repository }}/releases/assets/$kid" > kit.zip && unzip -oq kit.zip -d audio; fi
+          python3 tools/film/tg.py audio/chat.txt ping
+          rm -f kit.zip
+          (cd audio && zip -q ../kit.zip sfx_*.mp3 music.mp3 chat.txt 2>/dev/null) || true
+          gh release delete film-kit --cleanup-tag -y --repo "${{ github.repository }}" 2>/dev/null || true
+          gh release create film-kit kit.zip --draft --title film-kit --notes "" --repo "${{ github.repository }}"
+
+  cloud:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SA_JSON }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Devices
+        run: |
+          gcloud config list
+          gcloud firebase test android models list --filter="form=PHYSICAL" --format="table(id,name,supportedVersionIds.list())" | head -60

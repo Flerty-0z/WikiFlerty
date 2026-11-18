@@ -12,6 +12,13 @@ on:
       form:
         description: PHYSICAL или VIRTUAL
         default: PHYSICAL
+      plan:
+        description: "Монтаж: tools/film/plans/<имя>.json или пусто"
+        default: ""
+      reuse:
+        description: "Монтировать прошлую съёмку без новой"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -31,16 +38,19 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Studio content
+        if: ${{ !inputs.reuse }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash tools/studio/content.sh "${{ github.repository }}"
 
       - name: Signing key
+        if: ${{ !inputs.reuse }}
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: echo "$KEYSTORE_BASE64" | tr -d ' \n\r' | base64 -d > app/release.keystore
 
       - name: Build
+        if: ${{ !inputs.reuse }}
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
@@ -56,13 +66,26 @@ jobs:
           done
 
       - uses: google-github-actions/auth@v2
+        if: ${{ !inputs.reuse }}
         with:
           credentials_json: ${{ secrets.FIREBASE_SA_JSON }}
 
       - uses: google-github-actions/setup-gcloud@v2
+        if: ${{ !inputs.reuse }}
+
+      - name: Previous footage
+        if: ${{ inputs.reuse }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          id=$(gh api "repos/${{ github.repository }}/releases?per_page=100" -q '[.[] | select(.tag_name=="film")][0].assets[] | select(.name=="film.zip") | .id')
+          gh api -H "Accept: application/octet-stream" "repos/${{ github.repository }}/releases/assets/$id" > prev.zip
+          mkdir -p results && unzip -oq prev.zip -d results
+          find results -name "*.mp4" | head
 
       - name: Shoot
         id: shoot
+        if: ${{ !inputs.reuse }}
         env:
           SCENE: ${{ inputs.scene }}
           DEVICE: ${{ inputs.device }}
@@ -106,16 +129,60 @@ jobs:
           for f in $(find results -name "logcat*"); do echo "=== $f"; grep -E "WFStudio|FATAL|AndroidRuntime" "$f" | head -150; done
 
       - name: Hand over
-        if: always()
+        if: ${{ always() && !inputs.reuse }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           [ -d results ] || exit 0
-          (cd results && zip -qr ../film.zip .)
+          (cd results && zip -qr ../film.zip . -x "*_cfr.mp4" "*raw.mp4")
           ls -la film.zip
           gh release delete film --cleanup-tag -y --repo "${{ github.repository }}" 2>/dev/null || true
           gh release create film film.zip --draft --title "Film ${{ github.run_number }}" --notes "" --target "${{ github.sha }}" --repo "${{ github.repository }}"
 
+      - name: Montage
+        id: montage
+        if: ${{ inputs.plan != '' && (inputs.reuse || steps.shoot.outputs.code == '0') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          PLAN: ${{ inputs.plan }}
+        run: |
+          pip install --quiet --break-system-packages numpy pillow || pip install --quiet numpy pillow
+          mkdir -p audio fonts out
+          kid=$(gh api "repos/${{ github.repository }}/releases?per_page=100" -q '[.[] | select(.tag_name=="film-kit")][0].assets[0].id' || true)
+          if [ -n "$kid" ]; then gh api -H "Accept: application/octet-stream" "repos/${{ github.repository }}/releases/assets/$kid" > kit.zip && unzip -oq kit.zip -d audio; fi
+          curl -fsSL --retry 3 -o fonts/JetBrainsMono.ttf "https://github.com/google/fonts/raw/main/ofl/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf"
+          python3 tools/film/voice.py "$PLAN" audio
+          NAME=$(basename "$PLAN" .json)
+          python3 tools/film/edit.py --results results --plan "$PLAN" --audio audio --fonts fonts --out "out/$NAME.mp4"
+          size=$(stat -c %s "out/$NAME.mp4")
+          if [ "$size" -gt 48000000 ]; then
+            ffmpeg -v error -y -i "out/$NAME.mp4" -c:v libx264 -crf 23 -preset medium -c:a copy -movflags +faststart "out/$NAME.small.mp4" && mv "out/$NAME.small.mp4" "out/$NAME.mp4"
+          fi
+          ls -la out
+          python3 -c "import json,sys; p=json.load(open(sys.argv[1])); open('caption.txt','w').write(p.get('caption',''))" "$PLAN"
+          gh release delete film-video --cleanup-tag -y --repo "${{ github.repository }}" 2>/dev/null || true
+          gh release create film-video out/*.mp4 --draft --title "Video ${{ github.run_number }}" --notes "" --repo "${{ github.repository }}"
+
+      - name: Telegram
+        if: ${{ steps.montage.outcome == 'success' }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: |
+          [ -n "$TELEGRAM_BOT_TOKEN" ] || { echo "no bot"; exit 0; }
+          python3 tools/film/tg.py audio/chat.txt out/*.mp4 caption.txt
+
+      - name: Save kit
+        if: ${{ always() && steps.montage.outcome != 'skipped' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -f kit.zip
+          (cd audio && zip -q ../kit.zip sfx_*.mp3 music.mp3 chat.txt 2>/dev/null) || true
+          [ -f kit.zip ] || exit 0
+          gh release delete film-kit --cleanup-tag -y --repo "${{ github.repository }}" 2>/dev/null || true
+          gh release create film-kit kit.zip --draft --title film-kit --notes "" --repo "${{ github.repository }}"
+
       - name: Verdict
-        if: steps.shoot.outputs.code != '0'
+        if: ${{ !inputs.reuse && steps.shoot.outputs.code != '0' }}
         run: exit 1

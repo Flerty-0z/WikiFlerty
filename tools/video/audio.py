@@ -69,7 +69,7 @@ if __name__ == "__main__":
         sfx("whoosh", "fast soft cinematic whoosh transition, clean, short", 1.0)
         sfx("pop", "soft ui pop click, modern app interface, subtle", 0.5)
         sfx("swipe", "smooth paper page swipe, light, short", 0.8)
-        sfx("tick", "gentle digital tick, minimal ui sound", 0.4)
+        sfx("tick", "gentle digital tick, minimal ui sound", 0.5)
         sfx("rise", "short airy riser, soft sparkle, upbeat", 1.5)
     if "music" in what:
         music("Upbeat modern lo-fi pop instrumental for a short app promo video, warm keys, soft punchy drums, light bass, positive and cozy, no vocals, steady 105 bpm", int(os.environ.get("MUSIC_MS", "75000")))
