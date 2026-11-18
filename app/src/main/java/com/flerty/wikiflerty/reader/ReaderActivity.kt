@@ -33,10 +33,8 @@ import androidx.appcompat.app.AppCompatActivity
 import com.flerty.wikiflerty.tts.ReadAloud
 import com.flerty.wikiflerty.tts.ReadAloudSession
 import org.readium.r2.shared.publication.Locator
+import kotlin.coroutines.resume
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.NonCancellable
-import org.readium.r2.shared.publication.services.search.search
-import org.readium.r2.shared.publication.services.search.SearchService
 import org.readium.r2.shared.publication.services.locateProgression
 import kotlin.math.roundToInt
 import org.readium.r2.shared.publication.Publication
@@ -388,7 +386,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
         lifecycleScope.launch {
-            val start = from ?: runCatching { navigator.firstVisibleElementLocator() }.getOrNull() ?: navigator.currentLocator.value
+            val start = from ?: visibleStart()
             val snippet = fromText ?: pageSnippet()
             ui.sheet = null
             ui.panelsVisible = false
@@ -396,9 +394,35 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
     }
 
+    private fun resourceOf(locator: org.readium.r2.shared.publication.Locator): String =
+        android.net.Uri.decode(locator.href.toString().substringBefore('#').substringBefore('?')).trimStart('/')
+
+    private suspend fun visibleElement(): org.readium.r2.shared.publication.Locator? {
+        val current = navigator.currentLocator.value
+        return runCatching { navigator.firstVisibleElementLocator() }.getOrNull()
+            ?.takeIf { resourceOf(it) == resourceOf(current) }
+    }
+
+    private suspend fun visibleStart(fallback: org.readium.r2.shared.publication.Locator? = null): org.readium.r2.shared.publication.Locator {
+        val current = navigator.currentLocator.value
+        val visible = visibleElement()
+        if (fallback != null && resourceOf(fallback) != resourceOf(current)) return fallback
+        return visible ?: fallback ?: current
+    }
+
     private suspend fun pageSnippet(): String? = runCatching {
-        val raw = navigator.evaluateJavascript(PAGE_SNIPPET_JS) ?: return@runCatching null
-        org.json.JSONArray("[$raw]").optString(0).takeIf { it.isNotBlank() }
+        val web = currentWebView() as? android.webkit.WebView
+        val raw = (if (web != null) {
+            kotlinx.coroutines.withTimeoutOrNull(1500) {
+                kotlinx.coroutines.suspendCancellableCoroutine<String?> { c ->
+                    web.evaluateJavascript(PAGE_SNIPPET_JS) { r -> if (c.isActive) c.resume(r) }
+                }
+            }
+        } else {
+            navigator.evaluateJavascript(PAGE_SNIPPET_JS)
+        }) ?: return@runCatching null
+        if (raw == "null") return@runCatching null
+        org.json.JSONArray("[$raw]").optString(0).takeIf { it.isNotBlank() && it != "null" }
     }.getOrNull()
 
     private val mySession: ReadAloudSession? get() = app.readAloud.session.value?.takeIf { it.bookId == bookId }
@@ -413,7 +437,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         lifecycleScope.launch {
             delay(350)
             val snippet = pageSnippet()
-            runCatching { navigator.firstVisibleElementLocator() }.getOrNull()?.let { app.readAloud.go(it, snippet) }
+            app.readAloud.go(visibleStart(), snippet)
         }
     }
     private var bookTitle: String = ""
@@ -1301,7 +1325,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     val snippet = (selection.text + tail).replace(Regex("\\s+"), " ").trim().take(160)
                     endSelection()
                     lifecycleScope.launch {
-                        val at = runCatching { navigator.firstVisibleElementLocator() }.getOrNull() ?: selection.locator
+                        val at = visibleStart(selection.locator)
                         if (mySession != null) {
                             app.readAloud.go(at, snippet)
                             app.readAloud.session.value?.navigator?.play()
@@ -1571,6 +1595,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private val search = SearchState()
     private var searchJob: Job? = null
+    private var searchToken = 0
 
     private val searchActions by lazy {
         SearchActions(
@@ -1591,42 +1616,58 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         search.limited = false
         search.searched = false
         search.running = true
+        if (!BookSearch.searchable(publication)) {
+            search.error = "В этой книге поиск недоступен"
+            search.running = false
+            return
+        }
+        val token = ++searchToken
         searchJob = lifecycleScope.launch {
-            val iterator = runCatching {
-                publication.search(query, SearchService.Options(caseSensitive = false, diacriticSensitive = false))
-            }.getOrNull()
-            if (iterator == null) {
-                search.error = "В этой книге поиск недоступен"
-                search.running = false
-                return@launch
-            }
             try {
-                while (isActive) {
-                    val page = iterator.next().getOrNull() ?: break
-                    page.locators.forEach { locator ->
+                BookSearch.find(publication, query, ::searchPlace) { hits ->
+                    hits.forEach { hit ->
                         if (search.results.size < SEARCH_LIMIT) {
+                            val href = hit.locator.href.toString()
                             search.results.add(
                                 SearchHit(
-                                    locator = locator,
-                                    chapter = locator.title,
-                                    before = locator.text.before.orEmpty(),
-                                    match = locator.text.highlight.orEmpty(),
-                                    after = locator.text.after.orEmpty(),
+                                    locator = hit.locator,
+                                    chapter = chapterFor(href, hit.locator.locations.totalProgression) ?: hit.locator.title,
+                                    before = hit.before,
+                                    match = hit.match,
+                                    after = hit.after,
                                 ),
                             )
                         }
                     }
                     if (search.results.size >= SEARCH_LIMIT) {
                         search.limited = true
-                        break
+                        false
+                    } else {
+                        true
                     }
                 }
             } finally {
-                withContext(NonCancellable) { runCatching { iterator.close() } }
-                search.running = false
-                search.searched = true
+                if (token == searchToken) {
+                    search.running = false
+                    search.searched = true
+                }
             }
         }
+    }
+
+    private fun searchPlace(href: String, progression: Double): Pair<Double?, Int?> {
+        val key = href.substringBefore('#')
+        val all = positions
+        val first = all.indexOfFirst { it.href.toString().substringBefore('#') == key }
+        if (first < 0) return null to null
+        var last = first
+        while (last + 1 < all.size && all[last + 1].href.toString().substringBefore('#') == key) last++
+        val count = last - first + 1
+        val at = all[(first + (progression * count).toInt()).coerceIn(first, last)]
+        val from = all[first].locations.totalProgression
+        val to = all.getOrNull(last + 1)?.locations?.totalProgression ?: 1.0
+        val total = from?.let { it + (to - it) * progression }
+        return total to at.locations.position
     }
 
     private fun openSearchHit(index: Int) {
@@ -1647,7 +1688,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private fun clearSearch() {
+        searchToken++
         searchJob?.cancel()
+        search.running = false
         search.current = -1
         search.results.clear()
         search.searched = false
@@ -2019,6 +2062,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         ui.chapter = if (tocCustom.value) chapterFor(href, total) else locator.title?.takeIf { it.isNotBlank() } ?: chapterFor(href, total)
                         ui.currentHref = href
                         hasImages(href)
+                        inkSurface()
                         val turnKey = href + "|" + (locator.locations.progression ?: 0.0)
                         if (turnKey != lastTurnKey) {
                             val first = lastTurnKey == null
@@ -2074,6 +2118,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         if (kitKey != lastKitLook) {
                             lastKitLook = kitKey
                             applyKitTexture()
+                            inkSurface()
                             launch { runCatching { navigator.evaluateJavascript(kitCall()) } }
                         }
                         if (lastMarkWords != null && s.markWords != lastMarkWords) {
@@ -2499,7 +2544,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 app.bookmarks.delete(existing.map { it.id })
             } else {
                 ui.bookmarked = true
-                val first = runCatching { navigator.firstVisibleElementLocator() }.getOrNull()
+                val first = visibleElement()
                 val snippet = first?.text?.let { it.highlight ?: it.after }.orEmpty()
                 val created = app.bookmarks.create(bookId, locator, ui.chapter ?: locator.title, snippet)
                 ui.nameMark = created
@@ -3183,6 +3228,26 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 val want = mySession == null
                 if (v.settings.offscreenPreRaster != want) v.settings.offscreenPreRaster = want
                 if (!v.settings.blockNetworkLoads) v.settings.blockNetworkLoads = true
+                return
+            }
+            if (v is android.view.ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+        }
+        walk(bookArea)
+    }
+
+    private val inkPainted = java.util.WeakHashMap<android.webkit.WebView, Int>()
+
+    private fun inkSurface() {
+        if (!::bookArea.isInitialized) return
+        val ink = settings.pageTheme == PageTheme.Ink
+        val color = if (ink) settings.pageTheme.background.toInt() else android.graphics.Color.TRANSPARENT
+        fun walk(v: View) {
+            if (v is android.webkit.WebView) {
+                val was = inkPainted[v]
+                if (was != color && (ink || was != null)) {
+                    v.setBackgroundColor(color)
+                    inkPainted[v] = color
+                }
                 return
             }
             if (v is android.view.ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))

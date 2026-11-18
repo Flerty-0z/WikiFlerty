@@ -70,7 +70,8 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
         scope.launch {
             try {
                 val navigator = open(publication, start, settings) ?: return@launch
-                if (!snippet.isNullOrBlank()) align(navigator, snippet, start)
+                order = publication.readingOrder.map { place(it.url().toString()) }
+                align(navigator, snippet, start)
                 _session.value = ReadAloudSession(bookId, navigator)
                 app.startService(Intent(app, ReadAloudService::class.java))
                 watch(navigator, bookId)
@@ -327,10 +328,6 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
     fun go(locator: Locator, snippet: String? = null) {
         val navigator = _session.value?.navigator ?: return
         goJob?.cancel()
-        if (snippet.isNullOrBlank()) {
-            navigator.go(locator)
-            return
-        }
         goJob = scope.launch {
             val playing = navigator.playback.value.playWhenReady
             if (playing) navigator.pause()
@@ -356,25 +353,43 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
         return u.length < 8 && page.startsWith(u)
     }
 
-    private suspend fun align(navigator: AndroidTtsNavigator, snippet: String, start: Locator?) {
-        val page = squash(snippet).take(48)
-        if (page.length < 8) return
-        val deadline = android.os.SystemClock.uptimeMillis() + 3000
+    private var order: List<String> = emptyList()
+
+    private fun place(href: String): String =
+        android.net.Uri.decode(href.substringBefore('#').substringBefore('?')).trimStart('/')
+
+    private suspend fun align(navigator: AndroidTtsNavigator, snippet: String?, start: Locator?) {
+        val target = start ?: return
+        val home = place(target.href.toString())
+        val page = snippet?.let { squash(it).take(48) }?.takeIf { it.length >= 8 }
+        if (enter(navigator, home, page) || page == null) return
+        navigator.go(target)
+        withTimeoutOrNull(600) { navigator.location.drop(1).first() }
+        enter(navigator, home, null)
+    }
+
+    private suspend fun enter(navigator: AndroidTtsNavigator, home: String, page: String?): Boolean {
+        val homeIndex = order.indexOf(home)
+        val deadline = android.os.SystemClock.uptimeMillis() + 4000
         var steps = 0
-        val home = start?.href?.toString()?.substringBefore('#')
-        while (steps < 1500 && android.os.SystemClock.uptimeMillis() < deadline) {
+        var inside = false
+        while (steps < 2000 && android.os.SystemClock.uptimeMillis() < deadline) {
             val now = navigator.location.value
-            if (home != null && steps > 0 && now.utteranceLocator.href.toString().substringBefore('#') != home) break
-            if (fits(now.utterance, page)) return
-            if (!navigator.hasNextUtterance()) break
+            val here = place(now.utteranceLocator.href.toString())
+            if (here == home) {
+                inside = true
+                if (page == null || fits(now.utterance, page)) return true
+            } else {
+                if (inside) return false
+                val index = order.indexOf(here)
+                if (homeIndex < 0 || index < 0 || index > homeIndex) return false
+            }
+            if (!navigator.hasNextUtterance()) return false
             navigator.skipToNextUtterance()
-            withTimeoutOrNull(500) { navigator.location.first { it != now } } ?: break
+            withTimeoutOrNull(500) { navigator.location.first { it != now } } ?: return false
             steps++
         }
-        if (steps > 0 && start != null) {
-            navigator.go(start)
-            withTimeoutOrNull(600) { navigator.location.drop(1).first() }
-        }
+        return false
     }
 
     fun apply(settings: ReaderSettings) {
