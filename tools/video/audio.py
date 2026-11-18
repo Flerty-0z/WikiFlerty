@@ -37,7 +37,7 @@ def voice(lines_file, voice_id):
             body["previous_text"] = prev
         if i < len(lines):
             body["next_text"] = lines[i]
-        open(f"{out}/line{i:02d}.mp3", "wb").write(call(f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?output_format=mp3_44100_192", body))
+        open(f"{out}/line{i:02d}.mp3", "wb").write(call(f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?output_format=mp3_44100_128", body))
         prev = line
         print("voice", i)
 
