@@ -1,0 +1,20 @@
+name: Peek library sources
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact:
+        required: true
+      pattern:
+        required: true
+
+jobs:
+  peek:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          A="${{ inputs.artifact }}"
+          G=$(echo "$A" | cut -d: -f1 | tr . /); N=$(echo "$A" | cut -d: -f2); V=$(echo "$A" | cut -d: -f3)
+          curl -fsSL -o src.jar "https://repo1.maven.org/maven2/$G/$N/$V/$N-$V-sources.jar"
+          mkdir s && cd s && unzip -q ../src.jar
+          find . -type f | grep -E "${{ inputs.pattern }}" | while read f; do echo "=== $f"; cat "$f"; done
