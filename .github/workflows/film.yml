@@ -149,6 +149,7 @@ jobs:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           PLAN: ${{ inputs.plan }}
         run: |
+          which ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null)
           pip install --quiet --break-system-packages numpy pillow || pip install --quiet numpy pillow
           mkdir -p audio fonts out
           kid=$(gh api "repos/${{ github.repository }}/releases?per_page=100" -q '[.[] | select(.tag_name=="film-kit")][0].assets[0].id' || true)
