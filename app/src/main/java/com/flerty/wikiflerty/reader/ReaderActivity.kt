@@ -1792,11 +1792,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private suspend fun sentenceAt(x: Float, y: Float): Triple<String, String, Double>? {
         val web = currentWebView() as? android.webkit.WebView ?: return null
-        val host = IntArray(2).also { navigator.publicationView.getLocationInWindow(it) }
-        val at = IntArray(2).also { web.getLocationInWindow(it) }
         if (web.width <= 0 || web.height <= 0) return null
-        val fx = (host[0] + x - at[0]) / web.width
-        val fy = (host[1] + y - at[1]) / web.height
+        val fx = x / web.width
+        val fy = y / web.height
         if (fx !in 0f..1f || fy !in 0f..1f) return null
         val t0 = android.os.SystemClock.uptimeMillis()
         val rawJs = webJs(web, "window.__wfSentenceAt ? window.__wfSentenceAt($fx, $fy) : '-'")
@@ -1804,7 +1802,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         com.flerty.wikiflerty.tts.ReadAloud.trace?.let { log ->
             if (raw == null || !raw.startsWith("{")) {
                 val diag = webJs(web, "(function(){var x=$fx*innerWidth,y=$fy*innerHeight,e=document.elementFromPoint(x,y),c=document.caretRangeFromPoint(x,y);return [innerWidth,innerHeight,scrollX,scrollY,e?e.tagName+'.'+e.className:'none',c?c.startContainer.nodeName+':'+c.startOffset:'none',document.readyState].join(' ')})()")
-                log("tap probe ${android.os.SystemClock.uptimeMillis() - t0}ms web=${web.width}x${web.height} at=${at[0]},${at[1]} f=$fx,$fy raw=${rawJs?.take(40)} diag=$diag")
+                log("tap probe ${android.os.SystemClock.uptimeMillis() - t0}ms web=${web.width}x${web.height} f=$fx,$fy raw=${rawJs?.take(40)} diag=$diag")
             }
         }
         if (raw == null) return null
