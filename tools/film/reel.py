@@ -538,7 +538,7 @@ def main():
         dur = b.get("dur", 3.2)
         vp = os.path.join(a.audio, f"beat{plan['beats'].index(b) + 1:02d}.mp3")
         if plan.get("voice") and b.get("say") and os.path.exists(vp):
-            dur = max(dur, probe(vp) + 0.35)
+            dur = max(dur, probe(vp) / plan.get("voice_tempo", 1.0) + 0.35)
         timeline.append((k, b, t, dur))
         t += dur
     for k, b, start, dur in timeline:
@@ -577,7 +577,7 @@ def main():
     for p, at in voices:
         inputs += ["-i", p]
         d = int(at * 1000)
-        filters.append(f"[{n}:a]adelay={d}|{d}[v{n}]")
+        filters.append(f"[{n}:a]atempo={plan.get('voice_tempo', 1.0)},adelay={d}|{d},volume={plan.get('voice_volume', 1.0)}[v{n}]")
         mix.append(f"[v{n}]")
         n += 1
     if os.path.exists(music):
