@@ -19,6 +19,9 @@ on:
         description: "Монтировать прошлую съёмку без новой"
         type: boolean
         default: false
+      source:
+        description: "Взять съёмку из облака: film-N"
+        default: ""
       send:
         description: "Отправить в Telegram"
         type: boolean
@@ -70,21 +73,26 @@ jobs:
           done
 
       - uses: google-github-actions/auth@v2
-        if: ${{ !inputs.reuse }}
+        if: ${{ !inputs.reuse || inputs.source != '' }}
         with:
           credentials_json: ${{ secrets.FIREBASE_SA_JSON }}
 
       - uses: google-github-actions/setup-gcloud@v2
-        if: ${{ !inputs.reuse }}
+        if: ${{ !inputs.reuse || inputs.source != '' }}
 
       - name: Previous footage
         if: ${{ inputs.reuse }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          id=$(gh api "repos/${{ github.repository }}/releases?per_page=100" -q '[.[] | select(.tag_name=="film")][0].assets[] | select(.name=="film.zip") | .id')
-          gh api -H "Accept: application/octet-stream" "repos/${{ github.repository }}/releases/assets/$id" > prev.zip
-          mkdir -p results && unzip -oq prev.zip -d results
+          mkdir -p results
+          if [ -n "${{ inputs.source }}" ]; then
+            gsutil -m -q cp -r "gs://test-lab-asyqad4a514ax-jxj2zb2wsjj30/${{ inputs.source }}" results/
+          else
+            id=$(gh api "repos/${{ github.repository }}/releases?per_page=100" -q '[.[] | select(.tag_name=="film")][0].assets[] | select(.name=="film.zip") | .id')
+            gh api -H "Accept: application/octet-stream" "repos/${{ github.repository }}/releases/assets/$id" > prev.zip
+            unzip -oq prev.zip -d results
+          fi
           find results -name "*.mp4" | head
 
       - name: Shoot
@@ -142,8 +150,12 @@ jobs:
           [ -d results ] || exit 0
           (cd results && zip -qr ../film.zip . -x "*_cfr.mp4" "*raw.mp4")
           ls -la film.zip
-          gh release delete film --cleanup-tag -y --repo "${{ github.repository }}" 2>/dev/null || true
-          gh release create film film.zip --draft --title "Film ${{ github.run_number }}" --notes "" --target "${{ github.sha }}" --repo "${{ github.repository }}"
+          for i in 1 2 3; do
+            gh release delete film --cleanup-tag -y --repo "${{ github.repository }}" 2>/dev/null || true
+            sleep 3
+            gh release create film film.zip --draft --title "Film ${{ github.run_number }}" --notes "" --repo "${{ github.repository }}" && break
+            sleep 10
+          done
 
       - name: Montage
         id: montage
