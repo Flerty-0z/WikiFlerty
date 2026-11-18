@@ -224,17 +224,34 @@ class StudioDriver : AccessibilityService() {
             }
             "pick" -> {
                 val name = step.text.orEmpty()
+                val folder = step.json.optString("folder", "WikiFlerty Studio")
                 if (find(sub(name, 3000)) == null) {
                     if (find(sub("Загрузки|Downloads|Скачанные", 800)) == null) click(sub("Показать корневые папки|Show roots", 2500, desc = true))
                     delay(900)
                     click(sub("Загрузки|Downloads|Скачанные", 3000))
                     delay(1300)
                     if (find(sub(name, 1500)) == null) {
-                        click(sub("WikiFlerty Studio", 3000))
+                        click(sub(folder, 3000))
                         delay(1300)
                     }
                 }
                 click(sub(name, step.timeout))
+            }
+            "tree" -> {
+                val folder = step.text ?: "WikiFlerty Studio"
+                delay(1200)
+                if (find(sub(folder, 1500)) == null) {
+                    if (find(sub("Загрузки|Downloads|Скачанные", 800)) == null) click(sub("Показать корневые папки|Show roots", 2500, desc = true))
+                    delay(900)
+                    click(sub("Загрузки|Downloads|Скачанные", 3000))
+                    delay(1300)
+                }
+                if (!click(sub(folder, 4000))) return false
+                delay(1300)
+                if (!click(sub("Использовать эту папку|Use this folder|USE THIS FOLDER|Выбрать эту папку", 4000))) return false
+                delay(1200)
+                click(sub("Разрешить|Allow|ALLOW", 4000))
+                true
             }
             "back" -> {
                 performGlobalAction(GLOBAL_ACTION_BACK)
