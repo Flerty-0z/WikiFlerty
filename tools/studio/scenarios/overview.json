@@ -1,6 +1,7 @@
 {
  "title": "Обзор: что нового",
  "note": "Полка, книга, «Слушать отсюда», свой шрифт, таймер, MOBI, DOCX со сноской, комикс с Флибусты",
+ "lenient": true,
  "steps": [
   {
    "do": "launch",
@@ -17,7 +18,8 @@
    "do": "wait",
    "text": "Моя полка",
    "timeout": 8000,
-   "after": 2500
+   "after": 2500,
+   "mark": "shelf"
   },
   {
    "do": "swipe",
@@ -41,9 +43,10 @@
    "do": "tap",
    "text": "Капитанская дочка",
    "exact": true,
+   "desc": true,
    "timeout": 8000,
    "after": 1800,
-   "desc": true
+   "mark": "open"
   },
   {
    "do": "tap",
@@ -65,7 +68,8 @@
    "x2": 0.15,
    "y2": 0.55,
    "ms": 450,
-   "after": 1600
+   "after": 1600,
+   "mark": "pages"
   },
   {
    "do": "swipe",
@@ -80,56 +84,58 @@
    "do": "show",
    "text": "Главы",
    "exact": true,
+   "after": 1500,
    "x": 0.5,
-   "y": 0.5,
-   "after": 1500
+   "y": 0.5
   },
   {
    "do": "tap",
    "text": "Главы",
    "exact": true,
    "timeout": 4000,
-   "after": 2400
+   "after": 2400,
+   "mark": "toc"
   },
   {
    "do": "back",
    "after": 1200
   },
   {
-   "do": "pause",
-   "ms": 0,
-   "after": 0
-  },
-  {
-   "do": "pause",
-   "ms": 0,
-   "after": 0
-  },
-  {
-   "do": "pause",
-   "ms": 0,
-   "after": 0
-  },
-  {
    "do": "hide",
    "text": "Главы",
    "exact": true,
+   "after": 1000,
    "x": 0.5,
-   "y": 0.5,
-   "after": 1000
+   "y": 0.5
   },
   {
    "do": "longAt",
    "x": 0.42,
    "y": 0.42,
    "ms": 900,
-   "after": 1500
+   "after": 1500,
+   "mark": "select"
+  },
+  {
+   "do": "tap",
+   "text": "Ещё",
+   "desc": true,
+   "exact": true,
+   "region": [
+    0,
+    0.12,
+    1,
+    0.9
+   ],
+   "timeout": 4000,
+   "after": 1200
   },
   {
    "do": "tap",
    "text": "Слушать отсюда",
    "timeout": 5000,
-   "after": 6500
+   "after": 6500,
+   "mark": "listen"
   },
   {
    "do": "tap",
@@ -142,16 +148,17 @@
    "do": "show",
    "text": "Шрифт",
    "exact": true,
+   "after": 1000,
    "x": 0.5,
-   "y": 0.5,
-   "after": 1000
+   "y": 0.5
   },
   {
    "do": "tap",
    "text": "Шрифт",
    "exact": true,
    "timeout": 4000,
-   "after": 1500
+   "after": 1500,
+   "mark": "font"
   },
   {
    "do": "tap",
@@ -164,13 +171,15 @@
    "do": "tap",
    "text": "Свой шрифт",
    "timeout": 5000,
-   "after": 2500
+   "after": 2500,
+   "mark": "ownfont"
   },
   {
    "do": "pick",
    "text": "Lobster",
    "timeout": 8000,
-   "after": 3500
+   "after": 3500,
+   "mark": "lobster"
   },
   {
    "do": "back",
@@ -186,42 +195,30 @@
    "do": "hide",
    "text": "Главы",
    "exact": true,
-   "x": 0.5,
-   "y": 0.5,
    "optional": true,
-   "after": 3000
-  },
-  {
-   "do": "hide",
-   "text": "Главы",
-   "exact": true,
+   "after": 2500,
    "x": 0.5,
-   "y": 0.5,
-   "optional": true
+   "y": 0.5
   },
   {
-   "do": "back",
-   "after": 1500
-  },
-  {
-   "do": "wait",
-   "text": "Моя полка",
-   "timeout": 6000,
+   "do": "home",
    "after": 800
   },
   {
    "do": "tap",
    "text": "Капитанская дочка",
    "exact": true,
+   "desc": true,
    "timeout": 6000,
    "after": 1800,
-   "desc": true
+   "mark": "card"
   },
   {
    "do": "tap",
    "text": "Засечь время",
    "timeout": 5000,
-   "after": 1800
+   "after": 1800,
+   "mark": "timer"
   },
   {
    "do": "tap",
@@ -233,37 +230,26 @@
    "do": "tap",
    "text": "Свернуть таймер",
    "timeout": 5000,
-   "after": 1800
+   "after": 1800,
+   "mark": "fold"
   },
   {
    "do": "tap",
    "text": "Показать таймер",
    "timeout": 5000,
-   "after": 2200
+   "after": 2200,
+   "mark": "unfold"
   },
   {
-   "do": "hide",
-   "text": "Главы",
-   "exact": true,
-   "x": 0.5,
-   "y": 0.5,
-   "optional": true
-  },
-  {
-   "do": "back",
-   "after": 1500
-  },
-  {
-   "do": "wait",
-   "text": "Моя полка",
-   "timeout": 6000,
+   "do": "home",
    "after": 800
   },
   {
    "do": "tap",
    "text": "Добавить книгу",
    "timeout": 5000,
-   "after": 1500
+   "after": 1500,
+   "mark": "add"
   },
   {
    "do": "tap",
@@ -276,15 +262,16 @@
    "do": "pick",
    "text": "Пиковая дама",
    "timeout": 8000,
-   "after": 6000
+   "after": 6000,
+   "mark": "mobi"
   },
   {
    "do": "tap",
    "text": "Пиковая дама",
    "exact": true,
+   "desc": true,
    "timeout": 8000,
-   "after": 1800,
-   "desc": true
+   "after": 1800
   },
   {
    "do": "tap",
@@ -303,37 +290,24 @@
    "do": "show",
    "text": "Главы",
    "exact": true,
+   "after": 1000,
    "x": 0.5,
-   "y": 0.5,
-   "after": 1000
+   "y": 0.5
   },
   {
    "do": "tap",
    "text": "Главы",
    "exact": true,
    "timeout": 4000,
-   "after": 2500
+   "after": 2500,
+   "mark": "mobitoc"
   },
   {
    "do": "back",
    "after": 1200
   },
   {
-   "do": "hide",
-   "text": "Главы",
-   "exact": true,
-   "x": 0.5,
-   "y": 0.5,
-   "optional": true
-  },
-  {
-   "do": "back",
-   "after": 1500
-  },
-  {
-   "do": "wait",
-   "text": "Моя полка",
-   "timeout": 6000,
+   "do": "home",
    "after": 800
   },
   {
@@ -353,15 +327,16 @@
    "do": "pick",
    "text": "Дама с собачкой",
    "timeout": 8000,
-   "after": 6000
+   "after": 6000,
+   "mark": "docx"
   },
   {
    "do": "tap",
    "text": "Дама с собачкой",
    "exact": true,
+   "desc": true,
    "timeout": 8000,
-   "after": 1800,
-   "desc": true
+   "after": 1800
   },
   {
    "do": "tap",
@@ -390,7 +365,8 @@
    "text": "[1]",
    "timeout": 3000,
    "optional": true,
-   "after": 2800
+   "after": 2800,
+   "mark": "note"
   },
   {
    "do": "backIf",
@@ -399,21 +375,7 @@
    "after": 1000
   },
   {
-   "do": "hide",
-   "text": "Главы",
-   "exact": true,
-   "x": 0.5,
-   "y": 0.5,
-   "optional": true
-  },
-  {
-   "do": "back",
-   "after": 1500
-  },
-  {
-   "do": "wait",
-   "text": "Моя полка",
-   "timeout": 6000,
+   "do": "home",
    "after": 800
   },
   {
@@ -433,15 +395,17 @@
    "do": "pick",
    "text": "Mackay_Malenkij-Nemo",
    "timeout": 8000,
-   "after": 6000
+   "after": 6000,
+   "mark": "zip"
   },
   {
    "do": "tap",
    "text": "Маленький Немо",
    "exact": true,
+   "desc": true,
    "timeout": 8000,
    "after": 1800,
-   "desc": true
+   "mark": "comic"
   },
   {
    "do": "tap",
@@ -464,29 +428,45 @@
    "y2": 0.55,
    "ms": 450,
    "times": 2,
-   "gap": 1600
+   "gap": 1600,
+   "mark": "comicpages"
   },
   {
    "do": "show",
-   "text": "Листание",
+   "text": "Опции",
    "exact": true,
+   "desc": true,
+   "after": 1000,
    "x": 0.5,
-   "y": 0.5,
-   "after": 1000
+   "y": 0.5
+  },
+  {
+   "do": "tap",
+   "text": "Опции",
+   "exact": true,
+   "desc": true,
+   "timeout": 4000,
+   "after": 1500
   },
   {
    "do": "tap",
    "text": "Листание",
    "exact": true,
    "timeout": 4000,
-   "after": 1500
+   "after": 1500,
+   "mark": "flip"
   },
   {
    "do": "tap",
    "text": "Лента",
    "exact": true,
    "timeout": 4000,
-   "after": 1500
+   "after": 1500,
+   "mark": "feed"
+  },
+  {
+   "do": "back",
+   "after": 1000
   },
   {
    "do": "back",
@@ -496,10 +476,10 @@
    "do": "hide",
    "text": "Главы",
    "exact": true,
-   "x": 0.5,
-   "y": 0.5,
    "optional": true,
-   "after": 1200
+   "after": 1200,
+   "x": 0.5,
+   "y": 0.5
   },
   {
    "do": "repeat",
@@ -509,12 +489,12 @@
    "y2": 0.3,
    "ms": 700,
    "times": 4,
-   "gap": 900
+   "gap": 900,
+   "mark": "feedscroll"
   },
   {
    "do": "pause",
    "ms": 1500
   }
- ],
- "lenient": true
+ ]
 }

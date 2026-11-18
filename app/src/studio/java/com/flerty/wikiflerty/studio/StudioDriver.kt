@@ -162,9 +162,11 @@ class StudioDriver : AccessibilityService() {
                 false
             }
             "tap" -> {
+                if (step.json.optBoolean("click", false)) return click(step)
                 val r = find(step) ?: return false
                 tap(r.exactCenterX() + step.dx * r.width(), r.exactCenterY() + step.dy * r.height(), 70)
             }
+            "home" -> home()
             "long" -> {
                 val r = find(step) ?: return false
                 tap(r.exactCenterX() + step.dx * r.width(), r.exactCenterY() + step.dy * r.height(), step.ms.takeIf { it > 0 } ?: 800)
@@ -209,16 +211,18 @@ class StudioDriver : AccessibilityService() {
                 true
             }
             "pick" -> {
-                val target = Step(org.json.JSONObject().put("text", step.text).put("timeout", 3500))
-                if (find(target) == null) {
-                    for (place in listOf("Загрузки|Downloads|Download|Скачанные", "WikiFlerty Studio")) {
-                        val r = find(Step(org.json.JSONObject().put("text", place).put("timeout", 3000))) ?: continue
-                        tap(r.exactCenterX(), r.exactCenterY(), 70)
-                        delay(1200)
+                val name = step.text.orEmpty()
+                if (find(sub(name, 3000)) == null) {
+                    if (find(sub("Загрузки|Downloads|Скачанные", 800)) == null) click(sub("Показать корневые папки|Show roots", 2500, desc = true))
+                    delay(900)
+                    click(sub("Загрузки|Downloads|Скачанные", 3000))
+                    delay(1300)
+                    if (find(sub(name, 1500)) == null) {
+                        click(sub("WikiFlerty Studio", 3000))
+                        delay(1300)
                     }
                 }
-                val r = find(Step(org.json.JSONObject().put("text", step.text).put("timeout", step.timeout))) ?: return false
-                tap(r.exactCenterX(), r.exactCenterY(), 70)
+                click(sub(name, step.timeout))
             }
             "back" -> {
                 performGlobalAction(GLOBAL_ACTION_BACK)
@@ -253,26 +257,58 @@ class StudioDriver : AccessibilityService() {
         return null
     }
 
+    private var lastNode: AccessibilityNodeInfo? = null
+
     private fun findOnce(step: Step): Rect? {
         val wanted = step.text?.split('|')?.map { it.trim().lowercase() }?.filter { it.isNotEmpty() } ?: return null
         val roots = runCatching { windows.mapNotNull { it.root } }.getOrDefault(emptyList()).ifEmpty { listOfNotNull(rootInActiveWindow) }
+        val region = step.json.optJSONArray("region")
+        val w = resources.displayMetrics.widthPixels
+        val h = resources.displayMetrics.heightPixels
         for (option in wanted) {
-            val hits = ArrayList<Rect>()
+            val hits = ArrayList<Pair<Rect, AccessibilityNodeInfo>>()
             roots.forEach { root -> collect(root, option, step.exact, hits, step.json.optBoolean("desc", false)) }
-            hits.getOrNull(step.index)?.let { return it }
+            val inside = if (region == null) hits else hits.filter { (r, _) ->
+                val cx = r.exactCenterX() / w
+                val cy = r.exactCenterY() / h
+                cx >= region.optDouble(0) && cy >= region.optDouble(1) && cx <= region.optDouble(2) && cy <= region.optDouble(3)
+            }
+            inside.getOrNull(step.index)?.let { lastNode = it.second; return it.first }
         }
         return null
     }
 
-    private fun collect(node: AccessibilityNodeInfo?, wanted: String, exact: Boolean, out: MutableList<Rect>, descOnly: Boolean = false) {
+    private fun collect(node: AccessibilityNodeInfo?, wanted: String, exact: Boolean, out: MutableList<Pair<Rect, AccessibilityNodeInfo>>, descOnly: Boolean = false) {
         node ?: return
         val values = if (descOnly) listOfNotNull(node.contentDescription?.toString()) else listOfNotNull(node.text?.toString(), node.contentDescription?.toString())
         if (values.any { v -> val t = v.trim().lowercase(); if (exact) t == wanted else t.contains(wanted) } && node.isVisibleToUser) {
             val r = Rect()
             node.getBoundsInScreen(r)
-            if (r.width() > 0 && r.height() > 0) out += r
+            if (r.width() > 0 && r.height() > 0) out += r to node
         }
         for (i in 0 until node.childCount) collect(node.getChild(i), wanted, exact, out, descOnly)
+    }
+
+    private suspend fun click(step: Step): Boolean {
+        val r = find(step) ?: return false
+        var node = lastNode
+        while (node != null && !node.isClickable) node = node.parent
+        touches?.tap(r.exactCenterX(), r.exactCenterY(), 70)
+        if (node != null && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
+        return tap(r.exactCenterX(), r.exactCenterY(), 70)
+    }
+
+    private fun sub(text: String, timeout: Long, desc: Boolean = false) =
+        Step(org.json.JSONObject().put("text", text).put("timeout", timeout).put("desc", desc))
+
+    private suspend fun home(): Boolean {
+        val shelf = sub("Моя полка", 900)
+        repeat(6) {
+            if (find(shelf) != null) return true
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            delay(900)
+        }
+        return find(sub("Моя полка", 3000)) != null
     }
 
     private suspend fun openBook(title: String): Boolean {

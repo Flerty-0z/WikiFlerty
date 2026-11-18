@@ -21,7 +21,7 @@ class Film {
     private val self = instrumentation.context
     private val ua: UiAutomation = instrumentation.getUiAutomation(UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES)
     private val pkg = "com.flerty.wikiflerty.studio"
-    private val out = "/sdcard/wf"
+    private val out = "/data/local/tmp/wf"
     private val appDir = "/sdcard/Android/data/$pkg/files/wf"
     private val local = File(instrumentation.targetContext.filesDir, "wf").apply { mkdirs() }
 
@@ -43,7 +43,7 @@ class Film {
     private fun put(name: String, file: File) {
         if (!file.exists()) return
         if (Build.VERSION.SDK_INT >= 31) {
-            val fds = ua.executeShellCommandRw("sh -c 'cat > $out/$name'")
+            val fds = ua.executeShellCommandRw("tee $out/$name")
             ParcelFileDescriptor.AutoCloseOutputStream(fds[1]).use { o -> file.inputStream().use { it.copyTo(o) } }
             ParcelFileDescriptor.AutoCloseInputStream(fds[0]).use { it.readBytes() }
         } else {

@@ -109,7 +109,7 @@ jobs:
             --additional-apks "$APP" \
             --device "model=$M,version=$V,locale=ru,orientation=portrait" \
             --environment-variables "scene=$SCENE" \
-            --directories-to-pull /sdcard/wf \
+            --directories-to-pull /data/local/tmp/wf \
             --results-dir "film-${{ github.run_number }}" \
             --timeout 25m \
             --no-record-video \

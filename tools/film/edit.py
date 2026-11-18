@@ -83,6 +83,7 @@ class Footage:
             self.map.append((starts[i] / 1000.0 if i < len(starts) else acc, acc, d))
             acc += d
         self.steps = {s["i"]: s for s in self.marks["steps"]}
+        self.names = {s["mark"]: s["i"] for s in self.marks["steps"] if s.get("mark")}
         top = int(round(30 * self.density))
         bottom = int(round(18 * self.density))
         self.crop = (0, top, self.width, self.height - bottom)
@@ -96,8 +97,15 @@ class Footage:
                 return at + min(d, t - start)
         return t
 
+    def idx(self, ref):
+        if isinstance(ref, int):
+            return ref
+        name, _, plus = str(ref).partition("+")
+        base = self.names[name] if name in self.names else int(name)
+        return base + int(plus or 0)
+
     def step_time(self, i, edge="start"):
-        return self.raw_time(self.rec(self.steps[i][edge]))
+        return self.raw_time(self.rec(self.steps[self.idx(i)][edge]))
 
     def frames(self, t0, dur):
         w = self.width
@@ -252,7 +260,9 @@ class Editor:
         natural = (t1 - t0) / speed
         zooms = []
         for z in scene.get("zoom", []):
-            s = f.steps[z]
+            s = f.steps.get(f.idx(z))
+            if not s:
+                continue
             rect = s.get("rect")
             if rect:
                 zooms.append((f.step_time(z) - 0.5, f.step_time(z, "end") + scene.get("hold", 1.4), rect))
@@ -323,7 +333,7 @@ def main():
             if scene.get("max"):
                 dur = min(dur, max(scene["max"], vlen + 0.45))
             t0 = f.step_time(scene["from"]) - pad0
-            for i in range(scene["from"], scene["to"] + 1):
+            for i in range(f.idx(scene["from"]), f.idx(scene["to"]) + 1):
                 s = f.steps.get(i)
                 if not s or not s["ok"]:
                     continue
