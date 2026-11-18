@@ -720,6 +720,55 @@ internal object TextSelection {
             var t = document.elementFromPoint(x, y);
             return pick(t) || "";
           };
+          window.__wfImgBox = function (fx, fy) {
+            var w = window.innerWidth, h = window.innerHeight;
+            var t = document.elementFromPoint(fx * w, fy * h);
+            if (!t || !t.closest) return "";
+            var el = t.closest("img, image"), box = null;
+            if (!el) {
+              var svg = t.closest("svg");
+              el = svg ? svg.querySelector("image") : null;
+              if (el) box = svg;
+            }
+            var src = srcOf(el);
+            if (!src) return "";
+            var r = (box || el).getBoundingClientRect();
+            if (r.width < 48 || r.height < 48) return "";
+            return JSON.stringify({ src: src, l: r.left / w, t: r.top / h, w: r.width / w, h: r.height / h });
+          };
+          window.__wfSentenceAt = function (fx, fy) {
+            if (!document.caretRangeFromPoint || !document.body) return "";
+            var x = fx * window.innerWidth, y = fy * window.innerHeight;
+            var r = document.caretRangeFromPoint(x, y);
+            if (!r) return "";
+            var n = r.startContainer;
+            if (!n || n.nodeType !== 3 || !/\S/.test(n.data)) return "";
+            var host = n.parentElement;
+            if (!host || host.closest("a[href], script, style, img, svg")) return "";
+            var probe = document.createRange();
+            probe.selectNodeContents(n);
+            var rects = probe.getClientRects(), hit = false;
+            for (var i = 0; i < rects.length; i++) {
+              var b = rects[i];
+              if (x >= b.left - 8 && x <= b.right + 8 && y >= b.top - 6 && y <= b.bottom + 6) { hit = true; break; }
+            }
+            if (!hit) return "";
+            var block = host.closest("p, li, dd, dt, blockquote, h1, h2, h3, h4, h5, h6, td, th, figcaption, pre, div") || document.body;
+            var pre = document.createRange();
+            pre.setStart(block, 0);
+            pre.setEnd(n, Math.min(r.startOffset, n.data.length));
+            var off = pre.toString().length;
+            var text = block.textContent || "";
+            var head = text.slice(0, off);
+            var m = head.match(/^[\s\S]*[.!?\u2026][\u00BB"\u201D)\]]*\s+/);
+            var out = text.slice(m ? m[0].length : 0);
+            var next = block.nextElementSibling;
+            while (out.length < 200 && next) {
+              out += " " + (next.textContent || "");
+              next = next.nextElementSibling;
+            }
+            return out.replace(/\s+/g, " ").trim().slice(0, 200);
+          };
           window.addEventListener("click", function (e) {
             var sel = window.getSelection ? String(window.getSelection() || "") : "";
             if (sel.length) return;

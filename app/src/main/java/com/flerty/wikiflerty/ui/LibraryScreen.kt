@@ -425,9 +425,13 @@ fun LibraryScreen(
                     live = prefs.liveShelf,
                     behave = prefs.shelfBehavior,
                     stacks = active.id != ReadStatus.Finished.id,
-                    onReorder = if (prefs.sort == LibrarySort.Manual) { book, _, ids ->
-                        movedOrder(orderNow.map { it.id }, ids, book.id)?.let { next -> app.libraryPrefs.update { it.copy(bookOrder = next) } }
-                    } else null,
+                    onReorder = { book, _, ids ->
+                        movedOrder(orderNow.map { it.id }, ids, book.id)?.let { next ->
+                            val wasManual = app.libraryPrefs.prefs.value.sort == LibrarySort.Manual
+                            app.libraryPrefs.update { it.copy(sort = LibrarySort.Manual, bookOrder = next) }
+                            if (!wasManual) android.widget.Toast.makeText(app, "Сортировка «Без сортировки»: книги стоят так, как ты их расставишь", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    },
                     onMove = if (active.id == "all" && q.isEmpty() && (planks.size > 1 || shelves.isNotEmpty() || prefs.tagShelves.isNotEmpty() || prefs.seriesShelves.isNotEmpty())) { book, from, to ->
                         if (from.startsWith("rest:") && to.startsWith("rest:")) {
                             val i = from.removePrefix("rest:").toIntOrNull()

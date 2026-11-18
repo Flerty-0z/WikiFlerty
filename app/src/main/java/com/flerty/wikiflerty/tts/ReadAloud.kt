@@ -325,11 +325,11 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
 
     private var goJob: Job? = null
 
-    fun go(locator: Locator, snippet: String? = null) {
+    fun go(locator: Locator, snippet: String? = null, play: Boolean = false) {
         val navigator = _session.value?.navigator ?: return
         goJob?.cancel()
         goJob = scope.launch {
-            val playing = navigator.playback.value.playWhenReady
+            val playing = navigator.playback.value.playWhenReady || play
             if (playing) navigator.pause()
             navigator.go(locator)
             withTimeoutOrNull(600) { navigator.location.drop(1).first() }

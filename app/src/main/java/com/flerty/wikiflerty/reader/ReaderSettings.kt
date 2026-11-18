@@ -167,6 +167,7 @@ data class ReaderSettings(
     val ttsStrength: Double = 0.3,
     val ttsFollow: Boolean = true,
     val ttsJump: Boolean = true,
+    val ttsTap: Boolean = true,
     val autoNight: Boolean = false,
     val nightTheme: String = PageTheme.Black.id,
     val nightFrom: Int = 22 * 60,
@@ -267,6 +268,7 @@ data class ReaderSettings(
         put("ttsStrength", ttsStrength)
         put("ttsFollow", ttsFollow)
         put("ttsJump", ttsJump)
+        put("ttsTap", ttsTap)
         put("autoNight", autoNight)
         put("nightTheme", nightTheme)
         put("nightFrom", nightFrom)
@@ -352,6 +354,7 @@ data class ReaderSettings(
                 ttsStrength = json.optDouble("ttsStrength", d.ttsStrength).coerceIn(0.1, 0.9),
                 ttsFollow = json.optBoolean("ttsFollow", d.ttsFollow),
                 ttsJump = json.optBoolean("ttsJump", d.ttsJump),
+                ttsTap = json.optBoolean("ttsTap", d.ttsTap),
                 autoNight = json.optBoolean("autoNight", d.autoNight),
                 nightTheme = json.optString("nightTheme", d.nightTheme),
                 nightFrom = json.optInt("nightFrom", d.nightFrom).coerceIn(0, 24 * 60 - 1),

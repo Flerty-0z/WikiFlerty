@@ -1733,24 +1733,68 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 return true
             }
             val s = settings
-            if (s.edgeTaps && !s.scroll) {
+            val x = event.point.x
+            val y = event.point.y
+            if (s.ttsTap && mySession != null) {
                 val width = navigator.publicationView.width.toFloat()
-                if (width > 0f) {
-                    val x = event.point.x
-                    if (x < width * s.edgeZone) {
-                        manualTurn(forward = s.leftTapForward)
-                        return true
+                val edge = minOf(s.edgeZone, 0.12)
+                if (s.edgeTaps && !s.scroll && width > 0f && (x < width * edge || x > width * (1 - edge))) return plainTap(x)
+                lifecycleScope.launch {
+                    val snippet = sentenceAt(x, y)
+                    if (snippet == null) {
+                        plainTap(x)
+                        return@launch
                     }
-                    if (x > width * (1 - s.edgeZone)) {
-                        manualTurn(forward = true)
-                        return true
-                    }
+                    app.feedback.play(FeedbackSound.Tick)
+                    app.readAloud.go(visibleStart(), snippet, play = true)
+                }
+                return true
+            }
+            return plainTap(x)
+        }
+    }
+
+    private fun plainTap(x: Float): Boolean {
+        val s = settings
+        if (s.edgeTaps && !s.scroll) {
+            val width = navigator.publicationView.width.toFloat()
+            if (width > 0f) {
+                if (x < width * s.edgeZone) {
+                    manualTurn(forward = s.leftTapForward)
+                    return true
+                }
+                if (x > width * (1 - s.edgeZone)) {
+                    manualTurn(forward = true)
+                    return true
                 }
             }
-            ui.panelsVisible = true
-            app.feedback.play(FeedbackSound.Open)
-            return true
         }
+        ui.panelsVisible = true
+        app.feedback.play(FeedbackSound.Open)
+        return true
+    }
+
+    private suspend fun webJs(web: android.webkit.WebView, script: String): String? =
+        kotlinx.coroutines.withTimeoutOrNull(1200) {
+            kotlinx.coroutines.suspendCancellableCoroutine<String?> { c ->
+                web.evaluateJavascript(script) { r -> if (c.isActive) c.resume(r) }
+            }
+        }
+
+    private fun jsString(raw: String?): String? {
+        if (raw.isNullOrEmpty() || raw == "null") return null
+        return runCatching { org.json.JSONArray("[$raw]").optString(0) }.getOrNull()?.takeIf { it.isNotBlank() && it != "null" }
+    }
+
+    private suspend fun sentenceAt(x: Float, y: Float): String? {
+        val web = currentWebView() as? android.webkit.WebView ?: return null
+        val host = IntArray(2).also { navigator.publicationView.getLocationInWindow(it) }
+        val at = IntArray(2).also { web.getLocationInWindow(it) }
+        if (web.width <= 0 || web.height <= 0) return null
+        val fx = (host[0] + x - at[0]) / web.width
+        val fy = (host[1] + y - at[1]) / web.height
+        if (fx !in 0f..1f || fy !in 0f..1f) return null
+        return jsString(webJs(web, "window.__wfSentenceAt ? window.__wfSentenceAt($fx, $fy) : ''"))?.takeIf { it.length >= 2 }
     }
 
     override fun finish() {
@@ -1851,6 +1895,15 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
         snapshot.outlineProvider = ViewOutlineProvider.BOUNDS
         snapshot.elevation = 16 * resources.displayMetrics.density
+        pageZoom = PageZoomView(this).also { v ->
+            v.onShown = {
+                ui.panelsVisible = false
+                zoomBack.isEnabled = true
+            }
+            v.onHidden = { zoomBack.isEnabled = false }
+            (window.decorView as android.view.ViewGroup).addView(v, android.view.ViewGroup.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT))
+        }
+        onBackPressedDispatcher.addCallback(this, zoomBack)
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
         val root = findViewById<View>(R.id.reader_root)
@@ -3432,8 +3485,69 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         return y <= ui.topPanelBottom || y >= ui.bottomPanelTop
     }
 
+    private lateinit var pageZoom: PageZoomView
+    private var zoomHeld = false
+
+    private val zoomBack = object : androidx.activity.OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() {
+            if (::pageZoom.isInitialized) pageZoom.close()
+            isEnabled = false
+        }
+    }
+
+    private fun zoomAllowed(): Boolean =
+        ui.sheet == null && ui.illustration == null && ui.selection == null && ui.footnote == null && swipeState != SwipeState.Dragging && !turning
+
+    private fun startZoom(ev: android.view.MotionEvent) {
+        val ticket = pageZoom.begin(ev)
+        val web = currentWebView() as? android.webkit.WebView
+        if (web == null || web.width <= 0 || web.height <= 0) {
+            pageZoom.fail(ticket)
+            return
+        }
+        val at = IntArray(2).also { web.getLocationInWindow(it) }
+        val fx = ((ev.getX(0) + ev.getX(1)) / 2f - at[0]) / web.width
+        val fy = ((ev.getY(0) + ev.getY(1)) / 2f - at[1]) / web.height
+        lifecycleScope.launch {
+            val raw = jsString(webJs(web, "window.__wfImgBox ? window.__wfImgBox($fx, $fy) : ''"))
+            val box = raw?.let { runCatching { org.json.JSONObject(it) }.getOrNull() }
+            val href = box?.optString("src")?.let { hrefOfImage(it) }
+            val image = href?.let { loadImage(it, 2560) }
+            if (box == null || image == null) {
+                pageZoom.fail(ticket)
+                return@launch
+            }
+            val rect = android.graphics.RectF(
+                at[0] + box.optDouble("l").toFloat() * web.width,
+                at[1] + box.optDouble("t").toFloat() * web.height,
+                at[0] + (box.optDouble("l") + box.optDouble("w")).toFloat() * web.width,
+                at[1] + (box.optDouble("t") + box.optDouble("h")).toFloat() * web.height,
+            )
+            pageZoom.show(ticket, image.asAndroidBitmap(), rect)
+        }
+    }
+
     override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
         if (!::curl.isInitialized) return super.dispatchTouchEvent(ev)
+        if (::pageZoom.isInitialized) {
+            if (pageZoom.shown || zoomHeld) {
+                pageZoom.touch(ev)
+                if (ev.actionMasked == android.view.MotionEvent.ACTION_UP || ev.actionMasked == android.view.MotionEvent.ACTION_CANCEL) zoomHeld = false
+                if (!pageZoom.shown && !pageZoom.owns && !zoomHeld) zoomBack.isEnabled = false
+                return true
+            }
+            if (ev.actionMasked == android.view.MotionEvent.ACTION_POINTER_DOWN && ev.pointerCount == 2 && zoomAllowed() && !overPanels(ev)) {
+                val cancel = android.view.MotionEvent.obtain(ev).apply { action = android.view.MotionEvent.ACTION_CANCEL }
+                super.dispatchTouchEvent(cancel)
+                cancel.recycle()
+                swipeVelocity?.recycle()
+                swipeVelocity = null
+                swipeState = SwipeState.Ignored
+                zoomHeld = true
+                startZoom(ev)
+                return true
+            }
+        }
         when (ev.actionMasked) {
             android.view.MotionEvent.ACTION_DOWN -> {
                 swipeVelocity?.recycle()

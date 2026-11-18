@@ -67,6 +67,15 @@ private const val BOOT = "<script>(function(){" +
     "show();});" +
     "})();</script>"
 
+private const val COMIC = "<style id='wf-comic'>" +
+    "html:root:not(#wf-z){--RS__pageGutter:0px!important;--USER__pageMargins:0!important;--RS__maxLineLength:100vw!important}" +
+    "html:root:not(#wf-z) body{margin:0!important;padding:0!important;max-width:none!important;width:auto!important}" +
+    "html:root:not(#wf-z) body div.page{margin:0!important;padding:0!important}" +
+    "html:root:not(#wf-z) body div.page img{max-width:100%!important;max-height:calc(100vh - 12px)!important;width:auto;height:auto;object-fit:contain}" +
+    "html:root:not(#wf-z)[style*='readium-scroll-on'] body div.page{margin:0 0 4px!important}" +
+    "html:root:not(#wf-z)[style*='readium-scroll-on'] body div.page img{width:100%!important;max-height:none!important;height:auto!important}" +
+    "</style>"
+
 private class UserFontsContainer(
     private val inner: org.readium.r2.shared.util.data.Container<Resource>,
     private val context: Context,
@@ -91,7 +100,10 @@ private fun boot(url: Url, resource: Resource): Resource {
         val text = String(bytes, Charsets.UTF_8)
         val at = text.indexOf("</head>", ignoreCase = true)
         if (at < 0 || text.contains("id='wf-boot'")) Try.success(bytes)
-        else Try.success((text.substring(0, at) + BOOT + text.substring(at)).toByteArray(Charsets.UTF_8))
+        else {
+            val extra = if (text.contains("<div class=\"page\" id=\"page")) COMIC else ""
+            Try.success((text.substring(0, at) + BOOT + extra + text.substring(at)).toByteArray(Charsets.UTF_8))
+        }
     }
 }
 
