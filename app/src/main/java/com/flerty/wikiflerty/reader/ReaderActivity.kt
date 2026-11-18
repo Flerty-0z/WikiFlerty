@@ -1746,7 +1746,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         return@launch
                     }
                     app.feedback.play(FeedbackSound.Tick)
-                    app.readAloud.go(spot.first, spot.second, play = true, near = true, fallback = visibleStart())
+                    app.readAloud.jumpTo(navigator.currentLocator.value, spot.second, spot.third, fallback = visibleStart())
                 }
                 return true
             }
@@ -1786,7 +1786,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         return runCatching { org.json.JSONArray("[$raw]").optString(0) }.getOrNull()?.takeIf { it.isNotBlank() && it != "null" }
     }
 
-    private suspend fun sentenceAt(x: Float, y: Float): Pair<org.readium.r2.shared.publication.Locator, String>? {
+    private suspend fun sentenceAt(x: Float, y: Float): Triple<String, String, Double>? {
         val web = currentWebView() as? android.webkit.WebView ?: return null
         val host = IntArray(2).also { navigator.publicationView.getLocationInWindow(it) }
         val at = IntArray(2).also { web.getLocationInWindow(it) }
@@ -1797,17 +1797,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val raw = jsString(webJs(web, "window.__wfSentenceAt ? window.__wfSentenceAt($fx, $fy) : ''")) ?: return null
         val o = runCatching { org.json.JSONObject(raw) }.getOrNull() ?: return null
         val text = o.optString("text").takeIf { it.length >= 2 } ?: return null
-        val selector = o.optString("sel")
-        val base = navigator.currentLocator.value
-        val others = if (selector.isNotBlank()) mapOf<String, Any>("cssSelector" to selector) else emptyMap()
-        val locator = base.copy(
-            locations = org.readium.r2.shared.publication.Locator.Locations(
-                progression = o.optDouble("prog", base.locations.progression ?: 0.0).coerceIn(0.0, 1.0),
-                otherLocations = others,
-            ),
-            text = org.readium.r2.shared.publication.Locator.Text(highlight = text.take(120)),
-        )
-        return locator to text
+        val head = o.optString("head").takeIf { it.length >= 2 } ?: text
+        return Triple(text, head, o.optDouble("prog", 0.0).coerceIn(0.0, 1.0))
     }
 
     override fun finish() {

@@ -71,6 +71,7 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
             try {
                 val navigator = open(publication, start, settings) ?: return@launch
                 order = publication.readingOrder.map { place(it.url().toString()) }
+                book = publication
                 _seeking.value = true
                 try {
                     align(navigator, snippet, start)
@@ -359,6 +360,73 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
                 if (playing) navigator.play()
             }
         }
+    }
+
+    private var book: Publication? = null
+
+    fun jumpTo(page: Locator, sentence: String, prog: Double, fallback: Locator?) {
+        val navigator = _session.value?.navigator ?: return
+        val pub = book ?: return
+        goJob?.cancel()
+        goJob = scope.launch {
+            _seeking.value = true
+            try {
+                navigator.pause()
+                val spot = withContext(Dispatchers.Default) { runCatching { locate(pub, page, sentence, prog) }.getOrNull() }
+                if (spot != null) {
+                    jump(navigator, spot.first)
+                    repeat(spot.second) {
+                        val now = navigator.location.value
+                        if (!navigator.hasNextUtterance()) return@repeat
+                        navigator.skipToNextUtterance()
+                        withTimeoutOrNull(800) { navigator.location.first { it != now } }
+                    }
+                } else if (fallback != null) {
+                    jump(navigator, fallback)
+                    align(navigator, sentence, fallback)
+                }
+            } finally {
+                _seeking.value = false
+                navigator.play()
+            }
+        }
+    }
+
+    private suspend fun locate(pub: Publication, page: Locator, sentence: String, prog: Double): Pair<Locator, Int>? {
+        val target = squash(sentence)
+        if (target.length < 2) return null
+        val key = target.take(20)
+        val home = place(page.href.toString())
+        val link = pub.readingOrder.firstOrNull { place(it.url().toString()) == home } ?: return null
+        val base = pub.locatorFromLink(link) ?: return null
+        val content = pub.findService(org.readium.r2.shared.publication.services.content.ContentService::class)
+            ?.content(base.copyWithLocations(progression = 0.0)) ?: return null
+        val iterator = content.iterator()
+        val hits = mutableListOf<Pair<Int, org.readium.r2.shared.publication.services.content.Content.TextElement>>()
+        var count = 0
+        while (count < 20_000 && iterator.hasNext()) {
+            val element = iterator.next()
+            if (place(element.locator.href.toString()) != home) break
+            if (element is org.readium.r2.shared.publication.services.content.Content.TextElement) {
+                val text = squash(element.segments.joinToString("") { it.text })
+                if (text.contains(key) || (key.length < 20 && text.endsWith(key))) hits += count to element
+            }
+            count++
+        }
+        val total = count.coerceAtLeast(1)
+        val pick = hits.minByOrNull { kotlin.math.abs(it.first.toDouble() / total - prog) }?.second ?: return null
+        val tokenizer = org.readium.r2.shared.util.tokenizer.DefaultTextContentTokenizer(org.readium.r2.shared.util.tokenizer.TextUnit.Sentence, pub.metadata.language)
+        var index = 0
+        for (segment in pick.segments) {
+            for (range in tokenizer.tokenize(segment.text)) {
+                val part = squash(segment.text.substring(range))
+                if (part.isEmpty()) continue
+                val hit = if (part.length >= key.length) part.contains(key) else target.startsWith(part)
+                if (hit) return pick.locator to index
+                index++
+            }
+        }
+        return pick.locator to 0
     }
 
     private fun squash(t: String): String = buildString(t.length) {

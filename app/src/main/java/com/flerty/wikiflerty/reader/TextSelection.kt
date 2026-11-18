@@ -780,14 +780,15 @@ internal object TextSelection {
             var text = block.textContent || "";
             var head = text.slice(0, off);
             var m = head.match(/^[\s\S]*[.!?\u2026][\u00BB"\u201D)\]]*\s+/);
-            var out = text.slice(m ? m[0].length : 0).replace(/\s+/g, " ").trim().slice(0, 200);
+            var head = text.slice(m ? m[0].length : 0).replace(/\s+/g, " ").trim().slice(0, 200);
+            var out = head;
             if (out.length < 2) return "";
             var all = document.body.textContent || "";
             var lead = document.createRange();
             lead.setStart(document.body, 0);
             lead.setEndBefore(block);
             var prog = all.length ? Math.min(1, lead.toString().length / all.length) : 0;
-            return JSON.stringify({ text: out, sel: block === document.body ? "" : selectorOf(block), prog: prog });
+            return JSON.stringify({ text: out, head: head, sel: block === document.body ? "" : selectorOf(block), prog: prog });
           };
           window.addEventListener("click", function (e) {
             if (document.getElementById("wf-comic")) return;
