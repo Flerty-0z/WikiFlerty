@@ -20,6 +20,7 @@ data class ReadingWatch(
 data class ReadingSessionResult(val bookId: String, val ms: Long, val startProgress: Double)
 
 class ReadingTimer(context: Context) {
+    private val appContext = context.applicationContext
     private val prefs = context.getSharedPreferences("reading_timer", Context.MODE_PRIVATE)
 
     private val _watch = MutableStateFlow(load())
@@ -37,6 +38,7 @@ class ReadingTimer(context: Context) {
     val result: StateFlow<ReadingSessionResult?> = _result.asStateFlow()
 
     fun start(bookId: String, progress: Double) {
+        (appContext as? com.flerty.wikiflerty.App)?.achievements?.event("timer")
         val now = System.currentTimeMillis()
         _result.value = null
         save(ReadingWatch(bookId, now, 0L, now, progress))

@@ -185,6 +185,7 @@ fun FlashcardSession(onClose: () -> Unit, modifier: Modifier = Modifier) {
     val current = queue.firstOrNull()?.let { byId[it] }
 
     fun answer(entry: DictionaryEntry, grade: Grade) {
+        app.achievements.event("cards")
         val now = System.currentTimeMillis()
         val before = entry.srs
         val after = Srs.next(before, grade, now)

@@ -57,6 +57,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.foundation.layout.width
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -85,19 +87,27 @@ import kotlinx.coroutines.launch
 private class MedalStyle(val from: Long, val to: Long, val icon: ImageVector)
 
 private fun medalStyle(kind: AchievementKind): MedalStyle = when (kind) {
-    AchievementKind.Streak -> MedalStyle(0xFFF8B26A, 0xFFD9592B, AppIcons.Fire)
-    AchievementKind.Books -> MedalStyle(0xFF7C9BFF, 0xFF4C5ED9, AppIcons.Book)
-    AchievementKind.Pages -> MedalStyle(0xFF5EEAD4, 0xFF1A9483, AppIcons.Pages)
-    AchievementKind.Time -> MedalStyle(0xFFB79CFF, 0xFF7048DD, AppIcons.Clock)
-    AchievementKind.Notes -> MedalStyle(0xFFF6D365, 0xFFD9A21B, AppIcons.Note)
-    AchievementKind.Words -> MedalStyle(0xFFF7A1C4, 0xFFC44A86, AppIcons.Translate)
+    AchievementKind.Streak -> MedalStyle(0xFFFF9C9C, 0xFFC8323E, AppIcons.Fire)
+    AchievementKind.Books -> MedalStyle(0xFF9DB2FF, 0xFF4C5ED9, AppIcons.Book)
+    AchievementKind.Pages -> MedalStyle(0xFF7FF2DE, 0xFF1A9483, AppIcons.Pages)
+    AchievementKind.Time -> MedalStyle(0xFFC9B5FF, 0xFF7048DD, AppIcons.Clock)
+    AchievementKind.Notes -> MedalStyle(0xFFF8DC7E, 0xFFB9890F, AppIcons.Note)
+    AchievementKind.Words -> MedalStyle(0xFFF9B3CF, 0xFFC44A86, AppIcons.Translate)
+    AchievementKind.Rhythm -> MedalStyle(0xFFC7D2FE, 0xFF3F3AB0, AppIcons.Moon)
+    AchievementKind.Marathon -> MedalStyle(0xFF8BE3FF, 0xFF0E7490, AppIcons.Speed)
+    AchievementKind.Library -> MedalStyle(0xFFE6D3B1, 0xFF8B6B45, AppIcons.Shelf)
+    AchievementKind.Discovery -> MedalStyle(0xFFD9F99D, 0xFF4D7C0F, AppIcons.Sparkle)
 }
 
 private fun medalTier(achievement: Achievement): Int {
+    achievement.tier?.let { return it.coerceIn(0, 2) }
     val group = Achievements.all.filter { it.kind == achievement.kind }
     val i = group.indexOf(achievement).coerceAtLeast(0)
     return (i * 3 / group.size.coerceAtLeast(1)).coerceIn(0, 2)
 }
+
+private val MetalRims = listOf(Color(0xFFC99A78), Color(0xFFDCE3EA), Color(0xFFFFD86B))
+private val MetalNames = listOf("Бронза", "Серебро", "Золото")
 
 private val MedalMetals = listOf(
     Triple(Color(0xFFEDB386), Color(0xFF9A5A2E), Color(0xFF6E3C1C)),
@@ -124,6 +134,10 @@ private fun medalPath(kind: AchievementKind, w: Float, h: Float): androidx.compo
         AchievementKind.Words -> poly(8, -67.5) { r * 0.95f }
         AchievementKind.Notes -> poly(4, -90.0) { r * 1.0f }
         AchievementKind.Time -> androidx.compose.ui.graphics.Path().apply { addOval(androidx.compose.ui.geometry.Rect(cx - r * 0.9f, cy - r * 0.9f, cx + r * 0.9f, cy + r * 0.9f)) }
+        AchievementKind.Rhythm -> poly(5, -90.0) { r * 0.98f }
+        AchievementKind.Marathon -> poly(7, -90.0) { r * 0.97f }
+        AchievementKind.Library -> poly(4, -45.0) { r * 1.18f }
+        AchievementKind.Discovery -> poly(16, -90.0) { if (it % 2 == 0) r * 1.0f else r * 0.84f }
         AchievementKind.Books -> androidx.compose.ui.graphics.Path().apply {
             moveTo(cx, h * 0.04f)
             lineTo(w * 0.92f, h * 0.17f)
@@ -135,55 +149,61 @@ private fun medalPath(kind: AchievementKind, w: Float, h: Float): androidx.compo
 }
 
 @Composable
-fun AchievementMedal(achievement: Achievement, earned: Boolean, fraction: Float, size: Dp, modifier: Modifier = Modifier) {
+fun AchievementMedal(achievement: Achievement, earned: Boolean, fraction: Float, size: Dp, modifier: Modifier = Modifier, focus: Boolean = false, glow: Boolean = false) {
     val style = medalStyle(achievement.kind)
-    val (light, mid, dark) = MedalMetals[medalTier(achievement)]
-    val ribbons = size >= 40.dp
+    val rim = MetalRims[medalTier(achievement)]
+    val top = Color(style.from)
+    val bottom = Color(style.to)
     val field = AppColors.Field
     val border = AppColors.PanelBorder
-    val accent = Color(style.to)
-    Box(modifier.size(width = size, height = if (ribbons) size * 1.14f else size), contentAlignment = Alignment.TopCenter) {
+    Box(modifier.size(size), contentAlignment = Alignment.Center) {
         Canvas(Modifier.matchParentSize()) {
             val s = this.size.width
-            if (ribbons && earned) {
-                val top = s * 0.70f
-                val bottom = this.size.height
-                val left = androidx.compose.ui.graphics.Path().apply {
-                    moveTo(s * 0.30f, top); lineTo(s * 0.47f, top); lineTo(s * 0.40f, bottom); lineTo(s * 0.32f, bottom - s * 0.07f); lineTo(s * 0.22f, bottom - s * 0.02f); close()
-                }
-                val right = androidx.compose.ui.graphics.Path().apply {
-                    moveTo(s * 0.70f, top); lineTo(s * 0.53f, top); lineTo(s * 0.60f, bottom); lineTo(s * 0.68f, bottom - s * 0.07f); lineTo(s * 0.78f, bottom - s * 0.02f); close()
-                }
-                drawPath(left, Color(0xFFC0405A))
-                drawPath(right, Color(0xFF8E2C42))
-            }
             val path = medalPath(achievement.kind, s, s)
             if (earned) {
-                drawPath(path, Brush.linearGradient(listOf(light, mid), Offset.Zero, Offset(s, s)))
-                drawPath(path, dark, style = Stroke(width = s * 0.05f, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                if (glow) drawCircle(Brush.radialGradient(listOf(top.copy(alpha = 0.45f), top.copy(alpha = 0f)), center, s * 0.62f), s * 0.62f, center)
+                drawPath(path, Brush.linearGradient(listOf(top, bottom), Offset.Zero, Offset(s * 0.4f, s)))
+                drawPath(path, rim, style = Stroke(width = s * 0.055f, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                scale(0.8f, 0.8f, center) {
+                    drawPath(path, Color.White.copy(alpha = 0.28f), style = Stroke(width = s * 0.02f, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                }
                 clipPath(path) {
-                    rotate(-28f, Offset(s * 0.34f, s * 0.26f)) {
-                        drawOval(Color.White.copy(alpha = 0.38f), Offset(s * 0.16f, s * 0.19f), Size(s * 0.36f, s * 0.13f))
+                    rotate(-24f, Offset(s * 0.36f, s * 0.24f)) {
+                        drawOval(Color.White.copy(alpha = 0.32f), Offset(s * 0.16f, s * 0.14f), Size(s * 0.4f, s * 0.12f))
                     }
                 }
             } else {
                 drawPath(path, field)
-                drawPath(path, border, style = Stroke(width = s * 0.035f, join = androidx.compose.ui.graphics.StrokeJoin.Round))
                 if (fraction > 0f) {
                     clipPath(path) {
-                        drawRect(accent.copy(alpha = 0.16f), Offset(0f, s * (1f - fraction)), Size(s, s * fraction))
+                        drawRect(bottom.copy(alpha = 0.22f), Offset(0f, s * (1f - fraction)), Size(s, s * fraction))
                     }
+                }
+                if (focus) {
+                    drawPath(
+                        path,
+                        top,
+                        style = Stroke(
+                            width = s * 0.04f,
+                            join = androidx.compose.ui.graphics.StrokeJoin.Round,
+                            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(s * 0.07f, s * 0.055f)),
+                        ),
+                    )
+                } else {
+                    drawPath(path, border, style = Stroke(width = s * 0.035f, join = androidx.compose.ui.graphics.StrokeJoin.Round))
                 }
             }
         }
-        Box(Modifier.size(size), contentAlignment = Alignment.Center) {
-            Icon(
-                if (earned) style.icon else AppIcons.Lock,
-                null,
-                tint = if (earned) Color(0xFF3A2410).copy(alpha = 0.85f) else AppColors.Faint.copy(alpha = 0.7f),
-                modifier = Modifier.size(size * if (achievement.kind == AchievementKind.Pages) 0.30f else 0.36f),
-            )
-        }
+        Icon(
+            if (earned || focus) style.icon else AppIcons.Lock,
+            null,
+            tint = when {
+                earned -> Color.White.copy(alpha = 0.95f)
+                focus -> top.copy(alpha = 0.9f)
+                else -> AppColors.Faint.copy(alpha = 0.7f)
+            },
+            modifier = Modifier.size(size * if (achievement.kind == AchievementKind.Pages || achievement.kind == AchievementKind.Rhythm) 0.30f else 0.34f),
+        )
     }
 }
 
@@ -199,9 +219,10 @@ private fun earnedDate(millis: Long): String {
 private fun number(n: Long): String = String.format(ruLocale, "%,d", n)
 
 private fun progressLabel(achievement: Achievement, progress: AchievementProgress): String {
-    val value = progress.value(achievement.kind).coerceAtMost(achievement.target)
+    val value = progress.value(achievement).coerceAtMost(achievement.target)
+    if (achievement.target == 1L) return if (value >= 1) "готово" else "ещё нет"
     val base = "${number(value)}/${number(achievement.target)}"
-    return if (achievement.kind == AchievementKind.Time) "$base ч" else base
+    return achievement.unit?.let { "$base $it" } ?: base
 }
 
 @Composable
@@ -449,33 +470,65 @@ private fun ToastCard(achievement: Achievement, count: Int, onClick: () -> Unit)
 
 @Composable
 fun AchievementsButton(earned: Int, total: Int, unlocked: Map<String, Long>, onClick: () -> Unit) {
+    val app = LocalContext.current.applicationContext as App
     val shape = appCorner(20)
+    val seenAt = remember(unlocked) { app.achievements.seenAt() }
+    val fresh = unlocked.values.any { it > seenAt }
+    val glow = rememberInfiniteTransition(label = "ach-new")
+    val beat by glow.animateFloat(0.35f, 1f, infiniteRepeatable(androidx.compose.animation.core.tween(1100), RepeatMode.Reverse), label = "beat")
     Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 64.dp)
+            .heightIn(min = 68.dp)
             .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onClick = onClick)
             .panelSurface(shape, 8.dp)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         val recent = Achievements.all.filter { it.id in unlocked }.sortedByDescending { unlocked[it.id] ?: 0L }.take(3)
         val shown = recent.ifEmpty { listOf(AchievementKind.Streak, AchievementKind.Books, AchievementKind.Pages).mapNotNull { k -> Achievements.all.firstOrNull { it.kind == k } } }
-        Row(horizontalArrangement = Arrangement.spacedBy((-14).dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(horizontalArrangement = Arrangement.spacedBy((-13).dp), verticalAlignment = Alignment.CenterVertically) {
             shown.forEachIndexed { i, a ->
-                AchievementMedal(a, earned = a.id in unlocked, fraction = 0f, size = 32.dp, modifier = Modifier.zIndex((shown.size - i).toFloat()).scrollReveal(i * 70))
+                val on = a.id in unlocked
+                val newest = i == 0 && fresh && on
+                AchievementMedal(
+                    a,
+                    earned = on,
+                    fraction = 0f,
+                    size = if (i == 0) 38.dp else 32.dp,
+                    glow = on && (i == 0),
+                    modifier = Modifier
+                        .zIndex((shown.size - i).toFloat())
+                        .scrollReveal(i * 70)
+                        .graphicsLayer {
+                            if (newest) {
+                                val k = 1f + 0.06f * beat
+                                scaleX = k
+                                scaleY = k
+                            }
+                            rotationZ = (i - 1) * -8f
+                        },
+                )
             }
         }
-        Text(
-            "Достижения",
-            color = AppColors.Text,
-            fontWeight = FontWeight.ExtraBold,
-            maxLines = 1,
-            softWrap = false,
-            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 17.sp, stepSize = 0.5.sp),
-            modifier = Modifier.weight(1f),
-        )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    "Достижения",
+                    color = AppColors.Text,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    softWrap = false,
+                    autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 17.sp, stepSize = 0.5.sp),
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (fresh) {
+                    Box(Modifier.size(7.dp).graphicsLayer { alpha = 0.5f + 0.5f * beat }.clip(CircleShape).background(AppColors.Accent))
+                }
+            }
+            ProgressLine(if (total > 0) earned.toFloat() / total else 0f, AppColors.Accent)
+        }
         Text("$earned / $total", color = AppColors.Accent, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
         Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(18.dp))
     }
@@ -488,20 +541,32 @@ private fun kindTitle(kind: AchievementKind) = when (kind) {
     AchievementKind.Time -> "Время"
     AchievementKind.Notes -> "Заметки"
     AchievementKind.Words -> "Слова"
+    AchievementKind.Rhythm -> "Ритм"
+    AchievementKind.Marathon -> "Марафоны"
+    AchievementKind.Library -> "Библиотека"
+    AchievementKind.Discovery -> "Открытия"
 }
+
+private val KindOrder = listOf(
+    AchievementKind.Streak, AchievementKind.Books, AchievementKind.Pages, AchievementKind.Time, AchievementKind.Rhythm,
+    AchievementKind.Marathon, AchievementKind.Notes, AchievementKind.Words, AchievementKind.Library, AchievementKind.Discovery,
+)
 
 @Composable
 fun AchievementsPage(modifier: Modifier = Modifier, onBack: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
-    val days by app.stats.days.collectAsStateWithLifecycle()
-    val books by app.library.books.collectAsStateWithLifecycle()
     val unlocked by app.achievements.unlocked.collectAsStateWithLifecycle()
-    val noteList by app.notes.notes.collectAsStateWithLifecycle()
-    val wordList by app.dictionary.entries.collectAsStateWithLifecycle()
-    val progress = remember(days, books, noteList.size, wordList.size) { AchievementProgress.of(days, books, noteList.size, wordList.size) }
+    val progress by app.achievements.progress.collectAsStateWithLifecycle()
+    val seenAt = remember { app.achievements.seenAt() }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { app.achievements.markSeen() } }
     val all = Achievements.all
     val earned = all.count { it.id in unlocked }
-    val next = all.filter { it.id !in unlocked }.maxByOrNull { progress.fraction(it) }
+    val nexts = remember(progress, unlocked) {
+        KindOrder.mapNotNull { k -> all.firstOrNull { it.kind == k && it.id !in unlocked } }
+            .sortedByDescending { progress.fraction(it) }
+    }
+    val hero = nexts.firstOrNull()
+    val near = nexts.drop(1).filter { progress.fraction(it) > 0f }.take(3)
     androidx.activity.compose.BackHandler(onBack = onBack)
 
     Column(
@@ -515,58 +580,160 @@ fun AchievementsPage(modifier: Modifier = Modifier, onBack: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            TotalRing(earned, all.size, 84.dp)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    "Получено $earned/${all.size}",
-                    color = AppColors.Text,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    softWrap = false,
-                    autoSize = TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 16.sp, stepSize = 0.5.sp),
-                )
-                if (next != null) {
-                    Text("Ближе всего:", color = AppColors.Faint, fontSize = 12.sp, maxLines = 1)
+            TotalRing(earned, all.size, 88.dp)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (hero != null) {
+                    Text("СЛЕДУЮЩЕЕ", color = AppColors.Faint, fontSize = 11.sp, letterSpacing = 1.sp, maxLines = 1)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AchievementMedal(next, earned = false, fraction = progress.fraction(next), size = 26.dp)
+                        AchievementMedal(hero, earned = false, fraction = progress.fraction(hero), size = 30.dp, focus = true)
                         Text(
-                            next.title,
+                            hero.title,
                             color = AppColors.Text,
-                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                            softWrap = false,
+                            autoSize = TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 16.sp, stepSize = 0.5.sp),
                             modifier = Modifier.weight(1f),
                         )
-                        Text(progressLabel(next, progress), color = AppColors.Muted, fontSize = 12.sp, maxLines = 1)
                     }
-                    ProgressLine(progress.fraction(next), Color(medalStyle(next.kind).to))
+                    ProgressLine(progress.fraction(hero), Color(medalStyle(hero.kind).to))
+                    Text(progressLabel(hero, progress) + " · " + hero.hint, color = AppColors.Muted, fontSize = 11.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 } else {
-                    Text("Все значки собраны", color = AppColors.Accent, fontSize = 13.sp, maxLines = 1)
+                    Text("Все значки собраны", color = AppColors.Accent, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                 }
             }
         }
 
-        AchievementKind.entries.forEach { kind ->
+        if (near.isNotEmpty()) {
+            Text("ПОЧТИ У ЦЕЛИ", color = AppColors.Faint, fontSize = 12.sp, letterSpacing = 1.sp, modifier = Modifier.padding(start = 2.dp, top = 2.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                near.forEachIndexed { i, a ->
+                    Column(
+                        Modifier.weight(1f).scrollReveal(i * 70).fieldSurface(appCorner(16)).padding(vertical = 10.dp, horizontal = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        AchievementMedal(a, earned = false, fraction = progress.fraction(a), size = 40.dp, focus = true)
+                        Text(
+                            a.title,
+                            color = AppColors.Text,
+                            maxLines = 1,
+                            softWrap = false,
+                            autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 12.sp, stepSize = 0.5.sp),
+                        )
+                        Text("${(progress.fraction(a) * 100).toInt()}%", color = Color(medalStyle(a.kind).from), fontSize = 11.sp, maxLines = 1)
+                    }
+                }
+                repeat(3 - near.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+
+        KindOrder.forEach { kind ->
             val group = all.filter { it.kind == kind }
             if (group.isEmpty()) return@forEach
             val style = medalStyle(kind)
+            val next = group.firstOrNull { it.id !in unlocked }
+            var picked by remember(kind) { mutableStateOf<Achievement?>(null) }
+            val focusIndex = group.indexOf(next).coerceAtLeast(0)
+            val strip = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = (focusIndex - 2).coerceAtLeast(0))
             TabbedFrame(kindTitle(kind), icon = style.icon, inset = false, modifier = Modifier.scrollReveal(), trailing = { InfoChip("${group.count { it.id in unlocked }}/${group.size}", Color(style.from)) }) {
-                Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    group.chunked(3).forEach { row ->
-                        Row(Modifier.fillMaxWidth()) {
-                            row.forEachIndexed { i, achievement ->
-                                AchievementBadge(achievement, unlocked[achievement.id], progress, Modifier.weight(1f).scrollReveal(80 + i * 90))
+                Column(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.foundation.lazy.LazyRow(
+                        state = strip,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                    ) {
+                        items(group.size, key = { group[it].id }) { i ->
+                            val a = group[i]
+                            ShowcaseMedal(a, unlocked[a.id], progress, focus = a == next, fresh = (unlocked[a.id] ?: 0L) > seenAt, order = i, selected = picked == a) {
+                                picked = if (picked == a) null else a
                             }
-                            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
+                    val shown = picked ?: next
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (shown != null) {
+                            val at = unlocked[shown.id]
+                            Text(
+                                if (picked != null) shown.hint else "Дальше: ${shown.title}",
+                                color = AppColors.Faint,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                if (at != null) "${MetalNames[medalTier(shown)]} · ${earnedDate(at)}" else progressLabel(shown, progress),
+                                color = if (at != null) MetalRims[medalTier(shown)] else Color(style.from),
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                            )
+                        } else {
+                            Text("Все получены", color = Color(style.from), fontSize = 11.sp, maxLines = 1)
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ShowcaseMedal(
+    achievement: Achievement,
+    earnedAt: Long?,
+    progress: AchievementProgress,
+    focus: Boolean,
+    fresh: Boolean,
+    order: Int,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val earned = earnedAt != null
+    var bloom by remember(achievement.id) { androidx.compose.runtime.mutableIntStateOf(0) }
+    LaunchedEffect(achievement.id, fresh) {
+        if (!fresh) return@LaunchedEffect
+        delay(350L + order * 140L)
+        bloom++
+    }
+    val pop = rememberPop(bloom)
+    val shape = appCorner(14)
+    val edge by androidx.compose.animation.animateColorAsState(if (selected) Color(medalStyle(achievement.kind).from).copy(alpha = 0.6f) else Color.Transparent, Motion.fade(180), label = "medal-edge")
+    Column(
+        Modifier
+            .width(66.dp)
+            .clip(shape)
+            .border(1.dp, edge, shape)
+            .liveClick(shape, sound = FeedbackSound.Tap, pressedScale = 0.92f, onClick = onClick)
+            .padding(vertical = 6.dp, horizontal = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        AchievementMedal(
+            achievement,
+            earned,
+            progress.fraction(achievement),
+            50.dp,
+            modifier = Modifier
+                .graphicsLayer {
+                    scaleX = pop.value
+                    scaleY = pop.value
+                    rotationY = (1f - pop.value) * 180f
+                }
+                .victoryBloom(bloom, listOf(Color(medalStyle(achievement.kind).from), StarYellow, Color.White), reachDp = 54f, durationMs = 1700),
+            focus = focus,
+            glow = earned,
+        )
+        Text(
+            achievement.title,
+            color = if (earned) AppColors.Muted else AppColors.Faint,
+            fontSize = 9.5.sp,
+            lineHeight = 11.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
     }
 }
 
@@ -598,6 +765,9 @@ private fun TotalRing(earned: Int, total: Int, size: Dp) {
                 drawArc(Brush.linearGradient(listOf(light, accent)), -90f, sweep, false, Offset(inset, inset), arc, style = Stroke(stroke, cap = StrokeCap.Round))
             }
         }
-        Icon(AppIcons.Trophy, null, tint = if (earned > 0) accent else AppColors.Faint, modifier = Modifier.size(size * 0.36f))
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("$earned", color = AppColors.Text, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+            Text("из $total", color = AppColors.Faint, fontSize = 10.5.sp, maxLines = 1)
+        }
     }
 }

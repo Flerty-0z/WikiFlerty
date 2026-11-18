@@ -1053,6 +1053,7 @@ class PdfReaderActivity : ComponentActivity() {
     }
 
     private fun shareQuote(draft: QuoteDraft, look: QuoteLook, format: QuoteFormat) {
+        app.achievements.event("quote")
         if (quoteActions.busy) return
         quoteActions.busy = true
         lifecycleScope.launch {

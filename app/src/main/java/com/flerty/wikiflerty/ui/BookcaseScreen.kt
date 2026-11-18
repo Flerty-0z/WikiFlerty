@@ -265,7 +265,11 @@ fun BookcaseView(
             out
         }
         val styleStore = (androidx.compose.ui.platform.LocalContext.current.applicationContext as App).style
-        drag.onPropDrop = { pins -> styleStore.update { st -> st.withTune(st.kit, st.tune().copy(propPlace = PropPlace.Custom.id, pins = pins)) } }
+        val achievementsStore = (androidx.compose.ui.platform.LocalContext.current.applicationContext as App).achievements
+        drag.onPropDrop = { pins ->
+            styleStore.update { st -> st.withTune(st.kit, st.tune().copy(propPlace = PropPlace.Custom.id, pins = pins)) }
+            achievementsStore.event("props")
+        }
         val slack = with(androidx.compose.ui.platform.LocalDensity.current) { 30.dp.toPx() }
         val keepMargin = with(androidx.compose.ui.platform.LocalDensity.current) { 22.dp.toPx() }
         val tickFeedback = LocalFeedback.current

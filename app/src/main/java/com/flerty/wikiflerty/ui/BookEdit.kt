@@ -104,7 +104,10 @@ fun BookEditSheet(book: Book, onDismiss: () -> Unit) {
             val changedInfo = title != book.title || author != book.author || (description != null && description != book.customDescription)
             app.appScope.launch {
                 if (changedInfo) app.library.editInfo(book.id, title, author, description ?: shownDescription)
-                if (pickedCover != null) app.library.setCover(book.id, pickedCover)
+                if (pickedCover != null) {
+                    app.library.setCover(book.id, pickedCover)
+                    app.achievements.event("cover")
+                }
                 else if (removeCover && hasFile) app.library.removeCover(book.id)
             }
             close()

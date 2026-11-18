@@ -73,6 +73,7 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
                 order = publication.readingOrder.map { place(it.url().toString()) }
                 align(navigator, snippet, start)
                 _session.value = ReadAloudSession(bookId, navigator)
+                app.achievements.event("tts")
                 app.startService(Intent(app, ReadAloudService::class.java))
                 watch(navigator, bookId)
                 navigator.play()

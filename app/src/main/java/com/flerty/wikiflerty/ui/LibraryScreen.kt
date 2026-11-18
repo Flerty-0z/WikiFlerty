@@ -342,7 +342,10 @@ fun LibraryScreen(
             Box(
                 Modifier
                     .size(44.dp)
-                    .liveClick(CircleShape, sound = FeedbackSound.Open) { showRandom = true }
+                    .liveClick(CircleShape, sound = FeedbackSound.Open) {
+                        showRandom = true
+                        app.achievements.event("random")
+                    }
                     .fieldSurface(CircleShape),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Dice, "Случайная книга", tint = AppColors.Text, modifier = Modifier.size(21.dp)) }

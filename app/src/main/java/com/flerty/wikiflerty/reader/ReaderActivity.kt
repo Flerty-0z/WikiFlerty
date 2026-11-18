@@ -1608,6 +1608,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private fun runSearch(query: String) {
         val publication = app.readerSession?.publication ?: return
+        app.achievements.event("search")
         searchJob?.cancel()
         lifecycleScope.launch { navigator.applyDecorations(emptyList(), SEARCH_GROUP) }
         search.results.clear()
@@ -2419,6 +2420,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private fun startAi(action: AiAction, question: String?) {
+        app.achievements.event("ai")
         ui.chatFromHistory = false
         chat.job?.cancel()
         chat.bubbles.clear()
@@ -2634,6 +2636,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     }
 
     private fun shareQuote(draft: QuoteDraft, look: QuoteLook, format: QuoteFormat) {
+        app.achievements.event("quote")
         if (quoteActions.busy) return
         quoteActions.busy = true
         lifecycleScope.launch {
