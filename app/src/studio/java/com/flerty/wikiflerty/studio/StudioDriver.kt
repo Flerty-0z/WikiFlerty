@@ -67,18 +67,70 @@ class StudioDriver : AccessibilityService() {
     fun run(scenario: Scenario, showTouches: Boolean, onDone: (Boolean, String) -> Unit) {
         job?.cancel()
         touches?.show = showTouches
+        marks = org.json.JSONArray()
+        startedAt = SystemClock.uptimeMillis()
         job = scope.launch {
             var failure: String? = null
             for ((i, step) in scenario.steps.withIndex()) {
-                val ok = runCatching { perform(step) }.getOrElse { false }
+                val begin = SystemClock.uptimeMillis()
+                lastRect = null
+                val ok = runCatching { perform(step) }.getOrElse { android.util.Log.w(TAG, "step ${i + 1} crashed", it); false }
+                val end = SystemClock.uptimeMillis()
+                marks.put(
+                    org.json.JSONObject()
+                        .put("i", i + 1)
+                        .put("do", step.kind)
+                        .put("text", step.text ?: "")
+                        .put("start", begin - startedAt)
+                        .put("end", end - startedAt)
+                        .put("ok", ok)
+                        .apply { lastRect?.let { put("rect", org.json.JSONArray().put(it.left).put(it.top).put(it.right).put(it.bottom)) } }
+                        .apply { step.json.optString("mark").takeIf { it.isNotEmpty() }?.let { put("mark", it) } },
+                )
+                android.util.Log.i(TAG, "step ${i + 1} ${step.label()} ok=$ok ${end - begin}ms rect=$lastRect")
                 if (!ok && !step.optional) {
                     failure = "Шаг ${i + 1}: ${step.label()}"
+                    screen = screenText()
+                    android.util.Log.w(TAG, "failed at ${i + 1}, screen:\n$screen")
                     break
                 }
                 if (step.after > 0 && step.kind != "pause") delay(step.after)
             }
             onDone(failure == null, failure ?: "Готово")
         }
+    }
+
+    @Volatile
+    var marks = org.json.JSONArray()
+        private set
+
+    @Volatile
+    var startedAt = 0L
+        private set
+
+    @Volatile
+    var screen = ""
+        private set
+
+    private var lastRect: Rect? = null
+
+    fun screenText(): String {
+        val roots = runCatching { windows.mapNotNull { it.root } }.getOrDefault(emptyList()).ifEmpty { listOfNotNull(rootInActiveWindow) }
+        val out = StringBuilder()
+        fun walk(node: AccessibilityNodeInfo?, depth: Int) {
+            node ?: return
+            val t = node.text?.toString()?.trim().orEmpty()
+            val d = node.contentDescription?.toString()?.trim().orEmpty()
+            if ((t.isNotEmpty() || d.isNotEmpty()) && node.isVisibleToUser) {
+                val r = Rect()
+                node.getBoundsInScreen(r)
+                out.append("  ".repeat(depth.coerceAtMost(12))).append(if (t.isNotEmpty()) "«$t»" else "").append(if (d.isNotEmpty()) " desc«$d»" else "")
+                    .append(if (node.isClickable) " click" else "").append(" ").append(r.toShortString()).append('\n')
+            }
+            for (i in 0 until node.childCount) walk(node.getChild(i), depth + 1)
+        }
+        roots.forEach { out.append("[window ").append(it.packageName).append("]\n"); walk(it, 0) }
+        return out.toString()
     }
 
     private suspend fun perform(step: Step): Boolean {
@@ -96,6 +148,7 @@ class StudioDriver : AccessibilityService() {
                 delay(step.ms)
                 true
             }
+            "open" -> openBook(step.text.orEmpty())
             "wait" -> find(step) != null
             "gone" -> {
                 val end = SystemClock.uptimeMillis() + step.timeout
@@ -191,7 +244,7 @@ class StudioDriver : AccessibilityService() {
     private suspend fun find(step: Step): Rect? {
         val end = SystemClock.uptimeMillis() + step.timeout
         while (SystemClock.uptimeMillis() < end) {
-            findOnce(step)?.let { return it }
+            findOnce(step)?.let { lastRect = it; return it }
             delay(250)
         }
         return null
@@ -219,7 +272,19 @@ class StudioDriver : AccessibilityService() {
         for (i in 0 until node.childCount) collect(node.getChild(i), wanted, exact, out, descOnly)
     }
 
+    private suspend fun openBook(title: String): Boolean {
+        val app = application as com.flerty.wikiflerty.App
+        val wanted = title.trim().lowercase()
+        val book = app.library.books.value.firstOrNull { it.title.trim().lowercase() == wanted }
+            ?: app.library.books.value.firstOrNull { it.title.lowercase().contains(wanted) }
+            ?: return false
+        if (app.prepareReader(book).isFailure) return false
+        startActivity(Intent().setClassName(this, "com.flerty.wikiflerty.reader.ReaderActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        return true
+    }
+
     private suspend fun tap(x: Float, y: Float, duration: Long): Boolean {
+        if (lastRect == null) lastRect = Rect(x.toInt() - 1, y.toInt() - 1, x.toInt() + 1, y.toInt() + 1)
         touches?.tap(x, y, duration)
         val path = Path().apply { moveTo(x, y) }
         return gesture(GestureDescription.StrokeDescription(path, 0, duration))
@@ -259,6 +324,8 @@ class StudioDriver : AccessibilityService() {
     }
 
     companion object {
+        const val TAG = "WFStudio"
+
         @Volatile
         var instance: StudioDriver? = null
             private set

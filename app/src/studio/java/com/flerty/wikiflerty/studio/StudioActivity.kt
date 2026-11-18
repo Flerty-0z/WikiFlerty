@@ -4,7 +4,6 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
@@ -42,7 +41,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
-import com.flerty.wikiflerty.App
 import com.flerty.wikiflerty.ui.AppColors
 import com.flerty.wikiflerty.ui.AppIcons
 import com.flerty.wikiflerty.ui.FeedbackSound
@@ -128,38 +126,14 @@ class StudioActivity : ComponentActivity() {
     private fun prepare() {
         status = "Готовлю книги и файлы…"
         lifecycleScope.launch {
-            val app = application as App
-            val result = withContext(Dispatchers.IO) {
-                var books = 0
-                var files = 0
-                runCatching {
-                    assets.list("studio/files")?.forEach { name ->
-                        if (saveDownload(this@StudioActivity, name)) files++
-                    }
-                }
-                val dir = File(cacheDir, "studio-books").apply { mkdirs() }
-                assets.list("studio/library")?.sorted()?.forEach { name ->
-                    val f = File(dir, name)
-                    assets.open("studio/library/$name").use { input -> f.outputStream().use { input.copyTo(it) } }
-                    if (app.library.import(Uri.fromFile(f)).isSuccess) books++
-                    f.delete()
-                }
-                books to files
-            }
-            quiet()
+            val result = Studio.prepare(this@StudioActivity)
             getSharedPreferences("studio", MODE_PRIVATE).edit().putBoolean("prepared", true).apply()
             prepared = true
             status = "Готово: книг ${result.first}, файлов ${result.second} (в «Загрузки / WikiFlerty Studio»)"
         }
     }
 
-    private fun quiet() {
-        val tips = this
-        com.flerty.wikiflerty.ui.Tips.markTour(tips)
-        com.flerty.wikiflerty.ui.Tips.markReaderCoach(tips)
-        com.flerty.wikiflerty.ui.Tips.markRelease(tips, com.flerty.wikiflerty.ui.NewsRelease)
-        com.flerty.wikiflerty.ui.Tips.markVersion(tips, com.flerty.wikiflerty.ui.Tips.versionCode(tips))
-    }
+    private fun quiet() = Studio.quiet(this)
 
     private fun start(scenario: Scenario) {
         quiet()
