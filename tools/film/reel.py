@@ -536,6 +536,9 @@ def main():
     t = 0.0
     for k, b in enumerate(beats, 1):
         dur = b.get("dur", 3.2)
+        vp = os.path.join(a.audio, f"beat{plan['beats'].index(b) + 1:02d}.mp3")
+        if plan.get("voice") and b.get("say") and os.path.exists(vp):
+            dur = max(dur, probe(vp) + 0.35)
         timeline.append((k, b, t, dur))
         t += dur
     for k, b, start, dur in timeline:
@@ -564,7 +567,7 @@ def main():
     voices = []
     if plan.get("voice"):
         for k, b, start, dur in timeline:
-            p = os.path.join(a.audio, f"beat{k:02d}.mp3")
+            p = os.path.join(a.audio, f"beat{plan['beats'].index(b) + 1:02d}.mp3")
             if b.get("say") and os.path.exists(p):
                 voices.append((p, start + 0.1))
     inputs = ["-i", video]
