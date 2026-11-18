@@ -526,8 +526,9 @@ def main():
     os.makedirs(work, exist_ok=True)
     only = {int(x) for x in a.only.split(",") if x}
 
-    beats = [b for b in plan["beats"] if b.get("card") or (footage.idx(b["from"]) in footage.steps and footage.ok(b.get("need", b["from"])))]
-    skipped = [b.get("title") for b in plan["beats"] if b not in beats]
+    beats = [b for b in plan["beats"] if not b.get("draft_skip")]
+    beats = [b for b in beats if b.get("card") or (footage.idx(b["from"]) in footage.steps and footage.ok(b.get("need", b["from"])))]
+    skipped = [b.get("title") for b in plan["beats"] if b not in beats and not b.get("draft_skip")]
     if skipped:
         print("skipped (step failed):", skipped)
     files = []

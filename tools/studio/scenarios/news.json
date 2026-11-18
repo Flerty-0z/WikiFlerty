@@ -467,6 +467,14 @@
    "after": 1000
   },
   {
+   "do": "backIf",
+   "text": "Опции",
+   "exact": true,
+   "textonly": true,
+   "timeout": 1500,
+   "after": 900
+  },
+  {
    "do": "hide",
    "text": "Главы",
    "exact": true,
@@ -737,6 +745,14 @@
   {
    "do": "back",
    "after": 1000
+  },
+  {
+   "do": "backIf",
+   "text": "Опции",
+   "exact": true,
+   "textonly": true,
+   "timeout": 1500,
+   "after": 900
   },
   {
    "do": "hide",

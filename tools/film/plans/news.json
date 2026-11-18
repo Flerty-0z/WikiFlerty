@@ -13,7 +13,7 @@
    "to": "intro",
    "pad": [
     0.2,
-    2.2
+    1.6
    ],
    "dur": 2.4,
    "size": 150
@@ -82,7 +82,11 @@
    ],
    "from": "comicpages",
    "to": "comicpages",
-   "dur": 3.0
+   "dur": 3.0,
+   "tags": [
+    "по страницам",
+    "или лентой"
+   ]
   },
   {
    "kicker": "или сплошной",
@@ -99,7 +103,8 @@
    "pad": [
     1.0,
     0.6
-   ]
+   ],
+   "draft_skip": true
   },
   {
    "kicker": "выбери папку —",
@@ -293,15 +298,15 @@
    "hl": [
     "ШРИФТ"
    ],
-   "from": "ownfont",
-   "to": "lobsterpage",
+   "from": "lobster",
+   "to": "lobster+1",
    "slow": [
-    "lobsterpage"
+    "lobster+1"
    ],
    "dur": 4.0,
    "pad": [
-    0.2,
-    2.4
+    0.0,
+    1.6
    ],
    "speed": 3.0
   },
