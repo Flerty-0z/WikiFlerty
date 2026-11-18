@@ -380,14 +380,11 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
                 val spot = withContext(Dispatchers.Default) { runCatching { locate(pub, page, target, prog) }.getOrNull() }
                 if (spot != null) {
                     navigator.go(spot.locator)
-                    if (spot.index > 0) {
-                        repeat(spot.index) { navigator.skipToNextUtterance() }
-                    } else {
-                        navigator.skipToNextUtterance()
-                        navigator.skipToPreviousUtterance()
-                    }
-                    waitText(navigator, 1200) { same(it, target) }
-                    settle(navigator, target)
+                    navigator.skipToNextUtterance()
+                    navigator.skipToPreviousUtterance()
+                    val head = spot.text.take(10)
+                    waitText(navigator, 1500) { u -> u.isNotEmpty() && (spot.text.startsWith(u.take(10)) || u.startsWith(head)) }
+                    walk(navigator, spot)
                 } else if (fallback != null) {
                     jump(navigator, fallback)
                     align(navigator, sentence, fallback)
@@ -399,7 +396,25 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
         }
     }
 
-    private class Spot(val locator: Locator, val index: Int, val first: String)
+    private class Spot(val locator: Locator, val text: String, val at: Int)
+
+    private suspend fun walk(navigator: AndroidTtsNavigator, spot: Spot) {
+        var from = 0
+        var steps = 0
+        while (steps < 80) {
+            val u = squash(navigator.location.value.utterance)
+            if (u.isEmpty()) return
+            val probe = u.take(12)
+            val pos = spot.text.indexOf(probe, (from - 4).coerceAtLeast(0)).takeIf { it >= 0 } ?: spot.text.indexOf(probe)
+            if (pos < 0) return
+            val end = pos + u.length
+            if (end > spot.at) return
+            from = end
+            if (!navigator.hasNextUtterance()) return
+            if (!step(navigator, true)) return
+            steps++
+        }
+    }
 
     private fun same(u: String, target: String): Boolean {
         if (u.isEmpty() || target.isEmpty()) return false
@@ -420,24 +435,6 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
         val now = navigator.location.value.utteranceLocator
         if (forward) navigator.skipToNextUtterance() else navigator.skipToPreviousUtterance()
         return withTimeoutOrNull(900) { navigator.location.first { it.utteranceLocator != now } } != null
-    }
-
-    private suspend fun settle(navigator: AndroidTtsNavigator, target: String) {
-        if (same(squash(navigator.location.value.utterance), target)) return
-        var moved = 0
-        while (moved < 12 && navigator.hasNextUtterance()) {
-            if (!step(navigator, true)) break
-            moved++
-            if (same(squash(navigator.location.value.utterance), target)) return
-        }
-        repeat(moved) { step(navigator, false) }
-        var back = 0
-        while (back < 12 && navigator.hasPreviousUtterance()) {
-            if (!step(navigator, false)) break
-            back++
-            if (same(squash(navigator.location.value.utterance), target)) return
-        }
-        repeat(back) { step(navigator, true) }
     }
 
     private suspend fun locate(pub: Publication, page: Locator, target: String, prog: Double): Spot? {
@@ -466,21 +463,10 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
         }
         val count = elements.size
         val total = count.coerceAtLeast(1)
-        val pick = hits.minByOrNull { kotlin.math.abs(it.first.toDouble() / total - prog) }?.second ?: return null
-        val tokenizer = org.readium.r2.shared.util.tokenizer.DefaultTextContentTokenizer(org.readium.r2.shared.util.tokenizer.TextUnit.Sentence, pub.metadata.language)
-        var index = 0
-        var first: String? = null
-        for (segment in pick.segments) {
-            for (range in tokenizer.tokenize(segment.text)) {
-                val raw = segment.text.substring(range)
-                if (raw.none { it.isLetterOrDigit() }) continue
-                val part = squash(raw)
-                if (first == null) first = part
-                if (same(part, target)) return Spot(pick.locator, index, first)
-                index++
-            }
-        }
-        return Spot(pick.locator, 0, first ?: key)
+        val best = hits.minByOrNull { kotlin.math.abs(it.first.toDouble() / total - prog) } ?: return null
+        val text = elements[best.first].second
+        val at = text.indexOf(key).coerceAtLeast(0)
+        return Spot(best.second.locator, text, at)
     }
 
     private fun squash(t: String): String = buildString(t.length) {
