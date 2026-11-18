@@ -90,12 +90,16 @@
    "hl": [
     "ЛЕНТОЙ"
    ],
-   "from": "flip",
+   "from": "feedscroll",
    "to": "feedscroll",
    "slow": [
     "feedscroll"
    ],
-   "dur": 3.8
+   "dur": 3.8,
+   "pad": [
+    1.0,
+    0.6
+   ]
   },
   {
    "kicker": "выбери папку —",
@@ -289,7 +293,7 @@
    "hl": [
     "ШРИФТ"
    ],
-   "from": "lobster",
+   "from": "ownfont",
    "to": "lobsterpage",
    "slow": [
     "lobsterpage"
@@ -299,7 +303,7 @@
     0.2,
     2.4
    ],
-   "speed": 2.2
+   "speed": 3.0
   },
   {
    "kicker": "пауза и «спрятать за край»",

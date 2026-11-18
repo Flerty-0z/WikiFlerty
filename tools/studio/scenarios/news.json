@@ -461,6 +461,12 @@
    "after": 1000
   },
   {
+   "do": "backIf",
+   "text": "Размер",
+   "timeout": 1500,
+   "after": 1000
+  },
+  {
    "do": "hide",
    "text": "Главы",
    "exact": true,
