@@ -42,7 +42,8 @@
    "text": "Капитанская дочка",
    "exact": true,
    "timeout": 8000,
-   "after": 1800
+   "after": 1800,
+   "desc": true
   },
   {
    "do": "tap",
@@ -217,7 +218,8 @@
    "text": "Капитанская дочка",
    "exact": true,
    "timeout": 6000,
-   "after": 1800
+   "after": 1800,
+   "desc": true
   },
   {
    "do": "tap",
@@ -285,7 +287,8 @@
    "text": "Пиковая дама",
    "exact": true,
    "timeout": 8000,
-   "after": 1800
+   "after": 1800,
+   "desc": true
   },
   {
    "do": "tap",
@@ -361,7 +364,8 @@
    "text": "Дама с собачкой",
    "exact": true,
    "timeout": 8000,
-   "after": 1800
+   "after": 1800,
+   "desc": true
   },
   {
    "do": "tap",
@@ -440,7 +444,8 @@
    "text": "Маленький Немо",
    "exact": true,
    "timeout": 8000,
-   "after": 1800
+   "after": 1800,
+   "desc": true
   },
   {
    "do": "tap",

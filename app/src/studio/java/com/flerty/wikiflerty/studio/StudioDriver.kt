@@ -202,21 +202,21 @@ class StudioDriver : AccessibilityService() {
         val roots = runCatching { windows.mapNotNull { it.root } }.getOrDefault(emptyList()).ifEmpty { listOfNotNull(rootInActiveWindow) }
         for (option in wanted) {
             val hits = ArrayList<Rect>()
-            roots.forEach { root -> collect(root, option, step.exact, hits) }
+            roots.forEach { root -> collect(root, option, step.exact, hits, step.json.optBoolean("desc", false)) }
             hits.getOrNull(step.index)?.let { return it }
         }
         return null
     }
 
-    private fun collect(node: AccessibilityNodeInfo?, wanted: String, exact: Boolean, out: MutableList<Rect>) {
+    private fun collect(node: AccessibilityNodeInfo?, wanted: String, exact: Boolean, out: MutableList<Rect>, descOnly: Boolean = false) {
         node ?: return
-        val values = listOfNotNull(node.text?.toString(), node.contentDescription?.toString())
+        val values = if (descOnly) listOfNotNull(node.contentDescription?.toString()) else listOfNotNull(node.text?.toString(), node.contentDescription?.toString())
         if (values.any { v -> val t = v.trim().lowercase(); if (exact) t == wanted else t.contains(wanted) } && node.isVisibleToUser) {
             val r = Rect()
             node.getBoundsInScreen(r)
             if (r.width() > 0 && r.height() > 0) out += r
         }
-        for (i in 0 until node.childCount) collect(node.getChild(i), wanted, exact, out)
+        for (i in 0 until node.childCount) collect(node.getChild(i), wanted, exact, out, descOnly)
     }
 
     private suspend fun tap(x: Float, y: Float, duration: Long): Boolean {
