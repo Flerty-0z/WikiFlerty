@@ -19,6 +19,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHANNEL: ${{ vars.TG_CHANNEL }}
           REPO: ${{ github.repository }}
         run: |
           mkdir -p tg

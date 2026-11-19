@@ -78,7 +78,9 @@ app_icon, gh_icon = icons()
 
 
 def button(text, link, style, icon):
-    b = {"text": text, "url": link, "style": style}
+    b = {"text": text, "url": link}
+    if style:
+        b["style"] = style
     if icon:
         b["icon_custom_emoji_id"] = icon
     return b
@@ -88,31 +90,83 @@ def keyboard(plain=False):
     pick = (lambda i: None) if plain else (lambda i: i)
     return {
         "inline_keyboard": [
-            [button("Скачать x32", f"{apk}-x32.apk", "primary", pick(app_icon)), button("Скачать x64", f"{apk}-x64.apk", "success", pick(app_icon))],
+            [button("Скачать x32", f"{apk}-x32.apk", None, pick(app_icon)), button("Скачать x64", f"{apk}-x64.apk", None, pick(app_icon))],
             [button("Открыть на GitHub", url, "danger", pick(gh_icon))],
         ]
     }
 
 
-params = {
-    "chat_id": chat,
-    "text": text,
-    "parse_mode": "HTML",
-    "link_preview_options": json.dumps({"is_disabled": True}),
-    "reply_markup": json.dumps(keyboard(), ensure_ascii=False),
-}
-for attempt in range(4):
-    try:
-        r = call("sendMessage", params)
-        if not r.get("ok") and app_icon and "emoji" in r.get("description", "").lower():
-            print("icons off", r.get("description"))
-            params["reply_markup"] = json.dumps(keyboard(plain=True), ensure_ascii=False)
+
+
+def send(target):
+    params = {
+        "chat_id": target,
+        "text": text,
+        "parse_mode": "HTML",
+        "link_preview_options": json.dumps({"is_disabled": True}),
+        "reply_markup": json.dumps(keyboard(), ensure_ascii=False),
+    }
+    for attempt in range(4):
+        try:
             r = call("sendMessage", params)
-        print("sent", r.get("ok"), r.get("description", ""))
-        if r.get("ok"):
-            break
-    except Exception as e:
-        print("retry", attempt + 1, e)
-    time.sleep(10 * (attempt + 1))
-else:
+            if not r.get("ok") and app_icon and "emoji" in r.get("description", "").lower():
+                print("icons off", r.get("description"))
+                params["reply_markup"] = json.dumps(keyboard(plain=True), ensure_ascii=False)
+                r = call("sendMessage", params)
+            print("sent", target, r.get("ok"), r.get("description", ""))
+            if r.get("ok"):
+                return True
+        except Exception as e:
+            print("retry", attempt + 1, e)
+        time.sleep(10 * (attempt + 1))
+    return False
+
+
+if not send(chat):
     sys.exit("не отправилось")
+
+channel = os.environ.get("CHANNEL", "").strip()
+if channel:
+    wait = int(os.environ.get("WAIT_MINUTES", "120"))
+    pending = call("getUpdates", {"offset": -1, "timeout": 0}).get("result", [])
+    offset = pending[-1]["update_id"] + 1 if pending else 0
+    ask = call("sendMessage", {
+        "chat_id": chat,
+        "text": f"Отправить этот анонс в канал? Кнопки работают {wait} минут, ещё можно написать «Отправить» или «Не отправлять»",
+        "reply_markup": json.dumps({"inline_keyboard": [[
+            {"text": "Отправить", "callback_data": "post", "style": "success"},
+            {"text": "Не отправлять", "callback_data": "skip"},
+        ]]}, ensure_ascii=False),
+    })
+    ask_id = ask.get("result", {}).get("message_id")
+    decision = None
+    deadline = time.time() + wait * 60
+    while decision is None and time.time() < deadline:
+        r = call("getUpdates", {"offset": offset, "timeout": 50, "allowed_updates": json.dumps(["message", "callback_query"])})
+        for u in r.get("result", []):
+            offset = u["update_id"] + 1
+            q = u.get("callback_query")
+            m = u.get("message")
+            if q and str(q["from"]["id"]) == chat and q.get("data") in ("post", "skip"):
+                call("answerCallbackQuery", {"callback_query_id": q["id"]})
+                decision = q["data"]
+            elif m and str(m["chat"]["id"]) == chat:
+                said = (m.get("text") or "").strip().lower().lstrip("/")
+                if said in ("отправить", "send", "post"):
+                    decision = "post"
+                elif said in ("не отправлять", "отмена", "cancel", "skip"):
+                    decision = "skip"
+        if r.get("ok") is False:
+            time.sleep(5)
+    if decision == "post":
+        done = send(channel)
+        note = "Анонс отправлен в канал" if done else "Не получилось отправить в канал, проверь, что бот там админ"
+    elif decision == "skip":
+        note = "Хорошо, в канал не отправляю"
+    else:
+        note = "Время вышло, в канал не отправлено. Можно повторить через Announce на GitHub"
+    if ask_id:
+        call("editMessageText", {"chat_id": chat, "message_id": ask_id, "text": note})
+    else:
+        call("sendMessage", {"chat_id": chat, "text": note})
+    print(note)
