@@ -257,6 +257,7 @@ private fun SignedIn(account: Account, state: Account.State) {
     }
 
     val localFps = books.mapNotNull { it.fingerprint }.toSet()
+    val localIds = books.filter { it.fingerprint != null }.associate { it.fingerprint!! to it.id }
     TabbedFrame("Книги в облаке", icon = AppIcons.Cloud, trailing = { CountBadge(state.books.size) }) {
         Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (state.books.isEmpty()) {
@@ -277,10 +278,11 @@ private fun SignedIn(account: Account, state: Account.State) {
                             .heightIn(min = 56.dp)
                             .background(AppColors.Line.copy(alpha = 0.45f), shape)
                             .border(1.dp, AppColors.PanelBorder, shape)
-                            .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                            .padding(start = 8.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
+                        BookCover(localIds[b.fp], 36.dp)
                         Column(Modifier.weight(1f)) {
                             Text(b.name.ifBlank { "Без названия" }, color = AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
