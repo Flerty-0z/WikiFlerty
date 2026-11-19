@@ -1,0 +1,14 @@
+name: Inbox
+
+on:
+  workflow_dispatch:
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: python3 tools/release/inbox.py
