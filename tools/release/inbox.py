@@ -25,6 +25,7 @@ for u in call("getUpdates", {"timeout": 0, "allowed_updates": json.dumps(["messa
         if m.get("sticker"):
             print("  sticker set", m["sticker"].get("set_name"), m["sticker"].get("custom_emoji_id"))
         if m["chat"].get("type") == "channel":
+            print("  keys", sorted(k for k in m if k not in ("chat", "date", "message_id", "sender_chat")))
             print("  post", m["message_id"], "buttons", json.dumps(m.get("reply_markup", {}), ensure_ascii=False)[:300], "via", (m.get("via_bot") or {}).get("username"))
         f = m.get("forward_origin") or {}
         if f.get("chat"):
