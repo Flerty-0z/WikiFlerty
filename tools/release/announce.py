@@ -166,3 +166,27 @@ def send(target):
 
 if not send(chat):
     sys.exit("не отправилось")
+
+channel_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "channel.txt")
+channel = open(channel_file).read().strip() if os.path.exists(channel_file) else ""
+if channel:
+    wait = int(os.environ.get("WAIT_MINUTES", "180"))
+    pending = call("getUpdates", {"offset": -1, "timeout": 0}).get("result", [])
+    offset = pending[-1]["update_id"] + 1 if pending else 0
+    mark = f"обновление {version}"
+    deadline = time.time() + wait * 60
+    attached = False
+    while not attached and time.time() < deadline:
+        r = call("getUpdates", {"offset": offset, "timeout": 50, "allowed_updates": json.dumps(["channel_post"])})
+        for u in r.get("result", []):
+            offset = u["update_id"] + 1
+            post = u.get("channel_post")
+            if post and str(post["chat"]["id"]) == channel and mark in (post.get("text") or "") and not post.get("reply_markup"):
+                e = call("editMessageReplyMarkup", {"chat_id": channel, "message_id": post["message_id"], "reply_markup": json.dumps(keyboard(), ensure_ascii=False)})
+                print("attach", e.get("ok"), e.get("description", ""))
+                if e.get("ok"):
+                    attached = True
+                    call("sendMessage", {"chat_id": chat, "text": "Кнопки добавлены к посту в канале"})
+        if r.get("ok") is False:
+            time.sleep(5)
+    print("attached" if attached else "no post")
