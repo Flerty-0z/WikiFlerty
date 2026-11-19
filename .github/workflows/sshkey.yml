@@ -1,0 +1,30 @@
+name: Server key
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/sshkey.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  key:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          PASS: ${{ secrets.SELECTEL_S3_SECRET }}
+        run: |
+          if [ -z "$PASS" ]; then echo "SELECTEL_S3_SECRET missing"; exit 1; fi
+          if [ -f server/deploy.pub ]; then cat server/deploy.pub; exit 0; fi
+          mkdir -p server
+          ssh-keygen -q -t ed25519 -N "" -C wikiflerty -f "$RUNNER_TEMP/k"
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in "$RUNNER_TEMP/k" -out server/deploy.key.enc -pass env:PASS
+          cp "$RUNNER_TEMP/k.pub" server/deploy.pub
+          rm -f "$RUNNER_TEMP/k"
+          cat server/deploy.pub
+          git add server/deploy.pub server/deploy.key.enc
+          git -c user.name=Flerty -c user.email=jamalavtaev2008@gmail.com commit -m "Ключ сервера"
+          git push
