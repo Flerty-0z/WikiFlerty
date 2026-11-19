@@ -101,7 +101,7 @@ class MainActivity : ComponentActivity() {
         if (uri != null) {
             val open = (applicationContext as com.flerty.wikiflerty.App).libraryPrefs.prefs.value.openAfterAdd
             libraryViewModel.import(uri, openAfterImport = open)
-            intent.setAction(null)
+            intent?.setAction(null)
         }
     }
 }
