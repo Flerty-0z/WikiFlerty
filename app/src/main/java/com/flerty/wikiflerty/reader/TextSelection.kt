@@ -818,7 +818,39 @@ internal object TextSelection {
             var prog = all.length ? Math.min(1, lead.toString().length / all.length) : 0;
             return JSON.stringify({ text: out, head: head, sel: block === document.body ? "" : selectorOf(block), prog: prog });
           };
+          var holdTimer = null, holdX = 0, holdY = 0, held = false;
+          function holdStop() { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } }
+          window.addEventListener("touchstart", function (e) {
+            holdStop();
+            held = false;
+            if (!document.getElementById("wf-comic") || e.touches.length !== 1) return;
+            var src = pick(e.target);
+            if (!src) return;
+            holdX = e.touches[0].clientX;
+            holdY = e.touches[0].clientY;
+            holdTimer = setTimeout(function () {
+              holdTimer = null;
+              held = true;
+              try { window.${BRIDGE}.onEvent("image:" + src); } catch (x) {}
+            }, 520);
+          }, { passive: true, capture: true });
+          window.addEventListener("touchmove", function (e) {
+            if (!holdTimer) return;
+            var t = e.touches[0];
+            if (e.touches.length !== 1 || Math.abs(t.clientX - holdX) > 12 || Math.abs(t.clientY - holdY) > 12) holdStop();
+          }, { passive: true, capture: true });
+          window.addEventListener("touchend", holdStop, { passive: true, capture: true });
+          window.addEventListener("touchcancel", holdStop, { passive: true, capture: true });
+          window.addEventListener("contextmenu", function (e) {
+            if (document.getElementById("wf-comic") && pick(e.target)) e.preventDefault();
+          }, true);
           window.addEventListener("click", function (e) {
+            if (held) {
+              held = false;
+              e.preventDefault();
+              e.stopImmediatePropagation();
+              return;
+            }
             if (document.getElementById("wf-comic")) return;
             var sel = window.getSelection ? String(window.getSelection() || "") : "";
             if (sel.length) return;

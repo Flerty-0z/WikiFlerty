@@ -158,8 +158,7 @@ fun TagCloudSheet(active: List<String>, onApply: (List<String>) -> Unit, onDismi
     val counts = remember(books) { tagCounts(books) }
     val picked = remember {
         mutableStateListOf<String>().apply {
-            addAll(active)
-            if (focus != null && none { it.equals(focus, true) }) add(focus)
+            (focus ?: active.firstOrNull())?.let { add(it) }
         }
     }
     var editing by remember { mutableStateOf(focus) }
@@ -193,6 +192,7 @@ fun TagCloudSheet(active: List<String>, onApply: (List<String>) -> Unit, onDismi
                                 picked.removeAll { it.equals(t.name, true) }
                                 if (edit) editing = picked.lastOrNull()
                             } else {
+                                picked.clear()
                                 picked.add(t.name)
                                 editing = t.name
                             }
@@ -208,7 +208,7 @@ fun TagCloudSheet(active: List<String>, onApply: (List<String>) -> Unit, onDismi
                     }
                 }
                 AppButton(
-                    if (chosen.isEmpty()) "Выбери теги" else "Показать · $matched",
+                    if (chosen.isEmpty()) "Выбери тег" else "Показать · $matched",
                     primary = chosen.isNotEmpty(),
                     modifier = Modifier.weight(1.4f),
                     labeled = true,
