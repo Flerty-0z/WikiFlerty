@@ -6,6 +6,9 @@ on:
       version:
         description: "Версия, например 0.1.269"
         required: true
+      wait:
+        description: "Сколько минут ждать пост в канале"
+        default: "180"
 
 permissions:
   contents: write
@@ -20,6 +23,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           REPO: ${{ github.repository }}
+          WAIT_MINUTES: ${{ inputs.wait }}
         run: |
           mkdir -p tg
           kid=$(gh api "repos/$REPO/releases?per_page=100" -q '[.[] | select(.tag_name=="film-kit")][0].assets[0].id')

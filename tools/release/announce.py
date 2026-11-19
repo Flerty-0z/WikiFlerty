@@ -117,25 +117,13 @@ text = (
 )
 
 
-def button(text, link, style, icon):
-    b = {"text": text, "url": link}
-    if style:
-        b["style"] = style
-    if icon:
-        b["icon_custom_emoji_id"] = icon
-    return b
-
-
-def keyboard(plain=False):
-    pick = (lambda i: None) if plain else (lambda i: i)
+def keyboard():
     return {
         "inline_keyboard": [
-            [button("Скачать x32", f"{apk}-x32.apk", None, pick(app_icon)), button("Скачать x64", f"{apk}-x64.apk", None, pick(app_icon))],
-            [button("Открыть на GitHub", url, "danger", pick(gh_icon))],
+            [{"text": "Скачать x32", "url": f"{apk}-x32.apk"}, {"text": "Скачать x64", "url": f"{apk}-x64.apk"}],
+            [{"text": "Открыть на GitHub", "url": url, "style": "danger"}],
         ]
     }
-
-
 
 
 def send(target):
@@ -149,10 +137,6 @@ def send(target):
     for attempt in range(4):
         try:
             r = call("sendMessage", params)
-            if not r.get("ok") and app_icon and "emoji" in r.get("description", "").lower():
-                print("icons off", r.get("description"))
-                params["reply_markup"] = json.dumps(keyboard(plain=True), ensure_ascii=False)
-                r = call("sendMessage", params)
             print("sent", target, r.get("ok"), r.get("description", ""))
             if r.get("ok"):
                 return r["result"]["message_id"]
@@ -167,8 +151,8 @@ if not send(chat):
 
 channel_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "channel.txt")
 channel = open(channel_file).read().strip() if os.path.exists(channel_file) else ""
-if channel:
-    wait = int(os.environ.get("WAIT_MINUTES", "180"))
+wait = int(os.environ.get("WAIT_MINUTES") or "180")
+if channel and wait > 0:
     pending = call("getUpdates", {"offset": -1, "timeout": 0}).get("result", [])
     offset = pending[-1]["update_id"] + 1 if pending else 0
     mark = f"обновление {version}"
