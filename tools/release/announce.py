@@ -17,19 +17,26 @@ if not chat:
 
 items = [p.strip() for p in open(notes_file, encoding="utf-8").read().strip().split("\n\n") if p.strip()]
 url = f"https://github.com/{repo}/releases/tag/v{version}"
+apk = f"https://github.com/{repo}/releases/download/v{version}/WikiFlerty-{version}"
 body = "\n\n".join(html.escape(i) for i in items)
 text = (
     f"<b>Ребята, вышло обновление {version}</b>\n\n"
-    f"<blockquote expandable>{body}</blockquote>\n\n"
+    f"{body}\n\n"
     "Огромная просьба перед обновлением сделать «Резервную копию»\n\n"
-    f"<b>Скачать:</b> <a href=\"{url}\">WikiFlerty {version} на GitHub</a>\n\n"
     "Если что-то не так, пишите @F1erty0z"
 )
+keyboard = {
+    "inline_keyboard": [
+        [{"text": "Скачать x32", "url": f"{apk}-x32.apk"}, {"text": "Скачать x64", "url": f"{apk}-x64.apk"}],
+        [{"text": "Открыть на GitHub", "url": url}],
+    ]
+}
 params = {
     "chat_id": chat,
     "text": text,
     "parse_mode": "HTML",
-    "link_preview_options": json.dumps({"url": url, "prefer_small_media": True}),
+    "link_preview_options": json.dumps({"is_disabled": True}),
+    "reply_markup": json.dumps(keyboard, ensure_ascii=False),
 }
 data = urllib.parse.urlencode(params).encode()
 for attempt in range(4):
