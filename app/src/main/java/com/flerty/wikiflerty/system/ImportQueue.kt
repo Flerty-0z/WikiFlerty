@@ -28,6 +28,7 @@ class ImportQueue(private val app: App) {
     data class Progress(val done: Int, val total: Int, val added: Int, val same: Int, val failed: Int)
 
     private val file = File(app.filesDir, "import_queue.json")
+    private val current = File(app.filesDir, "import_current.txt")
     private val pending = ArrayDeque<String>()
     private var stats = Progress(0, 0, 0, 0, 0)
     private var job: Job? = null
@@ -60,6 +61,13 @@ class ImportQueue(private val app: App) {
                 pending.clear()
                 for (i in 0 until arr.length()) pending.addLast(arr.getString(i))
                 stats = Progress(json.optInt("done"), json.optInt("total"), json.optInt("added"), json.optInt("same"), json.optInt("failed"))
+            }
+            val stuck = current.takeIf { it.exists() }?.readText()?.trim()
+            current.delete()
+            if (stuck != null && pending.firstOrNull() == stuck) {
+                pending.removeFirst()
+                stats = stats.copy(done = stats.done + 1, failed = stats.failed + 1)
+                save()
             }
             if (pending.isEmpty()) {
                 file.delete()
@@ -96,12 +104,15 @@ class ImportQueue(private val app: App) {
             while (true) {
                 val next = synchronized(pending) { pending.firstOrNull() } ?: break
                 val before = app.library.books.value.size
+                synchronized(pending) { save() }
+                runCatching { current.writeText(next) }
                 val result = try {
                     app.library.import(Uri.parse(next))
                 } catch (t: Throwable) {
                     Result.failure(t)
                 }
                 val after = app.library.books.value.size
+                current.delete()
                 synchronized(pending) {
                     pending.removeFirstOrNull()
                     stats = when {

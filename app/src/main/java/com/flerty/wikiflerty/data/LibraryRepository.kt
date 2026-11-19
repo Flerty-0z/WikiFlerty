@@ -61,6 +61,14 @@ class LibraryRepository(
                 BookConverter.Kind.Fb2, BookConverter.Kind.Fb2Zip, BookConverter.Kind.Txt, BookConverter.Kind.Html, BookConverter.Kind.Md,
                 BookConverter.Kind.Docx, BookConverter.Kind.Odt, BookConverter.Kind.Rtf, BookConverter.Kind.Mobi, BookConverter.Kind.Cbz, BookConverter.Kind.Cbr -> {
                     val name = shownName?.substringBeforeLast('.')?.removeSuffix(".fb2")?.replace('_', ' ')?.trim()?.takeIf { it.isNotBlank() } ?: "Без названия"
+                    if (kind != BookConverter.Kind.Cbz && kind != BookConverter.Kind.Cbr) {
+                        val rt = Runtime.getRuntime()
+                        val free = rt.maxMemory() - (rt.totalMemory() - rt.freeMemory())
+                        if (source.length() * 5 > free) {
+                            source.delete()
+                            return@withContext Result.failure(Exception("Файл слишком большой для телефона"))
+                        }
+                    }
                     try {
                         converted = BookConverter.toEpub(source, kind, file, name, fingerprintOf(source).take(24), wrapped.name, hint)
                     } catch (e: Throwable) {
@@ -412,6 +420,11 @@ class LibraryRepository(
     }
 
     suspend fun ensureScan() = withContext(Dispatchers.IO) {
+        val marker = File(context.filesDir, "scan_current.txt")
+        marker.takeIf { it.exists() }?.readText()?.trim()?.let { stuck ->
+            marker.delete()
+            update { list -> list.map { if (it.id == stuck) it.copy(scan = BookMetaReader.Version) else it } }
+        }
         val pending = _books.value.filter { it.scan < BookMetaReader.Version }
         pending.chunked(12).forEach { chunk ->
             val found = HashMap<String, FileMeta?>()
@@ -419,6 +432,7 @@ class LibraryRepository(
                 found[book.id] = if (book.paper || (book.isPdf && !book.pdfText)) {
                     FileMeta()
                 } else {
+                    runCatching { marker.writeText(book.id) }
                     runCatching {
                         val file = bookFile(book)
                         val publication = readium.open(file).getOrThrow()
@@ -427,7 +441,7 @@ class LibraryRepository(
                         } finally {
                             publication.close()
                         }
-                    }.getOrNull()
+                    }.getOrNull().also { marker.delete() }
                 }
                 found[book.id]?.description?.takeIf { it.isNotBlank() }?.let { writeDescription(book.id, it) }
                 kotlinx.coroutines.yield()
