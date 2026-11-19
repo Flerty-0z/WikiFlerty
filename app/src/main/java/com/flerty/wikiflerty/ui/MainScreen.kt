@@ -215,6 +215,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                                 }
                                 HeaderButton(AppIcons.Options, "Настройки") { section = Section.Settings }
                             }
+                            if (section == Section.Settings) ReadingNow()
                         }
                         if (busy != null) {
                             KitLinearProgress(Modifier.fillMaxWidth().align(Alignment.BottomCenter))

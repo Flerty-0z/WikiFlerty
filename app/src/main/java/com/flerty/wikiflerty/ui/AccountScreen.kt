@@ -2,6 +2,7 @@ package com.flerty.wikiflerty.ui
 
 import android.widget.Toast
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -419,5 +420,29 @@ private fun countWord(n: Int, one: String, few: String, many: String): String {
         m10 == 1 && m100 != 11 -> one
         m10 in 2..4 && m100 !in 12..14 -> few
         else -> many
+    }
+}
+
+@Composable
+fun ReadingNow() {
+    val app = LocalContext.current.applicationContext as App
+    if (!app.account.available) return
+    val count by app.account.readingNow.collectAsStateWithLifecycle()
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) {
+            app.account.ping(false)
+            kotlinx.coroutines.delay(60_000)
+        }
+    }
+    val n = count ?: return
+    val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "live")
+    val alpha by pulse.animateFloat(0.35f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1100), androidx.compose.animation.core.RepeatMode.Reverse), label = "live-dot")
+    Row(
+        Modifier.padding(end = 6.dp).border(1.dp, AppColors.PanelBorder, CircleShape).padding(horizontal = 10.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(Modifier.size(7.dp).background(AppColors.Good.copy(alpha = alpha), CircleShape))
+        Text("$n ${if (n % 10 == 1 && n % 100 != 11) "читает" else "читают"} сейчас", color = AppColors.Muted, fontSize = 12.sp, maxLines = 1)
     }
 }

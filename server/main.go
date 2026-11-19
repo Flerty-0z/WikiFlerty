@@ -49,12 +49,36 @@ type pendingUpload struct {
 	expires time.Time
 }
 
+type Presence struct {
+	mu   sync.Mutex
+	seen map[string]time.Time
+}
+
+func (p *Presence) touch(id string, reading bool) int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	now := time.Now()
+	if reading && id != "" && len(id) <= 64 && (len(p.seen) < 200000 || !p.seen[id].IsZero()) {
+		p.seen[id] = now
+	}
+	n := 0
+	for k, t := range p.seen {
+		if now.Sub(t) > 150*time.Second {
+			delete(p.seen, k)
+			continue
+		}
+		n++
+	}
+	return n
+}
+
 type App struct {
-	st      *Store
-	pending map[string]map[string]*pendingUpload
-	limiter *Limiter
-	bot     string
-	owner   string
+	presence *Presence
+	st       *Store
+	pending  map[string]map[string]*pendingUpload
+	limiter  *Limiter
+	bot      string
+	owner    string
 }
 
 type Limiter struct {
@@ -243,6 +267,18 @@ func (a *App) route(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method != http.MethodPost {
 		reply(w, 405, map[string]string{"error": "method"})
+		return
+	}
+	if r.URL.Path == "/v1/ping" {
+		var b struct {
+			ID      string `json:"id"`
+			Reading bool   `json:"reading"`
+		}
+		if e := decode(r, &b); e != nil {
+			reply(w, e.status, map[string]string{"error": e.code})
+			return
+		}
+		reply(w, 200, map[string]any{"reading": a.presence.touch(b.ID, b.Reading)})
 		return
 	}
 	a.st.mu.Lock()
@@ -684,11 +720,12 @@ func main() {
 		log.Fatal("store: ", err)
 	}
 	app := &App{
-		st:      st,
-		pending: map[string]map[string]*pendingUpload{},
-		limiter: &Limiter{hits: map[string][]time.Time{}, fails: map[string][]time.Time{}},
-		bot:     os.Getenv("BOT_TOKEN"),
-		owner:   os.Getenv("OWNER_CHAT"),
+		presence: &Presence{seen: map[string]time.Time{}},
+		st:       st,
+		pending:  map[string]map[string]*pendingUpload{},
+		limiter:  &Limiter{hits: map[string][]time.Time{}, fails: map[string][]time.Time{}},
+		bot:      os.Getenv("BOT_TOKEN"),
+		owner:    os.Getenv("OWNER_CHAT"),
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", app.route)

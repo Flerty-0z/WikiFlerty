@@ -175,6 +175,19 @@ class Account(private val app: App) {
         }
     }
 
+    private val readers = MutableStateFlow<Int?>(null)
+    val readingNow: StateFlow<Int?> = readers.asStateFlow()
+
+    private val presenceId: String by lazy {
+        prefs.getString("presence", null) ?: java.util.UUID.randomUUID().toString().also { prefs.edit().putString("presence", it).apply() }
+    }
+
+    suspend fun ping(reading: Boolean) = withContext(Dispatchers.IO) {
+        if (!available) return@withContext
+        runCatching { call("ping", JSONObject().put("id", presenceId).put("reading", reading), auth = false) }
+            .onSuccess { readers.value = it.optInt("reading") }
+    }
+
     private fun saveSession(login: String, json: JSONObject) {
         prefs.edit().putString("token", json.getString("token")).putString("login", login).putString("sync", json.optString("sync")).apply()
         _state.value = _state.value.copy(login = login)

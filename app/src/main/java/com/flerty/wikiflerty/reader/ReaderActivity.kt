@@ -2101,6 +2101,15 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
 
         lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                while (true) {
+                    app.account.ping(true)
+                    kotlinx.coroutines.delay(60_000)
+                }
+            }
+        }
+
+        lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
                     navigator.currentLocator.collect { locator ->

@@ -78,10 +78,14 @@ func TestFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	app := &App{st: st, pending: map[string]map[string]*pendingUpload{}, limiter: &Limiter{hits: map[string][]time.Time{}, fails: map[string][]time.Time{}}}
+	app := &App{presence: &Presence{seen: map[string]time.Time{}}, st: st, pending: map[string]map[string]*pendingUpload{}, limiter: &Limiter{hits: map[string][]time.Time{}, fails: map[string][]time.Time{}}}
 	srv := httptest.NewServer(http.HandlerFunc(app.route))
 	defer srv.Close()
 	c := &client{t: t, srv: srv}
+	c.call("/v1/ping", map[string]any{"id": "a", "reading": true})
+	if _, out := c.call("/v1/ping", map[string]any{"id": "b", "reading": false}); out["reading"].(float64) != 1 {
+		t.Fatal("ping", out)
+	}
 	code, out := c.call("/v1/register", map[string]any{"login": "Tester_1", "password": "secret123", "sync": "ABCDE-FGHJK-MNPQR"})
 	if code != 200 {
 		t.Fatal(code, out)

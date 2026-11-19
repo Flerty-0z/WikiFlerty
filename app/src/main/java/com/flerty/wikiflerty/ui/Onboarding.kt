@@ -108,9 +108,10 @@ enum class NewsTarget { None, Stats, Custom, Library, LibraryView, Guide, Ai }
 
 class NewsItem(val group: String, val icon: ImageVector, val title: String, val text: String, val target: NewsTarget = NewsTarget.None, val query: String = "")
 
-const val NewsRelease = 352
+const val NewsRelease = 353
 
 val WhatsNewItems = listOf(
+    NewsItem("Синхронизация", AppIcons.Book, "Читают сейчас", "В настройках сверху видно, сколько человек прямо сейчас читают книги в WikiFlerty"),
     NewsItem("Синхронизация", AppIcons.Person, "Аккаунт", "В настройках появился раздел «Аккаунт»: регистрация по логину и паролю, вход с любого телефона и код восстановления, если забудешь пароль"),
     NewsItem("Синхронизация", AppIcons.Cloud, "Книги в облаке", "Книги сами загружаются в облако и скачиваются на другом телефоне по Wi-Fi. Бесплатно 1 ГБ"),
     NewsItem("Синхронизация", AppIcons.Rotate, "Перенос со старого кода", "Если синхронизация по коду уже включена, при регистрации прогресс, заметки и настройки перейдут в аккаунт"),
