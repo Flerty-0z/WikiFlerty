@@ -67,7 +67,36 @@ def icons():
 items = [p.strip() for p in open(notes_file, encoding="utf-8").read().strip().split("\n\n") if p.strip()]
 url = f"https://github.com/{repo}/releases/tag/v{version}"
 apk = f"https://github.com/{repo}/releases/download/v{version}/WikiFlerty-{version}"
-body = "\n\n".join(html.escape(i) for i in items)
+
+
+def animated():
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(here, "packs.txt")
+    found = {}
+    if not os.path.exists(path):
+        return found
+    for name in [x.strip() for x in open(path).read().split() if x.strip()]:
+        for st in call("getStickerSet", {"name": name}).get("result", {}).get("stickers", []):
+            key = (st.get("emoji") or "").replace("\ufe0f", "")
+            if key and key not in found:
+                found[key] = st["custom_emoji_id"]
+    return found
+
+
+def line(item, found):
+    head, sep, rest = item.partition(" ")
+    key = head.replace("\ufe0f", "")
+    if sep and key in found and not head.startswith("—"):
+        return f'<tg-emoji emoji-id="{found[key]}">{html.escape(head)}</tg-emoji> {html.escape(rest)}'
+    return html.escape(item)
+
+
+try:
+    emoji_ids = animated()
+except Exception as e:
+    print("emoji", e)
+    emoji_ids = {}
+body = "\n\n".join(line(i, emoji_ids) for i in items)
 text = (
     f"<b>Ребята, вышло обновление {version}</b>\n\n"
     f"{body}\n\n"
@@ -115,14 +144,15 @@ def send(target):
                 r = call("sendMessage", params)
             print("sent", target, r.get("ok"), r.get("description", ""))
             if r.get("ok"):
-                return True
+                return r["result"]["message_id"]
         except Exception as e:
             print("retry", attempt + 1, e)
         time.sleep(10 * (attempt + 1))
-    return False
+    return None
 
 
-if not send(chat):
+preview = send(chat)
+if not preview:
     sys.exit("не отправилось")
 
 channel_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "channel.txt")
@@ -160,7 +190,9 @@ if channel:
         if r.get("ok") is False:
             time.sleep(5)
     if decision == "post":
-        done = send(channel)
+        moved = call("forwardMessage", {"chat_id": channel, "from_chat_id": chat, "message_id": preview})
+        print("forward", moved.get("ok"), moved.get("description", ""))
+        done = moved.get("ok") or send(channel)
         note = "Анонс отправлен в канал" if done else "Не получилось отправить в канал, проверь, что бот там админ"
     elif decision == "skip":
         note = "Хорошо, в канал не отправляю"
