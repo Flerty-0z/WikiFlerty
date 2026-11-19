@@ -181,7 +181,7 @@ fun PageBar(title: String, onBack: () -> Unit, icon: ImageVector? = null, traili
     androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(42.dp).liveClick(CircleShape, sound = FeedbackSound.Close, pressedScale = 0.88f, onClick = onBack).fieldSurface(CircleShape),
+                Modifier.size(42.dp).liveClick(CircleShape, sound = FeedbackSound.Back, pressedScale = 0.88f, onClick = onBack).fieldSurface(CircleShape),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Back, "Назад", tint = AppColors.Text, modifier = Modifier.size(20.dp)) }
             Box(Modifier.weight(1f).padding(horizontal = 8.dp), contentAlignment = Alignment.Center) { HeaderLabel(title, icon = icon, size = 17.sp) }

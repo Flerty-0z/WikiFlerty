@@ -48,7 +48,7 @@ fun AddBookFab(onFile: () -> Unit, onScan: () -> Unit) {
         Row(
             Modifier
                 .heightIn(min = 56.dp)
-                .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.92f) { open = !open }
+                .liveClick(shape, sound = FeedbackSound.Add, pressedScale = 0.92f) { open = !open }
                 .then(if (open) Modifier.panelSurface(shape, elevation = 6.dp) else Modifier.accentHighlight(shape))
                 .padding(horizontal = 20.dp),
             verticalAlignment = Alignment.CenterVertically,

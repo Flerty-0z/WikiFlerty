@@ -128,7 +128,7 @@ fun SettingSwitch(
     val feedback = LocalFeedback.current
     val view = LocalView.current
     val change: (Boolean) -> Unit = {
-        feedback?.play(if (it) FeedbackSound.Check else FeedbackSound.Uncheck, view)
+        feedback?.play(if (it) FeedbackSound.On else FeedbackSound.Off, view)
         onChange(it)
     }
     Row(
@@ -204,7 +204,7 @@ fun SettingSegmented(label: String?, options: List<String>, selected: Int, onSel
                     Modifier
                         .weight(1f)
                         .height(40.dp)
-                        .liveClick(appCorner(10), sound = FeedbackSound.Toggle, pressedScale = 0.96f) { onSelect(i) }
+                        .liveClick(appCorner(10), sound = FeedbackSound.Segment, pressedScale = 0.96f) { onSelect(i) }
                         .background(bg),
                     contentAlignment = Alignment.Center,
                 ) {

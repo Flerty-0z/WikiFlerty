@@ -110,7 +110,7 @@ fun TtsBar(playing: Boolean, speed: Double, actions: TtsActions, modifier: Modif
         BarButton(AppIcons.SkipPrev, "Предыдущее предложение", FeedbackSound.Tap, actions.onPrevious)
         val shape = CircleShape
         Box(
-            Modifier.size(54.dp).liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.9f, onClick = actions.onToggle).accentHighlight(shape),
+            Modifier.size(54.dp).liveClick(shape, sound = if (playing) FeedbackSound.Pause else FeedbackSound.Play, pressedScale = 0.9f, onClick = actions.onToggle).accentHighlight(shape),
             contentAlignment = Alignment.Center,
         ) {
             Icon(if (playing) AppIcons.Pause else AppIcons.Play, if (playing) "Пауза" else "Продолжить", tint = accentContent, modifier = Modifier.size(24.dp))

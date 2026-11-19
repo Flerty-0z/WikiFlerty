@@ -10,7 +10,7 @@ import com.flerty.wikiflerty.R
 import com.flerty.wikiflerty.reader.ReaderSettings
 import kotlinx.coroutines.flow.StateFlow
 
-enum class FeedbackSound { Tap, Toggle, Open, Close, Star, Success, Freeze, Thaw, Tick, Pick, Place, Check, Uncheck, Pop, Trash, Page, Reveal, Copy, YearSwipe, YearRise, YearCount, YearFinale }
+enum class FeedbackSound { Tap, Toggle, Open, Close, Star, Success, Freeze, Thaw, Tick, Pick, Place, Check, Uncheck, Pop, Trash, Page, Reveal, Copy, YearSwipe, YearRise, YearCount, YearFinale, Back, Nav, Segment, On, Off, Sheet, Confirm, Play, Pause, Bookmark, Search, Add, Deny }
 
 class Feedback(context: Context, private val settings: StateFlow<ReaderSettings>) {
     private val pool: SoundPool = SoundPool.Builder()
@@ -23,7 +23,26 @@ class Feedback(context: Context, private val settings: StateFlow<ReaderSettings>
         )
         .build()
 
+    private val variants: Map<FeedbackSound, List<Int>> = mapOf(
+        FeedbackSound.Tap to listOf(R.raw.ui_tap_1, R.raw.ui_tap_2).map { pool.load(context, it, 1) },
+        FeedbackSound.Nav to listOf(R.raw.ui_nav_1, R.raw.ui_nav_2).map { pool.load(context, it, 1) },
+    )
+    private val lastVariant = HashMap<FeedbackSound, Int>()
+
     private val ids = mapOf(
+        FeedbackSound.Back to pool.load(context, R.raw.ui_back, 1),
+        FeedbackSound.Nav to pool.load(context, R.raw.ui_nav, 1),
+        FeedbackSound.Segment to pool.load(context, R.raw.ui_segment, 1),
+        FeedbackSound.On to pool.load(context, R.raw.ui_on, 1),
+        FeedbackSound.Off to pool.load(context, R.raw.ui_off, 1),
+        FeedbackSound.Sheet to pool.load(context, R.raw.ui_sheet, 1),
+        FeedbackSound.Confirm to pool.load(context, R.raw.ui_confirm, 1),
+        FeedbackSound.Play to pool.load(context, R.raw.ui_play, 1),
+        FeedbackSound.Pause to pool.load(context, R.raw.ui_pause, 1),
+        FeedbackSound.Bookmark to pool.load(context, R.raw.ui_bookmark, 1),
+        FeedbackSound.Search to pool.load(context, R.raw.ui_search, 1),
+        FeedbackSound.Add to pool.load(context, R.raw.ui_add, 1),
+        FeedbackSound.Deny to pool.load(context, R.raw.ui_deny, 1),
         FeedbackSound.Tap to pool.load(context, R.raw.ui_tap, 1),
         FeedbackSound.Toggle to pool.load(context, R.raw.ui_toggle, 1),
         FeedbackSound.Open to pool.load(context, R.raw.ui_open, 1),
@@ -91,13 +110,23 @@ class Feedback(context: Context, private val settings: StateFlow<ReaderSettings>
         if (s.sounds) {
             val volume = s.soundVolume.toFloat().coerceIn(0f, 1f)
             val v = when (sound) {
-                FeedbackSound.Tap, FeedbackSound.Toggle, FeedbackSound.Open, FeedbackSound.Close, FeedbackSound.Check, FeedbackSound.Uncheck, FeedbackSound.Pick, FeedbackSound.Place -> volume
+                FeedbackSound.Tap, FeedbackSound.Toggle, FeedbackSound.Open, FeedbackSound.Close, FeedbackSound.Check, FeedbackSound.Uncheck, FeedbackSound.Pick, FeedbackSound.Place,
+                FeedbackSound.Back, FeedbackSound.Nav, FeedbackSound.Segment, FeedbackSound.On, FeedbackSound.Off, FeedbackSound.Sheet, FeedbackSound.Confirm,
+                FeedbackSound.Play, FeedbackSound.Pause, FeedbackSound.Bookmark, FeedbackSound.Search, FeedbackSound.Add, FeedbackSound.Deny -> volume
                 FeedbackSound.Tick, FeedbackSound.Pop -> volume * 0.6f
                 FeedbackSound.YearRise -> volume * 0.42f
                 FeedbackSound.YearSwipe, FeedbackSound.YearCount -> volume * 0.55f
                 else -> volume * 0.7f
             }
-            ids[sound]?.let { pool.play(it, v, v, 1, 0, rate.coerceIn(0.5f, 2f)) }
+            val choices = listOfNotNull(ids[sound]) + variants[sound].orEmpty()
+            if (choices.isNotEmpty()) {
+                val last = lastVariant[sound] ?: -1
+                var i = (Math.random() * choices.size).toInt().coerceIn(0, choices.size - 1)
+                if (choices.size > 1 && i == last) i = (i + 1) % choices.size
+                lastVariant[sound] = i
+                val wobble = if (sound == FeedbackSound.Tap || sound == FeedbackSound.Nav || sound == FeedbackSound.Segment) 0.98f + (Math.random() * 0.04).toFloat() else 1f
+                pool.play(choices[i], v, v, 1, 0, (rate * wobble).coerceIn(0.5f, 2f))
+            }
         }
         if (s.haptics && view != null) {
             view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)

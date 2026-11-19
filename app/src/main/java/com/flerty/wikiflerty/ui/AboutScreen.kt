@@ -232,7 +232,7 @@ fun AppButton(text: String, primary: Boolean, modifier: Modifier = Modifier, lab
     Box(
         modifier
             .height(44.dp)
-            .liveClick(shape, sound = FeedbackSound.Toggle, onClick = onClick)
+            .liveClick(shape, sound = if (primary) FeedbackSound.Confirm else FeedbackSound.Toggle, onClick = onClick)
             .background(fill, shape)
             .border(1.dp, edge, shape)
             .padding(horizontal = 12.dp),

@@ -317,7 +317,7 @@ internal fun BookmarkButton(active: Boolean, onClick: () -> Unit) {
         Modifier
             .size(44.dp)
             .sparkBurst(spark, listOf(AppColors.Accent, com.flerty.wikiflerty.ui.StarYellow, androidx.compose.ui.graphics.Color.White), count = 8, reach = 0.55f, durationMs = 560)
-            .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.88f) {
+            .liveClick(CircleShape, sound = FeedbackSound.Bookmark, pressedScale = 0.88f) {
                 pulse++
                 if (!active) spark++
                 onClick()

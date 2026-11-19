@@ -323,7 +323,7 @@ private fun DrawerItem(item: Section, selected: Boolean, count: Int, onClick: ()
             .padding(horizontal = 12.dp, vertical = 2.dp)
             .fillMaxWidth()
             .height(54.dp)
-            .liveClick(shape, sound = FeedbackSound.Tap, pressedScale = 0.97f, onClick = onClick)
+            .liveClick(shape, sound = FeedbackSound.Nav, pressedScale = 0.97f, onClick = onClick)
             .then(
                 if (selected) {
                     Modifier.background(AppColors.Accent.copy(alpha = 0.16f)).border(1.dp, AppColors.Accent.copy(alpha = 0.24f), shape)
@@ -587,7 +587,7 @@ private fun BottomNav(section: Section, addOpen: Boolean, onSelect: (Section) ->
                 .clip(CircleShape)
                 .background(AppColors.Background)
                 .padding(4.dp)
-                .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.88f, onClick = onAdd)
+                .liveClick(CircleShape, sound = FeedbackSound.Add, pressedScale = 0.88f, onClick = onAdd)
                 .background(AppColors.Accent),
             contentAlignment = Alignment.Center,
         ) {
@@ -696,7 +696,7 @@ private fun BottomItem(item: Section, label: String, current: Section, onSelect:
     Column(
         modifier
             .fillMaxHeight()
-            .liveClick(RectangleShape, sound = FeedbackSound.Tap, pressedScale = 0.92f) { onSelect(item) },
+            .liveClick(RectangleShape, sound = FeedbackSound.Nav, pressedScale = 0.92f) { onSelect(item) },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
     ) {
@@ -848,10 +848,17 @@ private fun MainHeader(section: Section, greeting: String?, onBack: (() -> Unit)
 
 @Composable
 private fun HeaderButton(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, tint: androidx.compose.ui.graphics.Color = AppColors.Text, onClick: () -> Unit) {
+    val sound = when (description) {
+        "Поиск" -> FeedbackSound.Search
+        "Вид и сортировка" -> FeedbackSound.Sheet
+        "Настройки" -> FeedbackSound.Nav
+        "Назад" -> FeedbackSound.Back
+        else -> FeedbackSound.Open
+    }
     Box(
         Modifier
             .size(44.dp)
-            .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.88f, onClick = onClick)
+            .liveClick(CircleShape, sound = sound, pressedScale = 0.88f, onClick = onClick)
             .fieldSurface(CircleShape),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, description, tint = tint, modifier = Modifier.size(20.dp)) }
