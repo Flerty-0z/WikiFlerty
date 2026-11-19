@@ -111,8 +111,8 @@ contact_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contact
 contact = open(contact_file, encoding="utf-8").read().strip() if os.path.exists(contact_file) else "Если что-то не так, пишите @F1erty0z"
 body = "\n\n".join(line(i) for i in items)
 text = (
-    f"<b>Ребята, вышло обновление {version}</b> {emoji(mood, True)}\n\n"
-    f"<blockquote expandable>{body}</blockquote>\n\n"
+    f"<b>Ребята, вышло обновление {version}</b>\u00a0{emoji(mood, True)}\n\n"
+    f"<blockquote>{body}</blockquote>\n\n"
     f"<blockquote>Огромная просьба перед обновлением сделать «Резервную копию» {emoji('🛡')}\n\n"
     f"{contact}</blockquote>"
 )
