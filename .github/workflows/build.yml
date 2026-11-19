@@ -73,6 +73,7 @@ jobs:
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           PUBLIC_VERSION: ${{ inputs.public }}
+          VDS_HOST: ${{ secrets.VDS_HOST }}
         run: |
           set -o pipefail
           ./gradlew :app:assembleRelease ${{ inputs.store && '-Puniversal=true' || '' }} --stacktrace 2>&1 | tee build.log

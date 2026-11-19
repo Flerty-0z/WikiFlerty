@@ -60,6 +60,7 @@ jobs:
         if: ${{ !inputs.reuse }}
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          VDS_HOST: ${{ secrets.VDS_HOST }}
         run: |
           set -o pipefail
           ./gradlew :app:assembleStudio -Puniversal :filmer:assembleDebug :filmer:assembleDebugAndroidTest --stacktrace 2>&1 | tee build.log

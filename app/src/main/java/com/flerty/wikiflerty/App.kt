@@ -86,6 +86,7 @@ class App : Application() {
 
     val autoBackup: com.flerty.wikiflerty.system.AutoBackup by lazy { com.flerty.wikiflerty.system.AutoBackup(this) }
     val cloud: com.flerty.wikiflerty.sync.CloudSync by lazy { com.flerty.wikiflerty.sync.CloudSync(this) }
+    val account: com.flerty.wikiflerty.sync.Account by lazy { com.flerty.wikiflerty.sync.Account(this) }
 
     fun syncedTitle(bookId: String?): String? {
         val fp = bookId?.takeIf { it.startsWith("fp:") }?.removePrefix("fp:") ?: return null
@@ -133,6 +134,7 @@ class App : Application() {
             cloud.request(6_000)
         }
         flashcards.onChanged = { sync.flashcardsChanged() }
+        account.start()
         com.flerty.wikiflerty.sync.Extras.watch(this) { sync.settingsChanged() }
         style.onChanged = {
             sync.settingsChanged()
@@ -146,6 +148,7 @@ class App : Application() {
         library.onBookAdded = { book ->
             Backup.onBookAdded(this, book)
             cloud.request(1_000)
+            account.poke(5_000)
             if (libraryPrefs.prefs.value.autoInfo && !book.paper && (book.series.isEmpty() || book.fact(com.flerty.wikiflerty.data.BookFacts.Genres).isBlank() || book.fact(com.flerty.wikiflerty.data.BookFacts.Publisher).isBlank())) {
                 appScope.launch {
                     autoInfoLock.withLock {

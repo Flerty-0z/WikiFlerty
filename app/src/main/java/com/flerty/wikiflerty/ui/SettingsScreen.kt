@@ -91,7 +91,7 @@ private enum class SettingsPage(val title: String) {
     Ink("Режим E-Ink"),
     Sound("Звук и отклик"),
     Backup("Резервная копия"),
-    Sync("Синхронизация"),
+    Sync("Аккаунт"),
     Guide("Подсказки"),
 }
 
@@ -141,7 +141,7 @@ fun SettingsScreen(modifier: Modifier = Modifier, onAbout: (() -> Unit)? = null)
                     SettingsPage.Ink -> InkContent()
                     SettingsPage.Sound -> SoundContent()
                     SettingsPage.Backup -> BackupContent()
-                    SettingsPage.Sync -> SyncContent()
+                    SettingsPage.Sync -> AccountContent()
                     SettingsPage.Guide -> GuideContent { tour = true }
                 }
             }
@@ -152,6 +152,8 @@ fun SettingsScreen(modifier: Modifier = Modifier, onAbout: (() -> Unit)? = null)
 @Composable
 private fun SettingsHome(onAbout: (() -> Unit)?, onOpen: (SettingsPage) -> Unit) {
     val studioContext = LocalContext.current
+    val accountState by (studioContext.applicationContext as App).account.state.collectAsStateWithLifecycle()
+    val accountLogin = accountState.login
     val rows = listOfNotNull<Triple<androidx.compose.ui.graphics.vector.ImageVector, Pair<String, String>, () -> Unit>>(
         if (com.flerty.wikiflerty.BuildConfig.BUILD_TYPE == "studio") Triple(AppIcons.Video, "Сценарий" to "Съёмка роликов") { studioContext?.let { c -> runCatching { c.startActivity(android.content.Intent().setClassName(c, "com.flerty.wikiflerty.studio.StudioActivity")) } } } else null,
         Triple(AppIcons.Help, "Подсказки" to "Все функции и где их найти") { onOpen(SettingsPage.Guide) },
@@ -159,7 +161,7 @@ private fun SettingsHome(onAbout: (() -> Unit)?, onOpen: (SettingsPage) -> Unit)
         Triple(AppIcons.Theme, "Кастомизация" to "Цвета, форма, фон") { onOpen(SettingsPage.Custom) },
         Triple(AppIcons.Ereader, "Режим E-Ink" to if (EInk.on) "Включён" else "Для электронных книг") { onOpen(SettingsPage.Ink) },
         Triple(AppIcons.Sound, "Звук и отклик" to "Звуки и вибрация") { onOpen(SettingsPage.Sound) },
-        Triple(AppIcons.Cloud, "Синхронизация" to "Между устройствами") { onOpen(SettingsPage.Sync) },
+        Triple(AppIcons.Person, "Аккаунт" to (accountLogin ?: "Вход, синхронизация и книги в облаке")) { onOpen(SettingsPage.Sync) },
         Triple(AppIcons.Backup, "Резервная копия" to "Экспорт и импорт") { onOpen(SettingsPage.Backup) },
         onAbout?.let { Triple(AppIcons.Info, "О приложении" to "Обновления, журнал сбоев", it) },
     )

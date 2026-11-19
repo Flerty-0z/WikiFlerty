@@ -32,6 +32,7 @@ jobs:
       - name: Build
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          VDS_HOST: ${{ secrets.VDS_HOST }}
         run: |
           set -o pipefail
           ./gradlew assembleStudio --stacktrace 2>&1 | tee build.log

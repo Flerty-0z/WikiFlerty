@@ -427,7 +427,7 @@ private fun AllProvidersRow(all: List<AiProvider>, connected: Int, onClick: () -
 }
 
 @Composable
-private fun InputField(
+internal fun InputField(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,

@@ -254,7 +254,7 @@ private fun HelpLine(n: String, text: String) {
 }
 
 @Composable
-private fun StatusRow(status: CloudSync.Status, onSync: () -> Unit) {
+internal fun StatusRow(status: CloudSync.Status, onSync: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().fieldSurface(appCorner(16)).padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -291,7 +291,7 @@ private fun StatusRow(status: CloudSync.Status, onSync: () -> Unit) {
 }
 
 @Composable
-private fun SyncButton(
+internal fun SyncButton(
     title: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     modifier: Modifier,
@@ -352,7 +352,7 @@ private fun qrBitmap(text: String, size: Int): androidx.compose.ui.graphics.Imag
 }.getOrNull()
 
 @Composable
-private fun DevicesPanel(cloud: CloudSync, onRemove: (CloudSync.Device) -> Unit) {
+internal fun DevicesPanel(cloud: CloudSync, onRemove: (CloudSync.Device) -> Unit) {
     val devices by cloud.devices.collectAsStateWithLifecycle()
     TabbedFrame("Устройства", icon = AppIcons.Phone, trailing = { CountBadge(devices.size) }) {
         Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

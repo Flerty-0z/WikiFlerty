@@ -16,6 +16,7 @@ android {
         targetSdk = 37
         versionCode = buildNumber
         versionName = "0.1.${publicNumber ?: buildNumber}"
+        buildConfigField("String", "SYNC_HOST", "\"${(System.getenv("VDS_HOST") ?: "").trim()}\"")
     }
 
     val releaseKeystore = file("release.keystore")
