@@ -1,0 +1,19 @@
+name: Server log
+
+on:
+  workflow_dispatch:
+
+jobs:
+  log:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          PASS: ${{ secrets.SELECTEL_S3_SECRET }}
+          HOST: ${{ secrets.VDS_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in server/deploy.key.enc -out ~/.ssh/id_ed25519 -pass env:PASS
+          chmod 600 ~/.ssh/id_ed25519
+          for i in 1 2 3; do curl -sS -o /dev/null -w "health %{http_code} %{time_total}s\n" --cacert server/tls.crt --resolve "wikiflerty-sync:443:$HOST" https://wikiflerty-sync/v1/health; done
+          ssh -o StrictHostKeyChecking=accept-new root@"$HOST" 'uptime; free -m | head -2; systemctl is-active wikiflerty; journalctl -u wikiflerty --since "-3h" --no-pager | tail -80; ss -s | head -3'
