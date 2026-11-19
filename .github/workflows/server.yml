@@ -1,0 +1,133 @@
+name: Server
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['server/**', '.github/workflows/server.yml']
+
+concurrency:
+  group: server
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: Build
+        working-directory: server
+        run: |
+          go vet ./...
+          go test ./...
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o wfserver .
+      - name: Keys
+        env:
+          PASS: ${{ secrets.SELECTEL_S3_SECRET }}
+          HOST: ${{ secrets.VDS_HOST }}
+        run: |
+          [ -n "$PASS" ] || { echo "::error::SELECTEL_S3_SECRET missing"; exit 1; }
+          [ -n "$HOST" ] || { echo "::error::VDS_HOST missing"; exit 1; }
+          mkdir -p ~/.ssh "$RUNNER_TEMP/s"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in server/deploy.key.enc -out ~/.ssh/id_ed25519 -pass env:PASS
+          chmod 600 ~/.ssh/id_ed25519
+          if [ ! -f server/tls.crt ]; then
+            openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 7300 \
+              -subj "/CN=wikiflerty-sync" -addext "subjectAltName=DNS:wikiflerty-sync" \
+              -keyout "$RUNNER_TEMP/s/tls.key" -out server/tls.crt
+            openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in "$RUNNER_TEMP/s/tls.key" -out server/tls.key.enc -pass env:PASS
+            cp server/tls.crt app/src/main/res/raw/sync_cert.crt
+            git add server/tls.crt server/tls.key.enc app/src/main/res/raw/sync_cert.crt
+            git -c user.name=Flerty -c user.email=jamalavtaev2008@gmail.com commit -m "Сертификат сервера"
+            git push
+          else
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in server/tls.key.enc -out "$RUNNER_TEMP/s/tls.key" -pass env:PASS
+          fi
+      - name: Owner
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          kid=$(gh api "repos/${{ github.repository }}/releases?per_page=100" -q '[.[] | select(.tag_name=="film-kit")][0].assets[0].id' || true)
+          if [ -n "$kid" ]; then gh api -H "Accept: application/octet-stream" "repos/${{ github.repository }}/releases/assets/$kid" > kit.zip && unzip -oq kit.zip chat.txt -d tg || true; fi
+          echo "OWNER=$(cat tg/chat.txt 2>/dev/null)" >> "$GITHUB_ENV"
+      - name: Bucket
+        env:
+          S3_HOST: wikiflerty-books.s3.ru-3.storage.selcloud.ru
+          S3_REGION: ru-3
+          S3_ACCESS: ${{ secrets.SELECTEL_S3_ACCESS }}
+          S3_SECRET: ${{ secrets.SELECTEL_S3_SECRET }}
+        run: ./server/wfserver check
+      - name: Install
+        env:
+          HOST: ${{ secrets.VDS_HOST }}
+          S3_ACCESS: ${{ secrets.SELECTEL_S3_ACCESS }}
+          S3_SECRET: ${{ secrets.SELECTEL_S3_SECRET }}
+          BOT: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: |
+          umask 077
+          cat > "$RUNNER_TEMP/s/env" <<EOF
+          S3_HOST=wikiflerty-books.s3.ru-3.storage.selcloud.ru
+          S3_REGION=ru-3
+          S3_ACCESS=$S3_ACCESS
+          S3_SECRET=$S3_SECRET
+          BOT_TOKEN=$BOT
+          OWNER_CHAT=$OWNER
+          TLS_CERT=/opt/wikiflerty/tls.crt
+          TLS_KEY=/opt/wikiflerty/tls.key
+          EOF
+          sed -i 's/^ *//' "$RUNNER_TEMP/s/env"
+          cat > "$RUNNER_TEMP/s/wikiflerty.service" <<'EOF'
+          [Unit]
+          Description=WikiFlerty sync
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          User=wikiflerty
+          EnvironmentFile=/opt/wikiflerty/env
+          ExecStart=/opt/wikiflerty/wfserver
+          Restart=always
+          RestartSec=3
+          AmbientCapabilities=CAP_NET_BIND_SERVICE
+          CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+          NoNewPrivileges=true
+          ProtectSystem=strict
+          ProtectHome=true
+          PrivateTmp=true
+          MemoryMax=300M
+
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+          sed -i 's/^ *//' "$RUNNER_TEMP/s/wikiflerty.service"
+          ssh="ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 root@$HOST"
+          $ssh 'id wikiflerty >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin wikiflerty; mkdir -p /opt/wikiflerty'
+          scp -o StrictHostKeyChecking=accept-new server/wfserver "root@$HOST:/opt/wikiflerty/wfserver.new"
+          scp "$RUNNER_TEMP/s/env" "$RUNNER_TEMP/s/tls.key" server/tls.crt "$RUNNER_TEMP/s/wikiflerty.service" "root@$HOST:/opt/wikiflerty/"
+          $ssh 'set -e
+            cd /opt/wikiflerty
+            mv wfserver.new wfserver
+            mv wikiflerty.service /etc/systemd/system/wikiflerty.service
+            chown root:wikiflerty env tls.key tls.crt wfserver
+            chmod 640 env tls.key; chmod 644 tls.crt; chmod 755 wfserver
+            sed -i "s/^#\?PasswordAuthentication.*/PasswordAuthentication no/" /etc/ssh/sshd_config
+            systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || true
+            if command -v ufw >/dev/null; then ufw allow 22/tcp >/dev/null; ufw allow 443/tcp >/dev/null; ufw --force enable >/dev/null; fi
+            systemctl daemon-reload
+            systemctl enable wikiflerty >/dev/null 2>&1
+            systemctl restart wikiflerty
+            sleep 2
+            systemctl is-active wikiflerty
+            free -m | head -2'
+      - name: Smoke
+        env:
+          HOST: ${{ secrets.VDS_HOST }}
+        run: |
+          sleep 3
+          bash server/smoke.sh "$HOST" server/tls.crt || { ssh root@"$HOST" 'journalctl -u wikiflerty -n 40 --no-pager'; exit 1; }
