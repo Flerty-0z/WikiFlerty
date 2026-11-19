@@ -145,7 +145,7 @@ fun Modifier.liveClick(
                     indication = LocalIndication.current,
                     enabled = enabled,
                     onLongClick = {
-                        feedback?.play(FeedbackSound.Toggle)
+                        feedback?.play(FeedbackSound.Hold)
                         onLongClick()
                     },
                 ) {

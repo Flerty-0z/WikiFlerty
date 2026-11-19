@@ -99,12 +99,12 @@ fun YearHeatmapCard(days: Map<String, Map<String, DayEntry>>, perDay: Map<LocalD
                 val prev = years.lastOrNull { it < year }
                 val next = years.firstOrNull { it > year }
                 Box(
-                    Modifier.size(26.dp).clip(CircleShape).liveClick(CircleShape, sound = FeedbackSound.Toggle) { if (prev != null) year = prev },
+                    Modifier.size(26.dp).clip(CircleShape).liveClick(CircleShape, sound = FeedbackSound.SkipBack) { if (prev != null) year = prev },
                     contentAlignment = Alignment.Center,
                 ) { Icon(AppIcons.Back, "Прошлый год", tint = if (prev != null) AppColors.Text else AppColors.Line, modifier = Modifier.size(14.dp)) }
                 Text("$year", color = AppColors.Text, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 2.dp))
                 Box(
-                    Modifier.size(26.dp).clip(CircleShape).liveClick(CircleShape, sound = FeedbackSound.Toggle) { if (next != null) year = next },
+                    Modifier.size(26.dp).clip(CircleShape).liveClick(CircleShape, sound = FeedbackSound.SkipNext) { if (next != null) year = next },
                     contentAlignment = Alignment.Center,
                 ) { Icon(AppIcons.Back, "Следующий год", tint = if (next != null) AppColors.Text else AppColors.Line, modifier = Modifier.size(14.dp).rotate(180f)) }
             }

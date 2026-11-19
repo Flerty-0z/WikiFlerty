@@ -158,14 +158,14 @@ fun SelectionMenu(markerColor: Long, palette: List<Long>, actions: NoteActions, 
                     horizontalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
                     if (open) {
-                        MenuAction("Назад", sound = FeedbackSound.Close, onClick = { expanded = false; colors = false }) {
+                        MenuAction("Назад", sound = FeedbackSound.Back, onClick = { expanded = false; colors = false }) {
                             Icon(AppIcons.Back, null, tint = AppColors.Muted, modifier = Modifier.size(20.dp))
                         }
                         more.forEach { SelectionAction(it, markerColor, actions, colors) { colors = !colors } }
                     } else {
                         main.forEach { SelectionAction(it, markerColor, actions, colors) { colors = !colors } }
                         if (more.isNotEmpty()) {
-                            MenuAction("Ещё", sound = FeedbackSound.Toggle, onClick = { expanded = true; colors = false }) {
+                            MenuAction("Ещё", sound = FeedbackSound.More, onClick = { expanded = true; colors = false }) {
                                 Icon(AppIcons.More, null, tint = AppColors.Text, modifier = Modifier.size(22.dp))
                             }
                         }
@@ -193,7 +193,7 @@ private fun MarkerStrip(swatches: List<Long>, current: Long, onPick: (Long) -> U
             Box(
                 Modifier
                     .size(36.dp)
-                    .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.86f) { onPick(c) }
+                    .liveClick(CircleShape, sound = FeedbackSound.Color, pressedScale = 0.86f) { onPick(c) }
                     .border((1.5f * ring).dp, AppColors.Text.copy(alpha = ring), CircleShape)
                     .padding(5.dp)
                     .clip(CircleShape)
@@ -222,7 +222,7 @@ private fun SelectionAction(button: SelectionButton, markerColor: Long, actions:
         button.title,
         highlighted = button == SelectionButton.Ai || (button == SelectionButton.Marker && colorsOpen),
         sound = when (button) {
-            SelectionButton.Marker -> FeedbackSound.Toggle
+            SelectionButton.Marker -> FeedbackSound.Marker
             SelectionButton.Copy -> FeedbackSound.Copy
             else -> FeedbackSound.Open
         },
@@ -372,7 +372,7 @@ fun NoteCard(
                     Row(
                         Modifier
                             .clip(CircleShape)
-                            .liveClick(CircleShape, sound = FeedbackSound.Toggle) { expanded = !expanded }
+                            .liveClick(CircleShape, sound = if (expanded) FeedbackSound.Collapse else FeedbackSound.Expand) { expanded = !expanded }
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -471,7 +471,7 @@ fun NoteEditor(
                     val turn by androidx.compose.animation.core.animateFloatAsState(if (quoteOpen) 180f else 0f, Motion.tween(300), label = "quote-turn")
                     Row(
                         Modifier
-                            .liveClick(appCorner(10), sound = FeedbackSound.Toggle, pressedScale = 0.95f) { quoteOpen = !quoteOpen }
+                            .liveClick(appCorner(10), sound = if (quoteOpen) FeedbackSound.Collapse else FeedbackSound.Expand, pressedScale = 0.95f) { quoteOpen = !quoteOpen }
                             .padding(vertical = 4.dp, horizontal = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -544,7 +544,7 @@ fun NoteEditor(
                     Box(
                         Modifier
                             .size(40.dp)
-                            .liveClick(CircleShape, sound = FeedbackSound.Toggle) { if (editing == -1) editing = null else startEdit(-1) }
+                            .liveClick(CircleShape, sound = FeedbackSound.Add) { if (editing == -1) editing = null else startEdit(-1) }
                             .dashedCircle(if (editing == -1) AppColors.Accent else AppColors.Faint)
                             .semantics { contentDescription = "Добавить цвет" },
                         contentAlignment = Alignment.Center,
@@ -605,7 +605,7 @@ fun NoteEditor(
             Box(
                 Modifier
                     .size(width = 56.dp, height = 52.dp)
-                    .liveClick(shape, sound = FeedbackSound.Close) { if (id != null) onDelete(id) else onCancel() }
+                    .liveClick(shape, sound = FeedbackSound.Trash) { if (id != null) onDelete(id) else onCancel() }
                     .border(1.dp, if (id != null) AppColors.Bad.copy(alpha = 0.45f) else AppColors.Line, shape)
                     .semantics { contentDescription = if (id != null) "Удалить" else "Отмена" },
                 contentAlignment = Alignment.Center,
@@ -616,7 +616,7 @@ fun NoteEditor(
                 Modifier
                     .weight(1f)
                     .height(52.dp)
-                    .liveClick(shape, sound = FeedbackSound.Toggle) {
+                    .liveClick(shape, sound = FeedbackSound.Confirm) {
                         val finalColor = if (editing != null) edited else color
                         onSave(draft.copy(note = text, color = finalColor))
                     }
@@ -724,7 +724,7 @@ private fun ColorSettings(
                 Modifier
                     .weight(1f)
                     .height(44.dp)
-                    .liveClick(shape, sound = FeedbackSound.Toggle, onClick = onDone)
+                    .liveClick(shape, sound = FeedbackSound.Confirm, onClick = onDone)
                     .background(AppColors.AccentTintStrong)
                     .border(1.dp, AppColors.Accent.copy(alpha = 0.33f), shape),
                 contentAlignment = Alignment.Center,
@@ -775,7 +775,7 @@ private fun PaletteDot(value: Long, name: String, selected: Boolean, showSetting
     Box(
         Modifier
             .size(40.dp)
-            .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.85f, onClick = onClick)
+            .liveClick(CircleShape, sound = FeedbackSound.Color, pressedScale = 0.85f, onClick = onClick)
             .border(2.dp, ring, CircleShape)
             .semantics { contentDescription = if (showSettings) "$name, настроить" else name },
         contentAlignment = Alignment.Center,

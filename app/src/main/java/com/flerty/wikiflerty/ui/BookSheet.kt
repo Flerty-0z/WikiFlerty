@@ -319,7 +319,7 @@ private fun PageHeader(title: String, onBack: () -> Unit, onClose: () -> Unit) {
     Column(Modifier.fillMaxWidth()) {
         Box(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 12.dp), contentAlignment = Alignment.Center) {
             Box(
-                Modifier.align(Alignment.CenterStart).size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onBack).background(AppColors.Field),
+                Modifier.align(Alignment.CenterStart).size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Back, onClick = onBack).background(AppColors.Field),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Back, "Назад", tint = AppColors.Muted, modifier = Modifier.size(18.dp)) }
             HeaderLabel(title, Modifier.padding(horizontal = 46.dp))
@@ -411,8 +411,7 @@ private fun FavoriteButton(on: Boolean, onClick: () -> Unit) {
         Modifier
             .size(40.dp)
             .sparkBurst(burst, listOf(StarYellow, AppColors.Accent, Color.White), count = 14, reach = 0.9f)
-            .liveClick(CircleShape, sound = FeedbackSound.Toggle) {
-                if (!on) feedback?.play(FeedbackSound.Star, view, 1.25f)
+            .liveClick(CircleShape, sound = if (on) FeedbackSound.Uncheck else FeedbackSound.Star) {
                 onClick()
             }
             .background(AppColors.Field),
@@ -486,7 +485,7 @@ fun BookSheet(
                         .align(Alignment.BottomEnd)
                         .padding(5.dp)
                         .size(28.dp)
-                        .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.85f) { if (book.paper) editPaper = true else editInfo = true }
+                        .liveClick(CircleShape, sound = FeedbackSound.Edit, pressedScale = 0.85f) { if (book.paper) editPaper = true else editInfo = true }
                         .background(Color(0xD9100D0B))
                         .border(1.dp, Color.White.copy(alpha = 0.14f), CircleShape),
                     contentAlignment = Alignment.Center,
@@ -507,7 +506,7 @@ fun BookSheet(
                 FavoriteButton(book.favorite) { scope.launch { app.library.setFavorite(book.id, !book.favorite) } }
                 if (!book.paper) {
                     val context = LocalContext.current
-                    RoundButton(AppIcons.Share, "Поделиться файлом", AppColors.Muted, FeedbackSound.Open) { shareBookFile(context, app, book) }
+                    RoundButton(AppIcons.Share, "Поделиться файлом", AppColors.Muted, FeedbackSound.Share) { shareBookFile(context, app, book) }
                 }
             }
         }
@@ -706,7 +705,7 @@ private fun ColumnScope.BookMainContent(
             .fillMaxWidth()
             .sheetReveal()
             .heightIn(min = 56.dp)
-            .liveClick(readShape, sound = FeedbackSound.Open, pressedScale = 0.97f) { onRead() }
+            .liveClick(readShape, sound = FeedbackSound.Read, pressedScale = 0.97f) { onRead() }
             .accentHighlight(readShape),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
@@ -978,7 +977,7 @@ fun ShelfDialogView(dialog: ShelfDialog, shelves: List<String>, onDismiss: () ->
                 Modifier
                     .fillMaxWidth()
                     .height(44.dp)
-                    .liveClick(appCorner(12), sound = FeedbackSound.Close) { confirmDelete = true }
+                    .liveClick(appCorner(12), sound = FeedbackSound.Trash) { confirmDelete = true }
                     .border(1.dp, Danger.copy(alpha = 0.45f), appCorner(12)),
                 contentAlignment = Alignment.Center,
             ) {
@@ -1049,7 +1048,7 @@ internal fun BookPickList(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(min = 48.dp)
-                        .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.98f) { limit += PICK_PAGE * 2 }
+                        .liveClick(appCorner(12), sound = FeedbackSound.Expand, pressedScale = 0.98f) { limit += PICK_PAGE * 2 }
                         .padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),

@@ -324,7 +324,7 @@ fun RatingSheet(bookId: String, celebrate: Boolean, onDismiss: () -> Unit) {
                 Modifier
                     .weight(1f)
                     .height(52.dp)
-                    .liveClick(shape, sound = FeedbackSound.Toggle) {
+                    .liveClick(shape, sound = FeedbackSound.Confirm) {
                         val r = rating.takeIf { it > 0f || review.isNotBlank() }
                         app.appScope.launch { app.library.setRating(book.id, r, review) }
                         close()

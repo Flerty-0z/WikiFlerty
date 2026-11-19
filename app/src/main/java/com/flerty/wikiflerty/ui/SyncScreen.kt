@@ -183,7 +183,7 @@ private fun CodeCard(code: String) {
             Box(
                 Modifier
                     .size(34.dp)
-                    .liveClick(androidx.compose.foundation.shape.CircleShape, sound = FeedbackSound.Toggle) { help = !help }
+                    .liveClick(androidx.compose.foundation.shape.CircleShape, sound = if (help) FeedbackSound.Collapse else FeedbackSound.Expand) { help = !help }
                     .background(bg, androidx.compose.foundation.shape.CircleShape),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Help, "Как подключить другой телефон", tint = tint, modifier = Modifier.size(19.dp)) }
@@ -282,7 +282,7 @@ private fun StatusRow(status: CloudSync.Status, onSync: () -> Unit) {
                 com.flerty.wikiflerty.ui.KitSpinner(Modifier.size(20.dp), AppColors.Accent)
             } else {
                 Box(
-                    Modifier.size(40.dp).liveClick(androidx.compose.foundation.shape.CircleShape, sound = FeedbackSound.Toggle, onClick = onSync),
+                    Modifier.size(40.dp).liveClick(androidx.compose.foundation.shape.CircleShape, sound = FeedbackSound.Sync, onClick = onSync),
                     contentAlignment = Alignment.Center,
                 ) { Icon(AppIcons.Rotate, "Синхронизировать", tint = AppColors.Accent, modifier = Modifier.size(20.dp)) }
             }

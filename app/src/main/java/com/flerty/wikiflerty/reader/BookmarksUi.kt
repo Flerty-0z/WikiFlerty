@@ -113,7 +113,7 @@ internal fun NavTabs(current: ReaderSheet, onSelect: (ReaderSheet) -> Unit, modi
                     Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .liveClick(inner, sound = FeedbackSound.Toggle, pressedScale = 0.9f) { if (!selected) onSelect(sheet) },
+                        .liveClick(inner, sound = FeedbackSound.Segment, pressedScale = 0.9f) { if (!selected) onSelect(sheet) },
                     contentAlignment = Alignment.Center,
                 ) {
                     androidx.compose.material3.Icon(
@@ -268,7 +268,7 @@ private fun BookmarkRow(bookmark: Bookmark, onOpen: () -> Unit, onDelete: () -> 
             Box(
                 Modifier
                     .size(40.dp)
-                    .liveClick(CircleShape, sound = FeedbackSound.Open, onClick = onRename)
+                    .liveClick(CircleShape, sound = FeedbackSound.Edit, onClick = onRename)
                     .semantics { contentDescription = "Переименовать закладку" },
                 contentAlignment = Alignment.Center,
             ) {
@@ -277,7 +277,7 @@ private fun BookmarkRow(bookmark: Bookmark, onOpen: () -> Unit, onDelete: () -> 
             Box(
                 Modifier
                     .size(40.dp)
-                    .liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onDelete)
+                    .liveClick(CircleShape, sound = FeedbackSound.Trash, onClick = onDelete)
                     .semantics { contentDescription = "Удалить закладку" },
                 contentAlignment = Alignment.Center,
             ) {

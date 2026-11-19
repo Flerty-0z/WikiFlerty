@@ -358,7 +358,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.StudyBody(
             val shape = appCorner(18)
             Box(
                 Modifier.fillMaxWidth().padding(bottom = 40.dp).heightIn(min = 56.dp)
-                    .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f) { onFlip(current.id) }
+                    .liveClick(shape, sound = FeedbackSound.Page, pressedScale = 0.97f) { onFlip(current.id) }
                     .accentHighlight(shape),
                 contentAlignment = Alignment.Center,
             ) { ActionLabel("Показать ответ", accentContent, fontSize = 16.sp) }
@@ -393,7 +393,7 @@ private fun GradeButton(title: String, wait: String, color: Color, modifier: Mod
     Column(
         modifier
             .heightIn(min = 60.dp)
-            .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.93f, onClick = onClick)
+            .liveClick(shape, sound = FeedbackSound.Check, pressedScale = 0.93f, onClick = onClick)
             .background(if (filled) color else color.copy(alpha = 0.14f))
             .padding(vertical = 8.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -423,7 +423,7 @@ private fun FlipCard(entry: DictionaryEntry, flipped: Boolean, reverse: Boolean,
                 rotationY = rotation.value
                 cameraDistance = 14f * density
             }
-            .liveClick(shape, sound = FeedbackSound.Tap, pressedScale = 0.99f, onClick = onFlip)
+            .liveClick(shape, sound = FeedbackSound.Page, pressedScale = 0.99f, onClick = onFlip)
             .fieldSurface(shape),
     ) {
         if (!back) {
@@ -437,7 +437,7 @@ private fun FlipCard(entry: DictionaryEntry, flipped: Boolean, reverse: Boolean,
 @Composable
 private fun SpeakButton(onSpeak: () -> Unit) {
     Box(
-        Modifier.size(44.dp).liveClick(CircleShape, sound = FeedbackSound.Tap, onClick = onSpeak).background(AppColors.Accent.copy(alpha = 0.14f)),
+        Modifier.size(44.dp).liveClick(CircleShape, sound = FeedbackSound.Voice, onClick = onSpeak).background(AppColors.Accent.copy(alpha = 0.14f)),
         contentAlignment = Alignment.Center,
     ) { Icon(AppIcons.Sound, "Произнести", tint = AppColors.Accent, modifier = Modifier.size(20.dp)) }
 }
@@ -508,7 +508,7 @@ private fun CardFront(entry: DictionaryEntry, reverse: Boolean, onSpeak: () -> U
         val canHint = reverse || entry.context.isNotBlank()
         if (canHint && !hint) {
             Row(
-                Modifier.liveClick(appCorner(12), sound = FeedbackSound.Tap) { hint = true }.padding(horizontal = 10.dp, vertical = 8.dp),
+                Modifier.liveClick(appCorner(12), sound = FeedbackSound.Expand) { hint = true }.padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -655,7 +655,7 @@ fun StudyCard(entries: List<DictionaryEntry>, onStart: () -> Unit, onSettings: (
                 )
             }
             Box(
-                Modifier.size(40.dp).liveClick(CircleShape, sound = FeedbackSound.Open, onClick = onSettings).background(AppColors.Shade.copy(alpha = 0.07f)),
+                Modifier.size(40.dp).liveClick(CircleShape, sound = FeedbackSound.Sheet, onClick = onSettings).background(AppColors.Shade.copy(alpha = 0.07f)),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Options, "Настройки карточек", tint = AppColors.Text, modifier = Modifier.size(18.dp)) }
         }
@@ -667,7 +667,7 @@ fun StudyCard(entries: List<DictionaryEntry>, onStart: () -> Unit, onSettings: (
         val button = appCorner(16)
         Row(
             Modifier.fillMaxWidth().heightIn(min = 50.dp)
-                .liveClick(button, sound = FeedbackSound.Open, pressedScale = 0.97f, onClick = onStart)
+                .liveClick(button, sound = FeedbackSound.Play, pressedScale = 0.97f, onClick = onStart)
                 .accentHighlight(button),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,

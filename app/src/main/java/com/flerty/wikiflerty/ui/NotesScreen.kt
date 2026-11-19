@@ -191,7 +191,7 @@ fun NotesScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
                         Box(
                             Modifier
                                 .size(36.dp)
-                                .liveClick(CircleShape, sound = FeedbackSound.Toggle) {
+                                .liveClick(CircleShape, sound = FeedbackSound.Color) {
                                     colorFilter = if (selected) null else color
                                 }
                                 .border(2.dp, if (selected) AppColors.Text else Color.Transparent, CircleShape)
@@ -314,7 +314,7 @@ private fun NotesKindCapsule(kind: Int, modifier: Modifier, onKind: (Int) -> Uni
                     .size(width = 46.dp, height = 40.dp)
                     .clip(appCorner(18))
                     .background(bg)
-                    .liveClick(appCorner(18), sound = FeedbackSound.Toggle, pressedScale = 0.88f) { if (!on) onKind(id) }
+                    .liveClick(appCorner(18), sound = FeedbackSound.Segment, pressedScale = 0.88f) { if (!on) onKind(id) }
                     .semantics { contentDescription = label },
                 contentAlignment = Alignment.Center,
             ) {

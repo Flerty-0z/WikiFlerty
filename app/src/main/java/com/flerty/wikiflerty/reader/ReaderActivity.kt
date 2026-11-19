@@ -1079,7 +1079,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         app.appScope.launch {
             app.dictionary.add(word, result.card(), locator?.let { contextAround(it) }.orEmpty().take(400), bookId, bookTitle, locator)
         }
-        app.feedback.play(FeedbackSound.Toggle)
+        app.feedback.play(FeedbackSound.Add)
     }
 
     private val translateActions by lazy {
@@ -2880,7 +2880,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         IllustrationActions(
             load = { href, side -> loadImage(href, side) },
             onFavorite = { open, on ->
-                app.feedback.play(FeedbackSound.Toggle)
+                app.feedback.play(FeedbackSound.Star)
                 lifecycleScope.launch { app.illustrations.upsert(bookId, open.href, open.chapter, open.locatorJson) { it.copy(favorite = on) } }
             },
             onStrokes = { open, strokes ->

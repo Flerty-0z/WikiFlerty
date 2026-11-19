@@ -141,7 +141,7 @@ internal fun SearchContent(search: SearchActions, modifier: Modifier) {
             Box(
                 Modifier
                     .size(42.dp)
-                    .liveClick(CircleShape, sound = FeedbackSound.Open) { submit() }
+                    .liveClick(CircleShape, sound = FeedbackSound.Search) { submit() }
                     .background(if (state.query.isNotBlank()) AppColors.Accent else AppColors.Line, CircleShape),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Send, "Искать", tint = AppColors.OnAccent, modifier = Modifier.size(18.dp)) }
@@ -221,7 +221,7 @@ internal fun SearchNavBar(search: SearchActions, onReopen: () -> Unit, modifier:
             .padding(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RoundIconButton(AppIcons.Back, "Предыдущее", sound = FeedbackSound.Tap) {
+        RoundIconButton(AppIcons.Back, "Предыдущее", sound = FeedbackSound.SkipBack) {
             if (total > 0) search.onOpen((state.current - 1 + total) % total)
         }
         Text(
@@ -234,7 +234,7 @@ internal fun SearchNavBar(search: SearchActions, onReopen: () -> Unit, modifier:
                 .liveClick(appCorner(12), sound = FeedbackSound.Open, onClick = onReopen)
                 .padding(horizontal = 10.dp, vertical = 10.dp),
         )
-        RoundIconButton(AppIcons.Chevron, "Следующее", sound = FeedbackSound.Tap) {
+        RoundIconButton(AppIcons.Chevron, "Следующее", sound = FeedbackSound.SkipNext) {
             if (total > 0) search.onOpen((state.current + 1) % total)
         }
         RoundIconButton(AppIcons.Close, "Закрыть поиск", sound = FeedbackSound.Close) { search.onClear() }

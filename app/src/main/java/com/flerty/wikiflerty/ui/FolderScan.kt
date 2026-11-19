@@ -198,7 +198,7 @@ private fun FoundRow(book: FoundBook, checked: Boolean, onToggle: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.98f, onClick = onToggle)
+            .liveClick(shape, sound = if (checked) FeedbackSound.Uncheck else FeedbackSound.Check, pressedScale = 0.98f, onClick = onToggle)
             .fieldSurface(shape, selected = checked)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,

@@ -149,7 +149,7 @@ internal fun CoverRemoveButton(visible: Boolean, modifier: Modifier = Modifier, 
 private fun DescriptionField(value: String, onClick: () -> Unit) {
     val shape = appCorner(16)
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 52.dp).liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick).fieldSurface(shape).padding(horizontal = 14.dp, vertical = 14.dp),
+        Modifier.fillMaxWidth().heightIn(min = 52.dp).liveClick(shape, sound = FeedbackSound.Edit, pressedScale = 0.98f, onClick = onClick).fieldSurface(shape).padding(horizontal = 14.dp, vertical = 14.dp),
         verticalAlignment = Alignment.Top,
     ) {
         Icon(AppIcons.Note, null, tint = AppColors.Muted, modifier = Modifier.padding(top = 1.dp).size(18.dp))

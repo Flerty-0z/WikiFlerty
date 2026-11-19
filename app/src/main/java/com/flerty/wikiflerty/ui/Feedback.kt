@@ -10,7 +10,7 @@ import com.flerty.wikiflerty.R
 import com.flerty.wikiflerty.reader.ReaderSettings
 import kotlinx.coroutines.flow.StateFlow
 
-enum class FeedbackSound { Tap, Toggle, Open, Close, Star, Success, Freeze, Thaw, Tick, Pick, Place, Check, Uncheck, Pop, Trash, Page, Reveal, Copy, YearSwipe, YearRise, YearCount, YearFinale, Back, Nav, Segment, On, Off, Sheet, Confirm, Play, Pause, Bookmark, Search, Add, Deny }
+enum class FeedbackSound { Tap, Toggle, Open, Close, Star, Success, Freeze, Thaw, Tick, Pick, Place, Check, Uncheck, Pop, Trash, Page, Reveal, Copy, YearSwipe, YearRise, YearCount, YearFinale, Back, Nav, Segment, On, Off, Sheet, Confirm, Play, Pause, Bookmark, Search, Add, Deny, Edit, Ai, Expand, Collapse, Share, Photo, Voice, Timer, Note, Go, More, Marker, Download, Dice, Undo, Color, SkipBack, SkipNext, Hold, Sync, Read }
 
 class Feedback(context: Context, private val settings: StateFlow<ReaderSettings>) {
     private val pool: SoundPool = SoundPool.Builder()
@@ -30,6 +30,27 @@ class Feedback(context: Context, private val settings: StateFlow<ReaderSettings>
     private val lastVariant = HashMap<FeedbackSound, Int>()
 
     private val ids = mapOf(
+        FeedbackSound.Edit to pool.load(context, R.raw.ui_edit, 1),
+        FeedbackSound.Ai to pool.load(context, R.raw.ui_ai, 1),
+        FeedbackSound.Expand to pool.load(context, R.raw.ui_expand, 1),
+        FeedbackSound.Collapse to pool.load(context, R.raw.ui_collapse, 1),
+        FeedbackSound.Share to pool.load(context, R.raw.ui_share, 1),
+        FeedbackSound.Photo to pool.load(context, R.raw.ui_photo, 1),
+        FeedbackSound.Voice to pool.load(context, R.raw.ui_voice, 1),
+        FeedbackSound.Timer to pool.load(context, R.raw.ui_timer, 1),
+        FeedbackSound.Note to pool.load(context, R.raw.ui_note, 1),
+        FeedbackSound.Go to pool.load(context, R.raw.ui_go, 1),
+        FeedbackSound.More to pool.load(context, R.raw.ui_more, 1),
+        FeedbackSound.Marker to pool.load(context, R.raw.ui_marker, 1),
+        FeedbackSound.Download to pool.load(context, R.raw.ui_download, 1),
+        FeedbackSound.Dice to pool.load(context, R.raw.ui_dice, 1),
+        FeedbackSound.Undo to pool.load(context, R.raw.ui_undo, 1),
+        FeedbackSound.Color to pool.load(context, R.raw.ui_color, 1),
+        FeedbackSound.SkipBack to pool.load(context, R.raw.ui_skip_back, 1),
+        FeedbackSound.SkipNext to pool.load(context, R.raw.ui_skip_next, 1),
+        FeedbackSound.Hold to pool.load(context, R.raw.ui_hold, 1),
+        FeedbackSound.Sync to pool.load(context, R.raw.ui_sync, 1),
+        FeedbackSound.Read to pool.load(context, R.raw.ui_read, 1),
         FeedbackSound.Back to pool.load(context, R.raw.ui_back, 1),
         FeedbackSound.Nav to pool.load(context, R.raw.ui_nav, 1),
         FeedbackSound.Segment to pool.load(context, R.raw.ui_segment, 1),
@@ -110,13 +131,11 @@ class Feedback(context: Context, private val settings: StateFlow<ReaderSettings>
         if (s.sounds) {
             val volume = s.soundVolume.toFloat().coerceIn(0f, 1f)
             val v = when (sound) {
-                FeedbackSound.Tap, FeedbackSound.Toggle, FeedbackSound.Open, FeedbackSound.Close, FeedbackSound.Check, FeedbackSound.Uncheck, FeedbackSound.Pick, FeedbackSound.Place,
-                FeedbackSound.Back, FeedbackSound.Nav, FeedbackSound.Segment, FeedbackSound.On, FeedbackSound.Off, FeedbackSound.Sheet, FeedbackSound.Confirm,
-                FeedbackSound.Play, FeedbackSound.Pause, FeedbackSound.Bookmark, FeedbackSound.Search, FeedbackSound.Add, FeedbackSound.Deny -> volume
-                FeedbackSound.Tick, FeedbackSound.Pop -> volume * 0.6f
+                FeedbackSound.Tick -> volume * 0.7f
                 FeedbackSound.YearRise -> volume * 0.42f
                 FeedbackSound.YearSwipe, FeedbackSound.YearCount -> volume * 0.55f
-                else -> volume * 0.7f
+                FeedbackSound.Freeze, FeedbackSound.Thaw, FeedbackSound.YearFinale -> volume * 0.7f
+                else -> volume
             }
             val choices = listOfNotNull(ids[sound]) + variants[sound].orEmpty()
             if (choices.isNotEmpty()) {

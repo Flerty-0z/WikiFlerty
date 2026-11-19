@@ -356,7 +356,7 @@ fun PaperMain(book: Book, onEdit: () -> Unit) {
                     color = AppColors.Accent,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.liveClick(appCorner(8), sound = FeedbackSound.Toggle) { showAll = !showAll }.padding(vertical = 4.dp),
+                    modifier = Modifier.liveClick(appCorner(8), sound = FeedbackSound.Expand) { showAll = !showAll }.padding(vertical = 4.dp),
                 )
             }
         }
@@ -754,7 +754,7 @@ private fun StepButton(label: String, onClick: () -> Unit) {
             .pointerInput(Unit) {
                 detectTapGestures(onPress = {
                     pressed = true
-                    feedback?.play(FeedbackSound.Tap, view)
+                    feedback?.play(FeedbackSound.Tick, view)
                     action()
                     val repeat = scope.launch {
                         delay(420)

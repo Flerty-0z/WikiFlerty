@@ -265,7 +265,7 @@ private fun FreezePicker(today: LocalDate, onFreeze: (LocalDate, Int) -> Unit) {
                 Column(
                     Modifier
                         .weight(1f)
-                        .liveClick(shape, sound = FeedbackSound.Tap, pressedScale = 0.92f) { start = day }
+                        .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.92f) { start = day }
                         .background(IceColor.copy(alpha = 0.06f + 0.16f * fill), shape)
                         .border(if (first) 1.5.dp else 1.dp, if (first) IceColor else lerpColor(AppColors.PanelBorder, IceColor.copy(alpha = 0.55f), fill), shape)
                         .padding(vertical = 8.dp),

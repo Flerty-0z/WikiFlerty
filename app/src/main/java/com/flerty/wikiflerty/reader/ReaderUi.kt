@@ -1048,7 +1048,7 @@ private fun ReturnPill(onReturn: () -> Unit, onDismiss: () -> Unit) {
         Row(
             Modifier
                 .height(38.dp)
-                .liveClick(appCorner(19), sound = FeedbackSound.Open, onClick = onReturn)
+                .liveClick(appCorner(19), sound = FeedbackSound.Back, onClick = onReturn)
                 .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1347,7 +1347,7 @@ internal fun TopPanel(
                 Modifier.fillMaxWidth().height(58.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                RoundIconButton(AppIcons.Back, "Назад в библиотеку", sound = FeedbackSound.Close, onClick = onBack)
+                RoundIconButton(AppIcons.Back, "Назад в библиотеку", sound = FeedbackSound.Back, onClick = onBack)
                 Row(
                     Modifier
                         .weight(1f)
@@ -1379,9 +1379,9 @@ internal fun TopPanel(
                     }
                 }
                 BookmarkButton(bookmarked, onBookmark)
-                RoundIconButton(AppIcons.Search, "Поиск по книге", sound = FeedbackSound.Open, onClick = onSearch)
+                RoundIconButton(AppIcons.Search, "Поиск по книге", sound = FeedbackSound.Search, onClick = onSearch)
                 Box {
-                    RoundIconButton(AppIcons.More, "Ещё", sound = FeedbackSound.Open) { menu = true }
+                    RoundIconButton(AppIcons.More, "Ещё", sound = FeedbackSound.More) { menu = true }
                     androidx.compose.material3.DropdownMenu(
                         expanded = menu,
                         onDismissRequest = { menu = false },
@@ -1633,7 +1633,7 @@ internal fun BottomPanel(
             ) { QuickIcon(button, AppColors.Text) }
         }
         Box(Modifier.padding(horizontal = 4.dp).width(1.dp).height(34.dp).background(AppColors.Line))
-        PanelButton("Опции", sound = FeedbackSound.Open, onClick = onOptions, modifier = Modifier.weight(1f)) {
+        PanelButton("Опции", sound = FeedbackSound.Sheet, onClick = onOptions, modifier = Modifier.weight(1f)) {
             Icon(AppIcons.Options, contentDescription = null, tint = AppColors.Text, modifier = Modifier.size(24.dp))
         }
     }
@@ -1844,7 +1844,7 @@ private fun SheetContent(
                 else -> null
             }
             if (parent != null) {
-                RoundIconButton(AppIcons.Back, "Назад", sound = FeedbackSound.Close) { onOpen(parent) }
+                RoundIconButton(AppIcons.Back, "Назад", sound = FeedbackSound.Back) { onOpen(parent) }
             } else if (sheet !in NavSheets) {
                 Spacer(Modifier.size(44.dp))
             }
@@ -2054,7 +2054,7 @@ private fun TextOptions(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f) { onOpen(ReaderSheet.Fonts) }
+            .liveClick(shape, sound = FeedbackSound.Sheet, pressedScale = 0.97f) { onOpen(ReaderSheet.Fonts) }
             .padding(start = 2.dp, end = 0.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -2302,7 +2302,7 @@ private fun ScrollOptions(
             Modifier
                 .fillMaxWidth()
                 .height(46.dp)
-                .liveClick(shape, sound = FeedbackSound.Open, onClick = onAutoStart)
+                .liveClick(shape, sound = FeedbackSound.Play, onClick = onAutoStart)
                 .accentHighlight(shape),
             contentAlignment = Alignment.Center,
         ) {
@@ -2712,7 +2712,7 @@ private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: M
                     )
                     if (item.id != null) {
                         Box(
-                            Modifier.size(32.dp).liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.88f) { editing = item },
+                            Modifier.size(32.dp).liveClick(CircleShape, sound = FeedbackSound.Edit, pressedScale = 0.88f) { editing = item },
                             contentAlignment = Alignment.Center,
                         ) { Icon(AppIcons.Pencil, "Изменить главу", tint = AppColors.Faint, modifier = Modifier.size(15.dp)) }
                     }
@@ -2906,7 +2906,7 @@ internal fun Segmented(label: String, options: List<String>, selected: Int, icon
                     modifier = Modifier
                         .weight(1f)
                         .height(40.dp)
-                        .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.96f) { onSelect(i) }
+                        .liveClick(shape, sound = FeedbackSound.Segment, pressedScale = 0.96f) { onSelect(i) }
                         .background(bg)
                         .then(if (isSelected) Modifier.border(1.dp, AppColors.PanelBorder, shape) else Modifier),
                     contentAlignment = Alignment.Center,
@@ -2930,7 +2930,7 @@ internal fun SwitchRow(label: String, checked: Boolean, enabled: Boolean = true,
     val feedback = LocalFeedback.current
     val view = LocalView.current
     val change: (Boolean) -> Unit = { v ->
-        feedback?.play(FeedbackSound.Toggle, view)
+        feedback?.play(if (v) FeedbackSound.On else FeedbackSound.Off, view)
         onChange(v)
     }
     Row(
@@ -3016,7 +3016,7 @@ private fun FinishedPrompt(onMark: () -> Unit, onDismiss: () -> Unit) {
         Box(
             Modifier
                 .heightIn(min = 38.dp)
-                .liveClick(button, sound = FeedbackSound.Toggle, onClick = onMark)
+                .liveClick(button, sound = FeedbackSound.Success, onClick = onMark)
                 .accentHighlight(button)
                 .padding(horizontal = 14.dp),
             contentAlignment = Alignment.Center,
@@ -3055,7 +3055,7 @@ private fun AutoBar(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        RoundIconButton(if (paused) AppIcons.Play else AppIcons.Pause, if (paused) "Продолжить" else "Пауза", filled = true, sound = FeedbackSound.Toggle, onClick = onToggle)
+        RoundIconButton(if (paused) AppIcons.Play else AppIcons.Pause, if (paused) "Продолжить" else "Пауза", filled = true, sound = if (paused) FeedbackSound.Play else FeedbackSound.Pause, onClick = onToggle)
         AutoStepButton("−", "Медленнее", onSlower)
         Text(label, color = AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(horizontal = 4.dp))
         AutoStepButton("+", "Быстрее", onFaster)
@@ -3102,7 +3102,7 @@ private fun AutoMini(paused: Boolean, progress: Float?, onExpand: () -> Unit) {
             .size(36.dp)
             .alpha(0.9f)
             .panelSurface(CircleShape, elevation = 8.dp)
-            .liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.85f, onClick = onExpand)
+            .liveClick(CircleShape, sound = FeedbackSound.Expand, pressedScale = 0.85f, onClick = onExpand)
             .semantics { contentDescription = "Показать автопрокрутку" },
         contentAlignment = Alignment.Center,
     ) {
@@ -3183,7 +3183,7 @@ private fun JumpContent(jump: JumpInfo, onClose: () -> Unit) {
             Box(
                 Modifier
                     .size(56.dp)
-                    .liveClick(appCorner(14), sound = FeedbackSound.Open, enabled = target != null, onClick = go)
+                    .liveClick(appCorner(14), sound = FeedbackSound.Go, enabled = target != null, onClick = go)
                     .background(if (target != null) AppColors.Accent else AppColors.Line, appCorner(14)),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Forward, "Перейти", tint = if (target != null) AppColors.OnAccent else AppColors.Faint, modifier = Modifier.size(24.dp)) }

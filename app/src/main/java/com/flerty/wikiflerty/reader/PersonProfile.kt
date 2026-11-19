@@ -174,7 +174,7 @@ private fun ProfileSection(title: String, icon: ImageVector, text: String, hint:
         Box(
             Modifier
                 .fillMaxWidth()
-                .liveClick(appCorner(10), sound = FeedbackSound.Open, pressedScale = 0.99f, onClick = onClick)
+                .liveClick(appCorner(10), sound = FeedbackSound.Edit, pressedScale = 0.99f, onClick = onClick)
                 .padding(vertical = 10.dp),
         ) {
             if (text.isBlank()) {
@@ -243,7 +243,7 @@ internal fun PersonProfileSheet(
             }
             Box(Modifier.weight(1f))
             Row(Modifier.padding(top = 70.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                SmallAction(AppIcons.Pencil, "Изменить имя", FeedbackSound.Open, onClick = editName)
+                SmallAction(AppIcons.Pencil, "Изменить имя", FeedbackSound.Edit, onClick = editName)
                 val aiShape = appCorner(12)
                 Row(
                     Modifier
@@ -268,7 +268,7 @@ internal fun PersonProfileSheet(
             }
             val sub = listOfNotNull(person.role.takeIf { it.isNotBlank() }?.let { "@" + CharacterRole.title(it).lowercase().replace(' ', '_') }, home?.title).joinToString(" · ")
             if (sub.isNotBlank()) Text(sub, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Box(Modifier.fillMaxWidth().liveClick(appCorner(10), sound = FeedbackSound.Open, pressedScale = 0.99f, onClick = editNote).padding(vertical = 2.dp)) {
+            Box(Modifier.fillMaxWidth().liveClick(appCorner(10), sound = FeedbackSound.Add, pressedScale = 0.99f, onClick = editNote).padding(vertical = 2.dp)) {
                 if (person.note.isBlank()) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Icon(AppIcons.Plus, null, tint = AppColors.Faint, modifier = Modifier.size(14.dp))
@@ -508,7 +508,7 @@ private fun ProfileTabs(titles: List<String>, selected: Int, onSelect: (Int) -> 
                 val on = i == selected
                 val color by androidx.compose.animation.animateColorAsState(if (on) AppColors.Text else AppColors.Faint, Motion.fade(220), label = "person-tab-color")
                 Box(
-                    Modifier.weight(1f).height(40.dp).liveClick(appCorner(10), sound = FeedbackSound.Tap, pressedScale = 0.96f) { onSelect(i) },
+                    Modifier.weight(1f).height(40.dp).liveClick(appCorner(10), sound = FeedbackSound.Segment, pressedScale = 0.96f) { onSelect(i) },
                     contentAlignment = Alignment.Center,
                 ) { Text(t, color = color, fontSize = 13.5.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1) }
             }
@@ -532,7 +532,7 @@ private fun ProfileLabel(text: String, modifier: Modifier = Modifier) {
 private fun ProfileText(label: String, text: String, hint: String, onClick: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         ProfileLabel(label)
-        Box(Modifier.fillMaxWidth().liveClick(appCorner(10), sound = FeedbackSound.Open, pressedScale = 0.99f, onClick = onClick).padding(vertical = 2.dp)) {
+        Box(Modifier.fillMaxWidth().liveClick(appCorner(10), sound = FeedbackSound.Add, pressedScale = 0.99f, onClick = onClick).padding(vertical = 2.dp)) {
             if (text.isBlank()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(AppIcons.Plus, null, tint = AppColors.Muted, modifier = Modifier.size(14.dp))
@@ -548,7 +548,7 @@ private fun ProfileText(label: String, text: String, hint: String, onClick: () -
 @Composable
 private fun FateText(fate: String, locked: Boolean, onClick: () -> Unit) {
     val blur by androidx.compose.animation.core.animateFloatAsState(if (locked) 1f else 0f, Motion.tween(420), label = "fate-blur")
-    Box(Modifier.fillMaxWidth().liveClick(appCorner(10), sound = FeedbackSound.Open, pressedScale = 0.99f, onClick = onClick).then(if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) Modifier.animateContentSize(Motion.tween(380)) else Modifier).padding(vertical = 2.dp)) {
+    Box(Modifier.fillMaxWidth().liveClick(appCorner(10), sound = FeedbackSound.Add, pressedScale = 0.99f, onClick = onClick).then(if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) Modifier.animateContentSize(Motion.tween(380)) else Modifier).padding(vertical = 2.dp)) {
         when {
             fate.isBlank() -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(AppIcons.Plus, null, tint = AppColors.Muted, modifier = Modifier.size(14.dp))

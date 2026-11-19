@@ -331,18 +331,18 @@ fun IllustrationViewer(
             ) { draw ->
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (draw) {
-                        ViewerButton(AppIcons.Trash, "Стереть всё", false, FeedbackSound.Close, enabled = strokes.isNotEmpty()) {
+                        ViewerButton(AppIcons.Trash, "Стереть всё", false, FeedbackSound.Trash, enabled = strokes.isNotEmpty()) {
                             strokes.clear()
                             commit()
                         }
                         Text("Рисование", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 1)
-                        ViewerButton(AppIcons.Undo, "Отменить", false, FeedbackSound.Tap, enabled = strokes.isNotEmpty()) {
+                        ViewerButton(AppIcons.Undo, "Отменить", false, FeedbackSound.Undo, enabled = strokes.isNotEmpty()) {
                             if (strokes.isNotEmpty()) {
                                 strokes.removeAt(strokes.lastIndex)
                                 commit()
                             }
                         }
-                        ViewerButton(AppIcons.Check, "Готово", true, FeedbackSound.Toggle, filled = true) { drawing = false }
+                        ViewerButton(AppIcons.Check, "Готово", true, FeedbackSound.Confirm, filled = true) { drawing = false }
                     } else {
                         ViewerButton(AppIcons.Close, "Закрыть", false, FeedbackSound.Close) { onClose() }
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -472,7 +472,7 @@ private fun InkTools(
                 Box(
                     Modifier
                         .size(38.dp)
-                        .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.86f) { onColor(c) }
+                        .liveClick(CircleShape, sound = FeedbackSound.Color, pressedScale = 0.86f) { onColor(c) }
                         .border((2f * on).dp, AppColors.Text.copy(alpha = on), CircleShape)
                         .padding(5.dp)
                         .clip(CircleShape)

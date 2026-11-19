@@ -177,7 +177,7 @@ fun ChipsFold(
                     Modifier
                         .padding(top = 6.dp)
                         .size(width = 56.dp, height = 28.dp)
-                        .liveClick(appCorner(14), sound = FeedbackSound.Toggle, pressedScale = 0.9f) { open = !open },
+                        .liveClick(appCorner(14), sound = if (open) FeedbackSound.Collapse else FeedbackSound.Expand, pressedScale = 0.9f) { open = !open },
                     contentAlignment = androidx.compose.ui.Alignment.Center,
                 ) {
                     androidx.compose.material3.Icon(

@@ -252,7 +252,7 @@ private fun DictionaryList(viewModel: LibraryViewModel, entries: List<Dictionary
                             Box(
                                 Modifier
                                     .height(42.dp)
-                                    .liveClick(deleteShape, sound = FeedbackSound.Close) { toDelete = entry }
+                                    .liveClick(deleteShape, sound = FeedbackSound.Trash) { toDelete = entry }
                                     .border(1.dp, Color(0x55F08A8A), deleteShape)
                                     .padding(horizontal = 14.dp),
                                 contentAlignment = Alignment.Center,

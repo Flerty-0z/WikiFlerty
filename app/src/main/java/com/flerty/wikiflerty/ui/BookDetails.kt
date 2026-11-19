@@ -279,7 +279,7 @@ private fun TagStrip(tags: List<String>, hide: Boolean, onReveal: () -> Unit, on
             Box(
                 Modifier
                     .size(32.dp)
-                    .liveClick(appCorner(10), sound = FeedbackSound.Open, pressedScale = 0.88f, onClick = onOpen)
+                    .liveClick(appCorner(10), sound = FeedbackSound.Add, pressedScale = 0.88f, onClick = onOpen)
                     .clip(appCorner(10))
                     .border(1.dp, AppColors.Accent.copy(alpha = 0.35f), appCorner(10)),
                 contentAlignment = Alignment.Center,
@@ -328,7 +328,7 @@ fun BookAboutCard(app: App, book: Book, onOpenBook: ((Book) -> Unit)? = null) {
                 Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (long) {
                         Row(
-                            Modifier.liveClick(appCorner(8), sound = FeedbackSound.Toggle) {
+                            Modifier.liveClick(appCorner(8), sound = if (expanded) FeedbackSound.Collapse else FeedbackSound.Expand) {
                                 expanded = !expanded
                             }.padding(vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -492,7 +492,7 @@ private fun LookupCard(result: LookupResult, busy: Boolean, onClick: () -> Unit)
         Modifier
             .fillMaxWidth()
             .sheetReveal()
-            .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.98f, onClick = onClick)
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
             .fieldSurface(shape)
             .padding(10.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),

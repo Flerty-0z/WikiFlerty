@@ -105,7 +105,7 @@ internal fun PeopleList(people: List<BookCharacter>, focus: String?, onAdd: () -
                 Modifier
                     .fillMaxWidth()
                     .height(52.dp)
-                    .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onAdd)
+                    .liveClick(shape, sound = FeedbackSound.Add, pressedScale = 0.98f, onClick = onAdd)
                     .accentHighlight(shape)
                     .padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -284,7 +284,7 @@ internal fun PersonSheet(draft: PersonDraft, onDismiss: () -> Unit, actions: Peo
                         Modifier
                             .height(52.dp)
                             .then(if (confirmDelete) Modifier.weight(1f) else Modifier.width(52.dp))
-                            .liveClick(shape, sound = FeedbackSound.Toggle) {
+                            .liveClick(shape, sound = FeedbackSound.Trash) {
                                 if (confirmDelete) {
                                     actions.onDelete(draft.id)
                                     close()
@@ -305,7 +305,7 @@ internal fun PersonSheet(draft: PersonDraft, onDismiss: () -> Unit, actions: Peo
                     Modifier
                         .weight(1f)
                         .height(52.dp)
-                        .liveClick(shape, sound = FeedbackSound.Toggle) { save() }
+                        .liveClick(shape, sound = FeedbackSound.Confirm) { save() }
                         .accentHighlight(shape),
                     contentAlignment = Alignment.Center,
                 ) { ActionLabel("Сохранить", accentContent) }

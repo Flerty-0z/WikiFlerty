@@ -273,7 +273,7 @@ fun SheetOptionRow(option: PickerOption, selected: Boolean, fallbackIcon: ImageV
         Modifier
             .fillMaxWidth()
             .heightIn(min = 50.dp)
-            .liveClick(appCorner(12), sound = FeedbackSound.Toggle, pressedScale = 0.98f, onClick = onClick)
+            .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -607,7 +607,7 @@ fun NumberInputSheet(
                             Modifier
                                 .height(36.dp)
                                 .widthIn(min = 52.dp)
-                                .liveClick(appCorner(9), sound = FeedbackSound.Toggle) {
+                                .liveClick(appCorner(9), sound = FeedbackSound.Segment) {
                                     if (i != unitIndex) {
                                         val old = units[unitIndex]
                                         val v = text.toIntOrNull()
@@ -634,7 +634,7 @@ fun NumberInputSheet(
             Modifier
                 .fillMaxWidth()
                 .height(52.dp)
-                .liveClick(shape, sound = FeedbackSound.Toggle, enabled = ok) {
+                .liveClick(shape, sound = FeedbackSound.Confirm, enabled = ok) {
                     if (onDoneUnit != null) onDoneUnit(value!!, unitIndex) else onDone(value!!)
                     close()
                 }
@@ -749,7 +749,7 @@ fun TextInputSheet(
                 Modifier
                     .fillMaxWidth()
                     .height(52.dp)
-                    .liveClick(shape, sound = FeedbackSound.Toggle) { save() }
+                    .liveClick(shape, sound = FeedbackSound.Confirm) { save() }
                     .accentHighlight(shape),
                 contentAlignment = Alignment.Center,
             ) { ActionLabel("Сохранить", accentContent) }

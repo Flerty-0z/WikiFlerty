@@ -139,7 +139,7 @@ internal fun QuoteContent(draft: QuoteDraft, actions: QuoteActions, modifier: Mo
                 Modifier
                     .weight(1f)
                     .height(50.dp)
-                    .liveClick(shape, sound = FeedbackSound.Toggle, enabled = !actions.busy) { actions.onSave(draft, look, format) }
+                    .liveClick(shape, sound = FeedbackSound.Confirm, enabled = !actions.busy) { actions.onSave(draft, look, format) }
                     .border(1.dp, AppColors.Accent.copy(alpha = 0.4f), shape),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,

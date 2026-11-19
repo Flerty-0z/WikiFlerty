@@ -170,7 +170,7 @@ private fun BookChoiceRow(selected: Boolean, count: Int, cover: @Composable () -
     Row(
         Modifier
             .fillMaxWidth()
-            .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.98f, onClick = onClick)
+            .liveClick(shape, sound = FeedbackSound.Pop, pressedScale = 0.98f, onClick = onClick)
             .background(if (selected) AppColors.Accent.copy(alpha = 0.14f) else AppColors.Line.copy(alpha = 0.45f))
             .border(1.dp, if (selected) AppColors.Accent.copy(alpha = 0.45f) else AppColors.PanelBorder, shape)
             .padding(8.dp),

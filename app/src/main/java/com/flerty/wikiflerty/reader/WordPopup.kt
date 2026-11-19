@@ -70,7 +70,7 @@ internal fun WordPopup(entry: DictionaryEntry, onClose: () -> Unit, modifier: Mo
                 Text("Из словаря", color = AppColors.Faint, fontSize = 11.5.sp, maxLines = 1)
             }
             androidx.compose.animation.AnimatedVisibility(long || open, enter = fadeIn(Motion.fade(200)), exit = fadeOut(Motion.fade(160))) {
-                RoundIconButton(AppIcons.Chevron, if (open) "Свернуть" else "Развернуть", sound = FeedbackSound.Toggle, iconModifier = Modifier.graphicsLayer { rotationZ = 90f + turn }) { open = !open }
+                RoundIconButton(AppIcons.Chevron, if (open) "Свернуть" else "Развернуть", sound = if (open) FeedbackSound.Collapse else FeedbackSound.Expand, iconModifier = Modifier.graphicsLayer { rotationZ = 90f + turn }) { open = !open }
             }
             RoundIconButton(AppIcons.Close, "Закрыть", sound = FeedbackSound.Close, onClick = onClose)
         }
@@ -78,7 +78,7 @@ internal fun WordPopup(entry: DictionaryEntry, onClose: () -> Unit, modifier: Mo
             Modifier
                 .fillMaxWidth()
                 .padding(end = 8.dp)
-                .liveClick(appCorner(12), sound = FeedbackSound.Toggle, pressedScale = 0.99f) { if (long) open = !open },
+                .liveClick(appCorner(12), sound = FeedbackSound.Expand, pressedScale = 0.99f) { if (long) open = !open },
         ) {
             com.flerty.wikiflerty.ui.ExpandingText(
                 entry.definition.ifBlank { "Без определения" },

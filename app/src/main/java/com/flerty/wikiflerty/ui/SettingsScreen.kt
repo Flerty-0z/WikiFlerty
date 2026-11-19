@@ -426,7 +426,7 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
                 Box(
                     Modifier
                         .size(40.dp)
-                        .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.85f) {
+                        .liveClick(CircleShape, sound = FeedbackSound.Color, pressedScale = 0.85f) {
                             customAccent = false
                             store.update { it.copy(accent = color) }
                         }
@@ -437,7 +437,7 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
             Box(
                 Modifier
                     .size(40.dp)
-                    .liveClick(CircleShape, sound = FeedbackSound.Toggle) { customAccent = !customAccent }
+                    .liveClick(CircleShape, sound = FeedbackSound.Color) { customAccent = !customAccent }
                     .border(
                         2.dp,
                         if (style.accent !in AccentChoices) AppColors.Text else AppColors.Line,
@@ -590,7 +590,7 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
                     .padding(vertical = 6.dp)
                     .fillMaxWidth()
                     .height(44.dp)
-                    .liveClick(shape, sound = FeedbackSound.Open) {
+                    .liveClick(shape, sound = FeedbackSound.Photo) {
                         if (kind == BackgroundKind.Image) pickImage.launch(arrayOf("image/*")) else pickVideo.launch(arrayOf("video/*"))
                     }
                     .border(1.dp, AppColors.Accent.copy(alpha = 0.33f), shape),

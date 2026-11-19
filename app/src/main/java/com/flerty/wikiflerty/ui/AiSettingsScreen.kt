@@ -270,7 +270,7 @@ private fun ProviderCard(
                         Modifier
                             .weight(1f)
                             .heightIn(min = 44.dp)
-                            .liveClick(buttonShape, sound = FeedbackSound.Toggle, enabled = keyInput.isNotBlank() || hasKey) {
+                            .liveClick(buttonShape, sound = FeedbackSound.Confirm, enabled = keyInput.isNotBlank() || hasKey) {
                                 scope.launch {
                                     if (keyInput.isNotBlank()) {
                                         ai.saveKey(provider, keyInput)
@@ -489,7 +489,7 @@ private fun ActionButton(text: String, enabled: Boolean, busy: Boolean, onClick:
         Modifier
             .fillMaxWidth()
             .height(46.dp)
-            .liveClick(shape, sound = FeedbackSound.Toggle, enabled = enabled && !busy, onClick = onClick)
+            .liveClick(shape, sound = FeedbackSound.Confirm, enabled = enabled && !busy, onClick = onClick)
             .background(if (enabled) AppColors.Accent else AppColors.Line),
         contentAlignment = Alignment.Center,
     ) {

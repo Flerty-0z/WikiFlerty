@@ -63,7 +63,7 @@ fun GoalHeader(icon: ImageVector, title: String, onEdit: () -> Unit) {
             Text(it, color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
         Box(
-            Modifier.size(36.dp).liveClick(CircleShape, sound = FeedbackSound.Open, pressedScale = 0.88f, onClick = onEdit).fieldSurface(CircleShape),
+            Modifier.size(36.dp).liveClick(CircleShape, sound = FeedbackSound.Edit, pressedScale = 0.88f, onClick = onEdit).fieldSurface(CircleShape),
             contentAlignment = Alignment.Center,
         ) { Icon(AppIcons.Pencil, "Изменить", tint = AppColors.Muted, modifier = Modifier.size(16.dp)) }
     }

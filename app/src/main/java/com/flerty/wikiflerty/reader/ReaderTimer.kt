@@ -128,7 +128,7 @@ internal fun ReaderTimerChip(bookId: String, hidden: Boolean, modifier: Modifier
                         Modifier
                             .width(34.dp)
                             .height(40.dp)
-                            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.9f) { app.readingTimer.setFolded(false) }
+                            .liveClick(shape, sound = FeedbackSound.Expand, pressedScale = 0.9f) { app.readingTimer.setFolded(false) }
                             .timerFrame(shape)
                             .semantics { contentDescription = "Показать таймер" },
                         contentAlignment = Alignment.Center,
@@ -203,7 +203,7 @@ private fun TimerBody(
         Box(
             Modifier
                 .size(30.dp)
-                .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.9f, onClick = onToggle)
+                .liveClick(CircleShape, sound = FeedbackSound.Timer, pressedScale = 0.9f, onClick = onToggle)
                 .accentHighlight(CircleShape),
             contentAlignment = Alignment.Center,
         ) {
@@ -221,7 +221,7 @@ private fun TimerBody(
         Box(
             Modifier
                 .size(30.dp)
-                .liveClick(CircleShape, sound = FeedbackSound.Close, pressedScale = 0.9f, onClick = onFold)
+                .liveClick(CircleShape, sound = FeedbackSound.Collapse, pressedScale = 0.9f, onClick = onFold)
                 .semantics { contentDescription = "Свернуть таймер" },
             contentAlignment = Alignment.Center,
         ) {

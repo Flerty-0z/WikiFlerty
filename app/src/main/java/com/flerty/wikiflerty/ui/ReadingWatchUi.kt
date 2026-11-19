@@ -163,7 +163,7 @@ private fun FocusMoon(modifier: Modifier = Modifier, size: Int = 44) {
                 scaleX = pop.value
                 scaleY = pop.value
             }
-            .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.88f) {
+            .liveClick(CircleShape, sound = if (on) FeedbackSound.Off else FeedbackSound.On, pressedScale = 0.88f) {
                 if (!on && !com.flerty.wikiflerty.system.FocusMode.hasAccess(context)) {
                     askAccess = true
                 } else {
@@ -229,7 +229,7 @@ fun StopwatchIdle(note: String? = null, onStart: () -> Unit) {
         WatchBadge(running = false, pulse = null)
         CompactDigits(0L, Modifier.weight(1f).padding(start = 2.dp), dim = { true })
         FocusMoon(size = 36)
-        RoundControl(AppIcons.Play, "Засечь время", 40, filled = true, sound = FeedbackSound.Toggle, onClick = onStart)
+        RoundControl(AppIcons.Play, "Засечь время", 40, filled = true, sound = FeedbackSound.Timer, onClick = onStart)
     }
     if (note != null) Text(note, color = AppColors.Faint, fontSize = 12.sp, maxLines = 1)
 }
@@ -248,9 +248,9 @@ fun StopwatchActive(key: Any, elapsed: (Long) -> Long, running: Boolean, onToggl
         WatchBadge(running = running, pulse = { pulse.value })
         CompactDigits(elapsed(now), Modifier.weight(1f).padding(start = 4.dp), dim = { !running && pulse.value < 0.6f })
         FocusMoon(size = 36)
-        RoundControl(AppIcons.Stop, "Стоп", 36, filled = false, sound = FeedbackSound.Open, onClick = onStop)
+        RoundControl(AppIcons.Stop, "Стоп", 36, filled = false, sound = FeedbackSound.Close, onClick = onStop)
         Box(
-            Modifier.size(40.dp).liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.9f, onClick = onToggle).accentHighlight(CircleShape),
+            Modifier.size(40.dp).liveClick(CircleShape, sound = FeedbackSound.Timer, pressedScale = 0.9f, onClick = onToggle).accentHighlight(CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             AnimatedContent(
@@ -320,7 +320,7 @@ private fun WatchResult(app: App, book: Book, result: ReadingSessionResult, onDo
     )
     val shape = appCorner(16)
     Box(
-        Modifier.fillMaxWidth().heightIn(min = 46.dp).liveClick(shape, sound = FeedbackSound.Close, onClick = onDone).border(1.dp, AppColors.Line, shape),
+        Modifier.fillMaxWidth().heightIn(min = 46.dp).liveClick(shape, sound = FeedbackSound.Confirm, onClick = onDone).border(1.dp, AppColors.Line, shape),
         contentAlignment = Alignment.Center,
     ) { ActionLabel("Готово", AppColors.Text) }
 }

@@ -210,7 +210,7 @@ fun HeroesContent(bridge: HeroBridge, modifier: Modifier = Modifier) {
                 "Найти заново",
                 color = AppColors.Faint,
                 fontSize = 12.sp,
-                modifier = Modifier.liveClick(appCorner(8), sound = FeedbackSound.Tap, onClick = bridge.onFind).padding(horizontal = 4.dp, vertical = 2.dp),
+                modifier = Modifier.liveClick(appCorner(8), sound = FeedbackSound.Search, onClick = bridge.onFind).padding(horizontal = 4.dp, vertical = 2.dp),
             )
         }
         val dashed = appCorner(16)
@@ -220,7 +220,7 @@ fun HeroesContent(bridge: HeroBridge, modifier: Modifier = Modifier) {
                 .animateContentSize()
                 .clip(dashed)
                 .border(1.5.dp, AppColors.Line, dashed)
-                .liveClick(dashed, sound = FeedbackSound.Open, pressedScale = 0.98f) { adding = !adding }
+                .liveClick(dashed, sound = FeedbackSound.Add, pressedScale = 0.98f) { adding = !adding }
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -252,7 +252,7 @@ fun HeroesContent(bridge: HeroBridge, modifier: Modifier = Modifier) {
                     Box(
                         Modifier
                             .size(44.dp)
-                            .liveClick(CircleShape, sound = FeedbackSound.Toggle) {
+                            .liveClick(CircleShape, sound = FeedbackSound.Add) {
                                 if (name.isNotBlank()) {
                                     bridge.onAdd(name.trim())
                                     name = ""
@@ -328,7 +328,7 @@ private fun EditAction(icon: ImageVector, title: String, hint: String, tint: Col
     Row(
         Modifier
             .fillMaxWidth()
-            .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.98f, onClick = onClick)
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onClick)
             .fieldSurface(shape)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -455,7 +455,7 @@ fun HeroChatContent(bridge: HeroBridge, modifier: Modifier = Modifier) {
                     val shape = appCorner(18)
                     Box(
                         Modifier.height(34.dp)
-                            .liveClick(shape, sound = FeedbackSound.Tap) { bridge.onSend(idea) }
+                            .liveClick(shape, sound = FeedbackSound.Go) { bridge.onSend(idea) }
                             .border(1.dp, AppColors.Line, shape)
                             .padding(horizontal = 12.dp),
                         contentAlignment = Alignment.Center,
@@ -491,13 +491,13 @@ fun HeroChatContent(bridge: HeroBridge, modifier: Modifier = Modifier) {
                 },
             )
             Box(
-                Modifier.size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Tap, onClick = bridge.onVoice),
+                Modifier.size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Voice, onClick = bridge.onVoice),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Voice, "Сказать голосом", tint = AppColors.Muted, modifier = Modifier.size(20.dp)) }
             Box(
                 Modifier
                     .size(38.dp)
-                    .liveClick(CircleShape, sound = FeedbackSound.Tap, pressedScale = 0.88f) {
+                    .liveClick(CircleShape, sound = FeedbackSound.Go, pressedScale = 0.88f) {
                         if (chat.streaming) {
                             bridge.onStop()
                         } else if (state.input.isNotBlank()) {

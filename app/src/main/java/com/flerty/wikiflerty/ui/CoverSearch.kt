@@ -278,7 +278,7 @@ private fun CandidateTile(c: CoverSearch.Candidate, loading: Boolean, onClick: (
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(2f / 3f)
-                .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.94f, onClick = onClick)
+                .liveClick(shape, sound = FeedbackSound.Photo, pressedScale = 0.94f, onClick = onClick)
                 .clip(shape)
                 .border(1.dp, AppColors.PanelBorder, shape),
             contentAlignment = Alignment.Center,

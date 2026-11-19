@@ -852,7 +852,7 @@ class PdfReaderActivity : ComponentActivity() {
                         app.notes.create(bookId, loc, cleanText(sel.text), "", color, state.chapterAt(sel.page))
                         if (color != app.readerSettings.settings.value.markerColor) app.readerSettings.update { it.copy(markerColor = color) }
                     }
-                    app.feedback.play(FeedbackSound.Toggle)
+                    app.feedback.play(FeedbackSound.Marker)
                 }
             },
             onSelectionCopy = {
@@ -935,7 +935,7 @@ class PdfReaderActivity : ComponentActivity() {
                     app.appScope.launch {
                         app.dictionary.add(word, result.card(), contextAround(loc).take(400), bookId, book.title, loc)
                     }
-                    app.feedback.play(FeedbackSound.Toggle)
+                    app.feedback.play(FeedbackSound.Add)
                 }
             },
             onRetry = { state.translate?.let { startTranslate(it.text, translateLocator, it.word, it.target) } },
@@ -1542,7 +1542,7 @@ private fun PdfSheet(
                 else -> null
             }
             if (back != null) {
-                RoundIconButton(AppIcons.Back, "Назад", sound = FeedbackSound.Close) { state.sheet = back }
+                RoundIconButton(AppIcons.Back, "Назад", sound = FeedbackSound.Back) { state.sheet = back }
             } else if (sheet !in PdfNav) {
                 Spacer(Modifier.size(44.dp))
             }
@@ -2029,7 +2029,7 @@ private fun PdfPageView(
                     Box(
                         Modifier
                             .size(26.dp)
-                            .liveClick(appCorner(8), sound = FeedbackSound.Open, pressedScale = 0.88f) { host.editNote(m.note, fromList = false) }
+                            .liveClick(appCorner(8), sound = FeedbackSound.Note, pressedScale = 0.88f) { host.editNote(m.note, fromList = false) }
                             .clip(appCorner(8))
                             .background(Color(m.note.color))
                             .border(1.dp, Color(0x33000000), appCorner(8)),
@@ -2128,7 +2128,7 @@ private fun PdfGridSheet(doc: PdfDoc, state: PdfUiState, bookmarked: Set<Int>, n
                         Modifier
                             .fillMaxWidth()
                             .aspectRatio(0.72f)
-                            .liveClick(shape, sound = FeedbackSound.Tap, pressedScale = 0.94f) {
+                            .liveClick(shape, sound = FeedbackSound.Go, pressedScale = 0.94f) {
                                 state.jump = i
                                 close()
                             }

@@ -92,7 +92,7 @@ internal fun TranslatePopup(info: TranslateInfo, actions: TranslateActions, modi
             Row(
                 Modifier
                     .height(34.dp)
-                    .liveClick(chip, sound = FeedbackSound.Toggle) { picking = !picking }
+                    .liveClick(chip, sound = if (picking) FeedbackSound.Collapse else FeedbackSound.Expand) { picking = !picking }
                     .fieldSurface(chip, selected = picking)
                     .padding(horizontal = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -167,7 +167,7 @@ internal fun TranslatePopup(info: TranslateInfo, actions: TranslateActions, modi
                 else -> Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 10.dp)) {
                     Icon(AppIcons.Alert, null, tint = AppColors.Muted, modifier = Modifier.size(18.dp))
                     Text(info.error ?: "Не удалось перевести", color = AppColors.Muted, fontSize = 14.sp, modifier = Modifier.weight(1f).padding(start = 8.dp))
-                    RoundIconButton(AppIcons.Rotate, "Повторить", sound = FeedbackSound.Toggle, onClick = actions.onRetry)
+                    RoundIconButton(AppIcons.Rotate, "Повторить", sound = FeedbackSound.Go, onClick = actions.onRetry)
                 }
             }
         }
@@ -181,7 +181,7 @@ internal fun TranslatePopup(info: TranslateInfo, actions: TranslateActions, modi
                 Box(
                     Modifier
                         .size(48.dp)
-                        .liveClick(shape, sound = FeedbackSound.Toggle, onClick = actions.onCopy)
+                        .liveClick(shape, sound = FeedbackSound.Copy, onClick = actions.onCopy)
                         .fieldSurface(shape),
                     contentAlignment = Alignment.Center,
                 ) { Icon(AppIcons.Copy, "Копировать", tint = AppColors.Text, modifier = Modifier.size(20.dp)) }
@@ -189,7 +189,7 @@ internal fun TranslatePopup(info: TranslateInfo, actions: TranslateActions, modi
                     Modifier
                         .weight(1f)
                         .height(48.dp)
-                        .liveClick(shape, sound = FeedbackSound.Toggle, enabled = !info.saved, onClick = actions.onSave)
+                        .liveClick(shape, sound = FeedbackSound.Add, enabled = !info.saved, onClick = actions.onSave)
                         .then(if (info.saved) Modifier.fieldSurface(shape) else Modifier.accentHighlight(shape)),
                     contentAlignment = Alignment.Center,
                 ) {

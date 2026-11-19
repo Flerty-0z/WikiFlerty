@@ -330,7 +330,7 @@ fun AiHistoryContent(bridge: HistoryBridge, modifier: Modifier = Modifier) {
                 color = AppColors.Bad,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 6.dp).liveClick(appCorner(8), sound = FeedbackSound.Close) { clearing = true }.padding(horizontal = 4.dp, vertical = 6.dp),
+                modifier = Modifier.padding(top = 6.dp).liveClick(appCorner(8), sound = FeedbackSound.Trash) { clearing = true }.padding(horizontal = 4.dp, vertical = 6.dp),
             )
         }
     }
@@ -545,7 +545,7 @@ fun AiChatContent(bridge: AiBridge, modifier: Modifier = Modifier) {
                         }
                         Box(
                             Modifier.height(34.dp)
-                                .liveClick(shape, sound = FeedbackSound.Tap) { bridge.onFollowUp(prompt) }
+                                .liveClick(shape, sound = FeedbackSound.Go) { bridge.onFollowUp(prompt) }
                                 .border(1.dp, if (tint == AppColors.Text) AppColors.Line else tint.copy(alpha = 0.5f), shape)
                                 .padding(horizontal = 12.dp),
                             contentAlignment = Alignment.Center,
@@ -924,7 +924,7 @@ private fun TeacherBubble(text: String, writing: Boolean, bridge: AiBridge) {
                                     fontSize = 12.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier
-                                        .liveClick(CircleShape, sound = FeedbackSound.Toggle, enabled = !saved) {
+                                        .liveClick(CircleShape, sound = FeedbackSound.Add, enabled = !saved) {
                                             saved = true
                                             bridge.onRemember(key, body)
                                         }
@@ -1055,7 +1055,7 @@ private fun MessageInput(
         Box(
             Modifier
                 .size(40.dp)
-                .liveClick(CircleShape, sound = FeedbackSound.Tap, pressedScale = 0.88f) { if (streaming) onStop() else onSend() }
+                .liveClick(CircleShape, sound = FeedbackSound.Go, pressedScale = 0.88f) { if (streaming) onStop() else onSend() }
                 .background(if (streaming || value.isNotBlank()) AppColors.Accent else AppColors.Line)
                 .semantics { contentDescription = if (streaming) "Остановить" else "Отправить" },
             contentAlignment = Alignment.Center,
@@ -1094,7 +1094,7 @@ private fun AccentButton(text: String, enabled: Boolean = true, modifier: Modifi
         modifier
             .fillMaxWidth()
             .height(46.dp)
-            .liveClick(shape, sound = FeedbackSound.Toggle, enabled = enabled, onClick = onClick)
+            .liveClick(shape, sound = FeedbackSound.Confirm, enabled = enabled, onClick = onClick)
             .background(if (enabled) Brush.verticalGradient(listOf(AppColors.AccentLight, AppColors.Accent)) else SolidColor(AppColors.AccentTintStrong)),
         contentAlignment = Alignment.Center,
     ) {

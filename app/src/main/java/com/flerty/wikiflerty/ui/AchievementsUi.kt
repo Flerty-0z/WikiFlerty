@@ -714,7 +714,7 @@ private fun ShowcaseMedal(
             }
             .clip(shape)
             .border(1.dp, edge, shape)
-            .liveClick(shape, sound = FeedbackSound.Tap, pressedScale = 0.92f, onClick = onClick)
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.92f, onClick = onClick)
             .padding(vertical = 6.dp, horizontal = 3.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(5.dp),

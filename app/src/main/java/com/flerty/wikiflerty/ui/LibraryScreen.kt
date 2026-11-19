@@ -342,7 +342,7 @@ fun LibraryScreen(
             Box(
                 Modifier
                     .size(44.dp)
-                    .liveClick(CircleShape, sound = FeedbackSound.Open) {
+                    .liveClick(CircleShape, sound = FeedbackSound.Dice) {
                         showRandom = true
                         app.achievements.event("random")
                     }
@@ -767,7 +767,7 @@ private fun RandomBookSheet(
                     Modifier
                         .weight(1f)
                         .height(52.dp)
-                        .liveClick(shape, sound = FeedbackSound.Open) {
+                        .liveClick(shape, sound = FeedbackSound.Read) {
                             close()
                             onRead(reelBook)
                         }
@@ -779,7 +779,7 @@ private fun RandomBookSheet(
                 Modifier
                     .weight(1f)
                     .height(52.dp)
-                    .liveClick(shape, sound = FeedbackSound.Toggle, enabled = pool.isNotEmpty()) { if (spinning) stop() else spin() }
+                    .liveClick(shape, sound = FeedbackSound.Dice, enabled = pool.isNotEmpty()) { if (spinning) stop() else spin() }
                     .then(
                         if (reelBook != null && !spinning) Modifier.border(1.dp, AppColors.Accent.copy(alpha = 0.4f), shape)
                         else Modifier.accentHighlight(shape),
@@ -1018,7 +1018,7 @@ private fun FilterRow(filter: LibraryFilter, ids: List<String>, count: Int, sele
         }
         if (onEdit != null) {
             Box(
-                Modifier.size(34.dp).liveClick(CircleShape, sound = FeedbackSound.Open, onClick = onEdit),
+                Modifier.size(34.dp).liveClick(CircleShape, sound = FeedbackSound.Edit, onClick = onEdit),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Pencil, "Изменить", tint = AppColors.Muted, modifier = Modifier.size(17.dp)) }
         }
@@ -1184,7 +1184,7 @@ private fun ShelfOrderList(
                                 dragging = id
                                 lifted = id
                                 target = order.indexOf(id)
-                                feedback?.play(FeedbackSound.Toggle)
+                                feedback?.play(FeedbackSound.Pick)
                             },
                             onDragEnd = { finish(id, commit = true) },
                             onDragCancel = { finish(id, commit = false) },
@@ -1198,7 +1198,7 @@ private fun ShelfOrderList(
                                 val now = android.os.SystemClock.uptimeMillis()
                                 if (now - lastSound[0] > 140) {
                                     lastSound[0] = now
-                                    feedback?.play(FeedbackSound.Toggle)
+                                    feedback?.play(FeedbackSound.Tick)
                                 }
                             }
                         }
@@ -1453,7 +1453,7 @@ private fun AddCoverTile(modifier: Modifier, onClick: () -> Unit) {
     val shape = appCorner(10)
     Box(
         modifier
-            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.95f, onClick = onClick)
+            .liveClick(shape, sound = FeedbackSound.Add, pressedScale = 0.95f, onClick = onClick)
             .dashedBorder(AppColors.PanelBorder, shape),
         contentAlignment = Alignment.Center,
     ) { Icon(AppIcons.Plus, "Добавить книгу", tint = AppColors.Faint, modifier = Modifier.size(26.dp)) }
@@ -1577,13 +1577,13 @@ private fun EmptyLibrary(onAddBook: () -> Unit, onScan: () -> Unit, modifier: Mo
         Spacer(Modifier.height(24.dp))
         val shape = appCorner(24)
         Box(
-            Modifier.heightIn(min = 48.dp).liveClick(shape, sound = FeedbackSound.Open, onClick = onAddBook)
+            Modifier.heightIn(min = 48.dp).liveClick(shape, sound = FeedbackSound.Add, onClick = onAddBook)
                 .accentHighlight(shape).padding(horizontal = 24.dp),
             contentAlignment = Alignment.Center,
         ) { Text("Добавить книгу", color = accentContent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
         Spacer(Modifier.height(10.dp))
         Row(
-            Modifier.heightIn(min = 44.dp).liveClick(shape, sound = FeedbackSound.Open, onClick = onScan)
+            Modifier.heightIn(min = 44.dp).liveClick(shape, sound = FeedbackSound.Search, onClick = onScan)
                 .border(1.dp, AppColors.Accent.copy(alpha = 0.35f), shape).padding(horizontal = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),

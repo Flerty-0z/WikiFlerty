@@ -70,7 +70,7 @@ private fun ColorDot(color: Long, selected: Boolean, onClick: () -> Unit, size: 
     val grow by androidx.compose.animation.core.animateFloatAsState(if (selected) 1f else 0.86f, androidx.compose.animation.core.spring(dampingRatio = 0.55f, stiffness = 520f), label = "dot-grow")
     Box(
         Modifier.size(size)
-            .liveClick(CircleShape, sound = FeedbackSound.Toggle, pressedScale = 0.85f, onClick = onClick)
+            .liveClick(CircleShape, sound = FeedbackSound.Segment, pressedScale = 0.85f, onClick = onClick)
             .border(2.dp, ring, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
@@ -107,7 +107,7 @@ fun TtsBar(playing: Boolean, speed: Double, actions: TtsActions, modifier: Modif
     ) {
         BarButton(AppIcons.Close, "Остановить", FeedbackSound.Close, actions.onStop)
         BarButton(AppIcons.EyeOff, "Скрыть панель", FeedbackSound.Close, onHide)
-        BarButton(AppIcons.SkipPrev, "Предыдущее предложение", FeedbackSound.Tap, actions.onPrevious)
+        BarButton(AppIcons.SkipPrev, "Предыдущее предложение", FeedbackSound.SkipBack, actions.onPrevious)
         val shape = CircleShape
         Box(
             Modifier.size(54.dp).liveClick(shape, sound = if (playing) FeedbackSound.Pause else FeedbackSound.Play, pressedScale = 0.9f, onClick = actions.onToggle).accentHighlight(shape),
@@ -115,8 +115,8 @@ fun TtsBar(playing: Boolean, speed: Double, actions: TtsActions, modifier: Modif
         ) {
             Icon(if (playing) AppIcons.Pause else AppIcons.Play, if (playing) "Пауза" else "Продолжить", tint = accentContent, modifier = Modifier.size(24.dp))
         }
-        BarButton(AppIcons.SkipNext, "Следующее предложение", FeedbackSound.Tap, actions.onNext)
-        BarButton(AppIcons.Sliders, "Параметры чтения вслух", FeedbackSound.Open, actions.onOpenSettings)
+        BarButton(AppIcons.SkipNext, "Следующее предложение", FeedbackSound.SkipNext, actions.onNext)
+        BarButton(AppIcons.Sliders, "Параметры чтения вслух", FeedbackSound.Sheet, actions.onOpenSettings)
     }
 }
 
@@ -143,14 +143,14 @@ fun TtsProblemPrompt(problem: ReadAloud.Problem, onInstall: () -> Unit, onDismis
         if (problem.openVoices) {
             val shape = appCorner(14)
             Box(
-                Modifier.heightIn(min = 36.dp).liveClick(shape, sound = FeedbackSound.Open, onClick = onVoices).accentHighlight(shape).padding(horizontal = 12.dp),
+                Modifier.heightIn(min = 36.dp).liveClick(shape, sound = FeedbackSound.Voice, onClick = onVoices).accentHighlight(shape).padding(horizontal = 12.dp),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Headphones, "Голоса", tint = accentContent, modifier = Modifier.size(18.dp)) }
         }
         if (problem.canInstallVoice) {
             val shape = appCorner(14)
             Box(
-                Modifier.heightIn(min = 36.dp).liveClick(shape, sound = FeedbackSound.Open, onClick = onInstall).accentHighlight(shape).padding(horizontal = 12.dp),
+                Modifier.heightIn(min = 36.dp).liveClick(shape, sound = FeedbackSound.Download, onClick = onInstall).accentHighlight(shape).padding(horizontal = 12.dp),
                 contentAlignment = Alignment.Center,
             ) { Text("Голоса", color = accentContent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
         }
@@ -192,7 +192,7 @@ private fun PiperVoiceList(selected: String, onSelect: (String) -> Unit) {
                 Modifier
                     .fillMaxWidth()
                     .heightIn(min = 50.dp)
-                    .liveClick(appCorner(12), sound = FeedbackSound.Toggle, pressedScale = 0.98f) {
+                    .liveClick(appCorner(12), sound = FeedbackSound.Voice, pressedScale = 0.98f) {
                         onSelect(v.id)
                         if (!has && p == null) scope.launch { com.flerty.wikiflerty.tts.PiperVoices.download(context, v.id) }
                     },
@@ -240,7 +240,7 @@ private fun PiperVoiceList(selected: String, onSelect: (String) -> Unit) {
                 ) { t ->
                     when (t) {
                         1 -> Box(
-                            Modifier.size(36.dp).liveClick(CircleShape, sound = FeedbackSound.Close) { com.flerty.wikiflerty.tts.PiperVoices.delete(context, v.id) },
+                            Modifier.size(36.dp).liveClick(CircleShape, sound = FeedbackSound.Trash) { com.flerty.wikiflerty.tts.PiperVoices.delete(context, v.id) },
                             contentAlignment = Alignment.Center,
                         ) { Icon(AppIcons.Trash, "Удалить голос", tint = AppColors.Faint, modifier = Modifier.size(17.dp)) }
                         2 -> Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) { Icon(AppIcons.Download, "Скачать", tint = AppColors.Accent, modifier = Modifier.size(20.dp)) }
@@ -284,7 +284,7 @@ fun TtsOptions(
     ) { isActive ->
     if (!isActive) {
         Row(
-            Modifier.fillMaxWidth().heightIn(min = 54.dp).liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.97f, onClick = actions.onStart).accentHighlight(shape),
+            Modifier.fillMaxWidth().heightIn(min = 54.dp).liveClick(shape, sound = FeedbackSound.Play, pressedScale = 0.97f, onClick = actions.onStart).accentHighlight(shape),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
@@ -295,7 +295,7 @@ fun TtsOptions(
     } else {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
-                Modifier.weight(1f).heightIn(min = 54.dp).liveClick(shape, sound = FeedbackSound.Toggle, onClick = actions.onToggle).accentHighlight(shape),
+                Modifier.weight(1f).heightIn(min = 54.dp).liveClick(shape, sound = if (playing) FeedbackSound.Pause else FeedbackSound.Play, onClick = actions.onToggle).accentHighlight(shape),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
             ) {
