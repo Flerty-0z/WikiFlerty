@@ -77,6 +77,17 @@ class MainActivity : ComponentActivity() {
             intent.setAction(null)
             return
         }
+        if (intent?.action == Intent.ACTION_SEND_MULTIPLE) {
+            val many: List<Uri> = if (Build.VERSION.SDK_INT >= 33) {
+                intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java).orEmpty()
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM).orEmpty()
+            }
+            if (many.isNotEmpty()) libraryViewModel.importAll(many)
+            intent.setAction(null)
+            return
+        }
         val uri: Uri? = when (intent?.action) {
             Intent.ACTION_VIEW -> intent.data
             Intent.ACTION_SEND -> if (Build.VERSION.SDK_INT >= 33) {
@@ -87,6 +98,10 @@ class MainActivity : ComponentActivity() {
             }
             else -> null
         }
-        if (uri != null) libraryViewModel.import(uri, openAfterImport = true)
+        if (uri != null) {
+            val open = (applicationContext as com.flerty.wikiflerty.App).libraryPrefs.prefs.value.openAfterAdd
+            libraryViewModel.import(uri, openAfterImport = open)
+            intent.setAction(null)
+        }
     }
 }

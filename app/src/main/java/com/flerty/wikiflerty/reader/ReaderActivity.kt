@@ -114,6 +114,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         return ui.chapterMarks.lastOrNull { it.at <= at + 0.0001 }?.item?.title?.takeIf { it.isNotBlank() }
     }
     private var inkTurns = 0
+    private var inkImage = false
+    private var inkJob: Job? = null
     private val ui = ReaderUiState()
     private lateinit var navigator: EpubNavigatorFragment
     private val fontState = androidx.compose.runtime.mutableStateOf<List<FontEntry>>(emptyList())
@@ -2128,13 +2130,16 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                             val first = lastTurnKey == null
                             lastTurnKey = turnKey
                             val every = com.flerty.wikiflerty.ui.EInk.refresh
+                            var flashed = false
                             if (!first && com.flerty.wikiflerty.ui.EInk.on && every > 0 && !settings.scroll) {
                                 inkTurns++
                                 if (inkTurns >= every) {
                                     inkTurns = 0
                                     ui.inkFlash++
+                                    flashed = true
                                 }
                             }
+                            if (!first && com.flerty.wikiflerty.ui.EInk.on && !settings.scroll) inkImages(href, flashed)
                         }
                         updatePageCount(locator)
                         val position = locator.locations.position
@@ -2734,6 +2739,29 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private val imageHrefs = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
     private val imageCache = android.util.LruCache<String, ImageBitmap>(24)
+
+    private fun inkImages(href: String, flashed: Boolean) {
+        val before = inkImage
+        inkJob?.cancel()
+        if (imageHrefs[href] != true && !before) {
+            inkImage = false
+            return
+        }
+        inkJob = lifecycleScope.launch {
+            var seen = false
+            for (attempt in 0 until 6) {
+                delay(if (attempt == 0) 220L else 300L)
+                val state = runCatching { navigator.evaluateJavascript(INK_IMAGES_JS) }.getOrNull().orEmpty()
+                seen = state.contains("img")
+                if (!state.contains("wait")) break
+            }
+            inkImage = seen
+            if ((seen || before) && !flashed) {
+                ui.inkFlash++
+                inkTurns = 0
+            }
+        }
+    }
 
     private fun hasImages(href: String) {
         if (imageHrefs.containsKey(href)) return
@@ -4197,6 +4225,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private companion object {
         var lastReboot = 0L
         private const val PAGE_SNIPPET_JS = "(function(){if(!document.caretRangeFromPoint||!document.body)return '';var w=window.innerWidth,h=window.innerHeight,xs=[14,w*0.2,w*0.4,w*0.6];for(var y=4;y<h;y+=6){for(var i=0;i<xs.length;i++){var r=document.caretRangeFromPoint(xs[i],y);if(!r)continue;var n=r.startContainer;if(!n||n.nodeType!==3||!/\\S/.test(n.data))continue;var p=n.parentNode;if(p&&/^(SCRIPT|STYLE|TITLE)$/i.test(p.nodeName))continue;var b=n.parentElement&&n.parentElement.getBoundingClientRect();if(b&&(b.right<=0||b.left>=w))continue;var o=Math.min(r.startOffset,n.data.length);while(o>0&&/\\S/.test(n.data.charAt(o-1)))o--;var out=n.data.slice(o);var tw=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null);tw.currentNode=n;var m;while(out.length<200&&(m=tw.nextNode())){var q=m.parentNode;if(q&&/^(SCRIPT|STYLE)$/i.test(q.nodeName))continue;out+=m.data;}return out.slice(0,200);}}return '';})()"
+        private const val INK_IMAGES_JS = "(function(){var w=window.innerWidth,h=window.innerHeight,img=false,wait=false;var els=document.querySelectorAll('img,image,svg,video,canvas');for(var i=0;i<els.length;i++){var r=els[i].getBoundingClientRect();if(r.width<24||r.height<24)continue;if(r.right<=1||r.left>=w-1||r.bottom<=1||r.top>=h-1)continue;img=true;if(els[i].tagName==='IMG'&&!els[i].complete)wait=true;}return (img?'img':'none')+(wait?' wait':'');})()"
         private const val TTS_WORD_OUT_JS = "(function(){var c=document.querySelector('[data-group=\"tts-word\"]');if(!c)return '';var bs=c.querySelectorAll('*');var w=window.innerWidth,h=window.innerHeight,seen=false,right=false,any=false;for(var i=0;i<bs.length;i++){if(bs[i].style.position!=='absolute')continue;var r=bs[i].getBoundingClientRect();if(!r.width&&!r.height)continue;any=true;if(r.right>1&&r.left<w-1&&r.bottom>1&&r.top<h-1){seen=true;break;}if(r.left>=w-1||r.top>=h-1)right=true;}if(!any||seen)return 'in';return right?'out-next':'out';})()"
         const val MIN_TEXT_FOR_RATIO = 2500
         private const val PAGE_COUNT_JS = "(function(){var e=document.scrollingElement;if(!e)return '';var w=window.innerWidth,h=window.innerHeight;if(e.scrollWidth>w+4){var n=Math.max(1,Math.round(e.scrollWidth/w));var c=Math.min(n,Math.round(Math.abs(e.scrollLeft)/w)+1);return c+'|'+n;}var n2=Math.max(1,Math.ceil((e.scrollHeight-4)/h));var c2=Math.min(n2,Math.floor((e.scrollTop+4)/h)+1);return c2+'|'+n2;})()"

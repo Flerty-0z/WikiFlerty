@@ -562,10 +562,11 @@ class LibraryRepository(
                 if (it.id != bookId) {
                     it
                 } else {
-                    val started = it.status == ReadStatus.New || it.status == ReadStatus.Planned
+                    val progress = override ?: locator.locations.totalProgression ?: it.progress
+                    val started = (it.status == ReadStatus.New || it.status == ReadStatus.Planned) && progress > 0.0
                     it.copy(
                         locatorJson = json,
-                        progress = override ?: locator.locations.totalProgression ?: it.progress,
+                        progress = progress,
                         lastReadAt = now,
                         status = if (started) ReadStatus.Reading else it.status,
                         metaChangedAt = if (started) now else it.metaChangedAt,

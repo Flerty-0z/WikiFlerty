@@ -897,6 +897,11 @@ fun LibraryViewSheet(prefs: LibraryPrefs, onDismiss: () -> Unit) {
                 }
             }
         }
+        SettingsGroup(null) {
+            SettingSwitch("Открывать после добавления", prefs.openAfterAdd, hint = null, icon = AppIcons.Book) { v ->
+                app.libraryPrefs.update { it.copy(openAfterAdd = v) }
+            }
+        }
     }
 }
 

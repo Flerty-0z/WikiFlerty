@@ -107,7 +107,17 @@ object Studio {
             File(dir, "app.log").appendText(text + "\n")
         }
         com.flerty.wikiflerty.tts.ReadAloud.trace = { line -> log("TTS $line") }
-        if (scene == "ttsjump") (app as App).readerSettings.update { it.copy(ttsEngine = com.flerty.wikiflerty.tts.NeuralVoices.SILENT) }
+        if (scene == "ttsjump" || scene == "memsoak") (app as App).readerSettings.update { it.copy(ttsEngine = com.flerty.wikiflerty.tts.NeuralVoices.SILENT) }
+        val memory = scope.launch {
+            val rt = Runtime.getRuntime()
+            val began = SystemClock.uptimeMillis()
+            while (true) {
+                val used = (rt.totalMemory() - rt.freeMemory()) / 1_048_576
+                val native = android.os.Debug.getNativeHeapAllocatedSize() / 1_048_576
+                log("MEM t=${(SystemClock.uptimeMillis() - began) / 1000}s java=${used}MB max=${rt.maxMemory() / 1_048_576}MB native=${native}MB threads=${Thread.activeCount()}")
+                delay(5000)
+            }
+        }
         scope.launch {
             runCatching {
                 val prepared = prepare(app)
@@ -141,6 +151,18 @@ object Studio {
                     )
                     if (driver.screen.isNotEmpty()) File(dir, "screen.txt").writeText(driver.screen)
                     log("result ok=$ok $message")
+                    memory.cancel()
+                    if (scene == "memsoak") {
+                        runCatching {
+                            Runtime.getRuntime().gc()
+                            Thread.sleep(800)
+                            Runtime.getRuntime().gc()
+                            val rt = Runtime.getRuntime()
+                            log("MEM final java=${(rt.totalMemory() - rt.freeMemory()) / 1_048_576}MB")
+                            android.os.Debug.dumpHprofData(File(dir, "heap.hprof").absolutePath)
+                            log("heap dumped ${File(dir, "heap.hprof").length() / 1_048_576}MB")
+                        }.onFailure { log("heap dump failed: $it") }
+                    }
                     File(dir, "done").writeText(if (ok) "ok" else "fail")
                     filming = false
                 }

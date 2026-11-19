@@ -108,6 +108,7 @@ class Film {
         }
         sh("cp $appDir/screen.txt $out/")
         sh("cp $appDir/app.log $out/")
+        sh("cp $appDir/heap.hprof $out/")
         put("marks.json", File(local, "marks.json"))
         log(sh("ls -la $out"))
         put("film.log", File(local, "film.log"))
