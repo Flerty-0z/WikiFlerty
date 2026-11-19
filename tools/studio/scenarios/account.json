@@ -1,0 +1,231 @@
+{
+ "title": "Аккаунт и облако",
+ "lenient": true,
+ "steps": [
+  {
+   "do": "launch",
+   "fresh": true,
+   "ms": 2500
+  },
+  {
+   "do": "tap",
+   "text": "Позже",
+   "timeout": 1500,
+   "optional": true
+  },
+  {
+   "do": "wait",
+   "text": "Моя полка",
+   "timeout": 10000,
+   "after": 2500
+  },
+  {
+   "do": "tap",
+   "text": "Настройки",
+   "desc": true,
+   "timeout": 5000,
+   "after": 1800
+  },
+  {
+   "do": "dump",
+   "text": "settings"
+  },
+  {
+   "do": "tap",
+   "text": "Аккаунт",
+   "timeout": 5000,
+   "after": 1800
+  },
+  {
+   "do": "dump",
+   "text": "signin"
+  },
+  {
+   "do": "tap",
+   "text": "Регистрация",
+   "exact": true,
+   "timeout": 4000,
+   "after": 900
+  },
+  {
+   "do": "tap",
+   "text": "Логин",
+   "exact": true,
+   "timeout": 4000,
+   "after": 600
+  },
+  {
+   "do": "type",
+   "text": "studio_check",
+   "after": 500
+  },
+  {
+   "do": "tap",
+   "text": "Пароль",
+   "exact": true,
+   "timeout": 4000,
+   "after": 600
+  },
+  {
+   "do": "type",
+   "text": "studio-pass-1",
+   "after": 500
+  },
+  {
+   "do": "tap",
+   "text": "Пароль ещё раз",
+   "exact": true,
+   "timeout": 4000,
+   "after": 600
+  },
+  {
+   "do": "type",
+   "text": "studio-pass-1",
+   "after": 500
+  },
+  {
+   "do": "back",
+   "after": 900
+  },
+  {
+   "do": "dump",
+   "text": "filled"
+  },
+  {
+   "do": "tap",
+   "text": "Создать аккаунт",
+   "timeout": 4000,
+   "after": 4000
+  },
+  {
+   "do": "wait",
+   "text": "Код восстановления",
+   "timeout": 20000,
+   "optional": true,
+   "after": 1200
+  },
+  {
+   "do": "dump",
+   "text": "recovery"
+  },
+  {
+   "do": "tap",
+   "text": "Я сохранил",
+   "timeout": 3000,
+   "optional": true,
+   "after": 1500
+  },
+  {
+   "do": "tap",
+   "text": "Вход",
+   "exact": true,
+   "timeout": 2000,
+   "optional": true,
+   "after": 800
+  },
+  {
+   "do": "tap",
+   "text": "Логин",
+   "exact": true,
+   "timeout": 2000,
+   "optional": true,
+   "after": 600
+  },
+  {
+   "do": "type",
+   "text": "studio_check",
+   "optional": true,
+   "after": 500
+  },
+  {
+   "do": "tap",
+   "text": "Пароль",
+   "exact": true,
+   "timeout": 2000,
+   "optional": true,
+   "after": 600
+  },
+  {
+   "do": "type",
+   "text": "studio-pass-1",
+   "optional": true,
+   "after": 500
+  },
+  {
+   "do": "tap",
+   "text": "Войти",
+   "exact": true,
+   "timeout": 2000,
+   "optional": true,
+   "after": 4000
+  },
+  {
+   "do": "wait",
+   "text": "Книги в облаке",
+   "timeout": 15000,
+   "after": 20000
+  },
+  {
+   "do": "dump",
+   "text": "account"
+  },
+  {
+   "do": "pause",
+   "ms": 25000
+  },
+  {
+   "do": "dump",
+   "text": "account-later"
+  },
+  {
+   "do": "scrollTo",
+   "text": "Удалить аккаунт",
+   "y": 0.75,
+   "y2": 0.35,
+   "times": 2,
+   "after": 1000
+  },
+  {
+   "do": "dump",
+   "text": "bottom"
+  },
+  {
+   "do": "tap",
+   "text": "Удалить аккаунт",
+   "timeout": 4000,
+   "after": 1500
+  },
+  {
+   "do": "tap",
+   "text": "Пароль",
+   "exact": true,
+   "timeout": 4000,
+   "after": 600
+  },
+  {
+   "do": "type",
+   "text": "studio-pass-1",
+   "after": 500
+  },
+  {
+   "do": "back",
+   "after": 900
+  },
+  {
+   "do": "tap",
+   "text": "Удалить навсегда",
+   "timeout": 4000,
+   "after": 5000
+  },
+  {
+   "do": "wait",
+   "text": "Регистрация",
+   "timeout": 15000,
+   "after": 1500
+  },
+  {
+   "do": "dump",
+   "text": "deleted"
+  }
+ ]
+}
