@@ -16,10 +16,12 @@ def call(method, params=None):
 for u in call("getUpdates", {"timeout": 0, "allowed_updates": json.dumps(["message", "my_chat_member", "channel_post"])}).get("result", []):
     m = u.get("message") or u.get("channel_post")
     if m and (str(m["chat"]["id"]) == owner or m["chat"].get("type") == "channel"):
-        print("msg", m["chat"]["id"], m["chat"].get("type"), (m.get("text") or m.get("caption") or "")[:200])
+        print("msg", m["chat"]["id"], m["chat"].get("type"), json.dumps(m.get("text") or m.get("caption") or "", ensure_ascii=False))
         for e in m.get("entities", []) or []:
             if e["type"] == "custom_emoji":
-                print("  emoji", e["custom_emoji_id"])
+                print("  emoji", e["offset"], e["length"], e["custom_emoji_id"])
+            elif e["type"] in ("text_link", "url", "mention", "blockquote", "expandable_blockquote", "bold", "italic"):
+                print("  ent", e["type"], e["offset"], e["length"], e.get("url", ""))
         if m.get("sticker"):
             print("  sticker set", m["sticker"].get("set_name"), m["sticker"].get("custom_emoji_id"))
         f = m.get("forward_origin") or {}
