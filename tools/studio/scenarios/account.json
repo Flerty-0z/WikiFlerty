@@ -21,6 +21,43 @@
   },
   {
    "do": "tap",
+   "text": "Добавить книгу",
+   "desc": true,
+   "timeout": 5000,
+   "after": 1600
+  },
+  {
+   "do": "tap",
+   "text": "Выбрать",
+   "timeout": 4000,
+   "after": 2200
+  },
+  {
+   "do": "tree",
+   "text": "WikiFlerty Studio",
+   "timeout": 6000,
+   "after": 1500
+  },
+  {
+   "do": "backIf",
+   "text": "Автоимпорт",
+   "timeout": 2500,
+   "after": 800
+  },
+  {
+   "do": "pause",
+   "ms": 6000
+  },
+  {
+   "do": "pause",
+   "ms": 8000
+  },
+  {
+   "do": "dump",
+   "text": "library"
+  },
+  {
+   "do": "tap",
    "text": "Настройки",
    "desc": true,
    "timeout": 5000,

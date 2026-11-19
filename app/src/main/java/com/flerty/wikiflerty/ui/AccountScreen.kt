@@ -44,6 +44,7 @@ fun cloudSize(bytes: Long): String {
     return when {
         bytes >= gb -> String.format(java.util.Locale.forLanguageTag("ru"), "%.1f ГБ", bytes / gb)
         bytes >= mb -> "${(bytes / mb).toInt()} МБ"
+        bytes <= 0 -> "0 МБ"
         else -> "${(bytes / 1024).coerceAtLeast(1)} КБ"
     }
 }
@@ -58,15 +59,17 @@ fun AccountContent() {
         SyncContent()
         return
     }
+    var recovery by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     androidx.compose.animation.Crossfade(state.signedIn, animationSpec = Motion.fade(260), label = "account") { signed ->
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (signed) SignedIn(account, state) else SignIn(account)
+            if (signed) SignedIn(account, state) else SignIn(account) { recovery = it }
         }
     }
+    recovery?.let { code -> RecoveryCodeSheet(code) { recovery = null } }
 }
 
 @Composable
-private fun SignIn(account: Account) {
+private fun SignIn(account: Account, onRecovery: (String) -> Unit) {
     val context = LocalContext.current
     val app = context.applicationContext as App
     val cloud by app.cloud.status.collectAsStateWithLifecycle()
@@ -76,7 +79,6 @@ private fun SignIn(account: Account) {
     var password by remember { mutableStateOf("") }
     var repeat by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
-    var recovery by remember { mutableStateOf<String?>(null) }
     var forgot by remember { mutableStateOf(false) }
     fun toast(text: String) = Toast.makeText(context, text, Toast.LENGTH_LONG).show()
 
@@ -90,7 +92,7 @@ private fun SignIn(account: Account) {
         busy = true
         scope.launch {
             if (mode == 1) {
-                account.register(name, password).onSuccess { recovery = it }.onFailure { toast(it.message ?: "Не получилось") }
+                account.register(name, password).onSuccess { onRecovery(it) }.onFailure { toast(it.message ?: "Не получилось") }
             } else {
                 account.login(name, password).onSuccess { toast("Вход выполнен") }.onFailure { toast(it.message ?: "Не получилось") }
             }
@@ -128,8 +130,7 @@ private fun SignIn(account: Account) {
     Text("Без аккаунта, по коду", color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp, top = 6.dp))
     SyncContent()
 
-    if (forgot) RecoverSheet(account, login, onDone = { code -> forgot = false; recovery = code }) { forgot = false }
-    recovery?.let { code -> RecoveryCodeSheet(code) { recovery = null } }
+    if (forgot) RecoverSheet(account, login, onDone = { code -> forgot = false; onRecovery(code) }) { forgot = false }
 }
 
 @Composable
