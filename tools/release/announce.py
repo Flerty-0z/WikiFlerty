@@ -27,8 +27,8 @@ text = (
 )
 keyboard = {
     "inline_keyboard": [
-        [{"text": "Скачать x32", "url": f"{apk}-x32.apk", "style": "success"}, {"text": "Скачать x64", "url": f"{apk}-x64.apk", "style": "success"}],
-        [{"text": "Открыть на GitHub", "url": url, "style": "primary"}],
+        [{"text": "Скачать x32", "url": f"{apk}-x32.apk", "style": "primary"}, {"text": "Скачать x64", "url": f"{apk}-x64.apk", "style": "success"}],
+        [{"text": "Открыть на GitHub", "url": url, "style": "danger"}],
     ]
 }
 params = {
