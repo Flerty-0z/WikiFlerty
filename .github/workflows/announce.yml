@@ -29,4 +29,10 @@ jobs:
           kid=$(gh api "repos/$REPO/releases?per_page=100" -q '[.[] | select(.tag_name=="film-kit")][0].assets[0].id')
           gh api -H "Accept: application/octet-stream" "repos/$REPO/releases/assets/$kid" > kit.zip
           unzip -oq kit.zip chat.txt -d tg
-          python3 tools/release/announce.py tg/chat.txt "${{ inputs.version }}" tools/release/announce.txt
+          mkdir -p apk
+          for id in $(gh api "repos/$REPO/releases/tags/v${{ inputs.version }}" -q '.assets[] | select(.name | endswith(".apk")) | .id'); do
+            name=$(gh api "repos/$REPO/releases/assets/$id" -q .name)
+            gh api -H "Accept: application/octet-stream" "repos/$REPO/releases/assets/$id" > "apk/$name"
+          done
+          ls -la apk
+          python3 tools/release/announce.py tg/chat.txt "${{ inputs.version }}" tools/release/announce.txt apk

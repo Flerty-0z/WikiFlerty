@@ -9,6 +9,7 @@ import urllib.request
 import uuid
 
 chat_file, version, notes_file = sys.argv[1], sys.argv[2], sys.argv[3]
+apk_dir = sys.argv[4] if len(sys.argv) > 4 else ""
 repo = os.environ.get("REPO", "Flerty-0z/WikiFlerty")
 token = os.environ["TELEGRAM_BOT_TOKEN"]
 api = f"https://api.telegram.org/bot{token}/"
@@ -25,13 +26,15 @@ def call(method, params=None, files=None):
         for k, v in (params or {}).items():
             parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n".encode())
         for k, path in files.items():
-            parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{k}\"; filename=\"{k}.png\"\r\nContent-Type: image/png\r\n\r\n".encode() + open(path, "rb").read() + b"\r\n")
+            fname = os.path.basename(path) if path.endswith(".apk") else k + ".png"
+            ctype = "application/vnd.android.package-archive" if path.endswith(".apk") else "image/png"
+            parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{k}\"; filename=\"{fname}\"\r\nContent-Type: {ctype}\r\n\r\n".encode() + open(path, "rb").read() + b"\r\n")
         parts.append(f"--{boundary}--\r\n".encode())
         req = urllib.request.Request(api + method, data=b"".join(parts), headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
     else:
         req = urllib.request.Request(api + method, data=urllib.parse.urlencode(params or {}).encode())
     try:
-        with urllib.request.urlopen(req, timeout=60) as r:
+        with urllib.request.urlopen(req, timeout=300 if files else 60) as r:
             return json.loads(r.read())
     except urllib.error.HTTPError as e:
         return json.loads(e.read() or b"{}")
@@ -117,10 +120,11 @@ text = (
 )
 
 
-def keyboard():
+def keyboard(links=None):
+    links = links or {}
     return {
         "inline_keyboard": [
-            [{"text": "Скачать x32", "url": f"{apk}-x32.apk"}, {"text": "Скачать x64", "url": f"{apk}-x64.apk"}],
+            [{"text": "Скачать x32", "url": links.get("x32") or f"{apk}-x32.apk"}, {"text": "Скачать x64", "url": links.get("x64") or f"{apk}-x64.apk"}],
             [{"text": "Открыть на GitHub", "url": url, "style": "danger"}],
         ]
     }
@@ -146,6 +150,24 @@ def send(target):
     return None
 
 
+CAPTIONS = {"x64": "x64 — для большинства телефонов", "x32": "x32 — для старых телефонов"}
+for arch in ("x64", "x32"):
+    path = os.path.join(apk_dir, f"WikiFlerty-{version}-{arch}.apk") if apk_dir else ""
+    if not path or not os.path.exists(path):
+        continue
+    if os.path.getsize(path) > 50 * 1048576:
+        print("too big", arch, os.path.getsize(path))
+        continue
+    for attempt in range(3):
+        try:
+            r = call("sendDocument", {"chat_id": chat, "caption": f"WikiFlerty {version} · {CAPTIONS[arch]}"}, {"document": path})
+            print("file", arch, r.get("ok"), r.get("description", ""))
+            if r.get("ok"):
+                break
+        except Exception as e:
+            print("file retry", arch, e)
+        time.sleep(5)
+
 if not send(chat):
     sys.exit("не отправилось")
 
@@ -157,18 +179,34 @@ if channel and wait > 0:
     offset = pending[-1]["update_id"] + 1 if pending else 0
     mark = f"обновление {version}"
     deadline = time.time() + wait * 60
-    attached = False
-    while not attached and time.time() < deadline:
+    post_id = None
+    files = {}
+    shown = None
+    while time.time() < deadline and not (post_id and len(files) == 2 and shown == files):
         r = call("getUpdates", {"offset": offset, "timeout": 50, "allowed_updates": json.dumps(["channel_post"])})
         for u in r.get("result", []):
             offset = u["update_id"] + 1
             post = u.get("channel_post")
-            if post and str(post["chat"]["id"]) == channel and mark in (post.get("text") or "") and not post.get("reply_markup"):
-                e = call("editMessageReplyMarkup", {"chat_id": channel, "message_id": post["message_id"], "reply_markup": json.dumps(keyboard(), ensure_ascii=False)})
-                print("attach", e.get("ok"), e.get("description", ""))
-                if e.get("ok"):
-                    attached = True
-                    call("sendMessage", {"chat_id": chat, "text": "Кнопки добавлены к посту в канале"})
+            if not post or str(post["chat"]["id"]) != channel:
+                continue
+            name = (post.get("document") or {}).get("file_name", "")
+            for arch in ("x64", "x32"):
+                if name == f"WikiFlerty-{version}-{arch}.apk":
+                    user = post["chat"].get("username")
+                    files[arch] = f"https://t.me/{user}/{post['message_id']}" if user else f"https://t.me/c/{str(channel)[4:]}/{post['message_id']}"
+            if post_id is None and mark in (post.get("text") or "") and not post.get("reply_markup"):
+                post_id = post["message_id"]
+        if post_id and shown != files:
+            e = call("editMessageReplyMarkup", {"chat_id": channel, "message_id": post_id, "reply_markup": json.dumps(keyboard(dict(files)), ensure_ascii=False)})
+            print("attach", e.get("ok"), sorted(files), e.get("description", ""))
+            if e.get("ok"):
+                first = shown is None
+                shown = dict(files)
+                if first:
+                    call("sendMessage", {"chat_id": chat, "text": "Кнопки добавлены к посту в канале" + (", скачивание идёт из файлов в канале" if len(files) == 2 else "")})
+                elif len(files) == 2:
+                    call("sendMessage", {"chat_id": chat, "text": "Кнопки скачивания теперь ведут на файлы в канале"})
         if r.get("ok") is False:
             time.sleep(5)
+    attached = shown is not None
     print("attached" if attached else "no post")

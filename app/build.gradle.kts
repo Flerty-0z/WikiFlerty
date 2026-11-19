@@ -60,6 +60,8 @@ android {
 
     packaging {
         resources.excludes.add("META-INF/*")
+        resources.excludes.add("org/bouncycastle/pqc/**")
+        jniLibs.useLegacyPackaging = true
     }
 
     splits {
