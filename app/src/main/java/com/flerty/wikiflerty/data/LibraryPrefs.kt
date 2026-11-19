@@ -51,7 +51,6 @@ data class LibraryPrefs(
     val plankOrder: List<String> = emptyList(),
     val bookOrder: List<String> = emptyList(),
     val restShelves: List<Int> = emptyList(),
-    val openAfterAdd: Boolean = true,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("filter", filter)
@@ -75,7 +74,6 @@ data class LibraryPrefs(
         put("plankOrder", JSONArray(plankOrder))
         put("bookOrder", JSONArray(bookOrder))
         put("restShelves", JSONArray(restShelves))
-        put("openAfterAdd", openAfterAdd)
     }
 
     companion object {
@@ -94,7 +92,6 @@ data class LibraryPrefs(
             shelfBehavior = j.optBoolean("shelfBehavior", true),
             autoInfo = j.optBoolean("autoInfo", true),
             aura = j.optBoolean("aura", true),
-            openAfterAdd = j.optBoolean("openAfterAdd", true),
             tagShelves = j.optJSONArray("tagShelves")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
             plankOrder = j.optJSONArray("plankOrder")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
             bookOrder = j.optJSONArray("bookOrder")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
