@@ -1,6 +1,7 @@
 import html
 import json
 import os
+import random
 import sys
 import time
 import urllib.error
@@ -78,17 +79,9 @@ def animated():
     for name in [x.strip() for x in open(path).read().split() if x.strip()]:
         for st in call("getStickerSet", {"name": name}).get("result", {}).get("stickers", []):
             key = (st.get("emoji") or "").replace("\ufe0f", "")
-            if key and key not in found:
-                found[key] = st["custom_emoji_id"]
+            if key:
+                found.setdefault(key, []).append(st["custom_emoji_id"])
     return found
-
-
-def line(item, found):
-    head, sep, rest = item.partition(" ")
-    key = head.replace("\ufe0f", "")
-    if sep and key in found and not head.startswith("—"):
-        return f'<tg-emoji emoji-id="{found[key]}">{html.escape(head)}</tg-emoji> {html.escape(rest)}'
-    return html.escape(item)
 
 
 try:
@@ -96,12 +89,32 @@ try:
 except Exception as e:
     print("emoji", e)
     emoji_ids = {}
-body = "\n\n".join(line(i, emoji_ids) for i in items)
+
+
+def emoji(char, pick_any=False):
+    ids = emoji_ids.get(char.replace("\ufe0f", ""))
+    if not ids:
+        return html.escape(char)
+    return f'<tg-emoji emoji-id="{random.choice(ids) if pick_any else ids[0]}">{html.escape(char)}</tg-emoji>'
+
+
+def line(item):
+    head, sep, rest = item.partition(" ")
+    if sep and not head.startswith("—") and head.replace("\ufe0f", "") in emoji_ids:
+        return f"{emoji(head)} {html.escape(rest)}"
+    return html.escape(item)
+
+
+MOOD = ["✨", "☄️", "🌈", "🌛", "❄️", "⭐️", "🌟", "⚡️", "🔥", "💎", "🎉"]
+mood = random.choice([m for m in MOOD if m.replace("\ufe0f", "") in emoji_ids] or MOOD)
+contact_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contact.txt")
+contact = open(contact_file, encoding="utf-8").read().strip() if os.path.exists(contact_file) else "Если что-то не так, пишите @F1erty0z"
+body = "\n\n".join(line(i) for i in items)
 text = (
-    f"<b>Ребята, вышло обновление {version}</b>\n\n"
-    f"{body}\n\n"
-    "Огромная просьба перед обновлением сделать «Резервную копию»\n\n"
-    "Если что-то не так, пишите @F1erty0z"
+    f"<b>Ребята, вышло обновление {version}</b> {emoji(mood, True)}\n\n"
+    f"<blockquote expandable>{body}</blockquote>\n\n"
+    f"<blockquote>Огромная просьба перед обновлением сделать «Резервную копию» {emoji('🛡')}\n\n"
+    f"{contact}</blockquote>"
 )
 app_icon, gh_icon = icons()
 
@@ -151,55 +164,5 @@ def send(target):
     return None
 
 
-preview = send(chat)
-if not preview:
+if not send(chat):
     sys.exit("не отправилось")
-
-channel_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "channel.txt")
-channel = os.environ.get("CHANNEL", "").strip() or (open(channel_file).read().strip() if os.path.exists(channel_file) else "")
-if channel:
-    wait = int(os.environ.get("WAIT_MINUTES", "120"))
-    pending = call("getUpdates", {"offset": -1, "timeout": 0}).get("result", [])
-    offset = pending[-1]["update_id"] + 1 if pending else 0
-    ask = call("sendMessage", {
-        "chat_id": chat,
-        "text": f"Отправить этот анонс в канал? Кнопки работают {wait} минут, ещё можно написать «Отправить» или «Не отправлять»",
-        "reply_markup": json.dumps({"inline_keyboard": [[
-            {"text": "Отправить", "callback_data": "post", "style": "success"},
-            {"text": "Не отправлять", "callback_data": "skip"},
-        ]]}, ensure_ascii=False),
-    })
-    ask_id = ask.get("result", {}).get("message_id")
-    decision = None
-    deadline = time.time() + wait * 60
-    while decision is None and time.time() < deadline:
-        r = call("getUpdates", {"offset": offset, "timeout": 50, "allowed_updates": json.dumps(["message", "callback_query"])})
-        for u in r.get("result", []):
-            offset = u["update_id"] + 1
-            q = u.get("callback_query")
-            m = u.get("message")
-            if q and str(q["from"]["id"]) == chat and q.get("data") in ("post", "skip"):
-                call("answerCallbackQuery", {"callback_query_id": q["id"]})
-                decision = q["data"]
-            elif m and str(m["chat"]["id"]) == chat:
-                said = (m.get("text") or "").strip().lower().lstrip("/")
-                if said in ("отправить", "send", "post"):
-                    decision = "post"
-                elif said in ("не отправлять", "отмена", "cancel", "skip"):
-                    decision = "skip"
-        if r.get("ok") is False:
-            time.sleep(5)
-    if decision == "post":
-        moved = call("forwardMessage", {"chat_id": channel, "from_chat_id": chat, "message_id": preview})
-        print("forward", moved.get("ok"), moved.get("description", ""))
-        done = moved.get("ok") or send(channel)
-        note = "Анонс отправлен в канал" if done else "Не получилось отправить в канал, проверь, что бот там админ"
-    elif decision == "skip":
-        note = "Хорошо, в канал не отправляю"
-    else:
-        note = "Время вышло, в канал не отправлено. Можно повторить через Announce на GitHub"
-    if ask_id:
-        call("editMessageText", {"chat_id": chat, "message_id": ask_id, "text": note})
-    else:
-        call("sendMessage", {"chat_id": chat, "text": note})
-    print(note)
