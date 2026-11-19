@@ -3,6 +3,7 @@ import os
 import urllib.parse
 import urllib.request
 
+owner = os.environ.get("OWNER", "")
 api = f"https://api.telegram.org/bot{os.environ['TELEGRAM_BOT_TOKEN']}/"
 
 
@@ -14,7 +15,7 @@ def call(method, params=None):
 
 for u in call("getUpdates", {"timeout": 0, "allowed_updates": json.dumps(["message", "my_chat_member", "channel_post"])}).get("result", []):
     m = u.get("message") or u.get("channel_post")
-    if m:
+    if m and (str(m["chat"]["id"]) == owner or m["chat"].get("type") == "channel"):
         print("msg", m["chat"]["id"], m["chat"].get("type"), (m.get("text") or m.get("caption") or "")[:200])
         for e in m.get("entities", []) or []:
             if e["type"] == "custom_emoji":
@@ -25,5 +26,5 @@ for u in call("getUpdates", {"timeout": 0, "allowed_updates": json.dumps(["messa
         if f.get("chat"):
             print("  forward from", f["chat"]["id"], f["chat"].get("title"), f["chat"].get("username"))
     c = u.get("my_chat_member")
-    if c:
+    if c and c["chat"].get("type") in ("channel", "group", "supergroup"):
         print("member", c["chat"]["id"], c["chat"].get("type"), c["chat"].get("title"), c["chat"].get("username"), c["new_chat_member"]["status"])

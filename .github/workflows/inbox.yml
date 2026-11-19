@@ -3,11 +3,22 @@ name: Inbox
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   read:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Owner
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          kid=$(gh api "repos/${{ github.repository }}/releases?per_page=100" -q '[.[] | select(.tag_name=="film-kit")][0].assets[0].id')
+          gh api -H "Accept: application/octet-stream" "repos/${{ github.repository }}/releases/assets/$kid" > kit.zip
+          unzip -oq kit.zip chat.txt -d tg
+          echo "OWNER=$(cat tg/chat.txt)" >> "$GITHUB_ENV"
       - name: Read
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

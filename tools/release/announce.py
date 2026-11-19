@@ -125,7 +125,8 @@ def send(target):
 if not send(chat):
     sys.exit("не отправилось")
 
-channel = os.environ.get("CHANNEL", "").strip()
+channel_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "channel.txt")
+channel = os.environ.get("CHANNEL", "").strip() or (open(channel_file).read().strip() if os.path.exists(channel_file) else "")
 if channel:
     wait = int(os.environ.get("WAIT_MINUTES", "120"))
     pending = call("getUpdates", {"offset": -1, "timeout": 0}).get("result", [])
