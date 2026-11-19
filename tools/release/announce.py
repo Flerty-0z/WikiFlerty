@@ -1,7 +1,6 @@
 import html
 import json
 import os
-import random
 import sys
 import time
 import urllib.error
@@ -95,7 +94,7 @@ def emoji(char, pick_any=False):
     ids = emoji_ids.get(char.replace("\ufe0f", ""))
     if not ids:
         return html.escape(char)
-    return f'<tg-emoji emoji-id="{random.choice(ids) if pick_any else ids[0]}">{html.escape(char)}</tg-emoji>'
+    return f'<tg-emoji emoji-id="{ids[0]}">{html.escape(char)}</tg-emoji>'
 
 
 def line(item):
@@ -105,18 +104,17 @@ def line(item):
     return html.escape(item)
 
 
-MOOD = ["✨", "☄️", "🌈", "🌛", "❄️", "⭐️", "🌟", "⚡️", "🔥", "💎", "🎉"]
-mood = random.choice([m for m in MOOD if m.replace("\ufe0f", "") in emoji_ids] or MOOD)
+app_icon, gh_icon = icons()
+logo = f'<tg-emoji emoji-id="{app_icon}">\U0001F4D6</tg-emoji>' if app_icon else ""
 contact_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contact.txt")
 contact = open(contact_file, encoding="utf-8").read().strip() if os.path.exists(contact_file) else "Если что-то не так, пишите @F1erty0z"
 body = "\n\n".join(line(i) for i in items)
 text = (
-    f"<b>Ребята, вышло обновление {version}</b>\u00a0{emoji(mood, True)}\n\n"
+    f"<b>Ребята, вышло обновление {version}</b>\u00a0{logo}\n\n"
     f"<blockquote>{body}</blockquote>\n\n"
     f"<blockquote>Огромная просьба перед обновлением сделать «Резервную копию» {emoji('🛡')}\n\n"
     f"{contact}</blockquote>"
 )
-app_icon, gh_icon = icons()
 
 
 def button(text, link, style, icon):
