@@ -40,17 +40,34 @@ for name in packs:
     print("pack", name, s.get("title"), len(items), "".join(x["e"] or "" for x in items))
 json.dump(catalog, open("catalog.json", "w"), ensure_ascii=False)
 sample = next(iter(packs.values()), None)
+
+
+def kept(res):
+    return any(e.get("type") == "custom_emoji" for e in (res.get("entities") or [])), "icon_custom_emoji_id" in json.dumps(res.get("reply_markup", {})), "style" in json.dumps(res.get("reply_markup", {}))
+
+
 if sample:
-    for target in (owner, channel):
-        r = call("sendMessage", {
-            "chat_id": target,
-            "text": "проба <tg-emoji emoji-id=\"%s\">⭐</tg-emoji> проверка" % sample,
-            "parse_mode": "HTML",
-            "reply_markup": json.dumps({"inline_keyboard": [[{"text": "проба", "url": "https://github.com", "icon_custom_emoji_id": sample}]]}),
-        })
-        res = r.get("result", {})
-        kept_text = any(e.get("type") == "custom_emoji" for e in res.get("entities", []) or [])
-        kept_icon = "icon_custom_emoji_id" in json.dumps(res.get("reply_markup", {}))
-        print("probe", "owner" if target == owner else "channel", r.get("ok"), r.get("description", ""), "text_emoji", kept_text, "button_icon", kept_icon)
-        if res.get("message_id"):
-            call("deleteMessage", {"chat_id": target, "message_id": res["message_id"]})
+    r = call("sendMessage", {
+        "chat_id": owner,
+        "text": "проба <tg-emoji emoji-id=\"%s\">\u2b50</tg-emoji> проверка" % sample,
+        "parse_mode": "HTML",
+        "reply_markup": json.dumps({"inline_keyboard": [[{"text": "проба", "url": "https://github.com", "icon_custom_emoji_id": sample, "style": "danger"}]]}),
+    })
+    src = r["result"]["message_id"]
+    print("probe owner", kept(r["result"]))
+    trash = [(owner, src)]
+    for how in ("forwardMessage", "copyMessage"):
+        f = call(how, {"chat_id": channel, "from_chat_id": owner, "message_id": src})
+        res = f.get("result", {})
+        mid = res.get("message_id")
+        if how == "copyMessage" and mid:
+            full = call("forwardMessage", {"chat_id": owner, "from_chat_id": channel, "message_id": mid}).get("result", {})
+            print("probe", how, f.get("ok"), f.get("description", ""), kept(full))
+            if full.get("message_id"):
+                trash.append((owner, full["message_id"]))
+        else:
+            print("probe", how, f.get("ok"), f.get("description", ""), kept(res))
+        if mid:
+            trash.append((channel, mid))
+    for c, mid in trash:
+        call("deleteMessage", {"chat_id": c, "message_id": mid})
