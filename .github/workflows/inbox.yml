@@ -6,6 +6,9 @@ on:
       probe:
         type: boolean
         default: false
+      attach:
+        description: "chat message version"
+        default: ""
 
 permissions:
   contents: write
@@ -27,7 +30,7 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         run: |
-          if [ "${{ inputs.probe }}" = "true" ]; then python3 tools/release/probe.py; else python3 tools/release/inbox.py; fi
+          if [ -n "${{ inputs.attach }}" ]; then python3 tools/release/buttons.py ${{ inputs.attach }}; elif [ "${{ inputs.probe }}" = "true" ]; then python3 tools/release/probe.py; else python3 tools/release/inbox.py; fi
       - uses: actions/upload-artifact@v4
         if: ${{ inputs.probe }}
         with:
