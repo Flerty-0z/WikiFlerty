@@ -737,8 +737,64 @@ func main() {
 		WriteTimeout:      60 * time.Second,
 		IdleTimeout:       90 * time.Second,
 		MaxHeaderBytes:    16 << 10,
-		TLSConfig:         &tls.Config{MinVersion: tls.VersionTLS12},
+		TLSConfig:         tlsConfig(),
 	}
 	log.Println("listening")
-	log.Fatal(srv.ListenAndServeTLS(os.Getenv("TLS_CERT"), os.Getenv("TLS_KEY")))
+	log.Fatal(srv.ListenAndServeTLS("", ""))
+}
+
+type certFile struct {
+	mu    sync.Mutex
+	cert  string
+	key   string
+	stamp time.Time
+	last  time.Time
+	value *tls.Certificate
+}
+
+func (c *certFile) get() *tls.Certificate {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.cert == "" {
+		return nil
+	}
+	if c.value != nil && time.Since(c.last) < time.Minute {
+		return c.value
+	}
+	c.last = time.Now()
+	info, err := os.Stat(c.cert)
+	if err != nil {
+		return c.value
+	}
+	if c.value != nil && !info.ModTime().After(c.stamp) {
+		return c.value
+	}
+	pair, err := tls.LoadX509KeyPair(c.cert, c.key)
+	if err != nil {
+		log.Println("cert:", err)
+		return c.value
+	}
+	c.value = &pair
+	c.stamp = info.ModTime()
+	return c.value
+}
+
+func tlsConfig() *tls.Config {
+	self := &certFile{cert: os.Getenv("TLS_CERT"), key: os.Getenv("TLS_KEY")}
+	public := &certFile{cert: os.Getenv("PUBLIC_CERT"), key: os.Getenv("PUBLIC_KEY")}
+	domain := strings.ToLower(os.Getenv("PUBLIC_DOMAIN"))
+	return &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		GetCertificate: func(h *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			if domain != "" && strings.EqualFold(h.ServerName, domain) {
+				if c := public.get(); c != nil {
+					return c, nil
+				}
+			}
+			if c := self.get(); c != nil {
+				return c, nil
+			}
+			return nil, fmt.Errorf("no certificate")
+		},
+	}
 }

@@ -80,6 +80,9 @@ jobs:
           OWNER_CHAT=$OWNER
           TLS_CERT=/opt/wikiflerty/tls.crt
           TLS_KEY=/opt/wikiflerty/tls.key
+          PUBLIC_DOMAIN=sync.wikiflerty.ru
+          PUBLIC_CERT=/opt/wikiflerty/le.crt
+          PUBLIC_KEY=/opt/wikiflerty/le.key
           EOF
           sed -i 's/^ *//' "$RUNNER_TEMP/s/env"
           cat > "$RUNNER_TEMP/s/wikiflerty.service" <<'EOF'
@@ -119,6 +122,16 @@ jobs:
             sed -i "s/^#\?PasswordAuthentication.*/PasswordAuthentication no/" /etc/ssh/sshd_config
             systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || true
             if command -v ufw >/dev/null; then ufw allow 22/tcp >/dev/null; ufw allow 443/tcp >/dev/null; ufw --force enable >/dev/null; fi
+            if ! command -v certbot >/dev/null; then apt-get update -qq >/dev/null && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq certbot >/dev/null; fi
+            if command -v ufw >/dev/null; then ufw allow 80/tcp >/dev/null; fi
+            mkdir -p /etc/letsencrypt/renewal-hooks/deploy
+            printf "%s\n" "#!/bin/sh" "cp /etc/letsencrypt/live/sync.wikiflerty.ru/fullchain.pem /opt/wikiflerty/le.crt" "cp /etc/letsencrypt/live/sync.wikiflerty.ru/privkey.pem /opt/wikiflerty/le.key" "chown root:wikiflerty /opt/wikiflerty/le.crt /opt/wikiflerty/le.key" "chmod 640 /opt/wikiflerty/le.crt /opt/wikiflerty/le.key" > /etc/letsencrypt/renewal-hooks/deploy/wikiflerty.sh
+            chmod 755 /etc/letsencrypt/renewal-hooks/deploy/wikiflerty.sh
+            if [ ! -f /opt/wikiflerty/le.crt ]; then
+              if certbot certonly --standalone -d sync.wikiflerty.ru --non-interactive --agree-tos --register-unsafely-without-email --deploy-hook /etc/letsencrypt/renewal-hooks/deploy/wikiflerty.sh >/tmp/certbot.log 2>&1; then echo "certificate issued"; else echo "certificate pending"; tail -5 /tmp/certbot.log; fi
+            else
+              echo "certificate present"
+            fi
             systemctl daemon-reload
             systemctl enable wikiflerty >/dev/null 2>&1
             systemctl restart wikiflerty
@@ -131,3 +144,4 @@ jobs:
         run: |
           sleep 3
           bash server/smoke.sh "$HOST" server/tls.crt || { ssh root@"$HOST" 'journalctl -u wikiflerty -n 40 --no-pager'; exit 1; }
+          echo "domain: $(curl -sS --max-time 15 https://sync.wikiflerty.ru/v1/health 2>&1 | head -c 200)"
