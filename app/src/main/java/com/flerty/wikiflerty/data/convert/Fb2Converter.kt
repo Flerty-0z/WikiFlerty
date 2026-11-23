@@ -341,18 +341,34 @@ class Fb2Converter(private val identifier: String) {
         parser.setInput(input, null)
         val stack = ArrayDeque<El>()
         var root: El? = null
+        var skipped = 0
         var event = parser.eventType
         while (event != XmlPullParser.END_DOCUMENT) {
             when (event) {
                 XmlPullParser.START_TAG -> {
                     val attrs = HashMap<String, String>()
                     for (i in 0 until parser.attributeCount) attrs[parser.getAttributeName(i)] = parser.getAttributeValue(i)
-                    val el = El(parser.name.substringAfter(':'), attrs)
-                    stack.lastOrNull()?.children?.add(el)
-                    if (root == null) root = el
-                    stack.addLast(el)
+                    val name = parser.name.substringAfter(':')
+                    if (name in blockTags) {
+                        while (stack.size > 1 && (stack.last().name in inlineTags || (stack.last().name in lineTags && name in lineTags))) stack.removeLast()
+                    }
+                    val el = El(name, attrs)
+                    if (stack.size >= 120) {
+                        skipped++
+                    } else {
+                        stack.lastOrNull()?.children?.add(el)
+                        if (root == null) root = el
+                        stack.addLast(el)
+                    }
                 }
-                XmlPullParser.END_TAG -> stack.removeLastOrNull()
+                XmlPullParser.END_TAG -> {
+                    val name = parser.name.substringAfter(':')
+                    when {
+                        skipped > 0 -> skipped--
+                        stack.lastOrNull()?.name == name -> stack.removeLast()
+                        stack.any { it.name == name } -> while (stack.isNotEmpty() && stack.removeLast().name != name) Unit
+                    }
+                }
                 XmlPullParser.TEXT, XmlPullParser.ENTITY_REF, XmlPullParser.CDSECT -> {
                     val text = parser.text
                     val parent = stack.lastOrNull()
@@ -363,6 +379,12 @@ class Fb2Converter(private val identifier: String) {
         }
         return root ?: throw IllegalArgumentException("Пустой файл FB2")
     }
+
+    private val inlineTags = setOf("emphasis", "strong", "a", "style", "strikethrough", "sub", "sup", "code")
+
+    private val lineTags = setOf("p", "v", "subtitle", "text-author")
+
+    private val blockTags = setOf("p", "v", "subtitle", "text-author", "section", "title", "empty-line", "poem", "stanza", "epigraph", "cite", "image", "table", "body")
 
     private val containerTags = setOf(
         "FictionBook", "description", "title-info", "document-info", "publish-info", "body", "section",
