@@ -277,9 +277,38 @@ class Account(private val app: App) {
         prefs.getString("presence", null) ?: java.util.UUID.randomUUID().toString().also { prefs.edit().putString("presence", it).apply() }
     }
 
-    suspend fun ping(reading: Boolean) = withContext(Dispatchers.IO) {
+    private var presenceJob: Job? = null
+    private var visible = 0
+
+    fun screenShown() {
+        visible++
+        if (visible == 1) {
+            presenceJob?.cancel()
+            presenceJob = app.appScope.launch {
+                while (true) {
+                    ping(true)
+                    delay(30_000)
+                }
+            }
+        }
+    }
+
+    fun screenHidden() {
+        visible = (visible - 1).coerceAtLeast(0)
+        if (visible == 0) {
+            presenceJob?.cancel()
+            presenceJob = app.appScope.launch {
+                delay(3_000)
+                if (visible == 0) ping(false)
+            }
+        }
+    }
+
+    suspend fun peek() = ping(false, peek = true)
+
+    suspend fun ping(reading: Boolean, peek: Boolean = false) = withContext(Dispatchers.IO) {
         if (!available) return@withContext
-        runCatching { call("ping", JSONObject().put("id", presenceId).put("reading", reading), auth = false) }
+        runCatching { call("ping", JSONObject().put("id", presenceId).put("reading", reading).put("peek", peek), auth = false) }
             .onSuccess { r -> val n = r.optInt("reading"); readers.value = n; prefs.edit().putInt("readers", n).apply() }
     }
 

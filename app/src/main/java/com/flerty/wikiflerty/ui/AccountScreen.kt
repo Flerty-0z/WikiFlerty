@@ -619,7 +619,7 @@ fun ReadingNow() {
     androidx.compose.runtime.LaunchedEffect(owner) {
         owner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
             while (true) {
-                app.account.ping(false)
+                app.account.peek()
                 kotlinx.coroutines.delay(15_000)
             }
         }

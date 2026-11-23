@@ -54,13 +54,15 @@ type Presence struct {
 	seen map[string]time.Time
 }
 
-func (p *Presence) touch(id string, reading bool) int {
+func (p *Presence) touch(id string, reading, peek bool) int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	now := time.Now()
-	if reading && id != "" && len(id) <= 64 && (len(p.seen) < 200000 || !p.seen[id].IsZero()) {
+	switch {
+	case peek:
+	case reading && id != "" && len(id) <= 64 && (len(p.seen) < 200000 || !p.seen[id].IsZero()):
 		p.seen[id] = now
-	} else if !reading && id != "" {
+	case !reading && id != "":
 		delete(p.seen, id)
 	}
 	n := 0
@@ -371,12 +373,13 @@ func (a *App) route(w http.ResponseWriter, r *http.Request) {
 		var b struct {
 			ID      string `json:"id"`
 			Reading bool   `json:"reading"`
+			Peek    bool   `json:"peek"`
 		}
 		if e := decode(r, &b); e != nil {
 			reply(w, e.status, map[string]string{"error": e.code})
 			return
 		}
-		reply(w, 200, map[string]any{"reading": a.presence.touch(b.ID, b.Reading)})
+		reply(w, 200, map[string]any{"reading": a.presence.touch(b.ID, b.Reading, b.Peek)})
 		return
 	}
 	a.st.mu.Lock()

@@ -105,6 +105,15 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         crashLog.install()
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            override fun onActivityStarted(activity: android.app.Activity) = account.screenShown()
+            override fun onActivityStopped(activity: android.app.Activity) = account.screenHidden()
+            override fun onActivityCreated(activity: android.app.Activity, state: android.os.Bundle?) = Unit
+            override fun onActivityResumed(activity: android.app.Activity) = Unit
+            override fun onActivityPaused(activity: android.app.Activity) = Unit
+            override fun onActivitySaveInstanceState(activity: android.app.Activity, state: android.os.Bundle) = Unit
+            override fun onActivityDestroyed(activity: android.app.Activity) = Unit
+        })
         com.flerty.wikiflerty.ui.EInk.init(this)
         streakFreeze
         Thread({ runCatching { com.flerty.wikiflerty.reader.FontCatalog.warm(this) }; runCatching { java.io.File(filesDir, "charmap").deleteRecursively(); java.io.File(filesDir, "pet.json").delete() } }, "font-warm").apply { priority = Thread.MIN_PRIORITY }.start()
