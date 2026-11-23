@@ -158,7 +158,7 @@ class Account(private val app: App) {
 
     @Volatile private var domainDownAt = 0L
 
-    private fun open(path: String, viaDomain: Boolean, auth: Boolean): HttpsURLConnection {
+    private fun open(path: String, viaDomain: Boolean, auth: Boolean, method: String = "POST", prepare: ((HttpsURLConnection) -> Unit)? = null): HttpsURLConnection {
         val c = if (viaDomain) {
             URL("https://$DOMAIN/v1/$path").openConnection() as HttpsURLConnection
         } else {
@@ -170,19 +170,19 @@ class Account(private val app: App) {
                 }
             }
         }
-        c.requestMethod = "POST"
+        c.requestMethod = method
         c.connectTimeout = if (viaDomain) 8_000 else 15_000
         c.readTimeout = 30_000
-        c.doOutput = true
-        c.setRequestProperty("Content-Type", "application/json")
+        c.doOutput = method != "GET"
+        if (prepare == null) c.setRequestProperty("Content-Type", "application/json") else prepare(c)
         if (auth) token?.let { c.setRequestProperty("Authorization", "Bearer $it") }
         return c
     }
 
-    private fun connect(path: String, auth: Boolean): HttpsURLConnection {
+    private fun connect(path: String, auth: Boolean, method: String = "POST", prepare: ((HttpsURLConnection) -> Unit)? = null): HttpsURLConnection {
         val tryDomain = System.currentTimeMillis() - domainDownAt > 10 * 60_000L
         if (tryDomain) {
-            val c = open(path, viaDomain = true, auth = auth)
+            val c = open(path, viaDomain = true, auth = auth, method = method, prepare = prepare)
             try {
                 c.connect()
                 return c
@@ -191,9 +191,57 @@ class Account(private val app: App) {
                 domainDownAt = System.currentTimeMillis()
             }
         }
-        val c = open(path, viaDomain = false, auth = auth)
+        val c = open(path, viaDomain = false, auth = auth, method = method, prepare = prepare)
         c.connect()
         return c
+    }
+
+    private val relayFirst: Boolean get() = prefs.getLong("relayUntil", 0L) > System.currentTimeMillis()
+
+    private fun preferRelay() {
+        prefs.edit().putLong("relayUntil", System.currentTimeMillis() + 24 * 3_600_000L).apply()
+    }
+
+    private fun relayError(c: HttpsURLConnection, fallback: String): ServerError {
+        val text = runCatching { c.errorStream?.use { it.readBytes().decodeToString() } }.getOrNull().orEmpty()
+        val json = runCatching { JSONObject(text) }.getOrElse { JSONObject() }
+        return ServerError(json.optString("error", "network"), json.optString("message").ifBlank { fallback })
+    }
+
+    private fun putRelay(fp: String, file: File, mime: String) {
+        val c = try {
+            connect("books/put?fp=$fp", auth = true, method = "PUT") {
+                it.setFixedLengthStreamingMode(file.length())
+                it.setRequestProperty("Content-Type", mime)
+                it.readTimeout = 300_000
+            }
+        } catch (e: IOException) {
+            throw ServerError("network", "Связь прервалась, загрузка продолжится позже")
+        }
+        try {
+            c.outputStream.use { out -> file.inputStream().use { it.copyTo(out, 64 * 1024) } }
+            if (c.responseCode !in 200..299) throw relayError(c, "Не получилось загрузить книгу, попробую позже")
+        } catch (e: IOException) {
+            throw ServerError("network", "Связь прервалась, загрузка продолжится позже")
+        } finally {
+            c.disconnect()
+        }
+    }
+
+    private fun getRelay(fp: String, target: File) {
+        val c = try {
+            connect("books/get?fp=$fp", auth = true, method = "GET") { it.readTimeout = 300_000 }
+        } catch (e: IOException) {
+            throw ServerError("network", "Связь прервалась, скачивание продолжится позже")
+        }
+        try {
+            if (c.responseCode !in 200..299) throw relayError(c, "Не получилось скачать книгу, попробую позже")
+            c.inputStream.use { input -> target.outputStream().use { input.copyTo(it, 64 * 1024) } }
+        } catch (e: IOException) {
+            throw ServerError("network", "Связь прервалась, скачивание продолжится позже")
+        } finally {
+            c.disconnect()
+        }
     }
 
     private fun call(path: String, body: JSONObject = JSONObject(), auth: Boolean = true): JSONObject {
@@ -428,21 +476,27 @@ class Account(private val app: App) {
         val ext = if (book.pdf) "pdf" else "epub"
         val res = call("books/upload", JSONObject().put("fp", fp).put("size", file.length()).put("name", book.title).put("ext", ext))
         if (res.optBoolean("exists")) return
-        val c = URL(res.getString("url")).openConnection() as HttpURLConnection
-        try {
-            c.requestMethod = "PUT"
-            c.doOutput = true
-            c.connectTimeout = 20_000
-            c.readTimeout = 120_000
-            c.setFixedLengthStreamingMode(file.length())
-            c.setRequestProperty("Content-Type", if (ext == "pdf") "application/pdf" else "application/epub+zip")
-            c.outputStream.use { out -> file.inputStream().use { it.copyTo(out, 64 * 1024) } }
-            if (c.responseCode !in 200..299) throw ServerError("upload", "Не получилось загрузить книгу, попробую позже")
-        } catch (e: IOException) {
-            throw ServerError("network", "Связь прервалась, загрузка продолжится позже")
-        } finally {
-            c.disconnect()
+        val mime = if (ext == "pdf") "application/pdf" else "application/epub+zip"
+        var sent = false
+        if (!relayFirst) {
+            val c = URL(res.getString("url")).openConnection() as HttpURLConnection
+            try {
+                c.requestMethod = "PUT"
+                c.doOutput = true
+                c.connectTimeout = 15_000
+                c.readTimeout = 120_000
+                c.setFixedLengthStreamingMode(file.length())
+                c.setRequestProperty("Content-Type", mime)
+                c.outputStream.use { out -> file.inputStream().use { it.copyTo(out, 64 * 1024) } }
+                sent = c.responseCode in 200..299
+            } catch (e: IOException) {
+                sent = false
+            } finally {
+                c.disconnect()
+            }
+            if (!sent) preferRelay()
         }
+        if (!sent) putRelay(fp, file, mime)
         applyAccount(call("books/commit", JSONObject().put("fp", fp)))
     }
 
@@ -461,17 +515,24 @@ class Account(private val app: App) {
         val file = File(dir, "$safe.${cb.ext}")
         try {
             val res = call("books/url", JSONObject().put("fp", cb.fp))
-            val c = URL(res.getString("url")).openConnection() as HttpURLConnection
-            try {
-                c.connectTimeout = 20_000
-                c.readTimeout = 120_000
-                if (c.responseCode !in 200..299) throw ServerError("download", "Не получилось скачать книгу, попробую позже")
-                c.inputStream.use { input -> file.outputStream().use { input.copyTo(it, 64 * 1024) } }
-            } catch (e: IOException) {
-                throw ServerError("network", "Связь прервалась, скачивание продолжится позже")
-            } finally {
-                c.disconnect()
+            var got = false
+            if (!relayFirst) {
+                val c = URL(res.getString("url")).openConnection() as HttpURLConnection
+                try {
+                    c.connectTimeout = 15_000
+                    c.readTimeout = 120_000
+                    if (c.responseCode in 200..299) {
+                        c.inputStream.use { input -> file.outputStream().use { input.copyTo(it, 64 * 1024) } }
+                        got = file.length() == cb.size
+                    }
+                } catch (e: IOException) {
+                    got = false
+                } finally {
+                    c.disconnect()
+                }
+                if (!got) preferRelay()
             }
+            if (!got) getRelay(cb.fp, file)
             if (file.length() != cb.size) throw ServerError("download", "Книга скачалась не полностью, попробую позже")
             app.library.import(Uri.fromFile(file)).getOrElse { throw ServerError("import", it.message ?: "Не получилось открыть скачанную книгу") }
         } finally {

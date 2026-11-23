@@ -314,6 +314,10 @@ func (a *App) route(w http.ResponseWriter, r *http.Request) {
 		a.payResult(w, r)
 		return
 	}
+	if r.URL.Path == "/v1/books/put" || r.URL.Path == "/v1/books/get" {
+		a.relay(w, r)
+		return
+	}
 	if r.URL.Path == "/v1/health" {
 		reply(w, 200, map[string]any{"ok": true})
 		return
@@ -719,6 +723,7 @@ func (a *App) link(r *http.Request, u *User) (any, *apiError) {
 	a.st.stats.DownDay += rec.Size
 	a.st.save(u)
 	a.st.saveStats()
+	grant(u.Login, b.Fp)
 	return map[string]any{"url": a.st.s3.Presign("GET", bookKey(u, b.Fp, rec.Ext), linkLife), "size": rec.Size, "ext": rec.Ext}, nil
 }
 

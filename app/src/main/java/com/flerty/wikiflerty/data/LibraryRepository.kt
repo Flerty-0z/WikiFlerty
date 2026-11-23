@@ -98,13 +98,14 @@ class LibraryRepository(
                 return@withContext Result.failure(it)
             }
             try {
-                val title = publication.metadata.title?.trim()?.takeIf { it.isNotEmpty() }
-                    ?: displayName(uri)?.substringBeforeLast('.')
+                val title = publication.metadata.title?.trim()?.takeIf { it.isNotEmpty() && !placeholderName(it) }
+                    ?: displayName(uri)?.substringBeforeLast('.')?.trim()?.takeIf { it.isNotEmpty() }
                     ?: "Без названия"
-                val author = publication.metadata.authors.joinToString(", ") { it.name }
+                val author = publication.metadata.authors.joinToString(", ") { it.name }.takeUnless { placeholderName(it) }.orEmpty()
+                val sameText = author.isNotBlank() && !placeholderName(title)
 
                 _books.value.firstOrNull {
-                    it.fingerprint == fingerprint || (it.title == title && it.author == author)
+                    it.fingerprint == fingerprint || (sameText && it.title == title && it.author == author)
                 }?.let { existing ->
                     file.delete()
                     return@withContext Result.success(existing)
@@ -540,6 +541,11 @@ class LibraryRepository(
                 }
             }
         }
+    }
+
+    private fun placeholderName(text: String): Boolean {
+        val t = text.trim().lowercase().trim('[', ']', '(', ')', '.', ' ')
+        return t.isEmpty() || t in setOf("unknown", "untitled", "no title", "без названия", "неизвестно", "неизвестный", "неизвестный автор", "unknown author", "author", "автор", "title", "название", "аноним", "anonymous", "n/a", "none")
     }
 
     private fun fingerprintOf(file: File): String {

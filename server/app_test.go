@@ -124,6 +124,35 @@ func TestFlow(t *testing.T) {
 	if code != 200 {
 		t.Fatal(code, out)
 	}
+	fp2 := strings.Repeat("d", 64)
+	data2 := append([]byte("%PDF-1.4 "), bytes.Repeat([]byte("y"), 300)...)
+	if code, out := c.call("/v1/books/upload", map[string]any{"fp": fp2, "size": len(data2), "name": "Relay", "ext": "pdf"}); code != 200 {
+		t.Fatal(code, out)
+	}
+	rq, _ := http.NewRequest("PUT", srv.URL+"/v1/books/put?fp="+fp2, bytes.NewReader(data2))
+	rq.Header.Set("Authorization", "Bearer "+c.token)
+	if r, err := http.DefaultClient.Do(rq); err != nil || r.StatusCode != 200 {
+		t.Fatal("relay put", err, r.StatusCode)
+	}
+	if code, out := c.call("/v1/books/commit", map[string]any{"fp": fp2}); code != 200 {
+		t.Fatal("relay commit", code, out)
+	}
+	gq, _ := http.NewRequest("GET", srv.URL+"/v1/books/get?fp="+fp2, nil)
+	gq.Header.Set("Authorization", "Bearer "+c.token)
+	if r, _ := http.DefaultClient.Do(gq); r.StatusCode != 404 {
+		t.Fatal("relay get without grant", r.StatusCode)
+	}
+	c.call("/v1/books/url", map[string]any{"fp": fp2})
+	if r, err := http.DefaultClient.Do(gq); err != nil || r.StatusCode != 200 {
+		t.Fatal("relay get", err)
+	} else {
+		b, _ := io.ReadAll(r.Body)
+		r.Body.Close()
+		if !bytes.Equal(b, data2) {
+			t.Fatal("relay body")
+		}
+	}
+	c.call("/v1/books/delete", map[string]any{"fp": fp2})
 	code, out = c.call("/v1/books/upload", map[string]any{"fp": strings.Repeat("b", 64), "size": 300 << 20, "name": "Big", "ext": "epub"})
 	if code != 413 {
 		t.Fatal("big", code, out)

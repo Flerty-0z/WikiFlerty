@@ -697,7 +697,6 @@ private fun StylePreview() {
         Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(AppColors.Line)) {
             Box(Modifier.fillMaxWidth(0.6f).height(4.dp).clip(CircleShape).background(AppColors.Accent))
         }
-        Text("Аа Бб Вв — так выглядит текст интерфейса", color = AppColors.Text, fontSize = 15.sp)
     }
 }
 

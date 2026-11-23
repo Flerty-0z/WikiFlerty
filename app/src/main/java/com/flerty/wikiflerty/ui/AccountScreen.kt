@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -291,14 +292,22 @@ private fun SignedIn(account: Account, state: Account.State) {
     TabbedFrame("Книги в облаке", icon = AppIcons.Cloud, trailing = { CountBadge(state.books.size) }) {
         Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (state.books.isNotEmpty()) {
+                var query by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+                if (state.books.size > 3) InputField(query, { query = it.take(60) }, "Поиск в облаке")
+                val shown = remember(state.books, query) {
+                    val q = query.trim().lowercase()
+                    if (q.isEmpty()) state.books else state.books.filter { it.name.lowercase().contains(q) }
+                }
+                if (shown.isEmpty()) Text("Ничего не нашлось", color = AppColors.Faint, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp))
                 val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+                val hold = remember(listState) { HoldScroll(listState) }
                 androidx.compose.foundation.lazy.LazyColumn(
-                    Modifier.fillMaxWidth().heightIn(max = 296.dp).fadingEdges(listState),
+                    Modifier.fillMaxWidth().heightIn(max = 296.dp).nestedScroll(hold).fadingEdges(listState),
                     state = listState,
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(state.books.size, key = { state.books[it].fp }) { i ->
-                        CloudBookRow(state.books[i], state.books[i].fp in localFps, localIds[state.books[i].fp], state.books[i].fp in busyBooks, onDownload = { b ->
+                    items(shown.size, key = { shown[it].fp }) { i ->
+                        CloudBookRow(shown[i], shown[i].fp in localFps, localIds[shown[i].fp], shown[i].fp in busyBooks, onDownload = { b ->
                             scope.launch {
                                 account.downloadNow(b.fp).onSuccess { toast("Книга в библиотеке") }.onFailure { toast(it.message ?: "Не получилось скачать") }
                             }
@@ -465,6 +474,14 @@ private fun CloudBookRow(b: Account.CloudBook, here: Boolean, localId: String?, 
     }
 }
 
+private class HoldScroll(private val state: androidx.compose.foundation.lazy.LazyListState) : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+    private val active get() = state.canScrollForward || state.canScrollBackward
+    override fun onPostScroll(consumed: androidx.compose.ui.geometry.Offset, available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset =
+        if (active) available.copy(x = 0f) else androidx.compose.ui.geometry.Offset.Zero
+    override suspend fun onPostFling(consumed: androidx.compose.ui.unit.Velocity, available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity =
+        if (active) available.copy(x = 0f) else androidx.compose.ui.unit.Velocity.Zero
+}
+
 private fun Modifier.fadingEdges(state: androidx.compose.foundation.lazy.LazyListState): Modifier = this
     .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
     .drawWithContent {
@@ -546,7 +563,6 @@ private fun PlanSheet(account: Account, state: Account.State, onDismiss: () -> U
                     busy = false
                 }
             }
-            HintNote("Тариф на 30 дней, сам не продлевается. Оплата картой или через СБП.", AppIcons.Card)
         }
     }
 }

@@ -57,6 +57,8 @@ internal object Xml {
 
 private fun ZipFile.bytes(name: String): ByteArray? = getEntry(name)?.let { e -> getInputStream(e).use { it.readBytes() } }
 
+private fun ZipFile.stream(name: String): java.io.InputStream? = getEntry(name)?.let { getInputStream(it) }
+
 private fun resolvePath(base: String, target: String): String {
     if (target.startsWith("/")) return target.removePrefix("/")
     val parts = base.split('/').filter { it.isNotEmpty() }.toMutableList()
@@ -74,10 +76,10 @@ object DocxConverter {
     private class Style(val name: String, val outline: Int?, val basedOn: String?, val bold: Boolean?, val italic: Boolean?)
 
     fun read(file: File, fallbackTitle: String): RichDoc = ZipFile(file).use { zip ->
-        with(Xml) {
-            val document = zip.bytes("word/document.xml")?.let { parse(it) } ?: throw IllegalArgumentException("no document")
+        with(Lite) {
+            val document = zip.stream("word/document.xml")?.use { parse(it) } ?: throw IllegalArgumentException("no document")
             val styles = HashMap<String, Style>()
-            zip.bytes("word/styles.xml")?.let { parse(it) }?.kids()?.filter { it.local() == "style" }?.forEach { s ->
+            zip.stream("word/styles.xml")?.use { parse(it) }?.kids()?.filter { it.local() == "style" }?.forEach { s ->
                 val id = s.attr("styleId") ?: return@forEach
                 val name = s.kid("name")?.attr("val")?.lowercase().orEmpty()
                 val outline = s.kid("pPr")?.kid("outlineLvl")?.attr("val")?.toIntOrNull()
@@ -86,19 +88,19 @@ object DocxConverter {
             }
             val rels = HashMap<String, String>()
             val external = HashSet<String>()
-            zip.bytes("word/_rels/document.xml.rels")?.let { parse(it) }?.kids()?.forEach { r ->
+            zip.stream("word/_rels/document.xml.rels")?.use { parse(it) }?.kids()?.forEach { r ->
                 val id = r.attr("Id") ?: return@forEach
                 rels[id] = r.attr("Target") ?: return@forEach
                 if (r.attr("TargetMode") == "External") external += id
             }
-            fun notesOf(path: String, tag: String): Map<String, Element> =
-                zip.bytes(path)?.let { parse(it) }?.kids()?.filter { it.local() == tag && it.attr("type") == null }?.mapNotNull { n -> n.attr("id")?.let { it to n } }?.toMap().orEmpty()
+            fun notesOf(path: String, tag: String): Map<String, XEl> =
+                zip.stream(path)?.use { parse(it) }?.kids()?.filter { it.local() == tag && it.attr("type") == null }?.mapNotNull { n -> n.attr("id")?.let { it to n } }?.toMap().orEmpty()
             val footnotes = notesOf("word/footnotes.xml", "footnote")
             val endnotes = notesOf("word/endnotes.xml", "endnote")
             val noteOrder = LinkedHashMap<String, Int>()
             var currentNote: Int? = null
             var href: String? = null
-            val core = zip.bytes("docProps/core.xml")?.let { parse(it) }
+            val core = zip.stream("docProps/core.xml")?.use { parse(it) }
             val title = core?.all("title")?.firstOrNull()?.text()?.trim()?.takeIf { it.isNotBlank() } ?: fallbackTitle
             val author = core?.all("creator")?.firstOrNull()?.text()?.trim()?.takeIf { it.isNotBlank() }
             val doc = RichDoc(title, listOfNotNull(author))
@@ -139,7 +141,7 @@ object DocxConverter {
                 }
             }
 
-            fun paragraph(p: Element) {
+            fun paragraph(p: XEl) {
                 val ppr = p.kid("pPr")
                 val styleId = ppr?.kid("pStyle")?.attr("val")
                 var level = headingOf(styleId)
@@ -164,7 +166,7 @@ object DocxConverter {
                     doc.blocks += pending
                     pending.clear()
                 }
-                fun run(r: Element) {
+                fun run(r: XEl) {
                     val rpr = r.kid("rPr")
                     val bold = rpr?.kid("b")?.let { on(it) } ?: baseBold
                     val italic = rpr?.kid("i")?.let { on(it) } ?: false
@@ -194,7 +196,7 @@ object DocxConverter {
                         }
                     }
                 }
-                fun walk(e: Element) {
+                fun walk(e: XEl) {
                     e.kids().forEach { k ->
                         when (k.local()) {
                             "pPr", "del", "moveFrom", "commentRangeStart", "commentRangeEnd", "bookmarkEnd", "proofErr" -> Unit
@@ -220,7 +222,7 @@ object DocxConverter {
                 flush()
             }
 
-            fun table(t: Element) {
+            fun table(t: XEl) {
                 t.kids().filter { it.local() == "tr" }.forEach { tr ->
                     val cells = tr.kids().filter { it.local() == "tc" }.map { tc ->
                         tc.all("t").joinToString("") { it.text() }.replace(Regex("\\s+"), " ").trim()
@@ -229,7 +231,7 @@ object DocxConverter {
                 }
             }
 
-            fun body(e: Element) {
+            fun body(e: XEl) {
                 e.kids().forEach { k ->
                     when (k.local()) {
                         "p" -> paragraph(k)
@@ -263,7 +265,7 @@ object DocxConverter {
         }
     }
 
-    private fun on(e: Element): Boolean = with(Xml) { e.attr("val")?.lowercase()?.let { it != "false" && it != "0" && it != "off" && it != "none" } ?: true }
+    private fun on(e: XEl): Boolean = with(Lite) { e.attr("val")?.lowercase()?.let { it != "false" && it != "0" && it != "off" && it != "none" } ?: true }
 
     internal fun headingFromName(name: String): Int {
         val n = name.lowercase().replace("_20_", " ")

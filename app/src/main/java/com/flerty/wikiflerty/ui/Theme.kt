@@ -369,7 +369,7 @@ data class KitTune(
     val propEvery: Int = 2,
     val pins: Map<String, List<PropPin>> = emptyMap(),
     val texture: Boolean = true,
-    val textureAmount: Float = 1f,
+    val textureAmount: Float = 0.5f,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("bookStyle", bookStyle)
@@ -380,6 +380,7 @@ data class KitTune(
         put("propEvery", propEvery)
         put("texture", texture)
         put("textureAmount", textureAmount.toDouble())
+        put("textureV", 2)
         put("pins", JSONObject().apply {
             pins.forEach { (plank, list) ->
                 put(plank, org.json.JSONArray().apply { list.forEach { pin -> put(JSONObject().put("id", pin.id).put("v", pin.variant).put("a", pin.after)) } })
@@ -398,7 +399,8 @@ data class KitTune(
                 propPlace = json.optString("propPlace", d.propPlace),
                 propEvery = json.optInt("propEvery", d.propEvery).coerceIn(1, 6),
                 texture = json.optBoolean("texture", d.texture),
-                textureAmount = json.optDouble("textureAmount", d.textureAmount.toDouble()).toFloat().coerceIn(0.1f, 1.5f),
+                textureAmount = json.optDouble("textureAmount", d.textureAmount.toDouble()).toFloat().coerceIn(0.1f, 1.5f)
+                    .let { if (json.optInt("textureV") < 2 && kotlin.math.abs(it - 1f) < 0.001f) d.textureAmount else it },
                 pins = json.optJSONObject("pins")?.let { obj ->
                     obj.keys().asSequence().associateWith { plank ->
                         val arr = obj.optJSONArray(plank)
