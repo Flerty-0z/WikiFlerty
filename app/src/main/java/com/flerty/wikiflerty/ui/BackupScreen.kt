@@ -4,6 +4,10 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.border
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -94,6 +98,8 @@ fun BackupContent() {
         }
     }
 
+    CloudBackupGroup()
+
     AutoBackupGroup()
 
     SettingsGroup("В файле") {
@@ -103,6 +109,74 @@ fun BackupContent() {
         SettingSwitch("Переносить настройки", state.syncSettings, hint = "Оформление и опции чтения", icon = AppIcons.Options) { v ->
             app.sync.store.update { it.copy(syncSettings = v) }
         }
+    }
+}
+
+@Composable
+private fun CloudBackupGroup() {
+    val context = LocalContext.current
+    val app = context.applicationContext as App
+    val account = app.account
+    val state by account.state.collectAsStateWithLifecycle()
+    if (!account.available || !state.signedIn) return
+    val scope = rememberCoroutineScope()
+    var list by remember { mutableStateOf<List<com.flerty.wikiflerty.sync.Account.CloudBackup>?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var asking by remember { mutableStateOf<com.flerty.wikiflerty.sync.Account.CloudBackup?>(null) }
+    fun toast(text: String) = Toast.makeText(context, text, Toast.LENGTH_LONG).show()
+    fun reload() = scope.launch { account.backups().onSuccess { list = it } }
+    LaunchedEffect(Unit) { reload() }
+    val day = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US) }
+    val shown = remember { SimpleDateFormat("d MMMM", Locale("ru")) }
+    TabbedFrame("Облачные копии", icon = AppIcons.Cloud, trailing = { CountBadge(list?.size ?: 0) }) {
+        Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            HintNote("Каждый день копия заметок, закладок, словаря, персонажей и статистики сама сохраняется в облако. Хранятся 7 последних дней", AppIcons.Cloud)
+            list?.forEach { b ->
+                val label = runCatching { shown.format(day.parse(b.day)!!) }.getOrDefault(b.day)
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(AppColors.Line.copy(alpha = 0.45f), appCorner(14))
+                        .border(1.dp, AppColors.PanelBorder, appCorner(14))
+                        .padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    SettingIcon(AppIcons.Calendar, 32.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(label, color = AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text(cloudSize(b.size), color = AppColors.Faint, fontSize = 12.sp)
+                    }
+                    Box(
+                        Modifier.size(40.dp).liveClick(CircleShape, sound = FeedbackSound.Open) { asking = b },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(AppIcons.Rotate, "Восстановить", tint = AppColors.Accent, modifier = Modifier.size(19.dp)) }
+                }
+            }
+            AppButton(if (busy) "Подожди…" else "Сохранить копию сейчас", primary = false, modifier = Modifier.fillMaxWidth(), labeled = true, sound = FeedbackSound.Sync) {
+                if (busy) return@AppButton
+                busy = true
+                scope.launch {
+                    account.backupNow().onSuccess { toast("Копия сохранена в облако"); reload() }.onFailure { toast(it.message ?: "Не получилось") }
+                    busy = false
+                }
+            }
+        }
+    }
+    asking?.let { b ->
+        ConfirmSheet(
+            title = "Восстановить копию?",
+            text = "Вернутся заметки, закладки, слова и персонажи из копии от ${runCatching { shown.format(day.parse(b.day)!!) }.getOrDefault(b.day)}. То, что есть сейчас, не пропадёт.",
+            confirm = "Восстановить",
+            danger = false,
+            sound = FeedbackSound.Undo,
+            onConfirm = {
+                scope.launch {
+                    account.restore(b.day).onSuccess { toast(it.describe()) }.onFailure { toast(it.message ?: "Не получилось") }
+                }
+            },
+            onDismiss = { asking = null },
+        )
     }
 }
 

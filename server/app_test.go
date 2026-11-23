@@ -2,8 +2,8 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -183,6 +183,28 @@ func TestFlow(t *testing.T) {
 	s3.Put(bookKey(st.users["tester_1"], bad, "pdf"), []byte("hello"))
 	if code, _ := c.call("/v1/books/commit", map[string]any{"fp": bad}); code != 400 {
 		t.Fatal("magic", code)
+	}
+	gz := []byte{0x1f, 0x8b, 8, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	bq, _ := http.NewRequest("POST", srv.URL+"/v1/backup/put", bytes.NewReader(gz))
+	bq.Header.Set("Authorization", "Bearer "+c.token)
+	if r, err := http.DefaultClient.Do(bq); err != nil || r.StatusCode != 200 {
+		t.Fatal("backup put", err)
+	}
+	_, bl := c.call("/v1/backup/list", map[string]any{})
+	list, _ := bl["backups"].([]any)
+	if len(list) != 1 {
+		t.Fatal("backup list", bl)
+	}
+	gq2, _ := http.NewRequest("GET", srv.URL+"/v1/backup/get?day="+today(), nil)
+	gq2.Header.Set("Authorization", "Bearer "+c.token)
+	if r, err := http.DefaultClient.Do(gq2); err != nil || r.StatusCode != 200 {
+		t.Fatal("backup get", err)
+	} else {
+		b, _ := io.ReadAll(r.Body)
+		r.Body.Close()
+		if !bytes.Equal(b, gz) {
+			t.Fatal("backup body")
+		}
 	}
 	c.token = ""
 	if code, _ := c.call("/v1/login", map[string]any{"login": "tester_1", "password": "wrongpass"}); code != 403 {

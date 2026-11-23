@@ -38,6 +38,7 @@ type User struct {
 	Paid    string              `json:"paid,omitempty"`
 	Until   int64               `json:"until,omitempty"`
 	Books   map[string]*BookRec `json:"books"`
+	Backups []BackupRec         `json:"backups,omitempty"`
 	Tokens  []string            `json:"tokens"`
 	Day     string              `json:"day"`
 	UpDay   int64               `json:"upDay"`

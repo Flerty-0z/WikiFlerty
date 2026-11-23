@@ -59,6 +59,8 @@ class Account(private val app: App) {
         val signedIn: Boolean get() = login != null
     }
 
+    data class CloudBackup(val day: String, val size: Long, val at: Long)
+
     data class Activation(val plan: String, val limit: Long, val before: Long, val until: Long)
 
     val activated = MutableStateFlow<Activation?>(null)
@@ -307,6 +309,81 @@ class Account(private val app: App) {
 
     suspend fun peek() = ping(false, peek = true)
 
+    private fun dayStamp(): String = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+
+    suspend fun backupNow(): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            if (token == null) throw ServerError("auth", "Нужно войти в аккаунт")
+            val raw = Backup.snapshot(app).toString().toByteArray()
+            val packed = java.io.ByteArrayOutputStream().also { out -> java.util.zip.GZIPOutputStream(out).use { it.write(raw) } }.toByteArray()
+            if (packed.size > 8 * 1024 * 1024) throw ServerError("too_big", "Копия получилась слишком большой")
+            val c = try {
+                connect("backup/put", auth = true) {
+                    it.setRequestProperty("Content-Type", "application/gzip")
+                    it.setFixedLengthStreamingMode(packed.size)
+                    it.readTimeout = 120_000
+                }
+            } catch (e: IOException) {
+                throw ServerError("network", "Нет связи с облаком. Проверь интернет")
+            }
+            try {
+                c.outputStream.use { it.write(packed) }
+                if (c.responseCode !in 200..299) throw relayError(c, "Не получилось сохранить копию")
+            } catch (e: IOException) {
+                throw ServerError("network", "Связь прервалась, копия сохранится позже")
+            } finally {
+                c.disconnect()
+            }
+            prefs.edit().putString("backupDay", dayStamp()).apply()
+        }
+    }
+
+    suspend fun backups(): Result<List<CloudBackup>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val arr = call("backup/list").optJSONArray("backups") ?: JSONArray()
+            (0 until arr.length()).mapNotNull { i -> arr.optJSONObject(i)?.let { CloudBackup(it.optString("day"), it.optLong("size"), it.optLong("at")) } }
+        }
+    }
+
+    suspend fun restore(day: String): Result<MergeReport> = withContext(Dispatchers.IO) {
+        runCatching {
+            val c = try {
+                connect("backup/get?day=$day", auth = true, method = "GET") { it.readTimeout = 120_000 }
+            } catch (e: IOException) {
+                throw ServerError("network", "Нет связи с облаком. Проверь интернет")
+            }
+            val bytes = try {
+                if (c.responseCode !in 200..299) throw relayError(c, "Не получилось скачать копию")
+                c.inputStream.use { it.readBytes() }
+            } catch (e: IOException) {
+                throw ServerError("network", "Связь прервалась, попробуй ещё раз")
+            } finally {
+                c.disconnect()
+            }
+            val json = JSONObject(java.util.zip.GZIPInputStream(bytes.inputStream()).use { it.readBytes() }.decodeToString())
+            val state = app.sync.store.state.value
+            val now = System.currentTimeMillis()
+            fun revive(key: String, dead: Map<String, Long>) {
+                val arr = json.optJSONArray(key) ?: return
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    if (o.optString("id") in dead && o.has("updatedAt")) o.put("updatedAt", now)
+                }
+            }
+            revive("notes", state.deletedNotes)
+            revive("bookmarks", state.deletedBookmarks)
+            revive("characters", state.deletedCharacters)
+            revive("dictionary", state.deletedWords)
+            listOf("deletedNotes", "deletedWords", "deletedBookmarks", "deletedCharacters").forEach { json.remove(it) }
+            Backup.merge(app, json, applySettings = false)
+        }
+    }
+
+    private suspend fun autoBackup() {
+        if (prefs.getString("backupDay", null) == dayStamp()) return
+        backupNow()
+    }
+
     suspend fun sendCrash(device: String, version: String, text: String): Boolean = withContext(Dispatchers.IO) {
         if (!available) return@withContext false
         runCatching { call("crash", JSONObject().put("device", device).put("version", version).put("text", text.take(24_000)), auth = false) }.isSuccess
@@ -516,6 +593,7 @@ class Account(private val app: App) {
             }
         }
         _state.value = _state.value.copy(working = null, notice = notice)
+        runCatching { autoBackup() }
     }
 
     private fun upload(book: Book, file: File) {

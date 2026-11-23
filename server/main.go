@@ -385,6 +385,14 @@ func (a *App) route(w http.ResponseWriter, r *http.Request) {
 		a.crash(w, r, ip)
 		return
 	}
+	if r.URL.Path == "/v1/backup/put" && r.Method == http.MethodPost {
+		a.backupPut(w, r)
+		return
+	}
+	if r.URL.Path == "/v1/backup/get" {
+		a.backupGet(w, r)
+		return
+	}
 	if r.URL.Path == "/v1/books/put" || r.URL.Path == "/v1/books/get" {
 		a.relay(w, r)
 		return
@@ -457,6 +465,8 @@ func (a *App) handle(r *http.Request, ip string) (any, *apiError) {
 		return a.deleteBook(r, u)
 	case "/v1/pay/create":
 		return a.payCreate(r, u)
+	case "/v1/backup/list":
+		return map[string]any{"backups": u.Backups}, nil
 	}
 	return nil, fail(404, "not_found", "Неизвестный запрос")
 }
@@ -642,6 +652,9 @@ func (a *App) remove(r *http.Request, u *User) (any, *apiError) {
 		return nil, fail(403, "wrong", "Пароль введён неверно")
 	}
 	var freed int64
+	for _, b := range u.Backups {
+		a.st.s3.Delete(backupKey(u, b.Day))
+	}
 	for fp, rec := range u.Books {
 		if err := a.st.s3.Delete(bookKey(u, fp, rec.Ext)); err != nil {
 			return nil, fail(503, "storage", "Облако временно недоступно")
