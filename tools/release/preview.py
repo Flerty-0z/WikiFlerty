@@ -114,6 +114,13 @@ except Exception as e:
     article = release
 
 files = {}
+for arch in ("x64", "x32"):
+    path = os.path.join(apk_dir, sorted(x for x in os.listdir(apk_dir) if x.endswith(f"-{arch}.apk"))[0])
+    r = call("sendDocument", {"chat_id": chat, "disable_notification": "true"}, {"document": (f"WikiFlerty-{version}-{arch}.apk", path)})
+    print("upload", arch, r.get("ok"), r.get("description", ""))
+    if r.get("ok"):
+        files[arch] = r["result"]["document"]["file_id"]
+        call("deleteMessage", {"chat_id": chat, "message_id": r["result"]["message_id"]})
 
 
 def album(caption):
@@ -181,7 +188,7 @@ V.append(("Моно", lambda: album(fit(lambda its: f"{head}\n\n<pre>" + "\n".jo
 V.append(("Главная фишка", lambda: text(f"{head}\n\n{em(ITEMS[0][0])} <b>{html.escape(ITEMS[0][2])}</b>\n<blockquote>{html.escape(ITEMS[0][3][0].upper() + ITEMS[0][3][1:])}. Бесплатное место для книг тоже остаётся.</blockquote>\n\n<b>А ещё:</b>\n" + "\n".join(f"— {html.escape(t)}" for _, _, t, _ in ITEMS[1:]) + f"\n\n<blockquote>{backup}\n\n{contact}</blockquote>")))
 V.append(("Статья сверху", lambda: text(f"{head}\n\n<blockquote>" + "\n".join(f"{em(e)} {html.escape(t)}" for e, _, t, _ in ITEMS) + f"</blockquote>\n\n<blockquote>{backup}\n\n{contact}</blockquote>\n\n<a href=\"{article}\">Все изменения</a>", preview={"url": article, "prefer_large_media": True, "show_above_text": True})))
 
-call("sendMessage", {"chat_id": chat, "text": f"Варианты оформления анонса · {len(V)} шт.\nТолько для просмотра, версия не публикуется. Файлы — текущая тестовая сборка."})
+call("sendMessage", {"chat_id": chat, "text": f"Варианты оформления анонса · {len(V)} шт. (полный набор, прошлая отправка была неполной)\nТолько для просмотра, версия не публикуется. Файлы — текущая тестовая сборка."})
 for n, (title, fn) in enumerate(V, 1):
     call("sendMessage", {"chat_id": chat, "text": f"<b>Вариант {n} · {html.escape(title)}</b>", "parse_mode": "HTML"})
     for attempt in range(3):
