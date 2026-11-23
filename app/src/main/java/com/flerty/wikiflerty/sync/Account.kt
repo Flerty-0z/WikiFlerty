@@ -35,6 +35,10 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class Account(private val app: App) {
+    companion object {
+        const val DOMAIN = "sync.wikiflerty.ru"
+    }
+
     data class CloudBook(val fp: String, val size: Long, val name: String, val ext: String, val at: Long)
 
     data class State(
@@ -142,19 +146,52 @@ class Account(private val app: App) {
         cert to SSLContext.getInstance("TLS").apply { init(null, tmf.trustManagers, null) }.socketFactory
     }
 
-    private fun call(path: String, body: JSONObject = JSONObject(), auth: Boolean = true): JSONObject {
-        val (pinned, factory) = socketFactory
-        val c = URL("https://${BuildConfig.SYNC_HOST}/v1/$path").openConnection() as HttpsURLConnection
-        c.sslSocketFactory = factory
-        c.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, session ->
-            runCatching { session.peerCertificates.firstOrNull() == pinned }.getOrDefault(false)
+    @Volatile private var domainDownAt = 0L
+
+    private fun open(path: String, viaDomain: Boolean, auth: Boolean): HttpsURLConnection {
+        val c = if (viaDomain) {
+            URL("https://$DOMAIN/v1/$path").openConnection() as HttpsURLConnection
+        } else {
+            val (pinned, factory) = socketFactory
+            (URL("https://${BuildConfig.SYNC_HOST}/v1/$path").openConnection() as HttpsURLConnection).apply {
+                sslSocketFactory = factory
+                hostnameVerifier = javax.net.ssl.HostnameVerifier { _, session ->
+                    runCatching { session.peerCertificates.firstOrNull() == pinned }.getOrDefault(false)
+                }
+            }
         }
         c.requestMethod = "POST"
-        c.connectTimeout = 15_000
+        c.connectTimeout = if (viaDomain) 8_000 else 15_000
         c.readTimeout = 30_000
         c.doOutput = true
         c.setRequestProperty("Content-Type", "application/json")
         if (auth) token?.let { c.setRequestProperty("Authorization", "Bearer $it") }
+        return c
+    }
+
+    private fun connect(path: String, auth: Boolean): HttpsURLConnection {
+        val tryDomain = System.currentTimeMillis() - domainDownAt > 10 * 60_000L
+        if (tryDomain) {
+            val c = open(path, viaDomain = true, auth = auth)
+            try {
+                c.connect()
+                return c
+            } catch (e: IOException) {
+                c.disconnect()
+                domainDownAt = System.currentTimeMillis()
+            }
+        }
+        val c = open(path, viaDomain = false, auth = auth)
+        c.connect()
+        return c
+    }
+
+    private fun call(path: String, body: JSONObject = JSONObject(), auth: Boolean = true): JSONObject {
+        val c = try {
+            connect(path, auth)
+        } catch (e: IOException) {
+            throw ServerError("network", "Нет связи с облаком. Проверь интернет")
+        }
         try {
             c.outputStream.use { it.write(body.toString().toByteArray()) }
             val code = c.responseCode
