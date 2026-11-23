@@ -43,7 +43,7 @@ import kotlinx.coroutines.withContext
 fun BookCover(bookId: String?, width: Dp, modifier: Modifier = Modifier) {
     val app = LocalContext.current.applicationContext as App
     val books by app.library.books.collectAsStateWithLifecycle()
-    val book = remember(books, bookId) { books.firstOrNull { it.id == bookId } }
+    val book = remember(books, bookId) { app.library.find(bookId) }
     val file = remember(book) { book?.let { app.library.coverFile(it) } }
     val cover by produceState(CoverCache.peek(file, 160), file) {
         value = file?.let { withContext(Dispatchers.IO) { CoverCache.load(it, 160) } }
@@ -125,7 +125,7 @@ fun bookTitle(bookId: String?, fallback: String?): String {
     val app = LocalContext.current.applicationContext as App
     val books by app.library.books.collectAsStateWithLifecycle()
     val synced by app.sync.store.state.collectAsStateWithLifecycle()
-    return books.firstOrNull { it.id == bookId }?.title ?: synced.let { app.syncedTitle(bookId) } ?: fallback ?: "Удалённая книга"
+    return remember(books, bookId) { app.library.find(bookId) }?.title ?: synced.let { app.syncedTitle(bookId) } ?: fallback ?: "Удалённая книга"
 }
 
 data class BookChoice(val id: String, val title: String?, val count: Int)
@@ -205,7 +205,7 @@ fun BookTag(
 ) {
     val app = LocalContext.current.applicationContext as App
     val books by app.library.books.collectAsStateWithLifecycle()
-    val book = books.firstOrNull { it.id == bookId }
+    val book = remember(books, bookId) { app.library.find(bookId) }
     val synced by app.sync.store.state.collectAsStateWithLifecycle()
     val title = book?.title ?: synced.let { app.syncedTitle(bookId) } ?: fallbackTitle ?: "Удалённая книга"
     val shape = appCorner(14)

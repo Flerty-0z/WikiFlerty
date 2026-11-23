@@ -199,7 +199,7 @@ private fun ShelfSlot(index: Int, part: Float, bookId: String?) {
 private fun SlotCover(bookId: String) {
     val app = LocalContext.current.applicationContext as App
     val books by app.library.books.collectAsStateWithLifecycle()
-    val book = remember(books, bookId) { books.firstOrNull { it.id == bookId } }
+    val book = remember(books, bookId) { app.library.find(bookId) }
     val file = remember(book) { book?.let { app.library.coverFile(it) } }
     val cover by produceState(CoverCache.peek(file, 120), file) {
         value = file?.let { withContext(Dispatchers.IO) { CoverCache.load(it, 120) } }

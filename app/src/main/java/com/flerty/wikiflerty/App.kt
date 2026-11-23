@@ -18,6 +18,7 @@ import com.flerty.wikiflerty.sync.SyncManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.collectLatest
@@ -119,13 +120,22 @@ class App : Application() {
         Thread({ runCatching { com.flerty.wikiflerty.reader.FontCatalog.warm(this) }; runCatching { java.io.File(filesDir, "charmap").deleteRecursively(); java.io.File(filesDir, "pet.json").delete() } }, "font-warm").apply { priority = Thread.MIN_PRIORITY }.start()
         style = StyleStore(this)
         readium = ReadiumServices(this)
-        library = LibraryRepository(this, readium)
         readerSettings = ReaderSettingsStore(this)
-        notes = NotesRepository(this)
-        dictionary = DictionaryRepository(this)
-        bookmarks = com.flerty.wikiflerty.data.BookmarksRepository(this)
-        characters = com.flerty.wikiflerty.data.CharactersRepository(this)
-        sync = SyncManager(this)
+        kotlinx.coroutines.runBlocking {
+            val io = kotlinx.coroutines.Dispatchers.IO
+            val lib = async(io) { LibraryRepository(this@App, readium) }
+            val notesJob = async(io) { NotesRepository(this@App) }
+            val words = async(io) { DictionaryRepository(this@App) }
+            val marks = async(io) { com.flerty.wikiflerty.data.BookmarksRepository(this@App) }
+            val people = async(io) { com.flerty.wikiflerty.data.CharactersRepository(this@App) }
+            val syncJob = async(io) { SyncManager(this@App) }
+            library = lib.await()
+            notes = notesJob.await()
+            dictionary = words.await()
+            bookmarks = marks.await()
+            characters = people.await()
+            sync = syncJob.await()
+        }
 
         notes.onDeleted = { sync.noteDeleted(it) }
         dictionary.onDeleted = { sync.wordDeleted(it) }

@@ -34,6 +34,19 @@ class LibraryRepository(
     private val _books = MutableStateFlow(load())
     val books: StateFlow<List<Book>> = _books.asStateFlow()
 
+    @Volatile private var indexed: List<Book>? = null
+    @Volatile private var index: Map<String, Book> = emptyMap()
+
+    fun find(id: String?): Book? {
+        if (id == null) return null
+        val list = _books.value
+        if (list !== indexed) {
+            index = list.associateBy { it.id }
+            indexed = list
+        }
+        return index[id]
+    }
+
     fun bookFile(book: Book): File = File(booksDir, book.fileName)
 
     var onBookAdded: (suspend (Book) -> Unit)? = null
