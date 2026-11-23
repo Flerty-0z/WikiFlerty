@@ -112,6 +112,7 @@ class ImportQueue(private val app: App) {
                     Result.failure(t)
                 }
                 val after = app.library.books.value.size
+                result.getOrNull()?.let { book -> runCatching { com.flerty.wikiflerty.ui.AutoImport.imported(app, next, book) } }
                 current.delete()
                 synchronized(pending) {
                     pending.removeFirstOrNull()

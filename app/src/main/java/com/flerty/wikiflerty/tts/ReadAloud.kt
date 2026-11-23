@@ -371,6 +371,7 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
     fun jumpTo(page: Locator, sentence: String, prog: Double, fallback: Locator?) {
         val navigator = _session.value?.navigator ?: return
         val pub = book ?: return
+        if (landed(navigator, squash(sentence))) return
         goJob?.cancel()
         val began = android.os.SystemClock.uptimeMillis()
         goJob = scope.launch {
@@ -378,6 +379,8 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
             var how = "none"
             try {
                 halt(navigator)
+                val before = navigator.location.value.utteranceLocator
+                val beforeText = navigator.location.value.utterance
                 val target = squash(sentence)
                 val spot = withContext(Dispatchers.Default) { runCatching { locate(pub, page, target, prog) }.getOrNull() }
                 if (spot != null) {
@@ -388,10 +391,11 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
                     waitText(navigator, 1500) { u -> u.isNotEmpty() && (spot.text.startsWith(u.take(10)) || u.startsWith(head)) }
                     walk(navigator, spot)
                     how = "spot"
-                } else if (fallback != null) {
-                    jump(navigator, fallback)
-                    align(navigator, sentence, fallback)
-                    how = "fallback"
+                }
+                if (!landed(navigator, target)) {
+                    jump(navigator, before)
+                    how = if (seek(navigator, before, target)) "near" else "stay"
+                    if (how == "stay") restore(navigator, before, beforeText)
                 }
             } finally {
                 _seeking.value = false
@@ -405,7 +409,35 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
         }
     }
 
+    private suspend fun restore(navigator: AndroidTtsNavigator, before: Locator, text: String) {
+        val target = squash(text)
+        if (target.isEmpty() || landed(navigator, target)) return
+        jump(navigator, before)
+        if (landed(navigator, target)) return
+        align(navigator, text, before, 2000)
+    }
+
     private class Spot(val locator: Locator, val text: String, val at: Int)
+
+    private fun landed(navigator: AndroidTtsNavigator, target: String): Boolean {
+        val u = squash(navigator.location.value.utterance)
+        return u.isNotEmpty() && target.isNotEmpty() && (same(u, target) || u.contains(target.take(12)) || target.startsWith(u.take(12)))
+    }
+
+    private suspend fun seek(navigator: AndroidTtsNavigator, from: Locator, target: String): Boolean {
+        for (forward in listOf(true, false)) {
+            if (!forward) jump(navigator, from)
+            var steps = 0
+            while (steps < 60) {
+                if (landed(navigator, target)) return true
+                if (forward && !navigator.hasNextUtterance()) break
+                if (!step(navigator, forward)) break
+                steps++
+            }
+        }
+        jump(navigator, from)
+        return false
+    }
 
     private suspend fun walk(navigator: AndroidTtsNavigator, spot: Spot) {
         var from = 0

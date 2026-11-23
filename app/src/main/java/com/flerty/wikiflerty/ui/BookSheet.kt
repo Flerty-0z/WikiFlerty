@@ -1115,7 +1115,8 @@ internal fun shareBookFile(context: android.content.Context, app: App, book: Boo
             val base = listOf(book.author.takeIf { it.isNotBlank() }, book.title).filterNotNull().joinToString(" — ")
                 .replace(Regex("[\\\\/:*?\"<>|\\n\\r\\t]"), " ").replace(Regex("\\s+"), " ").trim().take(90).ifBlank { "book" }
             val file = java.io.File(dir, "$base.$ext")
-            source.copyTo(file, overwrite = true)
+            val written = ext.equals("epub", true) && com.flerty.wikiflerty.data.EpubMetaWriter.write(source, file, book, book.customDescription)
+            if (!written) source.copyTo(file, overwrite = true)
             val mime = when (ext.lowercase()) {
                 "epub" -> "application/epub+zip"
                 "pdf" -> "application/pdf"

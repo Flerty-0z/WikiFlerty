@@ -136,6 +136,7 @@ class LibraryRepository(
                     scan = BookMetaReader.Version,
                 )
                 update { it + book }
+                recallEdits(book)
                 onBookAdded?.invoke(book)
                 Result.success(_books.value.firstOrNull { it.id == book.id } ?: book)
             } finally {
@@ -215,6 +216,7 @@ class LibraryRepository(
                 pdf = true,
             )
             update { it + book }
+            recallEdits(book)
             onBookAdded?.invoke(book)
             return Result.success(_books.value.firstOrNull { it.id == book.id } ?: book)
         } catch (e: Throwable) {
@@ -553,7 +555,29 @@ class LibraryRepository(
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
+    private val rememberedDir = File(context.filesDir, "remembered").apply { mkdirs() }
+
+    private fun rememberEdits(book: Book) {
+        val print = book.fingerprint ?: return
+        runCatching {
+            val all = book.metaJson()
+            val keep = org.json.JSONObject().put("metaChangedAt", System.currentTimeMillis())
+            listOf("editTitle", "editAuthor", "description", "facts", "series").forEach { k -> if (all.has(k)) keep.put(k, all.get(k)) }
+            if (keep.length() > 1) File(rememberedDir, "$print.json").writeText(keep.toString())
+        }
+    }
+
+    private suspend fun recallEdits(book: Book) {
+        val print = book.fingerprint ?: return
+        val file = File(rememberedDir, "$print.json")
+        if (!file.exists()) return
+        val json = runCatching { org.json.JSONObject(file.readText()) }.getOrNull()
+        file.delete()
+        if (json != null) applyMeta(book.id, json)
+    }
+
     suspend fun delete(book: Book) = withContext(Dispatchers.IO) {
+        rememberEdits(book)
         update { list -> list.filterNot { it.id == book.id } }
         bookFile(book).delete()
         coverFile(book)?.delete()

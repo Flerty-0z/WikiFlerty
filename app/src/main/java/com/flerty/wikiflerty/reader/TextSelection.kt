@@ -775,28 +775,11 @@ internal object TextSelection {
               }
               return null;
             };
-            var tail = function (py) {
-              var el = document.elementFromPoint(x, py);
-              var bl = el && el.closest ? el.closest(blocks) : null;
-              if (!bl) return null;
-              var pr = document.createRange();
-              pr.selectNodeContents(bl);
-              var rs = pr.getClientRects(), best = null;
-              for (var i = 0; i < rs.length; i++) {
-                var b = rs[i];
-                if (b.width > 0 && py >= b.top - 1 && py <= b.bottom + 1 && b.right < x && (!best || b.right > best.right)) best = b;
-              }
-              return best ? at(best.right - 2, (best.top + best.bottom) / 2) : null;
-            };
-            var steps = [0, -3, 3, -6, 6, -9, 9, -12, 12, -15, 15], hit = null;
+            var steps = [0, -3, 3], hit = null;
             for (var k = 0; k < steps.length && !hit; k++) {
               var c = at(x, y + steps[k]);
               if (c && c.link) { if (k === 0) return ""; c = null; }
               hit = c;
-            }
-            for (var k = 0; k < steps.length && !hit; k++) {
-              var c = tail(y + steps[k]);
-              if (c && !c.link) hit = c;
             }
             if (!hit) return "";
             var r = hit.r, n = hit.n, host = hit.host;

@@ -192,6 +192,7 @@ data class FlagInfo(
 )
 
 class ReaderUiState {
+    var speed by mutableStateOf<SpeedSession?>(null)
     var panelsVisible by mutableStateOf(false)
     var sheet by mutableStateOf<ReaderSheet?>(null)
     var progression by mutableStateOf(0.0)
@@ -946,7 +947,11 @@ fun ReaderOverlay(
             val density = androidx.compose.ui.platform.LocalDensity.current
             val menuHeight = with(density) { 58.dp.toPx() }
             val gap = with(density) { 12.dp.toPx() }
-            val minY = with(density) { 24.dp.toPx() }
+            val notch = maxOf(
+                androidx.compose.foundation.layout.WindowInsets.displayCutout.getTop(density),
+                androidx.compose.foundation.layout.WindowInsets.statusBars.getTop(density),
+            ).toFloat()
+            val minY = notch + with(density) { (if (notch > 0f) 8.dp else 24.dp).toPx() }
             val maxY = with(density) { maxHeight.toPx() } - menuHeight - with(density) { 72.dp.toPx() }
             val handles = kept[0]
             val line = with(density) { 30.dp.toPx() }
@@ -1005,6 +1010,16 @@ fun ReaderOverlay(
             )
         }
     }
+    }
+
+    androidx.compose.animation.AnimatedVisibility(
+        visible = state.speed != null,
+        enter = fadeIn(Motion.fade(220)),
+        exit = fadeOut(Motion.fade(200)),
+    ) {
+        val kept = remember { arrayOf<SpeedSession?>(null) }
+        state.speed?.let { kept[0] = it }
+        kept[0]?.let { session -> SpeedReader(session) { i -> state.speed = null; auto.onSpeedClose(i) } }
     }
 
     AnimatedVisibility(
@@ -1947,7 +1962,7 @@ private fun SheetContent(
                 when (sheet) {
                     ReaderSheet.Options -> OptionsHome(onOpen)
                     ReaderSheet.Text -> OptionFrame { TextOptions(settings, fonts, onSettingsChange, onOpen) }
-                    ReaderSheet.Scroll -> OptionFrame { ScrollOptions(settings, onSettingsChange, auto.onStart) }
+                    ReaderSheet.Scroll -> OptionFrame { ScrollOptions(settings, onSettingsChange, auto.onStart, auto.onSpeed) }
                     ReaderSheet.Theme -> OptionFrame { ThemeOptions(settings, onSettingsChange) }
                     ReaderSheet.Panel -> OptionFrame { PanelOptions(settings, onSettingsChange, onOpen) }
                     ReaderSheet.Flag -> OptionFrame { FlagOptions(settings, onSettingsChange, flag) }
@@ -2256,6 +2271,7 @@ private fun ScrollOptions(
     settings: ReaderSettings,
     onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit,
     onAutoStart: (() -> Unit)? = null,
+    onSpeed: (() -> Unit)? = null,
 ) {
     Segmented("Режим", listOf("Страницы", "Лента"), if (settings.scroll) 1 else 0, icon = AppIcons.Scroll) { i ->
         onSettingsChange { it.copy(scroll = i == 1) }
@@ -2309,6 +2325,22 @@ private fun ScrollOptions(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(AppIcons.Play, null, tint = accentContent, modifier = Modifier.size(20.dp))
                 Text("Автопрокрутка", color = accentContent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            }
+        }
+    }
+    if (onSpeed != null) {
+        val shape = appCorner(14)
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(46.dp)
+                .border(1.dp, AppColors.PanelBorder, shape)
+                .liveClick(shape, sound = FeedbackSound.Go, onClick = onSpeed),
+            contentAlignment = Alignment.Center,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(AppIcons.Speed, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp))
+                Text("Скорочтение по слову", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
             }
         }
     }
@@ -3034,6 +3066,8 @@ class AutoActions(
     val onStart: () -> Unit,
     val onToggle: () -> Unit,
     val onStop: () -> Unit,
+    val onSpeed: (() -> Unit)? = null,
+    val onSpeedClose: (Int) -> Unit = {},
 )
 
 @Composable

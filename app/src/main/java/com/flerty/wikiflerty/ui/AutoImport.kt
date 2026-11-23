@@ -63,6 +63,8 @@ object AutoImport {
     val info: StateFlow<Info> = _info
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy
+    private val _shelves = MutableStateFlow(false)
+    val shelves: StateFlow<Boolean> = _shelves
 
     private fun prefs(c: Context) = c.getSharedPreferences("auto_import", Context.MODE_PRIVATE)
 
@@ -71,6 +73,7 @@ object AutoImport {
         loaded = true
         val p = prefs(c)
         _folder.value = p.getString("tree", null)?.let(Uri::parse)
+        _shelves.value = p.getBoolean("folderShelves", false)
         _info.value = Info(p.getInt("count", 0), p.getString("recent", null)?.split('\n')?.filter { it.isNotBlank() }.orEmpty())
     }
 
@@ -78,7 +81,7 @@ object AutoImport {
         load(c)
         val old = _folder.value
         if (old != null && old != tree) runCatching { c.contentResolver.releasePersistableUriPermission(old, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-        prefs(c).edit().putString("tree", tree?.toString()).remove("seen").remove("count").remove("recent").putLong("last", 0).apply()
+        prefs(c).edit().putString("tree", tree?.toString()).remove("seen").remove("count").remove("recent").remove("folders").remove("links").putLong("last", 0).apply()
         _info.value = Info()
         _folder.value = tree
     }
@@ -101,10 +104,98 @@ object AutoImport {
             val recent = (fresh.map { it.name.substringBeforeLast('.') } + _info.value.recent).distinct().take(3)
             p.edit().putStringSet("seen", seen + found.map { it.uri.toString() }).putInt("count", found.size).putString("recent", recent.joinToString("\n")).apply()
             _info.value = Info(found.size, recent)
+            val folders = shelfNames(found)
+            p.edit().putString("folders", org.json.JSONObject(folders as Map<*, *>).toString()).apply()
+            if (_shelves.value) placeAll(app, found, folders)
             if (fresh.isNotEmpty()) app.imports.add(fresh.map { it.uri })
         } finally {
             _busy.value = false
         }
+    }
+
+    fun setShelves(app: App, on: Boolean) {
+        load(app)
+        prefs(app).edit().putBoolean("folderShelves", on).apply()
+        _shelves.value = on
+        if (on) app.appScope.launch { run(app, force = true) }
+    }
+
+    private fun shelfNames(found: List<FoundBook>): Map<String, String> {
+        val paths = found.map { it.folder }.filter { it.isNotBlank() }.distinct()
+        val last = paths.groupBy { it.substringAfterLast('/') }
+        val names = paths.associateWith { path ->
+            val leaf = path.substringAfterLast('/')
+            if ((last[leaf]?.size ?: 0) > 1 && path.contains('/')) path.substringBeforeLast('/').substringAfterLast('/') + " · " + leaf else leaf
+        }
+        return found.filter { it.folder.isNotBlank() }.associate { it.uri.toString() to names.getValue(it.folder) }
+    }
+
+    private fun linked(c: Context): MutableMap<String, String> {
+        val j = runCatching { org.json.JSONObject(prefs(c).getString("links", "{}") ?: "{}") }.getOrElse { org.json.JSONObject() }
+        return j.keys().asSequence().associateWith { j.optString(it) }.toMutableMap()
+    }
+
+    private suspend fun placeAll(app: App, found: List<FoundBook>, folders: Map<String, String>) {
+        val links = linked(app)
+        val books = app.library.books.value
+        val byId = books.associateBy { it.id }
+        val byTitle = books.groupBy { it.title.lowercase().trim() }
+        val byPrint = books.filter { it.fingerprint != null }.associateBy { it.fingerprint!! }
+        val used = mutableSetOf<String>()
+        var hashed = 0
+        var learned = false
+        for (f in found) {
+            val key = f.uri.toString()
+            val shelf = folders[key] ?: continue
+            var book = links[key]?.let { byId[it] } ?: byTitle[BookScanner.baseName(f.name)]?.singleOrNull()
+            if (book == null && hashed < 600 && f.size in 1..(250L shl 20)) {
+                hashed++
+                book = digest(app, f.uri)?.let { byPrint[it] }
+            }
+            if (book == null) continue
+            if (links[key] != book.id) {
+                links[key] = book.id
+                learned = true
+            }
+            used += shelf
+            val fresh = app.library.books.value.firstOrNull { it.id == book.id } ?: book
+            if (shelf !in fresh.shelves) app.library.setShelves(fresh.id, fresh.shelves + shelf)
+        }
+        if (learned) prefs(app).edit().putString("links", org.json.JSONObject(links as Map<*, *>).toString()).apply()
+        register(app, used)
+    }
+
+    private fun digest(app: App, uri: Uri): String? = runCatching {
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        app.contentResolver.openInputStream(uri)?.use { input ->
+            val buf = ByteArray(64 * 1024)
+            while (true) {
+                val n = input.read(buf)
+                if (n < 0) break
+                md.update(buf, 0, n)
+            }
+        } ?: return@runCatching null
+        md.digest().joinToString("") { "%02x".format(it) }
+    }.getOrNull()
+
+    private fun register(app: App, names: Set<String>) {
+        if (names.isEmpty()) return
+        app.libraryPrefs.update { p -> if (names.all { it in p.shelves }) p else p.copy(shelves = (p.shelves + names).distinct()) }
+    }
+
+    suspend fun imported(app: App, uri: String, book: com.flerty.wikiflerty.data.Book) {
+        load(app)
+        val p = prefs(app)
+        if (p.getString("tree", null) == null) return
+        val links = linked(app)
+        links[uri] = book.id
+        p.edit().putString("links", org.json.JSONObject(links as Map<*, *>).toString()).apply()
+        if (!_shelves.value) return
+        val folders = runCatching { org.json.JSONObject(p.getString("folders", "{}") ?: "{}") }.getOrNull() ?: return
+        val shelf = folders.optString(uri).takeIf { it.isNotBlank() } ?: return
+        val fresh = app.library.books.value.firstOrNull { it.id == book.id } ?: book
+        if (shelf !in fresh.shelves) app.library.setShelves(fresh.id, fresh.shelves + shelf)
+        register(app, setOf(shelf))
     }
 }
 
@@ -192,6 +283,17 @@ internal fun AutoImportRow(modifier: Modifier = Modifier) {
                     modifier = Modifier.weight(1f),
                 )
                 Text(if (on) "Сменить ›" else "Выбрать ›", color = accentText, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            }
+            if (on) {
+                val shelvesOn by AutoImport.shelves.collectAsState()
+                Box(Modifier.padding(top = 10.dp, bottom = 8.dp).fillMaxWidth().height(1.dp).background(AppColors.Line))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Полки по папкам", color = AppColors.Text, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Text("Каждая подпапка станет полкой", color = AppColors.Faint, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    KitSwitch(shelvesOn, { AutoImport.setShelves(app, it) })
+                }
             }
         }
         val tabShape = RoundedCornerShape(topStart = 9.dp, topEnd = 9.dp)

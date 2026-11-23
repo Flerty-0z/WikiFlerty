@@ -1524,7 +1524,68 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             onStart = ::startAuto,
             onToggle = ::toggleAuto,
             onStop = ::stopAuto,
+            onSpeed = ::startSpeed,
+            onSpeedClose = ::closeSpeed,
         )
+    }
+
+    private var speedSession: SpeedSession? = null
+
+    private fun startSpeed() {
+        val pub = publication ?: return
+        ui.sheet = null
+        if (ui.autoActive) stopAuto()
+        val start = navigator.currentLocator.value
+        lifecycleScope.launch {
+            val built = withContext(Dispatchers.Default) { runCatching { buildSpeed(pub, start) }.getOrNull() }
+            if (built == null || built.words.isEmpty()) {
+                Toast.makeText(this@ReaderActivity, "Здесь нет текста для скорочтения", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            speedSession = built
+            ui.panelsVisible = false
+            ui.speed = built
+        }
+    }
+
+    private fun closeSpeed(index: Int) {
+        val locator = speedSession?.locatorAt(index) ?: return
+        speedSession = null
+        lifecycleScope.launch { runCatching { navigator.go(locator, animated = false) } }
+    }
+
+    @OptIn(org.readium.r2.shared.ExperimentalReadiumApi::class)
+    private suspend fun buildSpeed(pub: Publication, start: Locator): SpeedSession? {
+        val content = pub.findService(org.readium.r2.shared.publication.services.content.ContentService::class)?.content(start) ?: return null
+        val titles = flattenToc(pub.tableOfContents).associate { it.link.url().toString().substringBefore('#') to it.title }
+        val iterator = content.iterator()
+        val words = ArrayList<String>()
+        val owners = ArrayList<Int>()
+        val chapters = ArrayList<Int>()
+        val locators = ArrayList<Locator>()
+        val chapterTitles = ArrayList<String>()
+        var lastHref: String? = null
+        var guard = 0
+        while (words.size < 80_000 && guard < 200_000 && iterator.hasNext()) {
+            guard++
+            val element = iterator.next() as? org.readium.r2.shared.publication.services.content.Content.TextualElement ?: continue
+            val parts = SpeedText.split(element.text.orEmpty())
+            if (parts.isEmpty()) continue
+            val href = element.locator.href.toString().substringBefore('#')
+            if (href != lastHref) {
+                chapterTitles += titles[href] ?: chapterTitles.lastOrNull().orEmpty()
+                lastHref = href
+            }
+            val owner = locators.size
+            locators += element.locator
+            for (w in parts) {
+                words += w
+                owners += owner
+                chapters += chapterTitles.size - 1
+            }
+        }
+        if (words.isEmpty()) return null
+        return SpeedSession(words, owners.toIntArray(), locators, 0, chapters.toIntArray(), chapterTitles)
     }
 
     private fun startAuto() {
