@@ -105,7 +105,7 @@ private fun SignIn(account: Account, onRecovery: (String) -> Unit) {
         Modifier.fillMaxWidth().fieldSurface(appCorner(20)).animateContentSize(Motion.tween(260)).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        HintNote("Прогресс, заметки, настройки и сами книги — на любом телефоне по логину и паролю. 1 ГБ в облаке бесплатно.", AppIcons.Cloud, framed = false)
+        HintNote("Прогресс, заметки, настройки и сами книги — на любом телефоне по логину и паролю. 500 МБ в облаке бесплатно.", AppIcons.Cloud, framed = false)
         ListDivider()
         SettingSegmented(null, listOf("Вход", "Регистрация"), mode) { mode = it }
         InputField(login, { v -> login = v.filter { it.isLetterOrDigit() || it == '_' }.take(24) }, "Логин")
@@ -222,10 +222,10 @@ private fun SignedIn(account: Account, state: Account.State) {
             SettingIcon(AppIcons.Person, 40.dp)
             Column(Modifier.weight(1f)) {
                 Text(state.login.orEmpty(), color = AppColors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("Бесплатно · ${cloudSize(state.limit.takeIf { it > 0 } ?: (1L shl 30))} в облаке", color = AppColors.Faint, fontSize = 12.sp)
+                Text("Бесплатно · ${cloudSize(state.limit.takeIf { it > 0 } ?: (500L shl 20))} в облаке", color = AppColors.Faint, fontSize = 12.sp)
             }
         }
-        val limit = state.limit.takeIf { it > 0 } ?: (1L shl 30)
+        val limit = state.limit.takeIf { it > 0 } ?: (500L shl 20)
         val fraction = (state.used.toFloat() / limit).coerceIn(0f, 1f)
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Box(Modifier.fillMaxWidth().height(10.dp).background(AppColors.Line.copy(alpha = 0.6f), CircleShape)) {

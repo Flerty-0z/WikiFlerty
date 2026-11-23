@@ -21,7 +21,7 @@ import (
 const (
 	gb             = int64(1) << 30
 	mb             = int64(1) << 20
-	freeLimit      = 1 * gb
+	freeLimit      = 500 * mb
 	maxFile        = 200 * mb
 	userUpPerDay   = 2 * gb
 	userDownPerDay = 3 * gb
