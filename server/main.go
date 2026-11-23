@@ -60,10 +60,12 @@ func (p *Presence) touch(id string, reading bool) int {
 	now := time.Now()
 	if reading && id != "" && len(id) <= 64 && (len(p.seen) < 200000 || !p.seen[id].IsZero()) {
 		p.seen[id] = now
+	} else if !reading && id != "" {
+		delete(p.seen, id)
 	}
 	n := 0
 	for k, t := range p.seen {
-		if now.Sub(t) > 150*time.Second {
+		if now.Sub(t) > 75*time.Second {
 			delete(p.seen, k)
 			continue
 		}

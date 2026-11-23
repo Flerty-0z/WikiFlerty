@@ -44,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.flerty.wikiflerty.App
 import com.flerty.wikiflerty.sync.Account
 import com.flerty.wikiflerty.sync.CloudSync
@@ -614,10 +615,13 @@ fun ReadingNow() {
     val app = LocalContext.current.applicationContext as App
     if (!app.account.available) return
     val count by app.account.readingNow.collectAsStateWithLifecycle()
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        while (true) {
-            app.account.ping(false)
-            kotlinx.coroutines.delay(60_000)
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.LaunchedEffect(owner) {
+        owner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+            while (true) {
+                app.account.ping(false)
+                kotlinx.coroutines.delay(15_000)
+            }
         }
     }
     val n = count
