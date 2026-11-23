@@ -22,6 +22,6 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
       - name: Converters on hard files
-        run: set -o pipefail; ./gradlew :app:testReleaseUnitTest --tests '*TortureTest*' --stacktrace 2>&1 | tee test.log
+        run: set -o pipefail; ./gradlew :app:testDebugUnitTest --tests '*TortureTest*' --stacktrace 2>&1 | tee test.log
       - if: always()
         run: grep -E "torture |FAILED|PASSED|Error" test.log | head -60 || true
