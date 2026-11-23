@@ -1,0 +1,46 @@
+name: Notify
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+    inputs:
+      text:
+        description: Текст
+        required: false
+
+concurrency:
+  group: notify
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Send
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SELECTEL_S3_ACCESS }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SELECTEL_S3_SECRET }}
+          AWS_DEFAULT_REGION: ru-3
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          BOT: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          TEXT: ${{ inputs.text }}
+        run: |
+          aws configure set default.s3.addressing_style virtual
+          s3() { aws --endpoint-url https://s3.ru-3.storage.selcloud.ru s3 "$@"; }
+          if [ -n "$TEXT" ]; then printf '%s' "$TEXT" > in.txt; s3 cp in.txt "s3://wikiflerty-books/notify/$(date +%s%N)-manual.txt" --quiet; fi
+          keys=$(s3 ls s3://wikiflerty-books/notify/ | awk '{print $4}' | sort)
+          [ -n "$keys" ] || { echo "nothing"; exit 0; }
+          kid=$(gh api "repos/${{ github.repository }}/releases?per_page=100" -q '[.[] | select(.tag_name=="film-kit")][0].assets[0].id')
+          gh api -H "Accept: application/octet-stream" "repos/${{ github.repository }}/releases/assets/$kid" > kit.zip
+          unzip -oq kit.zip chat.txt -d tg
+          owner=$(cat tg/chat.txt)
+          for k in $keys; do
+            s3 cp "s3://wikiflerty-books/notify/$k" msg.txt --quiet
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --data-urlencode "chat_id=$owner" --data-urlencode "text@msg.txt" "https://api.telegram.org/bot$BOT/sendMessage")
+            echo "$k $code"
+            [ "$code" = 200 ] && s3 rm "s3://wikiflerty-books/notify/$k" --quiet
+          done

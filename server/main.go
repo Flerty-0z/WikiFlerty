@@ -9,7 +9,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -181,20 +180,14 @@ func cleanCode(s string) string {
 }
 
 func (a *App) notify(text string) {
-	if a.bot == "" || a.owner == "" {
+	if a.st == nil {
 		return
 	}
+	key := fmt.Sprintf("notify/%d-%s.txt", time.Now().UnixNano(), randomHex(3))
 	go func() {
-		form := url.Values{"chat_id": {a.owner}, "text": {text}}
-		resp, err := http.PostForm("https://api.telegram.org/bot"+a.bot+"/sendMessage", form)
-		if err != nil {
-			log.Println("notify:", strings.ReplaceAll(err.Error(), a.bot, "***"))
-			return
+		if err := a.st.s3.Put(key, []byte(text)); err != nil {
+			log.Println("notify:", err)
 		}
-		if resp.StatusCode != 200 {
-			log.Println("notify: status", resp.StatusCode)
-		}
-		resp.Body.Close()
 	}()
 }
 
