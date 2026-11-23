@@ -29,9 +29,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TEXT: ${{ inputs.text }}
         run: |
+          set -x
           aws configure set default.s3.addressing_style virtual
           s3() { aws --endpoint-url https://s3.ru-3.storage.selcloud.ru s3 "$@"; }
-          if [ -n "$TEXT" ]; then printf '%s' "$TEXT" > in.txt; s3 cp in.txt "s3://wikiflerty-books/notify/$(date +%s%N)-manual.txt" --quiet; fi
+          if [ -n "$TEXT" ]; then printf '%s' "$TEXT" > in.txt; s3 cp in.txt "s3://wikiflerty-books/notify/$(date +%s%N)-manual.txt"; fi
           keys=$(s3 ls s3://wikiflerty-books/notify/ | awk '{print $4}' | sort)
           [ -n "$keys" ] || { echo "nothing"; exit 0; }
           kid=$(gh api "repos/${{ github.repository }}/releases?per_page=100" -q '[.[] | select(.tag_name=="film-kit")][0].assets[0].id')
@@ -39,8 +40,8 @@ jobs:
           unzip -oq kit.zip chat.txt -d tg
           owner=$(cat tg/chat.txt)
           for k in $keys; do
-            s3 cp "s3://wikiflerty-books/notify/$k" msg.txt --quiet
+            s3 cp "s3://wikiflerty-books/notify/$k" msg.txt
             code=$(curl -sS -o /dev/null -w '%{http_code}' --data-urlencode "chat_id=$owner" --data-urlencode "text@msg.txt" "https://api.telegram.org/bot$BOT/sendMessage")
             echo "$k $code"
-            [ "$code" = 200 ] && s3 rm "s3://wikiflerty-books/notify/$k" --quiet
+            [ "$code" = 200 ] && s3 rm "s3://wikiflerty-books/notify/$k"
           done
