@@ -67,7 +67,17 @@ def icons():
         return None, None
 
 
-items = [p.strip() for p in open(notes_file, encoding="utf-8").read().strip().split("\n\n") if p.strip()]
+raw_notes = open(notes_file, encoding="utf-8").read().strip()
+sections = []
+for chunk in [p.strip() for p in raw_notes.split("\n\n") if p.strip()]:
+    for row in [r.strip() for r in chunk.split("\n") if r.strip()]:
+        if row.startswith("## "):
+            sections.append((row[3:].strip(), []))
+        else:
+            if not sections:
+                sections.append(("", []))
+            sections[-1][1].append(row)
+items = [i for _, rows in sections for i in rows]
 url = f"https://github.com/{repo}/releases/tag/v{version}"
 apk = f"https://github.com/{repo}/releases/download/v{version}/WikiFlerty-{version}"
 
@@ -111,10 +121,13 @@ app_icon, gh_icon = icons()
 logo = f'<tg-emoji emoji-id="{app_icon}">\U0001F4D6</tg-emoji>' if app_icon else ""
 contact_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contact.txt")
 contact = open(contact_file, encoding="utf-8").read().strip() if os.path.exists(contact_file) else "Если что-то не так, пишите @F1erty0z"
-body = "\n\n".join(line(i) for i in items)
+if any(title for title, _ in sections):
+    body = "\n\n".join((f"<b>{html.escape(title)}</b>\n" if title else "") + "<blockquote>" + "\n".join(line(i) for i in rows) + "</blockquote>" for title, rows in sections)
+else:
+    body = "<blockquote>" + "\n\n".join(line(i) for i in items) + "</blockquote>"
 text = (
     f"<b>Ребята, вышло обновление {version}</b>\u00a0{logo}\n\n"
-    f"<blockquote>{body}</blockquote>\n\n"
+    f"{body}\n\n"
     f"<blockquote>Огромная просьба перед обновлением сделать «Резервную копию» {emoji('🛡')}\n\n"
     f"{contact}</blockquote>"
 )
