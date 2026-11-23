@@ -187,9 +187,14 @@ func (a *App) notify(text string) {
 	go func() {
 		form := url.Values{"chat_id": {a.owner}, "text": {text}}
 		resp, err := http.PostForm("https://api.telegram.org/bot"+a.bot+"/sendMessage", form)
-		if err == nil {
-			resp.Body.Close()
+		if err != nil {
+			log.Println("notify:", strings.ReplaceAll(err.Error(), a.bot, "***"))
+			return
 		}
+		if resp.StatusCode != 200 {
+			log.Println("notify: status", resp.StatusCode)
+		}
+		resp.Body.Close()
 	}()
 }
 
