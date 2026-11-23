@@ -69,6 +69,10 @@ jobs:
           S3_ACCESS: ${{ secrets.SELECTEL_S3_ACCESS }}
           S3_SECRET: ${{ secrets.SELECTEL_S3_SECRET }}
           BOT: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          RK1: ${{ secrets.ROBOKASSA_PASS1 }}
+          RK2: ${{ secrets.ROBOKASSA_PASS2 }}
+          RKT1: ${{ secrets.ROBOKASSA_TEST1 }}
+          RKT2: ${{ secrets.ROBOKASSA_TEST2 }}
         run: |
           umask 077
           cat > "$RUNNER_TEMP/s/env" <<EOF
@@ -83,6 +87,13 @@ jobs:
           PUBLIC_DOMAIN=sync.wikiflerty.ru
           PUBLIC_CERT=/opt/wikiflerty/le.crt
           PUBLIC_KEY=/opt/wikiflerty/le.key
+          ROBOKASSA_LOGIN=wikiflerty
+          ROBOKASSA_HASH=sha256
+          ROBOKASSA_TEST=1
+          ROBOKASSA_PASS1=$RK1
+          ROBOKASSA_PASS2=$RK2
+          ROBOKASSA_TEST1=$RKT1
+          ROBOKASSA_TEST2=$RKT2
           EOF
           sed -i 's/^ *//' "$RUNNER_TEMP/s/env"
           cat > "$RUNNER_TEMP/s/wikiflerty.service" <<'EOF'

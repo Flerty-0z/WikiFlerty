@@ -34,6 +34,8 @@ type User struct {
 	Created int64               `json:"created"`
 	Limit   int64               `json:"limit"`
 	Plan    string              `json:"plan"`
+	Paid    string              `json:"paid,omitempty"`
+	Until   int64               `json:"until,omitempty"`
 	Books   map[string]*BookRec `json:"books"`
 	Tokens  []string            `json:"tokens"`
 	Day     string              `json:"day"`

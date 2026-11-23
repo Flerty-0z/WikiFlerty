@@ -80,6 +80,7 @@ type App struct {
 	limiter  *Limiter
 	bot      string
 	owner    string
+	kassa    *Robokassa
 }
 
 type Limiter struct {
@@ -222,9 +223,14 @@ func (a *App) view(u *User) map[string]any {
 	for fp, b := range u.Books {
 		books = append(books, map[string]any{"fp": fp, "size": b.Size, "name": b.Name, "ext": b.Ext, "at": b.At})
 	}
+	now := time.Now()
+	plan, until := u.Plan, int64(0)
+	if p, ok := u.active(now); ok {
+		plan, until = p.ID, u.Until
+	}
 	return map[string]any{
-		"login": u.Login, "used": u.Used(), "limit": u.Limit, "plan": u.Plan, "books": books,
-		"maxFile": maxFile, "created": u.Created,
+		"login": u.Login, "used": u.Used(), "limit": u.Quota(now), "base": u.Limit, "plan": plan, "until": until,
+		"books": books, "maxFile": maxFile, "created": u.Created, "pay": a.kassa.ready(),
 	}
 }
 
@@ -259,7 +265,7 @@ func (a *App) authed(r *http.Request) (*User, *apiError) {
 //go:embed site
 var siteFiles embed.FS
 
-var sitePages = map[string]string{"/": "site/index.html", "/offer": "site/offer.html", "/privacy": "site/privacy.html", "/style.css": "site/style.css"}
+var sitePages = map[string]string{"/": "site/index.html", "/offer": "site/offer.html", "/privacy": "site/privacy.html", "/style.css": "site/style.css", "/pay/ok": "site/ok.html", "/pay/fail": "site/fail.html"}
 
 func siteHost(r *http.Request) bool {
 	host := strings.ToLower(r.Host)
@@ -300,6 +306,10 @@ func (a *App) route(w http.ResponseWriter, r *http.Request) {
 	ip := clientIP(r)
 	if !a.limiter.allow("ip:"+ip, 240, time.Minute) {
 		reply(w, 429, map[string]string{"error": "slow", "message": "Слишком много запросов, подожди минуту"})
+		return
+	}
+	if r.URL.Path == "/v1/pay/result" {
+		a.payResult(w, r)
 		return
 	}
 	if r.URL.Path == "/v1/health" {
@@ -367,6 +377,8 @@ func (a *App) handle(r *http.Request, ip string) (any, *apiError) {
 		return a.link(r, u)
 	case "/v1/books/delete":
 		return a.deleteBook(r, u)
+	case "/v1/pay/create":
+		return a.payCreate(r, u)
 	}
 	return nil, fail(404, "not_found", "Неизвестный запрос")
 }
@@ -618,7 +630,7 @@ func (a *App) upload(r *http.Request, u *User) (any, *apiError) {
 		return nil, fail(413, "too_big", "Книга больше 200 МБ, в облако её загрузить нельзя")
 	}
 	reserved := a.reserved(u.Login)
-	if u.Used()+reserved+b.Size > u.Limit {
+	if u.Used()+reserved+b.Size > u.Quota(time.Now()) {
 		return nil, fail(403, "quota", "Место в облаке закончилось")
 	}
 	if u.UpDay+reserved+b.Size > userUpPerDay {
@@ -767,6 +779,7 @@ func main() {
 		limiter:  &Limiter{hits: map[string][]time.Time{}, fails: map[string][]time.Time{}},
 		bot:      os.Getenv("BOT_TOKEN"),
 		owner:    os.Getenv("OWNER_CHAT"),
+		kassa:    robokassaFromEnv(),
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", app.route)

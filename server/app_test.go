@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -158,5 +159,76 @@ func TestFlow(t *testing.T) {
 	}
 	if code, _ := c.call("/v1/me", map[string]any{}); code != 401 {
 		t.Fatal("after delete", code)
+	}
+}
+
+func TestPay(t *testing.T) {
+	fs := fakeS3()
+	defer fs.Close()
+	s3 := &S3{Host: strings.TrimPrefix(fs.URL, "https://"), Region: "ru-3", Access: "a", Secret: "b", Client: fs.Client()}
+	st, _ := NewStore(s3)
+	k := &Robokassa{Login: "wikiflerty", Test1: "t1", Test2: "t2", Hash: "sha256", Test: true}
+	app := &App{presence: &Presence{seen: map[string]time.Time{}}, st: st, pending: map[string]map[string]*pendingUpload{}, limiter: &Limiter{hits: map[string][]time.Time{}, fails: map[string][]time.Time{}}, kassa: k}
+	srv := httptest.NewServer(http.HandlerFunc(app.route))
+	defer srv.Close()
+	c := &client{t: t, srv: srv}
+	_, out := c.call("/v1/register", map[string]any{"login": "payer", "password": "secret123", "sync": "ABCDE-FGHJK-MNPQR"})
+	c.token = out["token"].(string)
+	pay := func(plan string) (int64, string) {
+		code, out := c.call("/v1/pay/create", map[string]any{"plan": plan})
+		if code != 200 {
+			t.Fatal(code, out)
+		}
+		link, _ := url.Parse(out["url"].(string))
+		q := link.Query()
+		rec := q.Get("Receipt")
+		if q.Get("SignatureValue") != k.sum("wikiflerty:"+q.Get("OutSum")+":"+q.Get("InvId")+":"+rec+":t1") || q.Get("IsTest") != "1" {
+			t.Fatal("link", link)
+		}
+		if strings.Contains(rec, "{") {
+			t.Fatal("receipt not encoded", rec)
+		}
+		inv := q.Get("InvId")
+		sum := q.Get("OutSum") + ".000000"
+		form := url.Values{"OutSum": {sum}, "InvId": {inv}, "IsTest": {"1"}, "SignatureValue": {strings.ToUpper(k.sum(sum + ":" + inv + ":t2"))}}
+		r, err := http.PostForm(srv.URL+"/v1/pay/result", form)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := io.ReadAll(r.Body)
+		r.Body.Close()
+		n, _ := strconv.ParseInt(inv, 10, 64)
+		return n, string(b)
+	}
+	bad := url.Values{"OutSum": {"79"}, "InvId": {"123"}, "IsTest": {"1"}, "SignatureValue": {"00"}}
+	if r, _ := http.PostForm(srv.URL+"/v1/pay/result", bad); r.StatusCode != 400 {
+		t.Fatal("bad sign accepted")
+	}
+	inv, body := pay("plus")
+	if body != "OK"+strconv.FormatInt(inv, 10) {
+		t.Fatal(body)
+	}
+	_, me := c.call("/v1/me", map[string]any{})
+	if me["limit"].(float64) != float64(5*gb) || me["plan"] != "plus" {
+		t.Fatal(me)
+	}
+	u := st.users["payer"]
+	first := u.Until
+	pay("plus")
+	if d := u.Until - first; d < period.Milliseconds()-5000 {
+		t.Fatal("extend", d)
+	}
+	pay("plus2")
+	if u.Paid != "plus2" || u.Quota(time.Now()) != 15*gb {
+		t.Fatal("upgrade", u.Paid)
+	}
+	left := u.Until - time.Now().UnixMilli()
+	want := period.Milliseconds() + 2*period.Milliseconds()*79/149
+	if left < want-10000 || left > want+10000 {
+		t.Fatal("carry", left, want)
+	}
+	u.Until = time.Now().Add(-time.Minute).UnixMilli()
+	if _, me := c.call("/v1/me", map[string]any{}); me["limit"].(float64) != float64(freeLimit) || me["plan"] != "free" {
+		t.Fatal("expire", me)
 	}
 }
