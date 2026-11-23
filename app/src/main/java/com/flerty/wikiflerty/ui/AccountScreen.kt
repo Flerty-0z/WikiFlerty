@@ -11,6 +11,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -26,6 +32,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -70,7 +77,7 @@ fun AccountContent() {
 }
 
 @Composable
-private fun SignIn(account: Account, onRecovery: (String) -> Unit) {
+fun SignIn(account: Account, showCode: Boolean = true, onLater: (() -> Unit)? = null, onSigned: () -> Unit = {}, onRecovery: (String) -> Unit) {
     val context = LocalContext.current
     val app = context.applicationContext as App
     val cloud by app.cloud.status.collectAsStateWithLifecycle()
@@ -81,6 +88,7 @@ private fun SignIn(account: Account, onRecovery: (String) -> Unit) {
     var repeat by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var forgot by remember { mutableStateOf(false) }
+    val feedback = LocalFeedback.current
     fun toast(text: String) = Toast.makeText(context, text, Toast.LENGTH_LONG).show()
 
     fun submit() {
@@ -93,29 +101,36 @@ private fun SignIn(account: Account, onRecovery: (String) -> Unit) {
         busy = true
         scope.launch {
             if (mode == 1) {
-                account.register(name, password).onSuccess { onRecovery(it) }.onFailure { toast(it.message ?: "Не получилось") }
+                account.register(name, password).onSuccess { feedback?.play(FeedbackSound.SignUp); onRecovery(it) }.onFailure { feedback?.play(FeedbackSound.Deny); toast(it.message ?: "Не получилось") }
             } else {
-                account.login(name, password).onSuccess { toast("Вход выполнен") }.onFailure { toast(it.message ?: "Не получилось") }
+                account.login(name, password).onSuccess { feedback?.play(FeedbackSound.SignIn); toast("Вход выполнен"); onSigned() }.onFailure { feedback?.play(FeedbackSound.Deny); toast(it.message ?: "Не получилось") }
             }
             busy = false
         }
     }
 
     Column(
+        Modifier.fillMaxWidth().fieldSurface(appCorner(20)).padding(horizontal = 14.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        ShelfSyncScene()
+        Text("Твоя полка — на любом устройстве", color = AppColors.Muted, fontSize = 13.sp, textAlign = TextAlign.Center)
+        Text("500 МБ для книг бесплатно", color = AppColors.Accent, fontSize = 12.sp, textAlign = TextAlign.Center)
+    }
+    Column(
         Modifier.fillMaxWidth().fieldSurface(appCorner(20)).animateContentSize(Motion.tween(260)).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        HintNote("Прогресс, заметки, настройки и сами книги — на любом телефоне по логину и паролю. 500 МБ в облаке бесплатно.", AppIcons.Cloud, framed = false)
-        ListDivider()
         SettingSegmented(null, listOf("Вход", "Регистрация"), mode) { mode = it }
         InputField(login, { v -> login = v.filter { it.isLetterOrDigit() || it == '_' }.take(24) }, "Логин")
         InputField(password, { password = it.take(200) }, "Пароль", secret = true)
         if (mode == 1) {
             InputField(repeat, { repeat = it.take(200) }, "Пароль ещё раз", secret = true)
             Text("Логин: латиница, цифры и _. Пароль: от 8 символов", color = AppColors.Faint, fontSize = 12.sp)
-            if (cloud.enabled) Text("Твоя синхронизация по коду перейдёт в аккаунт вместе со всеми данными", color = AppColors.Faint, fontSize = 12.sp)
+            if (cloud.enabled) Text("Синхронизация по коду перейдёт в аккаунт со всеми данными", color = AppColors.Faint, fontSize = 12.sp)
         }
-        AppButton(if (busy) "Подожди…" else if (mode == 1) "Создать аккаунт" else "Войти", primary = true, modifier = Modifier.fillMaxWidth()) {
+        AppButton(if (busy) "Подожди…" else if (mode == 1) "Создать аккаунт" else "Войти", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true, sound = FeedbackSound.Tap) {
             if (!busy) submit()
         }
         if (mode == 0) {
@@ -128,8 +143,20 @@ private fun SignIn(account: Account, onRecovery: (String) -> Unit) {
             )
         }
     }
-    Text("Без аккаунта, по коду", color = AppColors.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp, top = 6.dp))
-    SyncContent()
+    if (onLater != null) {
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text(
+                "Позже, без аккаунта ›",
+                color = AppColors.Muted,
+                fontSize = 14.sp,
+                modifier = Modifier.liveClick(appCorner(10), sound = FeedbackSound.Close) { onLater() }.padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+        }
+    }
+    if (showCode) {
+        TitlePill("Синхронизация по коду", icon = AppIcons.Lock, modifier = Modifier.padding(top = 6.dp))
+        SyncContent()
+    }
 
     if (forgot) RecoverSheet(account, login, onDone = { code -> forgot = false; onRecovery(code) }) { forgot = false }
 }
@@ -167,7 +194,7 @@ private fun RecoverSheet(account: Account, initial: String, onDone: (String) -> 
 }
 
 @Composable
-private fun RecoveryCodeSheet(code: String, onDismiss: () -> Unit) {
+fun RecoveryCodeSheet(code: String, onDismiss: () -> Unit) {
     val context = LocalContext.current
     AppSheet(onDismiss = onDismiss, title = "Код восстановления") {
         val close = sheetClose(onDismiss)
@@ -212,6 +239,7 @@ private fun SignedIn(account: Account, state: Account.State) {
     var leaving by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     var buying by remember { mutableStateOf(false) }
+    val feedback = LocalFeedback.current
     fun toast(text: String) = Toast.makeText(context, text, Toast.LENGTH_LONG).show()
     androidx.compose.runtime.LaunchedEffect(Unit) { account.refresh() }
 
@@ -220,22 +248,18 @@ private fun SignedIn(account: Account, state: Account.State) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            SettingIcon(AppIcons.Person, 40.dp)
+            SettingIcon(AppIcons.Person, 42.dp)
             Column(Modifier.weight(1f)) {
                 Text(state.login.orEmpty(), color = AppColors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(planLine(state), color = if (state.until > 0) AppColors.Accent else AppColors.Faint, fontSize = 12.sp)
+                Text(planLine(state), color = if (state.until > 0) AppColors.Accent else AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         val limit = state.limit.takeIf { it > 0 } ?: (500L shl 20)
-        val fraction = (state.used.toFloat() / limit).coerceIn(0f, 1f)
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Box(Modifier.fillMaxWidth().height(10.dp).background(AppColors.Line.copy(alpha = 0.6f), CircleShape)) {
-                Box(Modifier.fillMaxWidth(fraction.coerceAtLeast(if (state.used > 0) 0.02f else 0f)).fillMaxHeight().background(if (fraction > 0.92f) AppColors.Bad else AppColors.Accent, CircleShape))
-            }
-            Row {
-                Text("Занято ${cloudSize(state.used)} из ${cloudSize(limit)}", color = AppColors.Muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                Text("${state.books.size} ${countWord(state.books.size, "книга", "книги", "книг")}", color = AppColors.Faint, fontSize = 13.sp)
-            }
+        val fraction = if (state.used > 0) (state.used.toFloat() / limit).coerceIn(0.02f, 1f) else 0f
+        CloudShelf(fraction, height = 92.dp, free = if (fraction > 0.92f) "почти полна" else "свободно", freeAccent = fraction > 0.92f, seed = (state.login?.length ?: 0) % 12)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("${state.books.size} ${countWord(state.books.size, "книга", "книги", "книг")} · ${cloudSize(state.used)}", color = AppColors.Muted, fontSize = 13.sp, modifier = Modifier.weight(1f), maxLines = 1)
+            Text("из ${cloudSize(limit)}", color = AppColors.Faint, fontSize = 13.sp)
         }
         val line = state.working ?: state.notice
         Appear(line != null) {
@@ -245,18 +269,18 @@ private fun SignedIn(account: Account, state: Account.State) {
             }
         }
         if (state.payOn) {
-            AppButton(if (state.until > 0) "Продлить или сменить тариф" else "Увеличить место", primary = state.until == 0L, modifier = Modifier.fillMaxWidth()) { buying = true }
+            AppButton(if (state.until > 0) "Продлить полку" else "Расширить полку", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true, sound = FeedbackSound.Sheet) { buying = true }
         }
     }
 
     StatusRow(status) { scope.launch { cloud.syncNow(); account.poke(0) } }
 
     SettingsGroup(null) {
-        SettingSwitch("Загружать книги в облако", state.uploadBooks, hint = "Чтобы они появились на других устройствах", icon = AppIcons.Cloud) { account.setUploadBooks(it) }
+        SettingSwitch("Загружать книги", state.uploadBooks, hint = null, icon = AppIcons.Cloud) { account.setUploadBooks(it) }
         ListDivider()
-        SettingSwitch("Скачивать книги автоматически", state.autoDownload, hint = "Только по Wi-Fi", icon = AppIcons.Download) { account.setAutoDownload(it) }
+        SettingSwitch("Скачивать по Wi-Fi", state.autoDownload, hint = null, icon = AppIcons.Download) { account.setAutoDownload(it) }
         ListDivider()
-        SettingSwitch("Переносить настройки", sync.syncSettings, hint = "Оформление и опции чтения", icon = AppIcons.Options) { v ->
+        SettingSwitch("Переносить настройки", sync.syncSettings, hint = null, icon = AppIcons.Options) { v ->
             app.sync.store.update { it.copy(syncSettings = v) }
         }
     }
@@ -353,6 +377,7 @@ private fun SignedIn(account: Account, state: Account.State) {
             title = "Выйти из аккаунта?",
             text = "Синхронизация на этом телефоне выключится. Книги и прогресс останутся на телефоне и в облаке.",
             confirm = "Выйти",
+            sound = FeedbackSound.SignOut,
             onConfirm = { scope.launch { account.logout() } },
             onDismiss = { leaving = false },
         )
@@ -383,7 +408,7 @@ private fun SignedIn(account: Account, state: Account.State) {
     ) { values, done ->
         scope.launch {
             account.deleteAccount(values[0])
-                .onSuccess { done(true, "Аккаунт удалён") }
+                .onSuccess { feedback?.play(FeedbackSound.Wipe); done(true, "Аккаунт удалён") }
                 .onFailure { done(false, it.message ?: "Не получилось") }
         }
     }
@@ -433,70 +458,112 @@ private fun planLine(state: Account.State): String {
     return "${planTitle(state.plan)} · $limit до ${dayFormat.format(java.util.Date(state.until))}"
 }
 
-private class Offer(val id: String, val title: String, val size: String, val price: Int, val hint: String)
+private class Offer(val id: String, val title: String, val size: String, val price: Int, val hint: String, val shelves: Int)
 
 private val offers = listOf(
-    Offer("plus", "Облако+", "5 ГБ", 79, "Около 3–5 тысяч книг в EPUB"),
-    Offer("plus2", "Облако++", "15 ГБ", 149, "Для больших библиотек, PDF и комиксов"),
+    Offer("plus", "Облако+", "5 ГБ", 79, "одна полка · 3–5 тысяч книг", 1),
+    Offer("plus2", "Облако++", "15 ГБ", 149, "целый шкаф · PDF и комиксы", 3),
 )
 
 @Composable
 private fun PlanSheet(account: Account, state: Account.State, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var busy by remember { mutableStateOf<String?>(null) }
-    AppSheet(onDismiss = onDismiss, title = "Увеличить место") {
+    var picked by remember { mutableStateOf(if (state.until > 0 && state.plan == "plus2") "plus2" else "plus") }
+    var busy by remember { mutableStateOf(false) }
+    AppSheet(onDismiss = onDismiss, title = "Больше места") {
         val close = sheetClose(onDismiss)
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(
-                if (state.until > 0) "Сейчас ${planTitle(state.plan)} до ${dayFormat.format(java.util.Date(state.until))}. Оплата того же тарифа добавит 30 дней, при смене тарифа остаток дней пересчитается по цене."
-                else "Тариф действует 30 дней и сам не продлевается. Если срок закончится, книги из облака не удалятся.",
-                color = AppColors.Muted,
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
-            )
+            if (state.until > 0) {
+                Text(
+                    "Сейчас ${planTitle(state.plan)} до ${dayFormat.format(java.util.Date(state.until))}. Тот же тариф добавит 30 дней, другой пересчитает остаток по цене.",
+                    color = AppColors.Muted,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                    modifier = Modifier.fillMaxWidth().fieldSurface(appCorner(14)).padding(horizontal = 12.dp, vertical = 10.dp),
+                )
+            }
             offers.forEach { o ->
-                val shape = appCorner(16)
+                val shape = appCorner(18)
+                val selected = picked == o.id
                 val current = state.until > 0 && state.plan == o.id
-                Row(
+                val edge by androidx.compose.animation.animateColorAsState(if (selected) AppColors.Accent else AppColors.PanelBorder, Motion.fade(220), label = "plan-edge")
+                val lift by androidx.compose.animation.core.animateFloatAsState(if (selected) 1f else 0f, Motion.tween(260), label = "plan-lift")
+                Column(
                     Modifier
                         .fillMaxWidth()
+                        .graphicsLayer { translationY = -lift * 3.dp.toPx() }
+                        .liveClick(shape, sound = FeedbackSound.Plan, pressedScale = 0.98f) { picked = o.id }
                         .background(AppColors.Line.copy(alpha = 0.45f), shape)
-                        .border(1.dp, if (current) AppColors.Accent else AppColors.PanelBorder, shape)
-                        .liveClick(shape, sound = FeedbackSound.Open) {
-                            if (busy != null) return@liveClick
-                            busy = o.id
-                            scope.launch {
-                                account.pay(o.id)
-                                    .onSuccess { url ->
-                                        runCatching {
-                                            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
-                                        }.onFailure { Toast.makeText(context, "Не нашёлся браузер для оплаты", Toast.LENGTH_LONG).show() }
-                                        close()
-                                    }
-                                    .onFailure { Toast.makeText(context, it.message ?: "Не получилось", Toast.LENGTH_LONG).show() }
-                                busy = null
+                        .border(if (selected) 1.5.dp else 1.dp, edge, shape)
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("${o.title} · ${o.size}", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            Text(if (current) "твой тариф" else o.hint, color = if (selected || current) AppColors.Accent else AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Text("${o.price} ₽", color = AppColors.Text, fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                    }
+                    androidx.compose.runtime.key(selected) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            repeat(o.shelves) { k ->
+                                CloudShelf(1f, height = 30.dp, free = null, seed = k * 5 + o.price % 7, stagger = 16, startDelay = k * 140L, animated = selected)
                             }
                         }
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("${o.title} · ${o.size}", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                        Text(if (current) "Ваш тариф" else o.hint, color = if (current) AppColors.Accent else AppColors.Faint, fontSize = 12.sp)
                     }
-                    if (busy == o.id) KitSpinner(Modifier.size(18.dp), AppColors.Accent)
-                    else Text("${o.price} ₽", color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                 }
             }
-            Text(
-                "Оплата картой или через СБП на странице Robokassa. После оплаты вернитесь в приложение — место подключится само.",
-                color = AppColors.Faint,
-                fontSize = 12.sp,
-                lineHeight = 16.sp,
-            )
+            val price = offers.first { it.id == picked }.price
+            AppButton(if (busy) "Подожди…" else "Оплатить $price ₽", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true, sound = FeedbackSound.Pay) {
+                if (busy) return@AppButton
+                busy = true
+                scope.launch {
+                    account.pay(picked)
+                        .onSuccess { url ->
+                            runCatching {
+                                context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                            }.onFailure { Toast.makeText(context, "Не нашёлся браузер для оплаты", Toast.LENGTH_LONG).show() }
+                            close()
+                        }
+                        .onFailure { Toast.makeText(context, it.message ?: "Не получилось", Toast.LENGTH_LONG).show() }
+                    busy = false
+                }
+            }
+            Text("30 дней · без автопродления · карта или СБП", color = AppColors.Faint, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
+    }
+}
+
+@Composable
+fun PlanActivatedHost() {
+    val app = LocalContext.current.applicationContext as App
+    if (!app.account.available) return
+    val activation by app.account.activated.collectAsStateWithLifecycle()
+    val act = activation ?: return
+    val state by app.account.state.collectAsStateWithLifecycle()
+    val feedback = LocalFeedback.current
+    androidx.compose.runtime.LaunchedEffect(act) {
+        kotlinx.coroutines.delay(260)
+        feedback?.play(FeedbackSound.Grow)
+    }
+    val grew = act.limit > act.before
+    AppSheet(onDismiss = { app.account.activated.value = null }, title = if (grew) "Полка стала больше" else "Полка продлена") {
+        val close = sheetClose { app.account.activated.value = null }
+        Column(
+            Modifier.fillMaxWidth().fieldSurface(appCorner(18)).padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            val before = if (grew) act.before.toFloat() / act.limit else (state.used.toFloat() / act.limit.coerceAtLeast(1)).coerceIn(0.05f, 0.6f)
+            CloudShelf(before.coerceIn(0.08f, 0.7f), height = 64.dp, free = if (grew) "+${cloudSize(act.limit - act.before)}" else "+30 дней", freeAccent = true, stagger = 45, startDelay = 200)
+            if (act.plan == "plus2") CloudShelf(0f, height = 48.dp, free = "ещё полка", freeAccent = true)
+            Row(Modifier.padding(top = 4.dp)) {
+                Text("${planTitle(act.plan)} · ${cloudSize(act.limit)}", color = AppColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text("до ${dayFormat.format(java.util.Date(act.until))}", color = AppColors.Muted, fontSize = 13.sp)
+            }
+        }
+        AppButton("Отлично", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true) { close() }
     }
 }
 
@@ -532,4 +599,40 @@ fun ReadingNow() {
         Box(Modifier.size(7.dp).background(AppColors.Good.copy(alpha = alpha), CircleShape))
         Text("$n ${if (n % 10 == 1 && n % 100 != 11) "читает" else "читают"} сейчас", color = AppColors.Muted, fontSize = 12.sp, maxLines = 1)
     }
+}
+
+@Composable
+fun AccountWelcome(onDone: () -> Unit) {
+    val app = LocalContext.current.applicationContext as App
+    val account = app.account
+    val state by account.state.collectAsStateWithLifecycle()
+    var recovery by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    androidx.compose.runtime.LaunchedEffect(state.signedIn, recovery) {
+        if (state.signedIn && recovery == null) onDone()
+    }
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDone,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false, dismissOnBackPress = true),
+    ) {
+        KeepHostBars()
+        Box(Modifier.fillMaxSize().background(AppColors.Background)) {
+            KitBackdrop(AppStyle.decor, AppStyle.base, AppColors.Accent, Modifier.fillMaxSize())
+            Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(AppColors.Background.copy(alpha = 0.3f), AppColors.Background.copy(alpha = 0.9f)))))
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.systemBars)
+                    .imePadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 18.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Box(Modifier.fillMaxWidth().padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
+                    HeaderLabel("Аккаунт", icon = AppIcons.Person, size = 18.sp)
+                }
+                SignIn(account, showCode = false, onLater = onDone, onSigned = onDone) { recovery = it }
+            }
+        }
+    }
+    recovery?.let { code -> RecoveryCodeSheet(code) { recovery = null } }
 }

@@ -227,6 +227,17 @@ func TestPay(t *testing.T) {
 	if left < want-10000 || left > want+10000 {
 		t.Fatal("carry", left, want)
 	}
+	okReq, _ := http.NewRequest("GET", srv.URL+"/pay/ok?OutSum=149.000000&InvId="+strconv.FormatInt(inv, 10)+"&SignatureValue="+k.sum("149.000000:"+strconv.FormatInt(inv, 10)+":t1"), nil)
+	okReq.Host = "wikiflerty.ru"
+	if r, err := http.DefaultClient.Do(okReq); err != nil || r.StatusCode != 200 {
+		t.Fatal("ok page", err)
+	} else {
+		b, _ := io.ReadAll(r.Body)
+		r.Body.Close()
+		if !strings.Contains(string(b), "Облако") || !strings.Contains(string(b), "4,5 ГБ") {
+			t.Fatal("ok page body", string(b))
+		}
+	}
 	u.Until = time.Now().Add(-time.Minute).UnixMilli()
 	if _, me := c.call("/v1/me", map[string]any{}); me["limit"].(float64) != float64(freeLimit) || me["plan"] != "free" {
 		t.Fatal("expire", me)

@@ -111,6 +111,13 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     var section by rememberSaveable { mutableStateOf(Section.Library) }
+    androidx.compose.runtime.LaunchedEffect(SettingsNav.account) {
+        if (SettingsNav.account) {
+            SettingsNav.open = "Sync"
+            section = Section.Settings
+            SettingsNav.account = false
+        }
+    }
     var drawerOpen by rememberSaveable { mutableStateOf(false) }
     val busy by libraryViewModel.busy.collectAsStateWithLifecycle()
     val libraryBooks by libraryViewModel.books.collectAsStateWithLifecycle()

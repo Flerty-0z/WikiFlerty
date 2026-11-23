@@ -224,7 +224,7 @@ fun UpdatePanel(app: App, modifier: Modifier = Modifier, onLater: (() -> Unit)? 
 }
 
 @Composable
-fun AppButton(text: String, primary: Boolean, modifier: Modifier = Modifier, labeled: Boolean = false, onClick: () -> Unit) {
+fun AppButton(text: String, primary: Boolean, modifier: Modifier = Modifier, labeled: Boolean = false, sound: FeedbackSound? = null, onClick: () -> Unit) {
     val shape = appCorner(12)
     val fill by androidx.compose.animation.animateColorAsState(if (primary) AppColors.Accent else AppColors.Accent.copy(alpha = 0f), Motion.fade(220), label = "btn-fill")
     val edge by androidx.compose.animation.animateColorAsState(if (primary) AppColors.Accent else AppColors.Accent.copy(alpha = 0.35f), Motion.fade(220), label = "btn-edge")
@@ -232,7 +232,7 @@ fun AppButton(text: String, primary: Boolean, modifier: Modifier = Modifier, lab
     Box(
         modifier
             .height(44.dp)
-            .liveClick(shape, sound = if (primary) FeedbackSound.Confirm else FeedbackSound.Toggle, onClick = onClick)
+            .liveClick(shape, sound = sound ?: if (primary) FeedbackSound.Confirm else FeedbackSound.Toggle, onClick = onClick)
             .background(fill, shape)
             .border(1.dp, edge, shape)
             .padding(horizontal = 12.dp),

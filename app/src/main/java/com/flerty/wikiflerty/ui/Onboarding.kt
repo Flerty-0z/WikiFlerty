@@ -81,6 +81,7 @@ object SettingsNav {
     var open by mutableStateOf<String?>(null)
     var guideQuery by mutableStateOf("")
     var news by mutableStateOf(false)
+    var account by mutableStateOf(false)
 }
 
 object Tips {
@@ -123,6 +124,8 @@ fun OnboardingHost(libraryEmpty: Boolean, onAddBook: () -> Unit, onTarget: (News
     var tour by remember { mutableStateOf(false) }
     var news by remember { mutableStateOf<List<NewsItem>>(emptyList()) }
     var inkAsk by remember { mutableStateOf(false) }
+    var welcome by remember { mutableStateOf(false) }
+    var addAfter by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         val code = Tips.versionCode(context)
         val seen = Tips.seenVersion(context)
@@ -153,7 +156,11 @@ fun OnboardingHost(libraryEmpty: Boolean, onAddBook: () -> Unit, onTarget: (News
             onDone = { add ->
                 Tips.markTour(context)
                 tour = false
-                if (add) onAddBook()
+                val app = context.applicationContext as App
+                if (app.account.available && !app.account.state.value.signedIn) {
+                    addAfter = add
+                    welcome = true
+                } else if (add) onAddBook()
             },
         )
     }
@@ -163,6 +170,14 @@ fun OnboardingHost(libraryEmpty: Boolean, onAddBook: () -> Unit, onTarget: (News
             SettingsNav.news = false
         }
     }
+    if (welcome) {
+        AccountWelcome {
+            welcome = false
+            if (addAfter) onAddBook()
+            addAfter = false
+        }
+    }
+    PlanActivatedHost()
     if (news.isNotEmpty()) {
         WhatsNewSheet(news, onDismiss = { news = emptyList() }) { item ->
             news = emptyList()

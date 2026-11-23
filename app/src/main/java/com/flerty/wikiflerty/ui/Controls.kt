@@ -792,6 +792,8 @@ fun actionIcon(label: String): ImageVector? {
         starts("в словарь") -> AppIcons.Translate
         starts("в заметк") -> AppIcons.Note
         starts("войти") -> AppIcons.Lock
+        starts("оплатить") -> AppIcons.Card
+        starts("расширить", "продлить") -> AppIcons.ShelfAdd
         else -> null
     }
 }

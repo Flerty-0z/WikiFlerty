@@ -156,12 +156,12 @@ private fun SettingsHome(onAbout: (() -> Unit)?, onOpen: (SettingsPage) -> Unit)
     val accountLogin = accountState.login
     val rows = listOfNotNull<Triple<androidx.compose.ui.graphics.vector.ImageVector, Pair<String, String>, () -> Unit>>(
         if (com.flerty.wikiflerty.BuildConfig.BUILD_TYPE == "studio") Triple(AppIcons.Video, "Сценарий" to "Съёмка роликов") { studioContext?.let { c -> runCatching { c.startActivity(android.content.Intent().setClassName(c, "com.flerty.wikiflerty.studio.StudioActivity")) } } } else null,
-        Triple(AppIcons.Help, "Подсказки" to "Все функции и где их найти") { onOpen(SettingsPage.Guide) },
+        Triple(AppIcons.Person, "Аккаунт" to (accountLogin ?: "Вход, синхронизация и книги в облаке")) { onOpen(SettingsPage.Sync) },
         Triple(AppIcons.Sparkle, "ИИ-помощник" to "Ключи, модели, перевод") { onOpen(SettingsPage.Ai) },
         Triple(AppIcons.Theme, "Кастомизация" to "Цвета, форма, фон") { onOpen(SettingsPage.Custom) },
         Triple(AppIcons.Ereader, "Режим E-Ink" to if (EInk.on) "Включён" else "Для электронных книг") { onOpen(SettingsPage.Ink) },
         Triple(AppIcons.Sound, "Звук и отклик" to "Звуки и вибрация") { onOpen(SettingsPage.Sound) },
-        Triple(AppIcons.Person, "Аккаунт" to (accountLogin ?: "Вход, синхронизация и книги в облаке")) { onOpen(SettingsPage.Sync) },
+        Triple(AppIcons.Help, "Подсказки" to "Все функции и где их найти") { onOpen(SettingsPage.Guide) },
         Triple(AppIcons.Backup, "Резервная копия" to "Экспорт и импорт") { onOpen(SettingsPage.Backup) },
         onAbout?.let { Triple(AppIcons.Info, "О приложении" to "Обновления, журнал сбоев", it) },
     )

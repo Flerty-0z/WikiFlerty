@@ -3,15 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Оплата прошла — WikiFlerty</title>
+<title>Полка стала больше — WikiFlerty</title>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <main>
 <header><b><a href="/" style="color:inherit">WikiFlerty</a></b><nav><a href="/offer">Оферта</a></nav></header>
-<h1>Оплата прошла</h1>
+<div class="pay">
+<h1>Полка стала больше</h1>
 <div class="frame">
-<p>Спасибо! Место в облаке подключается автоматически в течение минуты.</p><p>Вернитесь в WikiFlerty: Настройки → Аккаунт. Если объём не обновился, потяните экран вниз или зайдите в раздел ещё раз.</p>
+<div class="shelves">
+<div class="shelf"><i style="width:13px;height:56px;background:#d8546b;animation-delay:0.00s"></i><i style="width:16px;height:65px;background:#4a525c;animation-delay:0.07s"></i><i style="width:11px;height:50px;background:#e2e5e9;animation-delay:0.14s"></i><i style="width:15px;height:60px;background:#9c3b4d;animation-delay:0.21s"></i><i style="width:18px;height:70px;background:#6c7580;animation-delay:0.28s"></i><i style="width:12px;height:54px;background:#e07a8c;animation-delay:0.35s"></i><i style="width:15px;height:63px;background:#d8546b;animation-delay:0.42s"></i><i style="width:10px;height:47px;background:#4a525c;animation-delay:0.49s"></i><i style="width:14px;height:58px;background:#e2e5e9;animation-delay:0.56s"></i><i style="width:17px;height:67px;background:#9c3b4d;animation-delay:0.63s"></i><i style="width:12px;height:51px;background:#6c7580;animation-delay:0.70s"></i><i style="width:16px;height:61px;background:#e07a8c;animation-delay:0.77s"></i><span class="free hot">{{.Grow}}</span></div>
+{{if .Wide}}<div class="shelf"><span class="free hot">ещё полка</span></div>{{end}}
+</div>
+<div class="meta"><span>{{.Plan}}</span><span>на 30 дней</span></div>
+</div>
+<a class="btn" href="wikiflerty://account">Открыть WikiFlerty</a>
+<p class="note">Место подключится к аккаунту за минуту.</p>
+<p class="note">Чек придёт на почту, указанную при оплате.</p>
 </div>
 </main>
 </body>

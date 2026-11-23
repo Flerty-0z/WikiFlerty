@@ -10,6 +10,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.CompositionLocalProvider
 import com.flerty.wikiflerty.App
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val libraryViewModel: LibraryViewModel by viewModels()
@@ -65,6 +66,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIncomingBook(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_VIEW && intent.data?.scheme == "wikiflerty") {
+            SettingsNav.account = true
+            val app = applicationContext as com.flerty.wikiflerty.App
+            app.appScope.launch { app.account.refresh() }
+            intent.setAction(null)
+            return
+        }
         if (intent != null && intent.action == com.flerty.wikiflerty.widget.QuoteWidget.ACTION_OPEN_NOTE) {
             val id = intent.getStringExtra(com.flerty.wikiflerty.widget.QuoteWidget.EXTRA_NOTE_ID)
             val app = applicationContext as com.flerty.wikiflerty.App

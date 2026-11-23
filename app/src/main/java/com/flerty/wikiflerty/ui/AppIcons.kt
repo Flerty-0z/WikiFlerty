@@ -179,6 +179,7 @@ object AppIcons {
         icon("trophy", "M8 4h8v6a4 4 0 0 1-8 0z", "M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4", "M12 14v4", "M8.5 21h7", "M10 18h4")
     }
     val Cloud by lazy { icon("cloud", "M7 18h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.2 9.1A4.5 4.5 0 0 0 7 18z", "M10 13.5l2-2 2 2M12 11.5v4") }
+    val Card by lazy { icon("card", "M4.5 6h15a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 16.5v-9A1.5 1.5 0 0 1 4.5 6z", "M3 10h18", "M7 14.5h3") }
     val Lock by lazy { icon("lock", "M7 11h10a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z", "M9 11V8a3 3 0 0 1 6 0v3") }
     val Sparkle by lazy {
         icon("sparkle", fills = listOf("M12 2l2.1 6.1L20 10l-5.9 1.9L12 18l-2.1-6.1L4 10l5.9-1.9z"))

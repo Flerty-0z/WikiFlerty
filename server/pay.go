@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"net/url"
@@ -294,4 +295,44 @@ func (a *App) payResult(w http.ResponseWriter, r *http.Request) {
 	}
 	a.notify(fmt.Sprintf("Оплата%s: %s — %s, %d ₽", mark, u.Login, p.Title, o.Price))
 	fmt.Fprintf(w, "OK%d", o.Inv)
+}
+
+var okPage = template.Must(template.ParseFS(siteFiles, "site/ok.html"))
+
+func (a *App) payOk(w http.ResponseWriter, r *http.Request) {
+	data := struct {
+		Plan string
+		Grow string
+		Wide bool
+	}{"Тариф подключается", "больше места", false}
+	q := r.URL.Query()
+	out, invText, sig := q.Get("OutSum"), q.Get("InvId"), strings.ToLower(q.Get("SignatureValue"))
+	k := a.kassa
+	if inv, err := strconv.ParseInt(invText, 10, 64); err == nil && k != nil && sig != "" {
+		valid := false
+		for _, pass := range []string{k.Pass1, k.Test1} {
+			if pass != "" && subtle.ConstantTimeCompare([]byte(sig), []byte(k.sum(out+":"+invText+":"+pass))) == 1 {
+				valid = true
+			}
+		}
+		if valid {
+			a.st.mu.Lock()
+			if o, err := a.st.loadOrder(inv); err == nil {
+				if p, ok := plans[o.Plan]; ok {
+					data.Plan = p.Title + " · " + human(p.Limit)
+					data.Wide = p.ID == "plus2"
+					data.Grow = "+" + human(p.Limit)
+					if u, err := a.st.load(o.Login); err == nil && p.Limit > u.Limit {
+						data.Grow = "+" + human(p.Limit-u.Limit)
+					}
+					data.Grow = strings.Replace(data.Grow, ".", ",", 1)
+					data.Plan = strings.Replace(data.Plan, ".", ",", 1)
+				}
+			}
+			a.st.mu.Unlock()
+		}
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	okPage.Execute(w, data)
 }

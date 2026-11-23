@@ -338,6 +338,7 @@ fun ConfirmSheet(
     text: String,
     confirm: String,
     danger: Boolean = true,
+    sound: FeedbackSound? = null,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -356,7 +357,7 @@ fun ConfirmSheet(
                 Modifier
                     .weight(1f)
                     .height(46.dp)
-                    .liveClick(shape, sound = if (danger) FeedbackSound.Trash else FeedbackSound.Toggle) {
+                    .liveClick(shape, sound = sound ?: if (danger) FeedbackSound.Trash else FeedbackSound.Toggle) {
                         onConfirm()
                         close()
                     }

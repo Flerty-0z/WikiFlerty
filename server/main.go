@@ -263,7 +263,7 @@ func (a *App) authed(r *http.Request) (*User, *apiError) {
 //go:embed site
 var siteFiles embed.FS
 
-var sitePages = map[string]string{"/": "site/index.html", "/offer": "site/offer.html", "/privacy": "site/privacy.html", "/style.css": "site/style.css", "/pay/ok": "site/ok.html", "/pay/fail": "site/fail.html"}
+var sitePages = map[string]string{"/": "site/index.html", "/offer": "site/offer.html", "/privacy": "site/privacy.html", "/style.css": "site/style.css", "/pay/fail": "site/fail.html"}
 
 func siteHost(r *http.Request) bool {
 	host := strings.ToLower(r.Host)
@@ -297,6 +297,10 @@ func serveSite(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) route(w http.ResponseWriter, r *http.Request) {
+	if siteHost(r) && r.URL.Path == "/pay/ok" {
+		a.payOk(w, r)
+		return
+	}
 	if siteHost(r) && !strings.HasPrefix(r.URL.Path, "/v1/") {
 		serveSite(w, r)
 		return

@@ -59,6 +59,10 @@ class Account(private val app: App) {
         val signedIn: Boolean get() = login != null
     }
 
+    data class Activation(val plan: String, val limit: Long, val before: Long, val until: Long)
+
+    val activated = MutableStateFlow<Activation?>(null)
+
     class ServerError(val code: String, message: String) : Exception(message)
 
     private val prefs = app.getSharedPreferences("account", Context.MODE_PRIVATE)
@@ -287,12 +291,17 @@ class Account(private val app: App) {
         runCatching {
             val url = call("pay/create", JSONObject().put("plan", plan)).getString("url")
             val before = _state.value.until
+            val limitBefore = _state.value.limit
             payWatch?.cancel()
             payWatch = app.appScope.launch {
                 repeat(120) {
                     delay(5_000)
                     refresh()
-                    if (_state.value.until != before) return@launch
+                    val now = _state.value
+                    if (now.until != before && now.until > 0) {
+                        activated.value = Activation(now.plan, now.limit, limitBefore, now.until)
+                        return@launch
+                    }
                 }
             }
             url
