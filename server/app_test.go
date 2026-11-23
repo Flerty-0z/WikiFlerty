@@ -82,6 +82,15 @@ func TestFlow(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(app.route))
 	defer srv.Close()
 	c := &client{t: t, srv: srv}
+	for _, path := range []string{"/", "/offer", "/privacy", "/style.css"} {
+		req, _ := http.NewRequest("GET", srv.URL+path, nil)
+		req.Host = "wikiflerty.ru"
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil || resp.StatusCode != 200 {
+			t.Fatal("site", path, err)
+		}
+		resp.Body.Close()
+	}
 	c.call("/v1/ping", map[string]any{"id": "a", "reading": true})
 	if _, out := c.call("/v1/ping", map[string]any{"id": "b", "reading": false}); out["reading"].(float64) != 1 {
 		t.Fatal("ping", out)

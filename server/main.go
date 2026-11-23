@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"crypto/tls"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -255,7 +256,47 @@ func (a *App) authed(r *http.Request) (*User, *apiError) {
 	return u, nil
 }
 
+//go:embed site
+var siteFiles embed.FS
+
+var sitePages = map[string]string{"/": "site/index.html", "/offer": "site/offer.html", "/privacy": "site/privacy.html", "/style.css": "site/style.css"}
+
+func siteHost(r *http.Request) bool {
+	host := strings.ToLower(r.Host)
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	return host == "wikiflerty.ru" || host == "www.wikiflerty.ru"
+}
+
+func serveSite(w http.ResponseWriter, r *http.Request) {
+	name, ok := sitePages[strings.TrimSuffix(r.URL.Path, "/")]
+	if r.URL.Path == "/" {
+		name, ok = sitePages["/"], true
+	}
+	if !ok || (r.Method != http.MethodGet && r.Method != http.MethodHead) {
+		http.NotFound(w, r)
+		return
+	}
+	b, err := siteFiles.ReadFile(name)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if strings.HasSuffix(name, ".css") {
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+	} else {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	}
+	w.Header().Set("Cache-Control", "public, max-age=600")
+	w.Write(b)
+}
+
 func (a *App) route(w http.ResponseWriter, r *http.Request) {
+	if siteHost(r) && !strings.HasPrefix(r.URL.Path, "/v1/") {
+		serveSite(w, r)
+		return
+	}
 	ip := clientIP(r)
 	if !a.limiter.allow("ip:"+ip, 240, time.Minute) {
 		reply(w, 429, map[string]string{"error": "slow", "message": "Слишком много запросов, подожди минуту"})
@@ -786,7 +827,8 @@ func tlsConfig() *tls.Config {
 	return &tls.Config{
 		MinVersion: tls.VersionTLS12,
 		GetCertificate: func(h *tls.ClientHelloInfo) (*tls.Certificate, error) {
-			if domain != "" && strings.EqualFold(h.ServerName, domain) {
+			name := strings.ToLower(h.ServerName)
+			if domain != "" && (name == domain || name == "wikiflerty.ru" || name == "www.wikiflerty.ru") {
 				if c := public.get(); c != nil {
 					return c, nil
 				}

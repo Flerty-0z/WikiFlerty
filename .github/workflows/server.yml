@@ -127,8 +127,8 @@ jobs:
             mkdir -p /etc/letsencrypt/renewal-hooks/deploy
             printf "%s\n" "#!/bin/sh" "cp /etc/letsencrypt/live/sync.wikiflerty.ru/fullchain.pem /opt/wikiflerty/le.crt" "cp /etc/letsencrypt/live/sync.wikiflerty.ru/privkey.pem /opt/wikiflerty/le.key" "chown root:wikiflerty /opt/wikiflerty/le.crt /opt/wikiflerty/le.key" "chmod 640 /opt/wikiflerty/le.crt /opt/wikiflerty/le.key" > /etc/letsencrypt/renewal-hooks/deploy/wikiflerty.sh
             chmod 755 /etc/letsencrypt/renewal-hooks/deploy/wikiflerty.sh
-            if [ ! -f /opt/wikiflerty/le.crt ]; then
-              if certbot certonly --standalone -d sync.wikiflerty.ru --non-interactive --agree-tos --register-unsafely-without-email --deploy-hook /etc/letsencrypt/renewal-hooks/deploy/wikiflerty.sh >/tmp/certbot.log 2>&1; then echo "certificate issued"; else echo "certificate pending"; tail -5 /tmp/certbot.log; fi
+            if [ ! -f /opt/wikiflerty/le.crt ] || ! openssl x509 -in /opt/wikiflerty/le.crt -noout -text | grep -q "DNS:wikiflerty.ru"; then
+              if certbot certonly --standalone --cert-name sync.wikiflerty.ru -d sync.wikiflerty.ru -d wikiflerty.ru --non-interactive --agree-tos --register-unsafely-without-email --deploy-hook /etc/letsencrypt/renewal-hooks/deploy/wikiflerty.sh >/tmp/certbot.log 2>&1; then echo "certificate issued"; else echo "certificate pending"; tail -5 /tmp/certbot.log; fi
             else
               echo "certificate present"
             fi
@@ -145,3 +145,4 @@ jobs:
           sleep 3
           bash server/smoke.sh "$HOST" server/tls.crt || { ssh root@"$HOST" 'journalctl -u wikiflerty -n 40 --no-pager'; exit 1; }
           echo "domain: $(curl -sS --max-time 15 https://sync.wikiflerty.ru/v1/health 2>&1 | head -c 200)"
+          echo "site: $(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' https://wikiflerty.ru/ 2>&1 | head -c 200)"
