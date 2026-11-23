@@ -7,6 +7,13 @@ val buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
 val publicNumber = System.getenv("PUBLIC_VERSION")?.trim()?.toIntOrNull()
 
 android {
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        unitTests.all { test ->
+            test.maxHeapSize = "512m"
+            test.testLogging { events("passed", "failed", "standard_out") }
+        }
+    }
     namespace = "com.flerty.wikiflerty"
     compileSdk = 37
 
@@ -87,6 +94,8 @@ kotlin {
 
 dependencies {
     coreLibraryDesugaring(libs.desugar.jdk.libs)
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.16")
 
     implementation(libs.androidx.profileinstaller)
     implementation(libs.readium.shared)
