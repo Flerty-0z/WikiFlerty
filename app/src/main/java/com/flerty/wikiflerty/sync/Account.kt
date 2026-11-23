@@ -39,7 +39,7 @@ class Account(private val app: App) {
         const val DOMAIN = "sync.wikiflerty.ru"
     }
 
-    data class CloudBook(val fp: String, val size: Long, val name: String, val ext: String, val at: Long)
+    data class CloudBook(val fp: String, val size: Long, val name: String, val ext: String, val at: Long, val inbox: Boolean = false)
 
     data class State(
         val login: String? = null,
@@ -91,7 +91,7 @@ class Account(private val app: App) {
         val list = j.optJSONArray("books") ?: JSONArray()
         val books = (0 until list.length()).mapNotNull { i ->
             val b = list.optJSONObject(i) ?: return@mapNotNull null
-            CloudBook(b.optString("fp"), b.optLong("size"), b.optString("name"), b.optString("ext"), b.optLong("at"))
+            CloudBook(b.optString("fp"), b.optLong("size"), b.optString("name"), b.optString("ext"), b.optLong("at"), b.optBoolean("inbox"))
         }.sortedByDescending { it.at }
         return base.copy(
             login = j.optString("login").ifBlank { base.login },
@@ -283,6 +283,7 @@ class Account(private val app: App) {
     fun screenShown() {
         visible++
         if (visible == 1) {
+            poke(1_500)
             presenceJob?.cancel()
             presenceJob = app.appScope.launch {
                 while (true) {
@@ -485,6 +486,18 @@ class Account(private val app: App) {
                         prefs.edit().putStringSet("skip", skipped() + book.fingerprint!!).apply()
                         continue
                     }
+                    notice = e.message
+                    break
+                }
+            }
+        }
+        if (notice == null) {
+            for (cb in _state.value.books.filter { it.inbox }) {
+                try {
+                    download(cb)
+                    applyAccount(call("books/delete", JSONObject().put("fp", cb.fp)))
+                } catch (e: ServerError) {
+                    if (e.code == "import") runCatching { applyAccount(call("books/delete", JSONObject().put("fp", cb.fp))) }
                     notice = e.message
                     break
                 }

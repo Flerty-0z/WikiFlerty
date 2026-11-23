@@ -123,7 +123,7 @@ jobs:
             fi
             gh release create "v0.1.$N" "out/WikiFlerty-0.1.$N-x64.apk" "out/WikiFlerty-0.1.$N-x32.apk" \
               --title "WikiFlerty 0.1.$N" \
-              --notes-file tools/release/announce.txt \
+              --notes "" \
               --latest \
               --target "${{ github.sha }}"
           else
@@ -135,6 +135,13 @@ jobs:
               --latest=false \
               --target "${{ github.sha }}"
           fi
+
+      - name: Put APK on the site
+        if: ${{ !inputs.store && inputs.public }}
+        env:
+          S3_ACCESS: ${{ secrets.SELECTEL_S3_ACCESS }}
+          S3_SECRET: ${{ secrets.SELECTEL_S3_SECRET }}
+        run: bash tools/release/site_apk.sh "0.1.${{ inputs.public }}" out || echo "site upload failed"
 
       - name: Announce in Telegram
         if: ${{ !inputs.store && inputs.public }}

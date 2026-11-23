@@ -46,6 +46,7 @@ type pendingUpload struct {
 	size    int64
 	ext     string
 	name    string
+	inbox   bool
 	expires time.Time
 }
 
@@ -262,7 +263,7 @@ func (a *App) checkCap() {
 func (a *App) view(u *User) map[string]any {
 	books := []map[string]any{}
 	for fp, b := range u.Books {
-		books = append(books, map[string]any{"fp": fp, "size": b.Size, "name": b.Name, "ext": b.Ext, "at": b.At})
+		books = append(books, map[string]any{"fp": fp, "size": b.Size, "name": b.Name, "ext": b.Ext, "at": b.At, "inbox": b.Inbox})
 	}
 	now := time.Now()
 	plan, until := u.Plan, int64(0)
@@ -306,7 +307,7 @@ func (a *App) authed(r *http.Request) (*User, *apiError) {
 //go:embed site
 var siteFiles embed.FS
 
-var sitePages = map[string]string{"/": "site/index.html", "/offer": "site/offer.html", "/privacy": "site/privacy.html", "/style.css": "site/style.css", "/pay/fail": "site/fail.html"}
+var sitePages = map[string]string{"/": "site/index.html", "/offer": "site/offer.html", "/privacy": "site/privacy.html", "/download": "site/download.html", "/account": "site/account.html", "/pay/fail": "site/fail.html", "/style.css": "site/style.css", "/logo.png": "site/logo.png", "/fonts/JetBrainsMono-Regular.woff2": "site/fonts/JetBrainsMono-Regular.woff2", "/fonts/JetBrainsMono-Bold.woff2": "site/fonts/JetBrainsMono-Bold.woff2"}
 
 func siteHost(r *http.Request) bool {
 	host := strings.ToLower(r.Host)
@@ -330,16 +331,39 @@ func serveSite(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if strings.HasSuffix(name, ".css") {
+	cache := "public, max-age=600"
+	switch {
+	case strings.HasSuffix(name, ".css"):
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")
-	} else {
+	case strings.HasSuffix(name, ".png"):
+		w.Header().Set("Content-Type", "image/png")
+		cache = "public, max-age=86400"
+	case strings.HasSuffix(name, ".woff2"):
+		w.Header().Set("Content-Type", "font/woff2")
+		cache = "public, max-age=2592000, immutable"
+	default:
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "same-origin")
 	}
-	w.Header().Set("Cache-Control", "public, max-age=600")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", cache)
 	w.Write(b)
 }
 
 func (a *App) route(w http.ResponseWriter, r *http.Request) {
+	if siteHost(r) && (r.URL.Path == "/download/x64" || r.URL.Path == "/download/x32") {
+		a.download(w, r, strings.TrimPrefix(r.URL.Path, "/download/"))
+		return
+	}
+	if siteHost(r) && r.URL.Path == "/download/info" {
+		info := a.apkInfo()
+		if info == nil {
+			info = map[string]any{}
+		}
+		reply(w, 200, info)
+		return
+	}
 	if siteHost(r) && r.URL.Path == "/pay/ok" {
 		a.payOk(w, r)
 		return
@@ -644,10 +668,28 @@ func (a *App) remove(r *http.Request, u *User) (any, *apiError) {
 }
 
 type bookBody struct {
-	Fp   string `json:"fp"`
-	Size int64  `json:"size"`
-	Name string `json:"name"`
-	Ext  string `json:"ext"`
+	Fp    string `json:"fp"`
+	Size  int64  `json:"size"`
+	Name  string `json:"name"`
+	Ext   string `json:"ext"`
+	Inbox bool   `json:"inbox"`
+}
+
+var inboxExt = map[string]bool{"epub": true, "pdf": true, "fb2": true, "fbz": true, "zip": true, "mobi": true, "azw3": true, "azw": true, "prc": true, "docx": true, "odt": true, "rtf": true, "txt": true, "html": true, "htm": true, "md": true, "cbz": true, "cbr": true}
+
+func magicFits(ext string, head []byte) bool {
+	h := string(head)
+	switch ext {
+	case "epub", "docx", "odt", "cbz", "zip", "fbz":
+		return strings.HasPrefix(h, "PK\x03\x04")
+	case "pdf":
+		return strings.HasPrefix(h, "%PDF")
+	case "cbr":
+		return strings.HasPrefix(h, "Rar!")
+	case "rtf":
+		return strings.HasPrefix(h, "{\\rtf")
+	}
+	return len(head) > 0
 }
 
 func (a *App) reserved(login string) int64 {
@@ -671,7 +713,8 @@ func (a *App) upload(r *http.Request, u *User) (any, *apiError) {
 	if !fpRe.MatchString(b.Fp) {
 		return nil, fail(400, "bad_request", "Неверный запрос")
 	}
-	if b.Ext != "epub" && b.Ext != "pdf" {
+	b.Ext = strings.ToLower(b.Ext)
+	if (!b.Inbox && b.Ext != "epub" && b.Ext != "pdf") || (b.Inbox && !inboxExt[b.Ext]) {
 		return nil, fail(400, "format", "Этот формат нельзя загрузить в облако")
 	}
 	if _, ok := u.Books[b.Fp]; ok {
@@ -701,7 +744,7 @@ func (a *App) upload(r *http.Request, u *User) (any, *apiError) {
 	if a.pending[u.Login] == nil {
 		a.pending[u.Login] = map[string]*pendingUpload{}
 	}
-	a.pending[u.Login][b.Fp] = &pendingUpload{size: b.Size, ext: b.Ext, name: string(name), expires: time.Now().Add(linkLife + 5*time.Minute)}
+	a.pending[u.Login][b.Fp] = &pendingUpload{size: b.Size, ext: b.Ext, name: string(name), inbox: b.Inbox, expires: time.Now().Add(linkLife + 5*time.Minute)}
 	return map[string]any{"url": a.st.s3.Presign("PUT", bookKey(u, b.Fp, b.Ext), linkLife)}, nil
 }
 
@@ -725,14 +768,14 @@ func (a *App) commit(r *http.Request, u *User) (any, *apiError) {
 	if size < 0 {
 		return nil, fail(404, "no_upload", "Файл не дошёл до облака, попробуй ещё раз")
 	}
-	magicOK := (p.ext == "epub" && len(head) >= 4 && string(head[:4]) == "PK\x03\x04") || (p.ext == "pdf" && len(head) >= 4 && string(head[:4]) == "%PDF")
+	magicOK := magicFits(p.ext, head)
 	if size != p.size || size > maxFile || !magicOK {
 		a.st.s3.Delete(key)
 		delete(a.pending[u.Login], b.Fp)
 		return nil, fail(400, "format", "Файл повреждён или не похож на книгу")
 	}
 	delete(a.pending[u.Login], b.Fp)
-	u.Books[b.Fp] = &BookRec{Size: size, Name: p.name, Ext: p.ext, At: time.Now().UnixMilli()}
+	u.Books[b.Fp] = &BookRec{Size: size, Name: p.name, Ext: p.ext, At: time.Now().UnixMilli(), Inbox: p.inbox}
 	u.UpDay += size
 	if err := a.st.save(u); err != nil {
 		delete(u.Books, b.Fp)

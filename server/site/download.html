@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Скачать WikiFlerty</title>
+<link rel="icon" href="/logo.png">
+<link rel="preload" href="/fonts/JetBrainsMono-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main>
+<header class="top"><a class="brand" href="/"><img src="/logo.png" alt=""><span>WikiFlerty</span></a><nav class="nav"><a class="pill on" href="/download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Скачать</a><a class="pill" href="/account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c.8-3.8 3.8-6 7.5-6s6.7 2.2 7.5 6"/></svg>Кабинет</a></nav></header>
+<div class="pay rise">
+<h1>Скачать WikiFlerty</h1>
+<div class="frame">
+<div class="shelves"><div class="shelf"><i style="width:13px;height:51px;background:#e2626a;animation-delay:0.00s"></i><i style="width:16px;height:60px;background:#4a525c;animation-delay:0.07s"></i><i style="width:11px;height:46px;background:#e2e5e9;animation-delay:0.14s"></i><i style="width:15px;height:55px;background:#9c3b4d;animation-delay:0.21s"></i><i style="width:18px;height:64px;background:#6c7580;animation-delay:0.28s"></i><i style="width:12px;height:49px;background:#e9848b;animation-delay:0.35s"></i><i style="width:15px;height:57px;background:#e2626a;animation-delay:0.42s"></i><i style="width:10px;height:43px;background:#4a525c;animation-delay:0.49s"></i><span class="free hot" id="ver">последняя версия</span></div></div>
+<div class="meta"><span>Android 7 и новее</span><span id="when"></span></div>
+</div>
+<a class="btn wide" href="/download/x64" id="x64"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Скачать для большинства телефонов</a>
+<a class="btn btn2 wide" style="margin-top:10px" href="/download/x32" id="x32"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/></svg>Для старых телефонов (x32)</a>
+<p class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 4.6 1.3c0 1.7-2.1 2-2.1 3.2M12 17h.01"/></svg><span>Не знаешь, какой нужен? Бери первый — он подходит почти всем телефонам последних лет. Если после установки приложение не запускается, поставь версию для старых телефонов</span></p>
+<p class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg><span>Android попросит разрешить установку из этого источника — это нормально для приложений не из магазина. Данные и книги при обновлении сохраняются</span></p>
+<p class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4L3 11l6 2 2 6 3-4 5 4z"/><path d="M9 13l10-7"/></svg><span>Новости и обновления — в <a href="https://t.me/wikiflerty">Telegram-канале</a></span></p>
+</div>
+<script>
+fetch("/download/info").then(function(r){return r.json()}).then(function(i){
+if(!i||!i.version)return;
+document.getElementById("ver").textContent="версия "+i.version;
+var mb=function(b){return b?" · "+Math.round(b/1048576)+" МБ":""};
+document.getElementById("x64").lastChild.textContent="Скачать для большинства телефонов"+mb(i.x64);
+document.getElementById("x32").lastChild.textContent="Для старых телефонов (x32)"+mb(i.x32);
+if(i.at){var d=new Date(i.at*1000);document.getElementById("when").textContent="от "+d.toLocaleDateString("ru-RU",{day:"numeric",month:"long"})}
+}).catch(function(){});
+</script>
+<footer><span>© WikiFlerty</span>·<a href="/offer">Публичная оферта</a>·<a href="/privacy">Конфиденциальность</a>·<a href="https://t.me/wikiflerty">Telegram</a></footer>
+</main>
+</body>
+</html>

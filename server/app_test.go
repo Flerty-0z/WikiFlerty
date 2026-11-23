@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -83,7 +84,7 @@ func TestFlow(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(app.route))
 	defer srv.Close()
 	c := &client{t: t, srv: srv}
-	for _, path := range []string{"/", "/offer", "/privacy", "/style.css"} {
+	for _, path := range []string{"/", "/offer", "/privacy", "/style.css", "/download", "/account", "/pay/fail", "/logo.png", "/fonts/JetBrainsMono-Regular.woff2"} {
 		req, _ := http.NewRequest("GET", srv.URL+path, nil)
 		req.Host = "wikiflerty.ru"
 		resp, err := http.DefaultClient.Do(req)
@@ -156,6 +157,23 @@ func TestFlow(t *testing.T) {
 		}
 	}
 	c.call("/v1/books/delete", map[string]any{"fp": fp2})
+	fp3 := strings.Repeat("e", 64)
+	data3 := []byte("<?xml version=\"1.0\"?><FictionBook></FictionBook>")
+	if code, _ := c.call("/v1/books/upload", map[string]any{"fp": fp3, "size": len(data3), "name": "Inbox", "ext": "fb2"}); code != 400 {
+		t.Fatal("fb2 without inbox must fail", code)
+	}
+	if code, out := c.call("/v1/books/upload", map[string]any{"fp": fp3, "size": len(data3), "name": "Inbox", "ext": "fb2", "inbox": true}); code != 200 {
+		t.Fatal(code, out)
+	}
+	iq, _ := http.NewRequest("PUT", srv.URL+"/v1/books/put?fp="+fp3, bytes.NewReader(data3))
+	iq.Header.Set("Authorization", "Bearer "+c.token)
+	if r, err := http.DefaultClient.Do(iq); err != nil || r.StatusCode != 200 {
+		t.Fatal("inbox put", err)
+	}
+	if code, out := c.call("/v1/books/commit", map[string]any{"fp": fp3}); code != 200 || !strings.Contains(fmt.Sprint(out["books"]), "inbox:true") {
+		t.Fatal("inbox commit", code, out)
+	}
+	c.call("/v1/books/delete", map[string]any{"fp": fp3})
 	code, out = c.call("/v1/books/upload", map[string]any{"fp": strings.Repeat("b", 64), "size": 300 << 20, "name": "Big", "ext": "epub"})
 	if code != 413 {
 		t.Fatal("big", code, out)

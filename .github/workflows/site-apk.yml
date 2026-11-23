@@ -1,0 +1,30 @@
+name: Site APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Версия, например 0.1.272"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          S3_ACCESS: ${{ secrets.SELECTEL_S3_ACCESS }}
+          S3_SECRET: ${{ secrets.SELECTEL_S3_SECRET }}
+          V: ${{ inputs.version }}
+        run: |
+          mkdir -p out
+          for id in $(gh api "repos/${{ github.repository }}/releases/tags/v$V" -q '.assets[] | select(.name | endswith(".apk")) | .id'); do
+            name=$(gh api "repos/${{ github.repository }}/releases/assets/$id" -q .name)
+            gh api -H "Accept: application/octet-stream" "repos/${{ github.repository }}/releases/assets/$id" > "out/$name"
+          done
+          ls -la out
+          bash tools/release/site_apk.sh "$V" out

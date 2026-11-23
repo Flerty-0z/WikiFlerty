@@ -17,10 +17,11 @@ import (
 const iterations = 120000
 
 type BookRec struct {
-	Size int64  `json:"size"`
-	Name string `json:"name"`
-	Ext  string `json:"ext"`
-	At   int64  `json:"at"`
+	Size  int64  `json:"size"`
+	Name  string `json:"name"`
+	Ext   string `json:"ext"`
+	At    int64  `json:"at"`
+	Inbox bool   `json:"inbox,omitempty"`
 }
 
 type User struct {
