@@ -92,6 +92,9 @@ func TestFlow(t *testing.T) {
 		}
 		resp.Body.Close()
 	}
+	if code, _ := c.call("/v1/crash", map[string]any{"device": "Test", "version": "0.1", "text": "java.lang.OutOfMemoryError: boom\n at a.b.C.d(C.kt:1)\n at a.b.C.e(C.kt:2)"}); code != 200 {
+		t.Fatal("crash", code)
+	}
 	c.call("/v1/ping", map[string]any{"id": "a", "reading": true})
 	if _, out := c.call("/v1/ping", map[string]any{"id": "b", "reading": false}); out["reading"].(float64) != 1 {
 		t.Fatal("ping", out)

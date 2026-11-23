@@ -144,6 +144,14 @@ class App : Application() {
         }
         flashcards.onChanged = { sync.flashcardsChanged() }
         account.start()
+        appScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            kotlinx.coroutines.delay(6_000)
+            if (!crashLog.autoSend) return@launch
+            for (file in crashLog.unsent()) {
+                val text = runCatching { file.readText() }.getOrNull() ?: continue
+                if (account.sendCrash(crashLog.device(), crashLog.appVersion(), text)) crashLog.markSent(file) else break
+            }
+        }
         com.flerty.wikiflerty.sync.Extras.watch(this) { sync.settingsChanged() }
         style.onChanged = {
             sync.settingsChanged()

@@ -357,6 +357,10 @@ func (a *App) route(w http.ResponseWriter, r *http.Request) {
 		a.payResult(w, r)
 		return
 	}
+	if r.URL.Path == "/v1/crash" && r.Method == http.MethodPost {
+		a.crash(w, r, ip)
+		return
+	}
 	if r.URL.Path == "/v1/books/put" || r.URL.Path == "/v1/books/get" {
 		a.relay(w, r)
 		return

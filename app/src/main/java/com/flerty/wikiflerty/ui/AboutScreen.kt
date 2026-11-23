@@ -133,7 +133,16 @@ fun AboutScreen(modifier: Modifier = Modifier) {
                         AppButton("Очистить", primary = false, modifier = Modifier.weight(1f)) { app.crashLog.clear() }
                     }
                 }
-                HintNote("Если приложение закроется с ошибкой, здесь появится запись. Отправь её разработчику — так ошибку проще исправить", AppIcons.Alert)
+                var autoSend by remember { mutableStateOf(app.crashLog.autoSend) }
+                SettingSwitch(
+                    label = "Отправлять автоматически",
+                    checked = autoSend,
+                    hint = "Только техническая информация, без книг и ключей",
+                    icon = AppIcons.Send,
+                ) { v ->
+                    autoSend = v
+                    app.crashLog.autoSend = v
+                }
             }
         }
 
@@ -264,7 +273,8 @@ fun StartupPrompts() {
     val context = LocalContext.current
     val app = context.applicationContext as App
     val state by app.updates.state.collectAsStateWithLifecycle()
-    var crashPrompt by remember { mutableStateOf(app.crashLog.hasUnseen) }
+    var crashPrompt by remember { mutableStateOf(app.crashLog.hasUnseen && !app.crashLog.autoSend) }
+    LaunchedEffect(Unit) { if (app.crashLog.autoSend) app.crashLog.markSeen() }
     var updateDismissed by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { app.updates.autoCheck() }

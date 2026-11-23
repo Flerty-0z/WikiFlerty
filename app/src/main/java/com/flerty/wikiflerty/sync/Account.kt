@@ -306,6 +306,11 @@ class Account(private val app: App) {
 
     suspend fun peek() = ping(false, peek = true)
 
+    suspend fun sendCrash(device: String, version: String, text: String): Boolean = withContext(Dispatchers.IO) {
+        if (!available) return@withContext false
+        runCatching { call("crash", JSONObject().put("device", device).put("version", version).put("text", text.take(24_000)), auth = false) }.isSuccess
+    }
+
     suspend fun ping(reading: Boolean, peek: Boolean = false) = withContext(Dispatchers.IO) {
         if (!available) return@withContext
         runCatching { call("ping", JSONObject().put("id", presenceId).put("reading", reading).put("peek", peek), auth = false) }

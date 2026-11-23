@@ -28,6 +28,24 @@ class CrashLog(private val context: Context) {
         }
     }
 
+    var autoSend: Boolean
+        get() = prefs.getBoolean("auto", true)
+        set(value) { prefs.edit().putBoolean("auto", value).apply() }
+
+    fun unsent(): List<File> {
+        val sent = prefs.getStringSet("sent", emptySet()).orEmpty()
+        return dir.listFiles { f -> f.name.startsWith("crash-") }.orEmpty().filter { it.name !in sent }.sortedBy { it.name }
+    }
+
+    fun markSent(file: File) {
+        val sent = prefs.getStringSet("sent", emptySet()).orEmpty().filter { name -> File(dir, name).exists() }.toSet()
+        prefs.edit().putStringSet("sent", sent + file.name).apply()
+    }
+
+    fun device(): String = "${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
+
+    fun appVersion(): String = version()
+
     fun markSeen() {
         prefs.edit().putBoolean("unseen", false).apply()
     }
