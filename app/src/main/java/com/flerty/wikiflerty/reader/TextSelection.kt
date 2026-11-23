@@ -806,7 +806,7 @@ internal object TextSelection {
           window.addEventListener("touchstart", function (e) {
             holdStop();
             held = false;
-            if (!document.getElementById("wf-comic") || e.touches.length !== 1) return;
+            if (e.touches.length !== 1) return;
             var src = pick(e.target);
             if (!src) return;
             holdX = e.touches[0].clientX;
@@ -825,7 +825,7 @@ internal object TextSelection {
           window.addEventListener("touchend", holdStop, { passive: true, capture: true });
           window.addEventListener("touchcancel", holdStop, { passive: true, capture: true });
           window.addEventListener("contextmenu", function (e) {
-            if (document.getElementById("wf-comic") && pick(e.target)) e.preventDefault();
+            if (pick(e.target)) e.preventDefault();
           }, true);
           window.addEventListener("click", function (e) {
             if (held) {
@@ -834,14 +834,6 @@ internal object TextSelection {
               e.stopImmediatePropagation();
               return;
             }
-            if (document.getElementById("wf-comic")) return;
-            var sel = window.getSelection ? String(window.getSelection() || "") : "";
-            if (sel.length) return;
-            var src = pick(e.target);
-            if (!src) return;
-            e.preventDefault();
-            e.stopImmediatePropagation();
-            try { window.${BRIDGE}.onEvent("image:" + src); } catch (x) {}
           }, true);
         })();
     """.trimIndent()

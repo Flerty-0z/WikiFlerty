@@ -2990,8 +2990,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             app.feedback.play(FeedbackSound.Close)
             return
         }
-        val images = ui.currentHref?.let { imageHrefs[it] } == true
-        if (peopleNow.isEmpty() && !images) {
+        if (peopleNow.isEmpty()) {
             stripTurn(left)
             return
         }
@@ -3001,7 +3000,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val x = (winX - loc[0]) / density
         val y = (winY - loc[1]) / density
         lifecycleScope.launch {
-            val js = "(function(){var f=window.__wfFlagAt?window.__wfFlagAt($x,$y):\"\";if(f)return \"p:\"+f;var i=window.__wfImgAt?window.__wfImgAt($x,$y):\"\";return i?\"i:\"+i:\"\";})()"
+            val js = "(function(){var f=window.__wfFlagAt?window.__wfFlagAt($x,$y):\"\";return f?\"p:\"+f:\"\";})()"
             val raw = runCatching { navigator.evaluateJavascript(js) }.getOrNull()
             val hit = raw?.trim()?.let { if (it.startsWith("\"")) runCatching { org.json.JSONArray("[$it]").getString(0) }.getOrNull() else it }.orEmpty()
             when {
@@ -3009,7 +3008,6 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     app.feedback.play(FeedbackSound.Open)
                     showPerson(hit.removePrefix("p:"))
                 }
-                hit.startsWith("i:") -> openImage(hit.removePrefix("i:"))
                 else -> stripTurn(left)
             }
         }

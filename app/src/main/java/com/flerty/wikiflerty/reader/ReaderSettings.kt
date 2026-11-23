@@ -294,7 +294,7 @@ data class ReaderSettings(
                 margins = json.optDouble("margins", d.margins).coerceIn(0.0, 4.0),
                 bold = json.optBoolean("bold", d.bold),
                 bionic = json.optBoolean("bionic", d.bionic),
-                markWords = json.optBoolean("markWords", d.markWords),
+                markWords = true,
                 kitStyle = json.optBoolean("kitStyle", d.kitStyle),
                 italic = json.optBoolean("italic", d.italic),
                 justify = json.optBoolean("justify", d.justify),

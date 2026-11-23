@@ -553,7 +553,7 @@ internal fun IllustrationGallery(items: List<Illustration>, actions: Illustratio
             }
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text("Иллюстраций нет", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Text("Нажми на картинку в книге → ♡", color = AppColors.Muted, fontSize = 12.5.sp)
+                Text("Зажми картинку в книге → ♡", color = AppColors.Muted, fontSize = 12.5.sp)
             }
         }
         return

@@ -187,8 +187,47 @@ func (a *App) notify(text string) {
 	go func() {
 		if err := a.st.s3.Put(key, []byte(text)); err != nil {
 			log.Println("notify:", err)
+			return
 		}
+		kickNotify()
 	}()
+}
+
+var kick struct {
+	sync.Mutex
+	armed bool
+}
+
+func kickNotify() {
+	token := os.Getenv("GH_DISPATCH")
+	if token == "" {
+		return
+	}
+	kick.Lock()
+	if kick.armed {
+		kick.Unlock()
+		return
+	}
+	kick.armed = true
+	kick.Unlock()
+	time.AfterFunc(3*time.Second, func() {
+		kick.Lock()
+		kick.armed = false
+		kick.Unlock()
+		req, _ := http.NewRequest("POST", "https://api.github.com/repos/Flerty-0z/WikiFlerty/actions/workflows/notify.yml/dispatches", strings.NewReader(`{"ref":"main"}`))
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Accept", "application/vnd.github+json")
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := (&http.Client{Timeout: 20 * time.Second}).Do(req)
+		if err != nil {
+			log.Println("kick:", err)
+			return
+		}
+		if resp.StatusCode/100 != 2 {
+			log.Println("kick: status", resp.StatusCode)
+		}
+		resp.Body.Close()
+	})
 }
 
 func human(n int64) string {

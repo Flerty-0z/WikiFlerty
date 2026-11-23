@@ -73,6 +73,7 @@ jobs:
           RK2: ${{ secrets.ROBOKASSA_PASS2 }}
           RKT1: ${{ secrets.ROBOKASSA_TEST1 }}
           RKT2: ${{ secrets.ROBOKASSA_TEST2 }}
+          GHD: ${{ secrets.NOTIFY_TOKEN }}
         run: |
           umask 077
           cat > "$RUNNER_TEMP/s/env" <<EOF
@@ -94,6 +95,7 @@ jobs:
           ROBOKASSA_PASS2=$RK2
           ROBOKASSA_TEST1=$RKT1
           ROBOKASSA_TEST2=$RKT2
+          GH_DISPATCH=$GHD
           EOF
           sed -i 's/^ *//' "$RUNNER_TEMP/s/env"
           cat > "$RUNNER_TEMP/s/wikiflerty.service" <<'EOF'
