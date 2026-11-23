@@ -1,0 +1,129 @@
+{
+ "title": "Скорочтение",
+ "lenient": true,
+ "steps": [
+  {
+   "do": "launch",
+   "fresh": true,
+   "ms": 2500
+  },
+  {
+   "do": "wait",
+   "text": "Моя полка",
+   "timeout": 10000,
+   "after": 2000
+  },
+  {
+   "do": "open",
+   "text": "Проба разметки",
+   "after": 6000
+  },
+  {
+   "do": "tap",
+   "text": "чтобы начать",
+   "timeout": 1500,
+   "optional": true,
+   "after": 600
+  },
+  {
+   "do": "swipe",
+   "x": 0.85,
+   "y": 0.55,
+   "x2": 0.15,
+   "y2": 0.55,
+   "ms": 450,
+   "after": 1800
+  },
+  {
+   "do": "show",
+   "text": "Опции",
+   "exact": true,
+   "desc": true,
+   "after": 1000,
+   "x": 0.5,
+   "y": 0.8
+  },
+  {
+   "do": "tap",
+   "text": "Опции",
+   "exact": true,
+   "desc": true,
+   "timeout": 4000,
+   "after": 1500
+  },
+  {
+   "do": "tap",
+   "text": "Листание",
+   "exact": true,
+   "timeout": 4000,
+   "after": 1500
+  },
+  {
+   "do": "scrollTo",
+   "text": "Скорочтение по слову",
+   "y": 0.75,
+   "y2": 0.4,
+   "times": 3,
+   "after": 800
+  },
+  {
+   "do": "tap",
+   "text": "Скорочтение по слову",
+   "timeout": 4000,
+   "after": 2500
+  },
+  {
+   "do": "dump",
+   "text": "speed-open"
+  },
+  {
+   "do": "tap",
+   "text": "300 сл/мин",
+   "timeout": 3000,
+   "after": 1000
+  },
+  {
+   "do": "tap",
+   "text": "400",
+   "exact": true,
+   "timeout": 3000,
+   "after": 800
+  },
+  {
+   "do": "tap",
+   "text": "Читать",
+   "desc": true,
+   "exact": true,
+   "timeout": 3000,
+   "after": 4000
+  },
+  {
+   "do": "dump",
+   "text": "speed-running"
+  },
+  {
+   "do": "tap",
+   "text": "Пауза",
+   "desc": true,
+   "exact": true,
+   "timeout": 3000,
+   "after": 1000
+  },
+  {
+   "do": "dump",
+   "text": "speed-paused"
+  },
+  {
+   "do": "tap",
+   "text": "Закрыть",
+   "desc": true,
+   "exact": true,
+   "timeout": 3000,
+   "after": 3000
+  },
+  {
+   "do": "dump",
+   "text": "back-in-book"
+  }
+ ]
+}
