@@ -8,6 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: curl -sS -m 120 -o apk.bin -w "site apk %{http_code} %{size_download} %{time_total}s\n" https://wikiflerty.ru/download/x64 && head -c 2 apk.bin | od -c | head -1
       - env:
           PASS: ${{ secrets.SELECTEL_S3_SECRET }}
           HOST: ${{ secrets.VDS_HOST }}
