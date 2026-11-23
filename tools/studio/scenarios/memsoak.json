@@ -21,7 +21,7 @@
   },
   {
    "do": "tap",
-   "text": "Статистика",
+   "text": "Итоги",
    "exact": true,
    "timeout": 4000,
    "after": 2500,
@@ -283,7 +283,7 @@
   },
   {
    "do": "tap",
-   "text": "Статистика",
+   "text": "Итоги",
    "exact": true,
    "timeout": 4000,
    "after": 2500,
@@ -545,7 +545,7 @@
   },
   {
    "do": "tap",
-   "text": "Статистика",
+   "text": "Итоги",
    "exact": true,
    "timeout": 4000,
    "after": 2500,
@@ -879,7 +879,7 @@
   },
   {
    "do": "tap",
-   "text": "Статистика",
+   "text": "Итоги",
    "exact": true,
    "timeout": 4000,
    "after": 2500,

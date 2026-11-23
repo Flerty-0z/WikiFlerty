@@ -350,8 +350,15 @@ class StudioDriver : AccessibilityService() {
 
     private suspend fun home(): Boolean {
         val shelf = sub("Моя полка", 900)
+        val tab = sub("Полка", 600, exact = true)
         repeat(6) {
             if (find(shelf) != null) return true
+            val r = find(tab)
+            if (r != null) {
+                tap(r.exactCenterX(), r.exactCenterY(), 70)
+                delay(900)
+                if (find(shelf) != null) return true
+            }
             performGlobalAction(GLOBAL_ACTION_BACK)
             delay(900)
         }
