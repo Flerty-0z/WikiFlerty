@@ -30,11 +30,16 @@ def call(method, params=None, files=None):
         req = urllib.request.Request(api + method, data=b"".join(parts), headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
     else:
         req = urllib.request.Request(api + method, data=urllib.parse.urlencode(params or {}).encode())
-    try:
-        with urllib.request.urlopen(req, timeout=600 if files else 60) as r:
-            return json.loads(r.read())
-    except urllib.error.HTTPError as e:
-        return json.loads(e.read() or b"{}")
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=600 if files else 60) as r:
+                return json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            return json.loads(e.read() or b"{}")
+        except (urllib.error.URLError, OSError) as e:
+            print("net", method, e)
+            time.sleep(5 * (attempt + 1))
+    return {}
 
 
 emoji_ids = {}
