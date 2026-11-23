@@ -1,5 +1,6 @@
 package com.flerty.wikiflerty.reader
 
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.graphics.drawscope.translate
 import com.flerty.wikiflerty.ui.revealScroll
