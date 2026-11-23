@@ -1,0 +1,34 @@
+name: Announce preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Номер версии в тексте"
+        default: "0.1.273"
+
+permissions:
+  contents: write
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Send
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          mkdir -p tg apk
+          kid=$(gh api --paginate "repos/$REPO/releases?per_page=100" -q '.[] | select(.tag_name=="film-kit") | .assets[0].id' | head -1)
+          gh api -H "Accept: application/octet-stream" "repos/$REPO/releases/assets/$kid" > kit.zip
+          unzip -oq kit.zip chat.txt -d tg
+          tag=$(gh api "repos/$REPO/releases?per_page=60" -q '[.[] | select(.name|test("тест"))] | sort_by(.created_at) | .[-1].tag_name')
+          for id in $(gh api "repos/$REPO/releases/tags/$tag" -q '.assets[] | select(.name | endswith(".apk")) | .id'); do
+            name=$(gh api "repos/$REPO/releases/assets/$id" -q .name)
+            gh api -H "Accept: application/octet-stream" "repos/$REPO/releases/assets/$id" > "apk/$name"
+          done
+          ls -la apk
+          python3 tools/release/preview.py tg/chat.txt "${{ inputs.version }}" apk
