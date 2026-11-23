@@ -57,4 +57,4 @@
 
 ## 8. Контакты
 
-Вопросы о конфиденциальности: личные сообщения канала https://t.me/wikiflerty?direct
+Вопросы о конфиденциальности: wikiflerty@gmail.com или личные сообщения канала https://t.me/wikiflerty?direct

@@ -44,7 +44,7 @@ jobs:
             openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in "$RUNNER_TEMP/s/tls.key" -out server/tls.key.enc -pass env:PASS
             cp server/tls.crt app/src/main/res/raw/sync_cert.crt
             git add server/tls.crt server/tls.key.enc app/src/main/res/raw/sync_cert.crt
-            git -c user.name=Flerty -c user.email=jamalavtaev2008@gmail.com commit -m "Сертификат сервера"
+            git -c user.name=Flerty -c user.email=wikiflerty@gmail.com commit -m "Сертификат сервера"
             git push
           else
             openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in server/tls.key.enc -out "$RUNNER_TEMP/s/tls.key" -pass env:PASS

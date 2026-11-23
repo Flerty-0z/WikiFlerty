@@ -26,5 +26,5 @@ jobs:
           rm -f "$RUNNER_TEMP/k"
           cat server/deploy.pub
           git add server/deploy.pub server/deploy.key.enc
-          git -c user.name=Flerty -c user.email=jamalavtaev2008@gmail.com commit -m "Ключ сервера"
+          git -c user.name=Flerty -c user.email=wikiflerty@gmail.com commit -m "Ключ сервера"
           git push
