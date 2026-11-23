@@ -9,6 +9,9 @@ on:
         description: Текст
         required: false
 
+permissions:
+  contents: write
+
 concurrency:
   group: notify
   cancel-in-progress: false
@@ -31,7 +34,7 @@ jobs:
           if [ -n "$TEXT" ]; then printf '%s' "$TEXT" > in.txt; s3 -X PUT --data-binary @in.txt "$base/notify/$(date +%s%N)-manual.txt"; fi
           keys=$(s3 "$base/?list-type=2&prefix=notify/" | grep -o '<Key>[^<]*' | sed 's/<Key>//' | sort)
           [ -n "$keys" ] || { echo "nothing"; exit 0; }
-          kid=$(gh api "repos/${{ github.repository }}/releases?per_page=100" -q '[.[] | select(.tag_name=="film-kit")][0].assets[0].id')
+          kid=$(gh api --paginate "repos/${{ github.repository }}/releases?per_page=100" -q '.[] | select(.tag_name=="film-kit") | .assets[0].id' | head -1)
           gh api -H "Accept: application/octet-stream" "repos/${{ github.repository }}/releases/assets/$kid" > kit.zip
           unzip -oq kit.zip chat.txt -d tg
           owner=$(cat tg/chat.txt)
