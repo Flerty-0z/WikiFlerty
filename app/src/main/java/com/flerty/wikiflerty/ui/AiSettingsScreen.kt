@@ -433,6 +433,7 @@ internal fun InputField(
     placeholder: String,
     secret: Boolean = false,
     monospace: Boolean = false,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
 ) {
     var show by remember { mutableStateOf(false) }
     Row(
@@ -466,6 +467,17 @@ internal fun InputField(
                 }
             },
         )
+        if (icon != null && !secret) {
+            androidx.compose.animation.Crossfade(value.isEmpty(), animationSpec = Motion.fade(180), label = "field-icon") { empty ->
+                if (empty) {
+                    Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) { Icon(icon, null, tint = AppColors.Faint, modifier = Modifier.size(19.dp)) }
+                } else {
+                    Box(Modifier.size(32.dp).liveClick(CircleShape, sound = FeedbackSound.Close) { onValueChange("") }, contentAlignment = Alignment.Center) {
+                        Icon(AppIcons.Close, "Очистить", tint = AppColors.Muted, modifier = Modifier.size(17.dp))
+                    }
+                }
+            }
+        }
         if (secret) {
             Box(
                 Modifier.size(44.dp).liveClick(CircleShape, sound = FeedbackSound.Toggle) { show = !show },

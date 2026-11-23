@@ -270,7 +270,7 @@ class Account(private val app: App) {
         }
     }
 
-    private val readers = MutableStateFlow<Int?>(null)
+    private val readers = MutableStateFlow<Int?>(prefs.getInt("readers", -1).takeIf { it >= 0 })
     val readingNow: StateFlow<Int?> = readers.asStateFlow()
 
     private val presenceId: String by lazy {
@@ -280,7 +280,7 @@ class Account(private val app: App) {
     suspend fun ping(reading: Boolean) = withContext(Dispatchers.IO) {
         if (!available) return@withContext
         runCatching { call("ping", JSONObject().put("id", presenceId).put("reading", reading), auth = false) }
-            .onSuccess { readers.value = it.optInt("reading") }
+            .onSuccess { r -> val n = r.optInt("reading"); readers.value = n; prefs.edit().putInt("readers", n).apply() }
     }
 
     private fun saveSession(login: String, json: JSONObject) {

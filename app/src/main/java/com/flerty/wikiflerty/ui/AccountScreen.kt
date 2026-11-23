@@ -2,6 +2,7 @@ package com.flerty.wikiflerty.ui
 
 import android.widget.Toast
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -293,7 +294,7 @@ private fun SignedIn(account: Account, state: Account.State) {
         Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (state.books.isNotEmpty()) {
                 var query by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
-                if (state.books.size > 3) InputField(query, { query = it.take(60) }, "Поиск в облаке")
+                if (state.books.size > 3) InputField(query, { query = it.take(60) }, "Поиск в облаке", icon = AppIcons.Search)
                 val shown = remember(state.books, query) {
                     val q = query.trim().lowercase()
                     if (q.isEmpty()) state.books else state.books.filter { it.name.lowercase().contains(q) }
@@ -413,7 +414,7 @@ private fun PasswordSheet(
     AppSheet(onDismiss = onDismiss, title = title) {
         val close = sheetClose(onDismiss)
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            text?.let { Text(it, color = AppColors.Muted, fontSize = 13.sp, lineHeight = 18.sp) }
+            text?.let { HintNote(it, AppIcons.Info) }
             fields.forEachIndexed { i, label -> InputField(values[i], { values[i] = it.take(200) }, label, secret = true) }
             AppButton(if (busy) "Подожди…" else action, primary = true, modifier = Modifier.fillMaxWidth()) {
                 if (busy) return@AppButton
@@ -619,16 +620,35 @@ fun ReadingNow() {
             kotlinx.coroutines.delay(60_000)
         }
     }
-    val n = count ?: return
-    val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "live")
-    val alpha by pulse.animateFloat(0.35f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1100), androidx.compose.animation.core.RepeatMode.Reverse), label = "live-dot")
-    Row(
-        Modifier.padding(end = 6.dp).border(1.dp, AppColors.PanelBorder, CircleShape).padding(horizontal = 10.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    val n = count
+    androidx.compose.animation.AnimatedVisibility(
+        visible = n != null,
+        enter = androidx.compose.animation.fadeIn(Motion.fade(320)) + androidx.compose.animation.scaleIn(Motion.tween(320), initialScale = 0.85f),
+        exit = androidx.compose.animation.fadeOut(Motion.fade(200)),
     ) {
-        Box(Modifier.size(7.dp).background(AppColors.Good.copy(alpha = alpha), CircleShape))
-        Text("$n ${if (n % 10 == 1 && n % 100 != 11) "читает" else "читают"} сейчас", color = AppColors.Muted, fontSize = 12.sp, maxLines = 1)
+        val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "live")
+        val glow by pulse.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1400), androidx.compose.animation.core.RepeatMode.Restart), label = "live-dot")
+        Row(
+            Modifier.padding(end = 2.dp).height(44.dp).fieldSurface(CircleShape).padding(start = 13.dp, end = 15.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
+            Box(Modifier.size(16.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(16.dp).graphicsLayer { scaleX = 0.5f + glow; scaleY = 0.5f + glow; alpha = (1f - glow) * 0.55f }.background(AppColors.Good, CircleShape))
+                Box(Modifier.size(8.dp).background(AppColors.Good, CircleShape))
+            }
+            androidx.compose.animation.AnimatedContent(
+                targetState = n ?: 0,
+                transitionSpec = {
+                    val up = targetState > initialState
+                    (androidx.compose.animation.slideInVertically(Motion.tween(260)) { if (up) it else -it } + androidx.compose.animation.fadeIn(Motion.fade(220)))
+                        .togetherWith(androidx.compose.animation.slideOutVertically(Motion.tween(220)) { if (up) -it else it } + androidx.compose.animation.fadeOut(Motion.fade(160)))
+                },
+                label = "live-count",
+            ) { value ->
+                Text("$value", color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, maxLines = 1)
+            }
+        }
     }
 }
 

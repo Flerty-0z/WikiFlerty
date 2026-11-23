@@ -120,6 +120,7 @@ object PdfTextConverter {
         }
         class Para(val lines: List<String>, val verse: Boolean) : Item()
         class Picture(val page: Int) : Item()
+        class Figure(val page: Int, val index: Int) : Item()
     }
 
     private val markerRegex = Regex("\u0004(\\d+)(b?)\u0005")
@@ -170,7 +171,7 @@ object PdfTextConverter {
             val writer = StringWriter()
             Stripper().writeText(doc, writer)
             val raw = writer.toString().split(PAGE).drop(1)
-            val pagesText = List(count) { i -> raw.getOrNull(i).orEmpty().replace("­", "").replace("\r", "") }
+            val pagesText = List(count) { i -> raw.getOrNull(i).orEmpty().replace("\r", "").replace(Regex("(\\p{L})\u00AD\\s*\\n"), "$1-\n").replace("\u00AD", "") }
             val totalChars = pagesText.sumOf { t -> t.replace(markerRegex, "").count { it.isLetterOrDigit() } }
             if (totalChars < count * 60 && totalChars < 4000) return null
 
@@ -207,6 +208,7 @@ object PdfTextConverter {
 
             val emptyPages = pages.indices.filter { i -> pages[i].sumOf { b -> b.sumOf { it.text.length } } < 12 }.toSet()
             val images = renderImages(source, emptyPages.take(60))
+            val figures = runCatching { pageFigures(doc, images.keys) }.getOrDefault(emptyMap())
 
             val items = mutableListOf<Item>()
             for (p in 0 until count) {
@@ -226,7 +228,7 @@ object PdfTextConverter {
                         if (plain.isEmpty()) return
                         val inner = plain.dropLast(1)
                         val shortShare = if (inner.isEmpty()) 0.0 else inner.count { it.length < p90 * 0.72 }.toDouble() / inner.size
-                        items += Item.Para(plain.toList(), plain.size > 1 && (pageVerse || shortShare > 0.5))
+                        items += Item.Para(plain.toList(), plain.size > 1 && (pageVerse || shortShare > 0.5) && !flowing(plain))
                         plain.clear()
                     }
                     while (i < block.size) {
@@ -257,6 +259,7 @@ object PdfTextConverter {
                     }
                     flush()
                 }
+                figures[p]?.indices?.forEach { k -> items += Item.Figure(p, k) }
             }
 
             val headings = items.filterIsInstance<Item.Heading>()
@@ -322,6 +325,16 @@ object PdfTextConverter {
                             images[item.page]?.let { book.addImage(name, "image/jpeg", it) }
                             html.append("<div style=\"text-align:center\">").append(pendingAnchor).append("<img src=\"$name\" alt=\"\" style=\"max-width:100%\"/></div>\n")
                             pendingAnchor = ""
+                        }
+                        is Item.Figure -> {
+                            val bytes = figures[item.page]?.getOrNull(item.index)
+                            if (bytes != null) {
+                                flushCarry()
+                                val name = "img/fig${item.page}_${item.index}.jpg"
+                                book.addImage(name, "image/jpeg", bytes)
+                                html.append("<div style=\"text-align:center\">").append(pendingAnchor).append("<img src=\"$name\" alt=\"\" style=\"max-width:100%\"/></div>\n")
+                                pendingAnchor = ""
+                            }
                         }
                         is Item.Heading -> {
                             flushCarry()
@@ -439,6 +452,59 @@ object PdfTextConverter {
                 }
             }
         }
+    }
+
+    private fun flowing(lines: List<String>): Boolean {
+        if (lines.size < 3) return false
+        var cont = 0
+        for (i in 0 until lines.size - 1) {
+            val a = lines[i].trimEnd()
+            val b = lines[i + 1].trimStart()
+            val next = b.firstOrNull() ?: continue
+            if (a.endsWith("-") && a.length > 1 && a[a.length - 2].isLetter()) {
+                cont++
+                continue
+            }
+            if (next.isLowerCase() && a.lastOrNull()?.let { it.isLetter() || it == ',' } == true) cont++
+        }
+        return cont * 10 >= (lines.size - 1) * 6
+    }
+
+    private fun pageFigures(doc: PDDocument, skip: Set<Int>): Map<Int, List<ByteArray>> {
+        val out = HashMap<Int, List<ByteArray>>()
+        var budget = 150
+        var bytesLeft = 40L * 1024 * 1024
+        for (p in 0 until doc.numberOfPages) {
+            if (budget <= 0 || bytesLeft <= 0) break
+            if (p in skip) continue
+            val res = runCatching { doc.getPage(p).resources }.getOrNull() ?: continue
+            val list = ArrayList<ByteArray>()
+            for (name in runCatching { res.xObjectNames.toList() }.getOrDefault(emptyList())) {
+                if (list.size >= 4) break
+                val x = runCatching { res.getXObject(name) }.getOrNull() as? com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject ?: continue
+                if (x.width < 220 || x.height < 160 || x.width.toLong() * x.height > 25_000_000L) continue
+                val bmp = runCatching { x.image }.getOrNull() ?: continue
+                try {
+                    val scale = minOf(1f, 1200f / maxOf(bmp.width, bmp.height))
+                    val sized = if (scale < 1f) Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt().coerceAtLeast(1), (bmp.height * scale).toInt().coerceAtLeast(1), true) else bmp
+                    val flat = Bitmap.createBitmap(sized.width, sized.height, Bitmap.Config.ARGB_8888)
+                    android.graphics.Canvas(flat).apply { drawColor(Color.WHITE); drawBitmap(sized, 0f, 0f, null) }
+                    if (sized !== bmp) sized.recycle()
+                    val bytes = ByteArrayOutputStream().use { s ->
+                        flat.compress(Bitmap.CompressFormat.JPEG, 80, s)
+                        s.toByteArray()
+                    }
+                    flat.recycle()
+                    list += bytes
+                    budget--
+                    bytesLeft -= bytes.size
+                } finally {
+                    bmp.recycle()
+                }
+            }
+            if (list.isNotEmpty()) out[p] = list
+        }
+        return out
     }
 
     private fun joinProse(lines: List<String>): String {

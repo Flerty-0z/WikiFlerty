@@ -739,7 +739,6 @@ fun SeriesSheet(name: String, currentId: String?, onOpenBook: ((Book) -> Unit)?,
                     }
                 }
             }
-            Text("Зажми обложку, чтобы поменять порядок", color = AppColors.Faint, fontSize = 11.5.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
         removing?.let { b ->
             ConfirmSheet(
