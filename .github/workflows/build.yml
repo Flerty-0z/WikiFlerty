@@ -69,6 +69,12 @@ jobs:
           fi
           echo "$KEYSTORE_BASE64" | tr -d ' \n\r' | base64 -d > app/release.keystore
 
+      - name: Check hard files
+        if: ${{ inputs.public }}
+        run: |
+          set -o pipefail
+          ./gradlew :app:testDebugUnitTest --tests '*TortureTest*' 2>&1 | tee torture.log | grep -E "torture |FAILED|PASSED"
+
       - name: Build
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
