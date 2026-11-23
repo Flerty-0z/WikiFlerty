@@ -32,6 +32,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -289,6 +290,22 @@ private fun SignedIn(account: Account, state: Account.State) {
     val localIds = books.filter { it.fingerprint != null }.associate { it.fingerprint!! to it.id }
     TabbedFrame("Книги в облаке", icon = AppIcons.Cloud, trailing = { CountBadge(state.books.size) }) {
         Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (state.books.isNotEmpty()) {
+                val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+                androidx.compose.foundation.lazy.LazyColumn(
+                    Modifier.fillMaxWidth().heightIn(max = 296.dp).fadingEdges(listState),
+                    state = listState,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(state.books.size, key = { state.books[it].fp }) { i ->
+                        CloudBookRow(state.books[i], state.books[i].fp in localFps, localIds[state.books[i].fp], state.books[i].fp in busyBooks, onDownload = { b ->
+                            scope.launch {
+                                account.downloadNow(b.fp).onSuccess { toast("Книга в библиотеке") }.onFailure { toast(it.message ?: "Не получилось скачать") }
+                            }
+                        }, onDrop = { dropping = it })
+                    }
+                }
+            }
             if (state.books.isEmpty()) {
                 Text(
                     if (state.uploadBooks) "Книги загрузятся сами, когда будет связь" else "Пока пусто",
@@ -296,48 +313,6 @@ private fun SignedIn(account: Account, state: Account.State) {
                     fontSize = 13.sp,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
                 )
-            }
-            state.books.forEach { b ->
-                androidx.compose.runtime.key(b.fp) {
-                    val here = b.fp in localFps
-                    val shape = appCorner(14)
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 56.dp)
-                            .background(AppColors.Line.copy(alpha = 0.45f), shape)
-                            .border(1.dp, AppColors.PanelBorder, shape)
-                            .padding(start = 8.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        BookCover(localIds[b.fp], 36.dp)
-                        Column(Modifier.weight(1f)) {
-                            Text(b.name.ifBlank { "Без названия" }, color = AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(
-                                cloudSize(b.size) + if (here) " · на телефоне" else "",
-                                color = AppColors.Faint,
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                            )
-                        }
-                        when {
-                            b.fp in busyBooks -> Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) { KitSpinner(Modifier.size(18.dp), AppColors.Accent) }
-                            !here -> Box(
-                                Modifier.size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Download) {
-                                    scope.launch {
-                                        account.downloadNow(b.fp).onSuccess { toast("Книга в библиотеке") }.onFailure { toast(it.message ?: "Не получилось скачать") }
-                                    }
-                                },
-                                contentAlignment = Alignment.Center,
-                            ) { Icon(AppIcons.Download, "Скачать", tint = AppColors.Accent, modifier = Modifier.size(20.dp)) }
-                        }
-                        Box(
-                            Modifier.size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Close) { dropping = b },
-                            contentAlignment = Alignment.Center,
-                        ) { Icon(AppIcons.Trash, "Удалить из облака", tint = AppColors.Bad, modifier = Modifier.size(18.dp)) }
-                    }
-                }
             }
         }
     }
@@ -458,6 +433,49 @@ private fun planLine(state: Account.State): String {
     return "${planTitle(state.plan)} · $limit до ${dayFormat.format(java.util.Date(state.until))}"
 }
 
+@Composable
+private fun CloudBookRow(b: Account.CloudBook, here: Boolean, localId: String?, busy: Boolean, onDownload: (Account.CloudBook) -> Unit, onDrop: (Account.CloudBook) -> Unit) {
+    val shape = appCorner(14)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .background(AppColors.Line.copy(alpha = 0.45f), shape)
+            .border(1.dp, AppColors.PanelBorder, shape)
+            .padding(start = 8.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        BookCover(localId, 36.dp)
+        Column(Modifier.weight(1f)) {
+            Text(b.name.ifBlank { "Без названия" }, color = AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(cloudSize(b.size) + if (here) " · на телефоне" else "", color = AppColors.Faint, fontSize = 12.sp, maxLines = 1)
+        }
+        when {
+            busy -> Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) { KitSpinner(Modifier.size(18.dp), AppColors.Accent) }
+            !here -> Box(
+                Modifier.size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Download) { onDownload(b) },
+                contentAlignment = Alignment.Center,
+            ) { Icon(AppIcons.Download, "Скачать", tint = AppColors.Accent, modifier = Modifier.size(20.dp)) }
+        }
+        Box(
+            Modifier.size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Close) { onDrop(b) },
+            contentAlignment = Alignment.Center,
+        ) { Icon(AppIcons.Trash, "Удалить из облака", tint = AppColors.Bad, modifier = Modifier.size(18.dp)) }
+    }
+}
+
+private fun Modifier.fadingEdges(state: androidx.compose.foundation.lazy.LazyListState): Modifier = this
+    .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        val edge = 22.dp.toPx()
+        val top = state.canScrollBackward
+        val bottom = state.canScrollForward
+        if (top) drawRect(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color.Transparent, androidx.compose.ui.graphics.Color.Black), 0f, edge), size = androidx.compose.ui.geometry.Size(size.width, edge), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+        if (bottom) drawRect(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color.Black, androidx.compose.ui.graphics.Color.Transparent), size.height - edge, size.height), topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - edge), size = androidx.compose.ui.geometry.Size(size.width, edge), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+    }
+
 private class Offer(val id: String, val title: String, val size: String, val price: Int, val hint: String, val shelves: Int)
 
 private val offers = listOf(
@@ -475,12 +493,9 @@ private fun PlanSheet(account: Account, state: Account.State, onDismiss: () -> U
         val close = sheetClose(onDismiss)
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (state.until > 0) {
-                Text(
+                HintNote(
                     "Сейчас ${planTitle(state.plan)} до ${dayFormat.format(java.util.Date(state.until))}. Тот же тариф добавит 30 дней, другой пересчитает остаток по цене.",
-                    color = AppColors.Muted,
-                    fontSize = 12.sp,
-                    lineHeight = 17.sp,
-                    modifier = Modifier.fillMaxWidth().fieldSurface(appCorner(14)).padding(horizontal = 12.dp, vertical = 10.dp),
+                    AppIcons.Calendar,
                 )
             }
             offers.forEach { o ->
@@ -531,7 +546,7 @@ private fun PlanSheet(account: Account, state: Account.State, onDismiss: () -> U
                     busy = false
                 }
             }
-            Text("30 дней · без автопродления · карта или СБП", color = AppColors.Faint, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            HintNote("Тариф на 30 дней, сам не продлевается. Оплата картой или через СБП.", AppIcons.Card)
         }
     }
 }

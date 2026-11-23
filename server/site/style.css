@@ -32,7 +32,11 @@ footer{margin-top:40px;color:var(--muted);font-size:12px;border-top:1px solid va
 .btn{display:flex;align-items:center;justify-content:center;gap:10px;height:52px;border-radius:16px;background:var(--accent);color:#fff;font-weight:700;margin:16px 0 10px}
 .btn:hover{text-decoration:none;filter:brightness(1.06)}
 .btn2{background:transparent;color:var(--accent);border:1px solid var(--accent)}
-.note{font-size:13px;color:var(--muted);margin:6px 0}
+.note{display:flex;align-items:center;gap:12px;text-align:left;font-size:13px;line-height:1.5;color:var(--muted);margin:10px 0;padding:12px 14px;border:1px solid var(--line);background:var(--panel);border-radius:14px;overflow-wrap:normal;word-break:normal;hyphens:none}
+.note svg{flex:none;width:30px;height:30px;padding:6px;border-radius:9px;background:rgba(216,84,107,.14);border:1px solid rgba(216,84,107,.35)}
+.note span{flex:1;min-width:0}
+.shelf .free{white-space:nowrap}
 @keyframes drop{0%{transform:translateY(-46px);opacity:0}60%{opacity:1}100%{transform:none;opacity:1}}
 @keyframes glow{0%,100%{border-color:rgba(216,84,107,.45)}50%{border-color:rgba(216,84,107,1)}}
 @media (prefers-reduced-motion:reduce){.shelf i,.shelf .free.hot{animation:none}}
+.note a{overflow-wrap:anywhere}
