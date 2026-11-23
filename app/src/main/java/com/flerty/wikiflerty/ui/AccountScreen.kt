@@ -211,6 +211,7 @@ private fun SignedIn(account: Account, state: Account.State) {
     var changing by remember { mutableStateOf(false) }
     var leaving by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
+    var buying by remember { mutableStateOf(false) }
     fun toast(text: String) = Toast.makeText(context, text, Toast.LENGTH_LONG).show()
     androidx.compose.runtime.LaunchedEffect(Unit) { account.refresh() }
 
@@ -222,7 +223,7 @@ private fun SignedIn(account: Account, state: Account.State) {
             SettingIcon(AppIcons.Person, 40.dp)
             Column(Modifier.weight(1f)) {
                 Text(state.login.orEmpty(), color = AppColors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("Бесплатно · ${cloudSize(state.limit.takeIf { it > 0 } ?: (500L shl 20))} в облаке", color = AppColors.Faint, fontSize = 12.sp)
+                Text(planLine(state), color = if (state.until > 0) AppColors.Accent else AppColors.Faint, fontSize = 12.sp)
             }
         }
         val limit = state.limit.takeIf { it > 0 } ?: (500L shl 20)
@@ -242,6 +243,9 @@ private fun SignedIn(account: Account, state: Account.State) {
                 if (state.working != null) KitSpinner(Modifier.size(14.dp), AppColors.Accent)
                 Text(line.orEmpty(), color = if (state.working != null) AppColors.Muted else AppColors.Bad, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
+        }
+        if (state.payOn) {
+            AppButton(if (state.until > 0) "Продлить или сменить тариф" else "Увеличить место", primary = state.until == 0L, modifier = Modifier.fillMaxWidth()) { buying = true }
         }
     }
 
@@ -354,6 +358,8 @@ private fun SignedIn(account: Account, state: Account.State) {
         )
     }
 
+    if (buying) PlanSheet(account, state) { buying = false }
+
     if (changing) PasswordSheet(
         title = "Сменить пароль",
         fields = listOf("Текущий пароль", "Новый пароль"),
@@ -409,6 +415,87 @@ private fun PasswordSheet(
                     if (ok) close()
                 }
             }
+        }
+    }
+}
+
+private val dayFormat = java.text.SimpleDateFormat("d MMMM", java.util.Locale("ru"))
+
+private fun planTitle(plan: String): String = when (plan) {
+    "plus" -> "Облако+"
+    "plus2" -> "Облако++"
+    else -> "Бесплатно"
+}
+
+private fun planLine(state: Account.State): String {
+    val limit = cloudSize(state.limit.takeIf { it > 0 } ?: (500L shl 20))
+    if (state.until <= 0) return "Бесплатно · $limit в облаке"
+    return "${planTitle(state.plan)} · $limit до ${dayFormat.format(java.util.Date(state.until))}"
+}
+
+private class Offer(val id: String, val title: String, val size: String, val price: Int, val hint: String)
+
+private val offers = listOf(
+    Offer("plus", "Облако+", "5 ГБ", 79, "Около 3–5 тысяч книг в EPUB"),
+    Offer("plus2", "Облако++", "15 ГБ", 149, "Для больших библиотек, PDF и комиксов"),
+)
+
+@Composable
+private fun PlanSheet(account: Account, state: Account.State, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf<String?>(null) }
+    AppSheet(onDismiss = onDismiss, title = "Увеличить место") {
+        val close = sheetClose(onDismiss)
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                if (state.until > 0) "Сейчас ${planTitle(state.plan)} до ${dayFormat.format(java.util.Date(state.until))}. Оплата того же тарифа добавит 30 дней, при смене тарифа остаток дней пересчитается по цене."
+                else "Тариф действует 30 дней и сам не продлевается. Если срок закончится, книги из облака не удалятся.",
+                color = AppColors.Muted,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+            )
+            offers.forEach { o ->
+                val shape = appCorner(16)
+                val current = state.until > 0 && state.plan == o.id
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(AppColors.Line.copy(alpha = 0.45f), shape)
+                        .border(1.dp, if (current) AppColors.Accent else AppColors.PanelBorder, shape)
+                        .liveClick(shape, sound = FeedbackSound.Open) {
+                            if (busy != null) return@liveClick
+                            busy = o.id
+                            scope.launch {
+                                account.pay(o.id)
+                                    .onSuccess { url ->
+                                        runCatching {
+                                            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                                        }.onFailure { Toast.makeText(context, "Не нашёлся браузер для оплаты", Toast.LENGTH_LONG).show() }
+                                        close()
+                                    }
+                                    .onFailure { Toast.makeText(context, it.message ?: "Не получилось", Toast.LENGTH_LONG).show() }
+                                busy = null
+                            }
+                        }
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("${o.title} · ${o.size}", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Text(if (current) "Ваш тариф" else o.hint, color = if (current) AppColors.Accent else AppColors.Faint, fontSize = 12.sp)
+                    }
+                    if (busy == o.id) KitSpinner(Modifier.size(18.dp), AppColors.Accent)
+                    else Text("${o.price} ₽", color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                }
+            }
+            Text(
+                "Оплата картой или через СБП на странице Robokassa. После оплаты вернитесь в приложение — место подключится само.",
+                color = AppColors.Faint,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+            )
         }
     }
 }

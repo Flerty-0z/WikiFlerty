@@ -46,6 +46,9 @@ class Account(private val app: App) {
         val used: Long = 0,
         val limit: Long = 0,
         val plan: String = "free",
+        val until: Long = 0,
+        val base: Long = 0,
+        val payOn: Boolean = false,
         val books: List<CloudBook> = emptyList(),
         val uploadBooks: Boolean = true,
         val autoDownload: Boolean = true,
@@ -91,6 +94,9 @@ class Account(private val app: App) {
             used = j.optLong("used"),
             limit = j.optLong("limit"),
             plan = j.optString("plan", "free"),
+            until = j.optLong("until"),
+            base = j.optLong("base"),
+            payOn = j.optBoolean("pay"),
             books = books,
             loaded = true,
         )
@@ -273,6 +279,24 @@ class Account(private val app: App) {
 
     suspend fun changePassword(old: String, new: String): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching { call("password", JSONObject().put("old", old).put("password", new)); Unit }
+    }
+
+    private var payWatch: Job? = null
+
+    suspend fun pay(plan: String): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val url = call("pay/create", JSONObject().put("plan", plan)).getString("url")
+            val before = _state.value.until
+            payWatch?.cancel()
+            payWatch = app.appScope.launch {
+                repeat(120) {
+                    delay(5_000)
+                    refresh()
+                    if (_state.value.until != before) return@launch
+                }
+            }
+            url
+        }
     }
 
     suspend fun refresh(): Result<Unit> = withContext(Dispatchers.IO) {
