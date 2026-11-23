@@ -26,5 +26,14 @@ url=$(call /v1/books/url "{\"fp\":\"$fp\"}" | jq -r .url)
 curl -sS -o back.epub "$url"
 cmp -s book.epub back.epub || { echo "download mismatch"; exit 1; }
 echo "download ok"
+pay=$(call /v1/me '{}' | jq -r .pay)
+echo "pay enabled: $pay"
+if [ "$pay" = true ]; then
+  link=$(call /v1/pay/create '{"plan":"plus"}' | jq -r .url)
+  echo "pay link: ${link%%\?*}"
+  page=$(curl -sS -L --max-time 30 -A "Mozilla/5.0 (Linux; Android 14)" "$link" || true)
+  echo "pay page title: $(echo "$page" | grep -o '<title>[^<]*' | head -1 | sed 's/<title>//')"
+  echo "$page" | grep -oiE '(ошибк|неверн|error)[^<"]{0,120}' | head -5 | sed 's/^/pay page: /' || true
+fi
 call /v1/delete '{"password":"smoke-pass-1"}' | jq -e .ok > /dev/null
 echo "cleanup ok"
