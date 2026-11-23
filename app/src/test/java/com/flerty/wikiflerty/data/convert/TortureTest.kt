@@ -88,7 +88,9 @@ class TortureTest {
         val text = "<?xml version=\"1.0\" encoding=\"utf-8\"?><FictionBook><description><title-info><book-title>Битая</book-title></title-info></description><body><section><title><p>Глава 1</p></title>" +
             (1..3000).joinToString("") { "<p>Абзац $it <emphasis>без закрытия " } + "</body>"
         val f = File(dir, "broken.fb2").apply { writeText(text) }
-        runCatching { run(f, "broken.fb2") }.exceptionOrNull()?.let { e -> assertTrue("broken.fb2: ${e::class.simpleName}", e !is Error) }
+        val e = runCatching { run(f, "broken.fb2") }.exceptionOrNull()
+        println("torture broken.fb2 result=${e?.let { it::class.simpleName + ": " + it.message } ?: "ok"}")
+        if (e != null) throw e
     }
 
     @Test
