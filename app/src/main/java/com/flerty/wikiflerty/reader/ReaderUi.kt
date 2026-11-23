@@ -2878,30 +2878,31 @@ private fun ChapterMenu(item: TocItem, actions: TocActions, onRename: () -> Unit
         buttons += ChapterButton("Переименовать", AppIcons.Pencil, FeedbackSound.Edit) { onRename() }
         buttons += ChapterButton("Убрать", AppIcons.Trash, FeedbackSound.Trash) { onClose(); actions.onRename(item, "") }
     }
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        buttons.chunked(2).forEach { pair ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                pair.forEach { b -> ChapterAction(b.label, b.icon, b.sound, Modifier.weight(1f), b.onClick) }
-                if (pair.size == 1) Spacer(Modifier.weight(1f))
-            }
+    androidx.compose.foundation.lazy.LazyRow(
+        modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 2.dp, vertical = 2.dp),
+    ) {
+        items(buttons.size) { i ->
+            val b = buttons[i]
+            ChapterAction(b.label, b.icon, b.sound, b.onClick)
         }
     }
 }
 
 @Composable
-private fun ChapterAction(label: String, icon: ImageVector, sound: FeedbackSound, modifier: Modifier, onClick: () -> Unit) {
-    val shape = appCorner(12)
-    Row(
-        modifier
-            .heightIn(min = 44.dp)
-            .liveClick(shape, sound = sound, pressedScale = 0.96f, onClick = onClick)
+private fun ChapterAction(label: String, icon: ImageVector, sound: FeedbackSound, onClick: () -> Unit) {
+    val shape = appCorner(14)
+    val context = androidx.compose.ui.platform.LocalContext.current
+    Box(
+        Modifier
+            .size(width = 56.dp, height = 48.dp)
+            .liveClick(shape, sound = sound, pressedScale = 0.9f, onLongClick = { android.widget.Toast.makeText(context, label, android.widget.Toast.LENGTH_SHORT).show() }, onClick = onClick)
             .fieldSurface(shape)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(16.dp))
-        Text(label, color = AppColors.Text, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp))
     }
 }
 

@@ -3152,7 +3152,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             app.feedback.play(FeedbackSound.Close)
             return
         }
-        if (peopleNow.isEmpty()) {
+        val dualTaps = settings.dual && settings.dualMode == "tap"
+        if (peopleNow.isEmpty() && !dualTaps) {
             stripTurn(left)
             return
         }
@@ -3162,10 +3163,11 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         val x = (winX - loc[0]) / density
         val y = (winY - loc[1]) / density
         lifecycleScope.launch {
-            val js = "(function(){var f=window.__wfFlagAt?window.__wfFlagAt($x,$y):\"\";return f?\"p:\"+f:\"\";})()"
+            val js = "(function(){if(window.__wfDual&&window.__wfDual.at($x,$y))return \"d:\";var f=window.__wfFlagAt?window.__wfFlagAt($x,$y):\"\";return f?\"p:\"+f:\"\";})()"
             val raw = runCatching { navigator.evaluateJavascript(js) }.getOrNull()
             val hit = raw?.trim()?.let { if (it.startsWith("\"")) runCatching { org.json.JSONArray("[$it]").getString(0) }.getOrNull() else it }.orEmpty()
             when {
+                hit.startsWith("d:") -> app.feedback.play(FeedbackSound.Tap)
                 hit.startsWith("p:") -> {
                     app.feedback.play(FeedbackSound.Open)
                     showPerson(hit.removePrefix("p:"))

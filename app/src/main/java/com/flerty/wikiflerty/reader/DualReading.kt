@@ -245,6 +245,19 @@ object DualTranslate {
               document.querySelectorAll("[data-wfp]").forEach(function (el) { tapButton(el, el.getAttribute("data-wfp")); });
               relayout();
             },
+            at: function (x, y) {
+              var best = null, dist = 1e9;
+              document.querySelectorAll(".wf-dual-tap").forEach(function (b) {
+                var r = b.getBoundingClientRect();
+                if (!r.width) return;
+                var dx = Math.max(r.left - x, 0, x - r.right), dy = Math.max(r.top - y, 0, y - r.bottom);
+                var d = Math.sqrt(dx * dx + dy * dy);
+                if (d <= 16 && d < dist) { dist = d; best = b; }
+              });
+              if (!best) return false;
+              best.click();
+              return true;
+            },
             fail: function (k) {
               var b = document.querySelector('.wf-dual-tap[data-for="' + k + '"]');
               if (b) b.classList.remove("on");
