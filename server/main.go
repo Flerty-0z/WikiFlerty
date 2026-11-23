@@ -307,7 +307,7 @@ func (a *App) authed(r *http.Request) (*User, *apiError) {
 //go:embed site
 var siteFiles embed.FS
 
-var sitePages = map[string]string{"/": "site/index.html", "/offer": "site/offer.html", "/privacy": "site/privacy.html", "/download": "site/download.html", "/account": "site/account.html", "/pay/fail": "site/fail.html", "/style.css": "site/style.css", "/logo.png": "site/logo.png", "/fonts/JetBrainsMono-Regular.woff2": "site/fonts/JetBrainsMono-Regular.woff2", "/fonts/JetBrainsMono-Bold.woff2": "site/fonts/JetBrainsMono-Bold.woff2"}
+var sitePages = map[string]string{"/": "site/index.html", "/offer": "site/offer.html", "/privacy": "site/privacy.html", "/download": "site/download.html", "/account": "site/account.html", "/pay/fail": "site/fail.html", "/style.css": "site/style.css", "/logo.png": "site/logo.png", "/fonts/JetBrainsMono-Regular.woff2": "site/fonts/JetBrainsMono-Regular.woff2", "/fonts/JetBrainsMono-Bold.woff2": "site/fonts/JetBrainsMono-Bold.woff2", "/fx.js": "site/fx.js", "/s/tap.wav": "site/s/tap.wav", "/s/open.wav": "site/s/open.wav", "/s/download.wav": "site/s/download.wav", "/s/pop.wav": "site/s/pop.wav"}
 
 func siteHost(r *http.Request) bool {
 	host := strings.ToLower(r.Host)
@@ -338,6 +338,11 @@ func serveSite(w http.ResponseWriter, r *http.Request) {
 	case strings.HasSuffix(name, ".png"):
 		w.Header().Set("Content-Type", "image/png")
 		cache = "public, max-age=86400"
+	case strings.HasSuffix(name, ".js"):
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	case strings.HasSuffix(name, ".wav"):
+		w.Header().Set("Content-Type", "audio/wav")
+		cache = "public, max-age=2592000"
 	case strings.HasSuffix(name, ".woff2"):
 		w.Header().Set("Content-Type", "font/woff2")
 		cache = "public, max-age=2592000, immutable"
