@@ -10,6 +10,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -162,6 +164,7 @@ enum class ReaderSheet(val title: String, val depth: Int) {
     Sound("Звук", 1),
     Atmosphere("Атмосфера", 1),
     Selection("Выделение", 1),
+    Dual("Двуязычное", 1),
     Listen("Чтение вслух", 1),
     Fonts("Шрифт", 2),
     Notes("Заметки", 0),
@@ -225,6 +228,7 @@ class ReaderUiState {
     var inkFlash by mutableStateOf(0)
     var chatFromHistory by mutableStateOf(false)
     var bookmarked by mutableStateOf(false)
+    var dualStatus by mutableStateOf<String?>(null)
     var pageTurning by mutableStateOf(false)
     var quote by mutableStateOf<QuoteDraft?>(null)
     var person by mutableStateOf<com.flerty.wikiflerty.data.BookCharacter?>(null)
@@ -272,6 +276,9 @@ class TocActions(
     val onAdd: (String) -> Unit = {},
     val onRename: (TocItem, String) -> Unit = { _, _ -> },
     val onReset: () -> Unit = {},
+    val onListen: ((TocItem) -> Unit)? = null,
+    val onBookmark: ((TocItem) -> Unit)? = null,
+    val onTranslate: ((TocItem) -> Unit)? = null,
 )
 
 data class ChapterMark(val at: Float, val item: TocItem)
@@ -417,6 +424,8 @@ fun ReaderOverlay(
     onTocSelect: (TocItem) -> Unit,
     onBack: () -> Unit,
     tocActions: TocActions = TocActions(),
+    onDualClear: () -> Unit = {},
+    dualStatus: String? = null,
     notes: List<com.flerty.wikiflerty.data.Note>,
     noteActions: NoteActions,
     ai: AiBridge,
@@ -725,6 +734,8 @@ fun ReaderOverlay(
                         fonts = fonts,
                         toc = toc,
                         tocActions = tocActions,
+                        onDualClear = onDualClear,
+                        dualStatus = state.dualStatus,
                         notes = notes,
                         bookmarks = bookmarks,
                         bookmarkActions = bookmarkActions,
@@ -1802,6 +1813,7 @@ private fun SheetContent(
     fonts: List<FontEntry>,
     toc: List<TocItem>,
     tocActions: TocActions = TocActions(),
+    onDualClear: () -> Unit = {},
     notes: List<com.flerty.wikiflerty.data.Note>,
     bookmarks: List<com.flerty.wikiflerty.data.Bookmark>,
     bookmarkActions: BookmarkActions,
@@ -1972,6 +1984,7 @@ private fun SheetContent(
                     ReaderSheet.Sound -> OptionFrame { SoundOptions(settings, onSettingsChange) }
                     ReaderSheet.Atmosphere -> AmbienceOptions(title = "Звуки фона")
                     ReaderSheet.Selection -> OptionFrame { SelectionOptions(settings, onSettingsChange) }
+                    ReaderSheet.Dual -> OptionFrame { DualOptions(settings, dualStatus, ai.manager.current() != null, onSettingsChange, onDualClear, onOpen) }
                     ReaderSheet.Listen -> OptionFrame { TtsOptions(settings, bookLanguage, ttsActive, ttsPlaying, ttsSleep, tts, onSettingsChange) }
                     else -> Unit
                 }
@@ -1991,6 +2004,7 @@ private fun OptionsHome(onOpen: (ReaderSheet) -> Unit) {
         Tile(ReaderSheet.Theme, "Фон страницы", AppIcons.Theme, 0xFFF6C770, 0xFFD9922B, dark = true),
         Tile(ReaderSheet.Panel, "Кнопки, прогресс", AppIcons.Panel, 0xFF5EEAD4, 0xFF1FA392, dark = true),
         Tile(ReaderSheet.Selection, "Меню, перевод", AppIcons.Select, 0xFFFDA4AF, 0xFFE0475F),
+        Tile(ReaderSheet.Dual, "Перевод абзацев", AppIcons.Translate, 0xFF93C5FD, 0xFF2F6FD6),
         Tile(ReaderSheet.Gestures, "Тапы, свайпы", AppIcons.Gesture, 0xFFF49AC1, 0xFFD45A93),
         Tile(ReaderSheet.Screen, "Яркость, поворот", AppIcons.Screen, 0xFFF7D774, 0xFFD9A92B, dark = true),
         Tile(ReaderSheet.Listen, "Голос, скорость", AppIcons.Headphones, 0xFF8BD3A5, 0xFF3E9E66, dark = true),
@@ -2469,6 +2483,57 @@ private fun SelectionOptions(settings: ReaderSettings, onSettingsChange: ((Reade
 }
 
 @Composable
+private fun DualOptions(
+    settings: ReaderSettings,
+    status: String?,
+    hasAi: Boolean,
+    onSettingsChange: ((ReaderSettings) -> ReaderSettings) -> Unit,
+    onClear: () -> Unit,
+    onOpen: (ReaderSheet) -> Unit,
+) {
+    var clearing by remember { mutableStateOf(false) }
+    SwitchRow("Двуязычное чтение", settings.dual, icon = AppIcons.Translate) { v -> onSettingsChange { it.copy(dual = v) } }
+    PickerRow(
+        label = "Перевод на",
+        icon = AppIcons.Translate,
+        options = Translator.languages.map { PickerOption(it.code, it.title) },
+        selectedId = settings.translateTo,
+    ) { code -> onSettingsChange { it.copy(translateTo = code) } }
+    Segmented("Показ", listOf("Под абзацем", "По нажатию"), if (settings.dualMode == "tap") 1 else 0, icon = AppIcons.Pages) { i ->
+        onSettingsChange { it.copy(dualMode = if (i == 1) "tap" else "under") }
+    }
+    Segmented("Переводчик", listOf("ИИ", "Google"), if (settings.dualEngine == "google") 1 else 0, icon = AppIcons.Sparkle) { i ->
+        onSettingsChange { it.copy(dualEngine = if (i == 1) "google" else "auto") }
+    }
+    com.flerty.wikiflerty.ui.Appear(settings.dualEngine != "google" && !hasAi) {
+        Row(
+            Modifier.fillMaxWidth().liveClick(appCorner(12), sound = FeedbackSound.Open) { onOpen(ReaderSheet.AiSetup) }.padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(AppIcons.Sparkle, null, tint = AppColors.Accent, modifier = Modifier.size(15.dp))
+            Text("ИИ не подключён — пока переводит Google. Подключить", color = AppColors.Muted, fontSize = 12.sp)
+        }
+    }
+    com.flerty.wikiflerty.ui.Appear(status != null) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (status?.startsWith("Перевожу") == true) com.flerty.wikiflerty.ui.KitSpinner(Modifier.size(14.dp))
+            Text(status.orEmpty(), color = AppColors.Muted, fontSize = 12.sp)
+        }
+    }
+    TocTool("Удалить сохранённый перевод", AppIcons.Trash, false, Modifier.fillMaxWidth()) { clearing = true }
+    if (clearing) {
+        com.flerty.wikiflerty.ui.ConfirmSheet(
+            title = "Удалить перевод книги?",
+            text = "Переведённые главы сотрутся и переведутся заново.",
+            confirm = "Удалить",
+            onConfirm = { onClear() },
+            onDismiss = { clearing = false },
+        )
+    }
+}
+
+@Composable
 private fun HandleStyleTile(style: HandleStyle, selected: Boolean, onClick: () -> Unit) {
     val shape = appCorner(14)
     val edge by androidx.compose.animation.animateColorAsState(if (selected) AppColors.Accent else AppColors.PanelBorder, Motion.fade(200), label = "handle-edge")
@@ -2685,6 +2750,7 @@ private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: M
     var naming by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<TocItem?>(null) }
     var resetting by remember { mutableStateOf(false) }
+    var opened by remember { mutableStateOf<String?>(null) }
     val current = remember(toc, currentHref, chapter) {
         if (actions.custom && !chapter.isNullOrBlank()) return@remember toc.indexOfLast { it.title == chapter.trim() }
         val res = currentHref?.substringBefore('#')?.trimStart('/')
@@ -2712,6 +2778,8 @@ private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: M
         itemsIndexed(toc, key = { i, it -> it.id ?: ("b$i") }) { index, item ->
             Column(Modifier.animateItem(fadeInSpec = Motion.fade(220), placementSpec = Motion.tween(280), fadeOutSpec = Motion.fade(160))) {
             if (index > 0) com.flerty.wikiflerty.ui.ListDivider()
+            val rowKey = item.id ?: "b$index"
+            val open = opened == rowKey
             Reveal {
                 val shape = appCorner(12)
                 val active = index == current
@@ -2722,7 +2790,7 @@ private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: M
                         .padding(vertical = 3.dp)
                         .clip(shape)
                         .background(if (active) AppColors.AccentTint else Color.Transparent)
-                        .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onLongClick = if (item.id != null) ({ editing = item }) else null) { onSelect(item) }
+                        .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f, onLongClick = { opened = if (opened == rowKey) null else rowKey }) { onSelect(item) }
                         .padding(start = (8 + item.depth * 16).dp, end = 8.dp, top = 9.dp, bottom = 9.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -2742,13 +2810,23 @@ private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: M
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    if (item.id != null) {
-                        Box(
-                            Modifier.size(32.dp).liveClick(CircleShape, sound = FeedbackSound.Edit, pressedScale = 0.88f) { editing = item },
-                            contentAlignment = Alignment.Center,
-                        ) { Icon(AppIcons.Pencil, "Изменить главу", tint = AppColors.Faint, modifier = Modifier.size(15.dp)) }
+                    val turn by androidx.compose.animation.core.animateFloatAsState(if (open) 270f else 90f, Motion.tween(260), label = "toc-chevron")
+                    Box(
+                        Modifier.size(34.dp).liveClick(CircleShape, sound = if (open) FeedbackSound.Collapse else FeedbackSound.Expand, pressedScale = 0.88f) { opened = if (open) null else rowKey },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(AppIcons.Chevron, if (open) "Свернуть" else "Действия с главой", tint = if (open) AppColors.Accent else AppColors.Faint, modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = turn })
                     }
                 }
+            }
+            AnimatedVisibility(open, enter = expandVertically(Motion.tween(260)) + fadeIn(Motion.fade(220)), exit = shrinkVertically(Motion.tween(220)) + fadeOut(Motion.fade(140))) {
+                ChapterMenu(
+                    item = item,
+                    actions = actions,
+                    onRename = { editing = item },
+                    onClose = { opened = null },
+                    modifier = Modifier.padding(start = (8 + item.depth * 16).dp, end = 4.dp, top = 2.dp, bottom = 10.dp),
+                )
             }
             }
         }
@@ -2778,6 +2856,52 @@ private fun TocList(toc: List<TocItem>, onSelect: (TocItem) -> Unit, modifier: M
             onConfirm = { actions.onReset() },
             onDismiss = { resetting = false },
         )
+    }
+}
+
+private class ChapterButton(val label: String, val icon: ImageVector, val sound: FeedbackSound, val onClick: () -> Unit)
+
+@Composable
+private fun ChapterMenu(item: TocItem, actions: TocActions, onRename: () -> Unit, onClose: () -> Unit, modifier: Modifier) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val buttons = mutableListOf<ChapterButton>()
+    actions.onListen?.let { go -> buttons += ChapterButton("Слушать", AppIcons.Headphones, FeedbackSound.Play) { onClose(); go(item) } }
+    actions.onBookmark?.let { go -> buttons += ChapterButton("Закладка", AppIcons.Bookmark, FeedbackSound.Bookmark) { onClose(); go(item) } }
+    actions.onTranslate?.let { go -> buttons += ChapterButton("С переводом", AppIcons.Translate, FeedbackSound.Ai) { onClose(); go(item) } }
+    buttons += ChapterButton("Название", AppIcons.Copy, FeedbackSound.Copy) {
+        val clip = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        clip.setPrimaryClip(android.content.ClipData.newPlainText("chapter", item.title))
+        android.widget.Toast.makeText(context, "Название скопировано", android.widget.Toast.LENGTH_SHORT).show()
+        onClose()
+    }
+    if (item.id != null) {
+        buttons += ChapterButton("Переименовать", AppIcons.Pencil, FeedbackSound.Edit) { onRename() }
+        buttons += ChapterButton("Убрать", AppIcons.Trash, FeedbackSound.Trash) { onClose(); actions.onRename(item, "") }
+    }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        buttons.chunked(2).forEach { pair ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                pair.forEach { b -> ChapterAction(b.label, b.icon, b.sound, Modifier.weight(1f), b.onClick) }
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChapterAction(label: String, icon: ImageVector, sound: FeedbackSound, modifier: Modifier, onClick: () -> Unit) {
+    val shape = appCorner(12)
+    Row(
+        modifier
+            .heightIn(min = 44.dp)
+            .liveClick(shape, sound = sound, pressedScale = 0.96f, onClick = onClick)
+            .fieldSurface(shape)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(16.dp))
+        Text(label, color = AppColors.Text, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

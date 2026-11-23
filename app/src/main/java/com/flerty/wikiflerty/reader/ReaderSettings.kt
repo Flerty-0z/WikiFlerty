@@ -117,6 +117,9 @@ data class ReaderSettings(
     val margins: Double = 1.0,
     val bold: Boolean = false,
     val bionic: Boolean = false,
+    val dual: Boolean = false,
+    val dualMode: String = "under",
+    val dualEngine: String = "auto",
     val markWords: Boolean = true,
     val kitStyle: Boolean = true,
     val italic: Boolean = false,
@@ -217,6 +220,9 @@ data class ReaderSettings(
         put("margins", margins)
         put("bold", bold)
         put("bionic", bionic)
+        put("dual", dual)
+        put("dualMode", dualMode)
+        put("dualEngine", dualEngine)
         put("markWords", markWords)
         put("kitStyle", kitStyle)
         put("italic", italic)
@@ -294,6 +300,9 @@ data class ReaderSettings(
                 margins = json.optDouble("margins", d.margins).coerceIn(0.0, 4.0),
                 bold = json.optBoolean("bold", d.bold),
                 bionic = json.optBoolean("bionic", d.bionic),
+                dual = json.optBoolean("dual", d.dual),
+                dualMode = json.optString("dualMode", d.dualMode).takeIf { it == "under" || it == "tap" } ?: d.dualMode,
+                dualEngine = json.optString("dualEngine", d.dualEngine).takeIf { it == "auto" || it == "ai" || it == "google" } ?: d.dualEngine,
                 markWords = true,
                 kitStyle = json.optBoolean("kitStyle", d.kitStyle),
                 italic = json.optBoolean("italic", d.italic),

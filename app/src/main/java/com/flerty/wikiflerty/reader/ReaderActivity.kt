@@ -892,7 +892,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private fun refreshBoot() {
         bootScript = runCatching {
-            userFontsJs() + "\n;" + selectionScript + "\n;window.__wfBionic && window.__wfBionic(${settings.bionic});\n" + kitCall() + ";\n" + TextSelection.peopleCall(peopleNow, wordsShown())
+            userFontsJs() + "\n;" + selectionScript + "\n;" + DualTranslate.SCRIPT + "\n;window.__wfBionic && window.__wfBionic(${settings.bionic});\n" + kitCall() + ";\n" + TextSelection.peopleCall(peopleNow, wordsShown())
         }.getOrDefault("")
     }
 
@@ -1022,6 +1022,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 }
                 type.startsWith("feed:") -> onFeedPull(type.removePrefix("feed:"))
                 type.startsWith("image:") -> openImage(type.removePrefix("image:"))
+                type.startsWith("dual:") -> type.removePrefix("dual:").toIntOrNull()?.let(::dualOne)
             }
         }
     }
@@ -1416,6 +1417,28 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
     }
 
+    private fun chapterStart(item: TocItem): Locator? = item.locator ?: publication?.locatorFromLink(item.link)
+
+    private fun listenChapter(item: TocItem) {
+        val dest = chapterStart(item) ?: return
+        aim(dest)
+        navigator.go(dest, animated = false)
+        ui.sheet = null
+        if (mySession != null) {
+            app.readAloud.go(dest, null, play = true)
+        } else {
+            startListening(dest, "")
+        }
+    }
+
+    private fun bookmarkChapter(item: TocItem) {
+        val dest = chapterStart(item) ?: return
+        lifecycleScope.launch {
+            app.bookmarks.create(bookId, dest, item.title, "")
+            Toast.makeText(this@ReaderActivity, "Закладка на начало главы", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun resetToc() {
         lifecycleScope.launch { app.customToc.set(bookId, emptyList()) }
     }
@@ -1487,8 +1510,151 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 runCatching { navigator.evaluateJavascript(kitCall()) }
                 runCatching { navigator.evaluateJavascript(TextSelection.peopleCall(peopleNow, wordsShown())) }
                 applyColumns(settings)
+                if (wait == 0L) scheduleDual(650)
             }
         }
+    }
+
+    private var dualJob: Job? = null
+    private var dualScan: DualScan? = null
+    private var dualHref: String? = null
+    private var dualMap: MutableMap<String, String> = mutableMapOf()
+    private var lastDual: String? = null
+    private val dualCache by lazy { DualCache(this, bookId) }
+
+    private fun dualAccent() = com.flerty.wikiflerty.ui.AppStyle.accent.toInt()
+
+    private fun dualUsesAi(s: ReaderSettings) = when (s.dualEngine) {
+        "google" -> false
+        else -> app.ai.current() != null
+    }
+
+    private suspend fun dualTranslate(batch: List<DualPara>, target: String, ai: Boolean): Map<Int, String> {
+        if (!ai) return DualTranslate.google(batch, target)
+        val got = runCatching { DualTranslate.ai(app.ai, batch, target, bookTitle) }
+            .onFailure { if (it is CancellationException) throw it }
+            .getOrNull().orEmpty()
+        val missing = batch.filter { it.key !in got }
+        if (missing.isEmpty()) return got
+        return got + DualTranslate.google(missing, target)
+    }
+
+    private fun scheduleDual(wait: Long = 500) {
+        dualJob?.cancel()
+        val s = settings
+        if (!s.dual) {
+            ui.dualStatus = null
+            return
+        }
+        dualJob = lifecycleScope.launch {
+            delay(wait)
+            if (!::navigator.isInitialized) return@launch
+            val target = s.translateTo
+            val bookLang = publication?.metadata?.language?.code
+            if (bookLang != null && bookLang.substringBefore('-').equals(target.substringBefore('-'), ignoreCase = true)) {
+                ui.dualStatus = "Книга уже на этом языке. Выбери другой язык перевода"
+                return@launch
+            }
+            runCatching { navigator.evaluateJavascript(DualTranslate.SCRIPT) }
+            val scan = DualTranslate.parseScan(runCatching { navigator.evaluateJavascript("window.__wfDual ? window.__wfDual.scan() : \"\"") }.getOrNull())
+            if (scan == null || scan.items.isEmpty()) {
+                ui.dualStatus = null
+                return@launch
+            }
+            val href = navigator.currentLocator.value.href.toString().substringBefore('#')
+            val cache = dualCache.load(href, target)
+            dualScan = scan
+            dualHref = href
+            dualMap = cache
+            val accent = dualAccent()
+            val known = scan.items.mapNotNull { p -> cache[DualCache.key(p.text)]?.let { p.key to it } }.toMap()
+            if (s.dualMode == "tap") {
+                runCatching { navigator.evaluateJavascript("window.__wfDual.marks(${org.json.JSONObject.quote(String.format("#%06X", accent and 0xFFFFFF))})") }
+                if (known.isNotEmpty()) runCatching { navigator.evaluateJavascript(DualTranslate.putCall(known, "tap", accent)) }
+                ui.dualStatus = null
+                return@launch
+            }
+            if (known.isNotEmpty()) runCatching { navigator.evaluateJavascript(DualTranslate.putCall(known, "under", accent)) }
+            val missing = scan.items.filter { cache[DualCache.key(it.text)] == null }
+            if (missing.isEmpty()) {
+                ui.dualStatus = null
+                return@launch
+            }
+            val ordered = missing.filter { it.key >= scan.first } + missing.filter { it.key < scan.first }
+            val ai = dualUsesAi(s)
+            var done = scan.items.size - missing.size
+            for (batch in DualTranslate.batches(ordered, ai)) {
+                ui.dualStatus = "Перевожу главу · ${done * 100 / scan.items.size}%"
+                val got = try {
+                    dualTranslate(batch, target, ai)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    ui.dualStatus = "Нет связи с переводчиком. Перевод продолжится при следующем открытии главы"
+                    return@launch
+                }
+                batch.forEach { p -> got[p.key]?.let { cache[DualCache.key(p.text)] = it } }
+                dualCache.save(href, target, cache)
+                runCatching { navigator.evaluateJavascript(DualTranslate.putCall(got, "under", accent)) }
+                done += batch.size
+            }
+            ui.dualStatus = null
+        }
+    }
+
+    private fun dualOne(key: Int) {
+        val scan = dualScan ?: return
+        val para = scan.items.firstOrNull { it.key == key } ?: return
+        val href = dualHref ?: return
+        val target = settings.translateTo
+        val ai = dualUsesAi(settings)
+        lifecycleScope.launch {
+            val got = runCatching { dualTranslate(listOf(para), target, ai) }
+                .onFailure { if (it is CancellationException) throw it }
+                .getOrNull().orEmpty()
+            val text = got[key]
+            if (text.isNullOrBlank()) {
+                runCatching { navigator.evaluateJavascript("window.__wfDual && window.__wfDual.fail($key)") }
+                Toast.makeText(this@ReaderActivity, "Нет связи с переводчиком", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            if (dualHref == href) {
+                dualMap[DualCache.key(para.text)] = text
+                dualCache.save(href, target, dualMap)
+            }
+            runCatching { navigator.evaluateJavascript(DualTranslate.putCall(mapOf(key to text), "tap", dualAccent())) }
+        }
+    }
+
+    private fun applyDual(s: ReaderSettings) {
+        val sig = "${s.dual}|${s.dualMode}|${s.dualEngine}|${s.translateTo}"
+        val was = lastDual
+        lastDual = sig
+        if (was == null || was == sig) return
+        dualJob?.cancel()
+        lifecycleScope.launch {
+            runCatching { navigator.evaluateJavascript("window.__wfDual && window.__wfDual.off()") }
+            scheduleDual(200)
+        }
+    }
+
+    fun clearDual() {
+        dualJob?.cancel()
+        lifecycleScope.launch {
+            dualCache.clear()
+            dualMap = mutableMapOf()
+            runCatching { navigator.evaluateJavascript("window.__wfDual && window.__wfDual.off()") }
+            scheduleDual(200)
+        }
+    }
+
+    private fun translateChapter(item: TocItem) {
+        val dest = chapterStart(item) ?: return
+        if (!settings.dual) app.readerSettings.update { it.copy(dual = true) }
+        aim(dest)
+        navigator.go(dest, animated = false)
+        ui.sheet = null
+        ui.panelsVisible = false
     }
 
     private suspend fun applyColumns(s: ReaderSettings) {
@@ -2067,6 +2233,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         title = title,
                         cover = cover,
                         toc = tocState.value,
+                        onDualClear = ::clearDual,
                         tocActions = TocActions(
                             custom = tocCustom.value,
                             busy = tocBusy.value,
@@ -2074,6 +2241,9 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                             onAdd = { title -> addChapter(title, navigator.currentLocator.value) },
                             onRename = ::renameChapter,
                             onReset = ::resetToc,
+                            onListen = ::listenChapter,
+                            onBookmark = ::bookmarkChapter,
+                            onTranslate = ::translateChapter,
                         ),
                         onSettingsChange = { transform -> app.readerSettings.update(transform) },
                         onTocSelect = { item ->
@@ -2253,6 +2423,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                             applyPeople()
                         }
                         lastMarkWords = s.markWords
+                        applyDual(s)
                         if (s.bionic != lastBionic) {
                             lastBionic = s.bionic
                             launch {
