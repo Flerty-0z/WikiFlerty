@@ -215,6 +215,34 @@
    "text": "account-later"
   },
   {
+   "do": "tap",
+   "text": "Расширить полку",
+   "timeout": 5000,
+   "after": 1500
+  },
+  {
+   "do": "wait",
+   "text": "Оплата пока закрыта",
+   "desc": true,
+   "timeout": 5000,
+   "after": 500
+  },
+  {
+   "do": "tap",
+   "text": "Оплата пока закрыта",
+   "desc": true,
+   "timeout": 3000,
+   "after": 1200
+  },
+  {
+   "do": "dump",
+   "text": "plans"
+  },
+  {
+   "do": "back",
+   "after": 1200
+  },
+  {
    "do": "scrollTo",
    "text": "Удалить аккаунт",
    "y": 0.75,
