@@ -166,7 +166,7 @@ private fun SettingsHome(onAbout: (() -> Unit)?, onOpen: (SettingsPage) -> Unit)
         onAbout?.let { Triple(AppIcons.Info, "О приложении" to "Обновления, журнал сбоев", it) },
     )
     NewsShowcase { SettingsNav.news = true }
-    Column(Modifier.fillMaxWidth().fieldSurface(appCorner(20))) {
+    Column(Modifier.fillMaxWidth().scrollReveal().fieldSurface(appCorner(20))) {
         rows.forEachIndexed { i, (icon, text, action) ->
             if (i > 0) Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(1.dp).background(AppColors.PanelBorder))
             SettingsNavRow(icon, text.first, text.second, framed = false, onClick = action)

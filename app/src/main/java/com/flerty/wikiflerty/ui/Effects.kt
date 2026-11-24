@@ -352,13 +352,17 @@ private fun Modifier.revealCore(edgeDp: Float, liftDp: Float, delayMs: Int = 0, 
         }
 }
 
+val LocalInReveal = androidx.compose.runtime.staticCompositionLocalOf { false }
+
 fun androidx.compose.foundation.lazy.LazyListScope.revealItem(key: Any, content: @Composable () -> Unit) {
-    item(key = key) { androidx.compose.foundation.layout.Box(Modifier.scrollReveal()) { content() } }
+    item(key = key) { Reveal(content) }
 }
 
 @Composable
 fun Reveal(content: @Composable () -> Unit) {
-    androidx.compose.foundation.layout.Box(Modifier.scrollReveal()) { content() }
+    androidx.compose.foundation.layout.Box(Modifier.scrollReveal()) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalInReveal provides true) { content() }
+    }
 }
 
 fun Modifier.revealScroll(viewport: RevealViewport? = null, keep: androidx.compose.foundation.ScrollState? = null): Modifier = composed {
@@ -406,8 +410,13 @@ fun Modifier.revealViewport(viewport: RevealViewport): Modifier = this.onGloball
 
 fun Modifier.sheetReveal(): Modifier = composed {
     val viewport = LocalRevealViewport.current
-    val late = remember { viewport != null && android.os.SystemClock.uptimeMillis() - viewport.since > 700 }
-    if (viewport == null || !Motion.enabled || late) return@composed this
+    if (!Motion.enabled) return@composed this
+    if (viewport == null) {
+        if (LocalInReveal.current) return@composed this
+        return@composed revealCore(96f, 22f)
+    }
+    val late = remember { android.os.SystemClock.uptimeMillis() - viewport.since > 700 }
+    if (late) return@composed this
     revealCore(80f, 0f, scaleFrom = 1f)
 }
 

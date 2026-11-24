@@ -1167,7 +1167,7 @@ private fun Shelf(row: PlankRow, index: Int, onBook: (Book) -> Unit) {
     if (drag != null) androidx.compose.runtime.DisposableEffect(row.key) { onDispose { drag.planks.remove(row.key) } }
     val accent = AppColors.Accent
     val seenRows = LocalShelfSeen.current
-    val freshRow = remember(row.key) { ("row:" + row.key) !in seenRows && (drag == null || drag.phase == 0) }
+    val freshRow = remember(row.key) { drag == null || drag.phase == 0 }
     androidx.compose.runtime.LaunchedEffect(row.key) { seenRows += "row:" + row.key }
     Column(
         Modifier

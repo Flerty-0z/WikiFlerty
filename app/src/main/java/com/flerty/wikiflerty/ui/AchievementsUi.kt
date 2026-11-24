@@ -615,7 +615,7 @@ fun AchievementsPage(modifier: Modifier = Modifier, onBack: () -> Unit) {
             var picked by remember(kind) { mutableStateOf<Achievement?>(null) }
             val focusIndex = group.indexOf(next).coerceAtLeast(0)
             val strip = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = (focusIndex - 2).coerceAtLeast(0))
-            TabbedFrame(kindTitle(kind), icon = style.icon, inset = false, modifier = Modifier.scrollReveal(), trailing = { InfoChip("${group.count { it.id in unlocked }}/${group.size}", Color(style.from)) }) {
+            TabbedFrame(kindTitle(kind), icon = style.icon, inset = false, trailing = { InfoChip("${group.count { it.id in unlocked }}/${group.size}", Color(style.from)) }) {
                 Column(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     androidx.compose.foundation.lazy.LazyRow(
                         state = strip,

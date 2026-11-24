@@ -255,7 +255,7 @@ private fun SignedIn(account: Account, state: Account.State) {
     }
 
     Column(
-        Modifier.fillMaxWidth().fieldSurface(appCorner(20)).animateContentSize(Motion.tween(260)).padding(16.dp),
+        Modifier.fillMaxWidth().scrollReveal().fieldSurface(appCorner(20)).animateContentSize(Motion.tween(260)).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
