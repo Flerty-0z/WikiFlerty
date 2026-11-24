@@ -8,5 +8,6 @@ jobs:
     steps:
       - name: Download links
         run: |
-          for a in x64 x32; do curl -s -o /dev/null -L --max-time 120 -w "$a %{http_code} %{size_download} %{content_type} %{url_effective}\n" https://wikiflerty.ru/download/$a; done
           curl -s --max-time 30 https://wikiflerty.ru/download/info; echo
+          for a in x64 x32; do curl -s -D - -o /tmp/$a.apk --max-time 180 https://wikiflerty.ru/download/$a | grep -iE "^HTTP|content-disposition|content-length"; sha256sum /tmp/$a.apk; done
+          for a in x64 x32; do curl -sL -o /tmp/g$a.apk "https://github.com/Flerty-0z/WikiFlerty/releases/download/v0.1.273/WikiFlerty-0.1.273-$a.apk"; sha256sum /tmp/g$a.apk; done
