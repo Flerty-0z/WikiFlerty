@@ -64,15 +64,15 @@ tok = None
 code, out = call("login", {"login": login, "password": pw})
 check("вход после удаления закрыт", code != 200, code)
 space = "".join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(25))
-fs = "https://firestore.googleapis.com/v1/projects/wikiflerty-main/databases/(default)/documents/spaces/" + space + "/check?key=AIzaSyCu6eR2CIY4EKqllpI8AJ6NfX1urr_klYM"
-code, out = call(None, raw=json.dumps({"fields": {"v": {"stringValue": "ok"}}}).encode(), method="PATCH", url=fs)
+fs = "https://firestore.googleapis.com/v1/projects/wikiflerty-main/databases/(default)/documents/spaces/" + space + "/parts/check?key=AIzaSyCu6eR2CIY4EKqllpI8AJ6NfX1urr_klYM"
+code, out = call(None, raw=json.dumps({"fields": {"blob": {"stringValue": "ok"}}}).encode(), method="PATCH", url=fs)
 check("синхронизация прогресса: запись", code == 200, (code, str(out)[:160]))
 code, out = call(None, raw=None, method="GET", url=fs) if False else (None, None)
 req = urllib.request.Request(fs, method="GET")
 try:
     with urllib.request.urlopen(req, timeout=60) as r:
         got = json.loads(r.read())
-    check("синхронизация прогресса: чтение", got.get("fields", {}).get("v", {}).get("stringValue") == "ok")
+    check("синхронизация прогресса: чтение", got.get("fields", {}).get("blob", {}).get("stringValue") == "ok")
 except urllib.error.HTTPError as e:
     check("синхронизация прогресса: чтение", False, e.code)
 req = urllib.request.Request(fs, method="DELETE")
