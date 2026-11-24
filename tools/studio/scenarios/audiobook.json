@@ -113,6 +113,20 @@
   },
   {
    "do": "wait",
+   "text": "Моя полка",
+   "timeout": 4000,
+   "after": 3500,
+   "optional": true
+  },
+  {
+   "do": "tap",
+   "text": "Тестовая аудиокнига",
+   "timeout": 3000,
+   "after": 2500,
+   "optional": true
+  },
+  {
+   "do": "wait",
    "text": "Тестовая аудиокнига",
    "timeout": 4000,
    "after": 3000,

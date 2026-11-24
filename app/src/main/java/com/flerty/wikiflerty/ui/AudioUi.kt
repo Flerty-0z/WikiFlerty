@@ -537,7 +537,7 @@ private fun AudioSpeed(speed: Float, onBack: () -> Unit) {
                     val on = kotlin.math.abs(v - speed) < 0.01f
                     val shape = appCorner(12)
                     Box(
-                        Modifier.weight(1f).height(48.dp).liveClick(shape, sound = FeedbackSound.Pick, pressedScale = 0.92f) { app.audio.setSpeed(v) }.fieldSurface(shape, selected = on),
+                        Modifier.weight(1f).height(48.dp).liveClick(shape, sound = FeedbackSound.Pick, pressedScale = 0.92f) { app.audio.setSpeed(v); onBack() }.fieldSurface(shape, selected = on),
                         contentAlignment = Alignment.Center,
                     ) { Text("%.2f×".format(v).replace(".00", "").replace(",00", "").replace("0×", "×"), color = if (on) AppColors.Accent else AppColors.Text, fontSize = 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal) }
                 }
