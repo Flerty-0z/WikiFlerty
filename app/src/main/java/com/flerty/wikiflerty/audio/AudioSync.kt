@@ -316,8 +316,8 @@ class AudioSync(private val app: App) {
                 run(id)
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: Exception) {
-                set(id, SyncState("error", 0f, e.message ?: "Не получилось"))
+            } catch (e: Throwable) {
+                set(id, SyncState("error", 0f, if (e is LinkageError) "Распознавание речи не работает на этом телефоне" else e.message ?: "Не получилось"))
             } finally {
                 runCatching { if (lock.isHeld) lock.release() }
                 jobs.remove(id)
@@ -328,6 +328,7 @@ class AudioSync(private val app: App) {
     private suspend fun run(id: String) {
         val book = app.audiobooks.find(id) ?: return
         val textId = book.bookId ?: throw IllegalStateException("Сначала свяжи аудиокнигу с книгой")
+        if (!PiperVoices.supported()) throw IllegalStateException("Распознавание речи не работает на этом телефоне")
         if (!AsrModel.ready(app)) {
             set(id, SyncState("model", 0f))
             AsrModel.download(app) { p -> set(id, SyncState("model", p)) }
