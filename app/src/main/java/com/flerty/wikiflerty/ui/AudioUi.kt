@@ -646,7 +646,8 @@ fun AudioPlank(modifier: Modifier = Modifier) {
                         .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.94f) {
                             app.audio.open(b.id, play = false)
                             AudioNav.player = true
-                        },
+                        }
+                        .semantics(mergeDescendants = true) { contentDescription = "Аудиокнига «${b.title}»" },
                 ) {
                     AudioCover(b.id, b.title, Modifier.fillMaxSize(), 10.dp)
                     Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color.Black.copy(alpha = 0.35f))) {
