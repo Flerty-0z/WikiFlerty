@@ -103,7 +103,7 @@ class AudioPlayer(private val app: App) {
             if (at > 0) mp.seekTo(at.toInt())
             applySpeed(mp, _state.value.speed, false)
             _state.value = _state.value.copy(ready = true)
-            if (autoplay) startNow()
+            if (autoplay || _state.value.playing) startNow()
             invalidate()
         }
         mp.setOnCompletionListener {

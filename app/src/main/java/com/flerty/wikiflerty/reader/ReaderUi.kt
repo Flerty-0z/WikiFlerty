@@ -222,6 +222,9 @@ class ReaderUiState {
     var aiSetupFromMenu by mutableStateOf(false)
     var ttsActive by mutableStateOf(false)
     var ttsPlaying by mutableStateOf(false)
+    var audioLinked by mutableStateOf(false)
+    var audioPlaying by mutableStateOf(false)
+    var onAudioHere: () -> Unit = {}
     var ttsProblem by mutableStateOf<com.flerty.wikiflerty.tts.ReadAloud.Problem?>(null)
     var ttsSleep by mutableStateOf<com.flerty.wikiflerty.tts.SleepTimer?>(null)
     var askFinished by mutableStateOf(false)
@@ -571,6 +574,15 @@ fun ReaderOverlay(
             modifier = Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = miniGap),
         ) {
             TtsMini(state.ttsPlaying) { state.ttsCollapsed = false }
+        }
+
+        AnimatedVisibility(
+            visible = state.audioLinked && !state.ttsActive && state.sheet == null && !state.panelsVisible,
+            enter = fadeIn(Motion.fade(200)) + slideInHorizontally(Motion.tween(260)) { -it },
+            exit = fadeOut(Motion.fade(160)) + slideOutHorizontally(Motion.tween(220)) { -it },
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = miniGap),
+        ) {
+            AudioFollowPill(state.audioPlaying) { state.onAudioHere() }
         }
 
         val problem = state.ttsProblem

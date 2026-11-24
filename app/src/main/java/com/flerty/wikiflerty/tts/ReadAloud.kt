@@ -67,6 +67,7 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
         if (starting) return
         starting = true
         stop()
+        runCatching { if (app.audio.state.value.playing) app.audio.pause() }
         scope.launch {
             try {
                 val navigator = open(publication, start, settings) ?: return@launch

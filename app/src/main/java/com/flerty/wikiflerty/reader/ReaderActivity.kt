@@ -1323,7 +1323,16 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             },
             onSelectionListen = {
                 val selection = ui.selection
-                if (selection != null) {
+                val audioBook = app.audiobooks.forBook(bookId)?.takeIf { app.audioSync.has(it.id) }
+                val audioMs = if (selection != null && audioBook != null) app.audioSync.msFor(audioBook.id, selection.locator) else null
+                if (selection != null && audioBook != null && audioMs != null) {
+                    endSelection()
+                    app.readAloud.stop()
+                    app.audio.open(audioBook.id, play = false)
+                    app.audio.seekGlobal(audioMs)
+                    app.audio.play()
+                    manualTurnAt = 0L
+                } else if (selection != null) {
                     val tail = selection.locator.text.after.orEmpty()
                     val snippet = (selection.text + tail).replace(Regex("\\s+"), " ").trim().take(160)
                     endSelection()
@@ -2398,6 +2407,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     bookMarks.collect { refreshBookmarkState() }
                 }
                 launch { followListening() }
+                ui.onAudioHere = { audioFromPage() }
+                launch { followAudio() }
                 launch {
                     app.readAloud.problems.collect { problem -> ui.ttsProblem = problem }
                 }
@@ -2507,6 +2518,75 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 }
             }
         }
+    }
+
+    private var lastAudioMark: org.readium.r2.shared.publication.Locator? = null
+
+    private fun audioFromPage() {
+        lifecycleScope.launch {
+            val ab = app.audiobooks.forBook(bookId)?.takeIf { app.audioSync.has(it.id) } ?: return@launch
+            val base = visibleElement() ?: navigator.currentLocator.value
+            val snippet = pageSnippet()
+            val at = if (snippet.isNullOrBlank()) base else base.copy(text = org.readium.r2.shared.publication.Locator.Text(highlight = snippet))
+            val ms = app.audioSync.msFor(ab.id, at)
+            if (ms == null) {
+                android.widget.Toast.makeText(this@ReaderActivity, "На этой странице нет сопоставленного текста", android.widget.Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            app.readAloud.stop()
+            app.audio.open(ab.id, play = false)
+            app.audio.seekGlobal(ms)
+            app.audio.play()
+            manualTurnAt = 0L
+            android.widget.Toast.makeText(this@ReaderActivity, "Аудио с этой страницы", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private suspend fun followAudio() {
+        kotlinx.coroutines.flow.combine(app.audio.state, app.audiobooks.books) { s, books -> s to books.firstOrNull { it.id == s.bookId } }
+            .collectLatest { (s, ab) ->
+                val linked = ab != null && ab.bookId == bookId && app.audioSync.has(ab.id)
+                ui.audioLinked = linked
+                ui.audioPlaying = linked && s.playing
+                if (!linked || ab == null) {
+                    if (lastAudioMark != null) {
+                        lastAudioMark = null
+                        navigator.applyDecorations(emptyList(), AUDIO_GROUP)
+                    }
+                    return@collectLatest
+                }
+                var checkAt = 0L
+                while (true) {
+                    val now = app.audio.state.value
+                    val global = ab.offsetOf(now.track) + app.audio.positionNow()
+                    val points = app.audioSync.points(ab.id)
+                    val point = app.audioSync.pointAt(ab.id, global)
+                    val loc = point?.locator
+                    val fresh = loc != lastAudioMark
+                    if (fresh) {
+                        lastAudioMark = loc
+                        navigator.applyDecorations(
+                            listOfNotNull(loc?.let { Decoration("audio", it, TtsMark(settings.ttsColor.toInt(), settings.ttsStrength.toFloat(), false)) }),
+                            AUDIO_GROUP,
+                        )
+                    }
+                    val clock = android.os.SystemClock.uptimeMillis()
+                    if (loc != null && point != null && s.playing && settings.ttsFollow && !turning && ui.selection == null && clock - manualTurnAt > 4000 && (fresh || clock >= checkAt)) {
+                        checkAt = clock + 900
+                        val idx = points.indexOf(point)
+                        val next = points.getOrNull(idx + 1)?.ms ?: (point.ms + 10_000)
+                        val f = ((global - point.ms).toFloat() / (next - point.ms).coerceAtLeast(1)).coerceIn(0f, 0.999f)
+                        if (fresh) delay(120)
+                        val out = runCatching { navigator.evaluateJavascript(AUDIO_OUT_JS.replace("__F__", "%.3f".format(java.util.Locale.US, f))) }.getOrNull().orEmpty()
+                        if (out.contains("out")) {
+                            if (!fresh && out.contains("next") && !settings.scroll) navigator.goForward(animated = true) else navigator.go(loc, animated = false)
+                            refreshPages()
+                        }
+                    }
+                    if (!s.playing) break
+                    delay(250)
+                }
+            }
     }
 
     private var ttsSettingsSeen: ReaderSettings? = null
@@ -4466,6 +4546,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         const val NOTES_GROUP = "notes"
         const val TTS_GROUP = "tts"
         const val TTS_WORD_GROUP = "tts-word"
+        const val AUDIO_GROUP = "audio"
+        private const val AUDIO_OUT_JS = "(function(f){var c=document.querySelector('[data-group=\"audio\"]');if(!c)return '';var bs=[],all=c.querySelectorAll('*');for(var i=0;i<all.length;i++){if(all[i].style.position!=='absolute')continue;var r=all[i].getBoundingClientRect();if(r.width||r.height)bs.push(r);}if(!bs.length)return '';var r=bs[Math.min(bs.length-1,Math.floor(f*bs.length))];var w=window.innerWidth,h=window.innerHeight;if(r.right>1&&r.left<w-1&&r.bottom>1&&r.top<h-1)return 'in';return (r.left>=w-1||r.top>=h-1)?'out-next':'out';})(__F__)"
         const val SEARCH_GROUP = "search"
         const val AUTO_TICK = 100L
         const val SEARCH_LIMIT = 500

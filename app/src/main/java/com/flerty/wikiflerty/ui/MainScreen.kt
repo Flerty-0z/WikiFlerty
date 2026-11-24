@@ -155,6 +155,17 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
     LaunchedEffect(Unit) {
         libraryViewModel.messages.collect { snackbar.showSnackbar(it) }
     }
+    LaunchedEffect(AudioNav.openText) {
+        val id = AudioNav.openText ?: return@LaunchedEffect
+        AudioNav.openText = null
+        val audio = app.audiobooks.find(id) ?: return@LaunchedEffect
+        val book = app.library.books.value.firstOrNull { it.id == audio.bookId } ?: return@LaunchedEffect
+        val s = app.audio.state.value
+        val global = if (s.bookId == id) audio.offsetOf(s.track) + app.audio.positionNow() else audio.elapsedMs
+        val at = app.audioSync.pointAt(id, global)?.locator
+        AudioNav.player = false
+        libraryViewModel.open(book, at)
+    }
 
     BackHandler(enabled = drawerOpen || section != Section.Library) {
         if (drawerOpen) drawerOpen = false else section = Section.Library

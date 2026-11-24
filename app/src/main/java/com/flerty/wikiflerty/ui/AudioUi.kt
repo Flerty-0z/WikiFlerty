@@ -82,6 +82,7 @@ object AudioNav {
     var player by mutableStateOf(false)
     var importing by mutableStateOf(false)
     var busy by mutableStateOf(false)
+    var openText by mutableStateOf<String?>(null)
 }
 
 fun audioTime(ms: Long): String {
@@ -445,6 +446,9 @@ private fun AudioMain(book: Audiobook, open: (AudioPanel) -> Unit) {
                 }
             }
             item { FrameTool(AppIcons.Toc, "Главы", null) { open(AudioPanel.Chapters) } }
+            if (book.bookId != null && app.audioSync.has(book.id)) {
+                item { FrameTool(AppIcons.Book, "Текст", null, sound = FeedbackSound.Read) { AudioNav.openText = book.id } }
+            }
             item { FrameTool(AppIcons.Link, "Книга", null, active = book.bookId != null) { open(AudioPanel.Link) } }
             item { FrameTool(AppIcons.Trash, "Удалить", null, sound = FeedbackSound.Trash) { open(AudioPanel.Delete) } }
         }

@@ -60,7 +60,26 @@
    "text": "Слушать",
    "desc": true,
    "timeout": 3000,
-   "after": 4000,
+   "after": 1500,
+   "optional": true
+  },
+  {
+   "do": "tap",
+   "text": "Текст",
+   "desc": true,
+   "timeout": 4000,
+   "after": 7000
+  },
+  {
+   "do": "tree",
+   "after": 500
+  },
+  {
+   "do": "tap",
+   "text": "Пауза",
+   "desc": true,
+   "timeout": 3000,
+   "after": 1500,
    "optional": true
   },
   {

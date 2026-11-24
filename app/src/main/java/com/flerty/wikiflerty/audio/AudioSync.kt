@@ -307,6 +307,55 @@ class AudioSync(private val app: App) {
         return list[lo].takeIf { it.ms <= globalMs + 500 }
     }
 
+    fun msFor(id: String, at: Locator): Long? {
+        val list = points(id)
+        if (list.isEmpty()) return null
+        val href = res(at)
+        val same = list.indices.filter { res(list[it].locator) == href }
+        if (same.isEmpty()) return null
+        val key = SyncAlign.words(at.text.highlight.orEmpty()).take(6)
+        val context = SyncAlign.words(at.text.before.orEmpty()).takeLast(10).toSet()
+        var size = key.size
+        while (size >= 2) {
+            val k = key.take(size)
+            var best = -1
+            var bestAt = 0
+            var bestScore = -1
+            for (i in same) {
+                val pw = SyncAlign.words(list[i].locator.text.highlight.orEmpty())
+                val pos = find(pw, k)
+                if (pos < 0) continue
+                val around = (SyncAlign.words(list[i].locator.text.before.orEmpty()).takeLast(10) + pw.take(pos)).takeLast(10)
+                val score = around.count { it in context }
+                if (score > bestScore) {
+                    best = i
+                    bestAt = pos
+                    bestScore = score
+                }
+            }
+            if (best >= 0) {
+                val p = list[best]
+                val total = SyncAlign.words(p.locator.text.highlight.orEmpty()).size.coerceAtLeast(1)
+                val next = list.getOrNull(best + 1)?.ms ?: return p.ms
+                return p.ms + (next - p.ms) * bestAt / total
+            }
+            size = if (size > 3) 3 else size - 1
+        }
+        return list[same.first()].ms
+    }
+
+    private fun res(l: Locator): String = Uri.decode(l.href.toString().substringBefore('#').substringBefore('?')).trimStart('/')
+
+    private fun find(hay: List<String>, needle: List<String>): Int {
+        if (needle.isEmpty() || hay.size < needle.size) return -1
+        for (i in 0..hay.size - needle.size) {
+            var ok = true
+            for (j in needle.indices) if (hay[i + j] != needle[j]) { ok = false; break }
+            if (ok) return i
+        }
+        return -1
+    }
+
     fun start(id: String) {
         if (jobs[id]?.isActive == true) return
         jobs[id] = app.appScope.launch(Dispatchers.Default) {
@@ -434,12 +483,32 @@ class AudioSync(private val app: App) {
             val o = owners[i]
             if (firstMs[o] < 0 || recMs[j] < firstMs[o]) firstMs[o] = recMs[j]
         }
-        val out = JSONArray()
+        val counts = IntArray(locators.size)
+        owners.forEach { counts[it]++ }
+        val before = LongArray(locators.size + 1)
+        for (o in locators.indices) before[o + 1] = before[o] + counts[o]
+        val kept = ArrayList<Int>()
         var lastMs = -1L
         firstMs.forEachIndexed { o, ms ->
             if (ms < 0 || ms <= lastMs) return@forEachIndexed
             lastMs = ms
-            out.put(JSONObject().put("l", locators[o].toJSON()).put("ms", ms))
+            kept += o
+        }
+        val out = JSONArray()
+        kept.forEachIndexed { k, o ->
+            out.put(JSONObject().put("l", locators[o].toJSON()).put("ms", firstMs[o]))
+            val next = kept.getOrNull(k + 1) ?: return@forEachIndexed
+            val gap = next - o - 1
+            if (gap <= 0 || gap > 40) return@forEachIndexed
+            val span = (before[next] - before[o]).coerceAtLeast(1)
+            val dt = firstMs[next] - firstMs[o]
+            var prev = firstMs[o]
+            for (g in o + 1 until next) {
+                val ms = firstMs[o] + dt * (before[g] - before[o]) / span
+                if (ms <= prev || ms >= firstMs[next]) continue
+                prev = ms
+                out.put(JSONObject().put("l", locators[g].toJSON()).put("ms", ms).put("g", 1))
+            }
         }
         val coverage = if (rec.isEmpty()) 0f else matched.toFloat() / rec.size
         if (out.length() == 0) throw IllegalStateException("Текст не совпал с аудио. Проверь, что выбрана та же книга")

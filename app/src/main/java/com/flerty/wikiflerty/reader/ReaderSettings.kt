@@ -105,7 +105,7 @@ enum class SelectionButton(val id: String, val title: String) {
     companion object {
         fun of(id: String) = entries.firstOrNull { it.id == id }
         val defaults = listOf(Note, Marker, Translate, Dictionary, Ai)
-        val defaultMore = listOf(Quote, Person, Copy, Chapter)
+        val defaultMore = listOf(Quote, Person, Copy, Chapter, Listen)
         const val MAX = 5
     }
 }
