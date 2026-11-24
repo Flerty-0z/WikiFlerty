@@ -30,7 +30,7 @@ jobs:
           gh api -H "Accept: application/octet-stream" "repos/$REPO/releases/assets/$kid" > kit.zip
           unzip -oq kit.zip chat.txt -d tg
           mkdir -p apk
-          for id in $(gh api "repos/$REPO/releases/tags/v${{ inputs.version }}" -q '.assets[] | select(.name | endswith(".apk")) | .id'); do
+          for id in $(gh api "repos/$REPO/releases/tags/v${{ inputs.version }}" -q '.assets[] | select(.name | endswith(".apk")) | .id' 2>/dev/null || true); do
             name=$(gh api "repos/$REPO/releases/assets/$id" -q .name)
             gh api -H "Accept: application/octet-stream" "repos/$REPO/releases/assets/$id" > "apk/$name"
           done
