@@ -26,6 +26,9 @@ jobs:
               used = sum((b or {}).get("size", 0) for b in (u.get("books") or {}).values())
               active = (u.get("until") or 0) > now
               paid += active
-              if used > 500 * 1024 * 1024 and not active: over += 1
+              if active: print("paid", u.get("login"), u.get("plan"), time.strftime("%Y-%m-%d", time.gmtime(u["until"] / 1000)))
+              if used > 500 * 1024 * 1024 and not active:
+                  over += 1
+                  print("over", round(used / 1048576), "MB limit", u.get("limit"))
           print("users", n, "paid", paid, "over500free", over)
           PY
