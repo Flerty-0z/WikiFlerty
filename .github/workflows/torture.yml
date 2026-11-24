@@ -25,3 +25,5 @@ jobs:
         run: set -o pipefail; ./gradlew :app:testDebugUnitTest --tests '*TortureTest*' --stacktrace 2>&1 | tee test.log
       - if: always()
         run: grep -E "torture |FAILED|PASSED|Error" test.log | head -60 || true
+      - if: failure()
+        run: for f in app/build/test-results/testDebugUnitTest/*.xml; do grep -A30 "<failure" "$f" | head -60; done || true
