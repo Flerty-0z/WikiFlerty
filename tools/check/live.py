@@ -4,8 +4,7 @@ tok = None
 def call(path, body=None, method="POST", raw=None, url=None):
     data = raw if raw is not None else json.dumps(body or {}).encode()
     req = urllib.request.Request(url or B + path, data=data, method=method)
-    if raw is None:
-        req.add_header("Content-Type", "application/json")
+    req.add_header("Content-Type", "application/json")
     if tok:
         req.add_header("Authorization", "Bearer " + tok)
     try:
