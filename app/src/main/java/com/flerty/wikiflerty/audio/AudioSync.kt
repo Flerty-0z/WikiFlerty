@@ -710,7 +710,6 @@ class AudioSync(private val app: App) {
     }
 
     @OptIn(org.readium.r2.shared.ExperimentalReadiumApi::class)
-    @OptIn(org.readium.r2.shared.ExperimentalReadiumApi::class)
     private suspend fun buildMap(id: String, publication: org.readium.r2.shared.publication.Publication, heard: List<Pair<String, Long>>) {
         val content = publication.findService(ContentService::class)?.content(null) ?: throw IllegalStateException("В книге не нашёлся текст")
         val iterator = content.iterator()
