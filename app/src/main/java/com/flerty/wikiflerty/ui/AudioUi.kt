@@ -58,6 +58,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -858,20 +859,54 @@ fun AudioPlank(modifier: Modifier = Modifier) {
     val order = remember(ids) { androidx.compose.runtime.mutableStateListOf<String>().apply { addAll(ids) } }
     var dragId by remember { mutableStateOf<String?>(null) }
     var dragX by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    var from by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    var target by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    var dropped by remember { mutableStateOf<String?>(null) }
+    var settle by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val offs = remember { androidx.compose.runtime.mutableStateMapOf<String, Float>() }
+    val goals = remember { HashMap<String, Float>() }
+    val jobs = remember { HashMap<String, kotlinx.coroutines.Job>() }
+    val scope = rememberCoroutineScope()
     val density = androidx.compose.ui.platform.LocalDensity.current
     val step = with(density) { 90.dp.toPx() }
     val feedback = LocalFeedback.current
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val spring = androidx.compose.animation.core.spring<Float>(dampingRatio = 0.8f, stiffness = 520f)
+    fun slide(key: String, to: Float) {
+        if ((goals[key] ?: 0f) == to) return
+        goals[key] = to
+        jobs[key]?.cancel()
+        jobs[key] = scope.launch {
+            androidx.compose.animation.core.animate(offs[key] ?: 0f, to, animationSpec = spring) { v, _ -> offs[key] = v }
+        }
+    }
+    fun aim() {
+        order.forEachIndexed { i, key ->
+            val want = when {
+                key == dragId -> 0f
+                target > from && i in (from + 1)..target -> -step
+                target < from && i in target until from -> step
+                else -> 0f
+            }
+            slide(key, want)
+        }
+    }
+    fun resetShifts() {
+        jobs.values.forEach { it.cancel() }
+        jobs.clear()
+        goals.clear()
+        offs.clear()
+    }
+    val scroll = androidx.compose.foundation.rememberScrollState()
     Column(modifier.fillMaxWidth()) {
-        LazyRow(
-            Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 22.dp),
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(scroll, enabled = dragId == null).padding(horizontal = 22.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
-            items(order.size, key = { order[it] }) { i ->
-                val id = order[i]
-                val b = byId[id] ?: return@items
+            order.forEach { id ->
+                androidx.compose.runtime.key(id) {
+                val b = byId[id] ?: return@key
                 val playing = state.bookId == b.id && state.playing
                 val shape = appCorner(10)
                 val pulse = rememberInfiniteTransition(label = "audio-plank")
@@ -880,10 +915,13 @@ fun AudioPlank(modifier: Modifier = Modifier) {
                 val lift by androidx.compose.animation.core.animateFloatAsState(if (dragging) 1f else 0f, androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 420f), label = "audio-lift")
                 Box(
                     Modifier
-                        .then(if (dragging) Modifier else Modifier.animateItem())
-                        .zIndex(if (dragging) 1f else 0f)
+                        .zIndex(if (dragging || dropped == id) 1f else 0f)
                         .graphicsLayer {
-                            if (dragging) translationX = dragX
+                            translationX = when {
+                                dragging -> dragX
+                                dropped == id -> settle
+                                else -> offs[id] ?: 0f
+                            }
                             translationY = -6.dp.toPx() * lift
                             val sc = 1f + 0.08f * lift
                             scaleX = sc
@@ -895,35 +933,56 @@ fun AudioPlank(modifier: Modifier = Modifier) {
                         .pointerInput(id) {
                             detectDragGesturesAfterLongPress(
                                 onDragStart = {
+                                    resetShifts()
+                                    dropped = null
+                                    from = order.indexOf(id)
+                                    target = from
                                     dragId = id
                                     dragX = 0f
                                     haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                                     feedback?.play(FeedbackSound.Pick)
                                 },
                                 onDragEnd = {
+                                    val moved = target - from
+                                    val left = dragX - moved * step
+                                    if (moved != 0) {
+                                        order.removeAt(from)
+                                        order.add(target, id)
+                                    }
+                                    resetShifts()
+                                    dropped = id
+                                    settle = left
                                     dragId = null
                                     dragX = 0f
                                     feedback?.play(FeedbackSound.Place)
-                                    app.audiobooks.reorder(order.toList())
+                                    if (moved != 0) app.audiobooks.reorder(order.toList())
+                                    scope.launch {
+                                        androidx.compose.animation.core.animate(left, 0f, animationSpec = spring) { v, _ -> settle = v }
+                                        if (dropped == id) dropped = null
+                                    }
                                 },
                                 onDragCancel = {
+                                    val left = dragX
+                                    resetShifts()
+                                    dropped = id
+                                    settle = left
                                     dragId = null
                                     dragX = 0f
+                                    scope.launch {
+                                        androidx.compose.animation.core.animate(left, 0f, animationSpec = spring) { v, _ -> settle = v }
+                                        if (dropped == id) dropped = null
+                                    }
                                 },
                             ) { change, delta ->
                                 change.consume()
-                                dragX += delta.x
-                                val at = order.indexOf(id)
-                                if (dragX > step / 2 && at < order.lastIndex) {
-                                    order.removeAt(at)
-                                    order.add(at + 1, id)
-                                    dragX -= step
+                                val min = -from * step
+                                val max = (order.lastIndex - from) * step
+                                dragX = (dragX + delta.x).coerceIn(min - step * 0.3f, max + step * 0.3f)
+                                val next = (from + kotlin.math.round(dragX / step).toInt()).coerceIn(0, order.lastIndex)
+                                if (next != target) {
+                                    target = next
                                     feedback?.play(FeedbackSound.Tick)
-                                } else if (dragX < -step / 2 && at > 0) {
-                                    order.removeAt(at)
-                                    order.add(at - 1, id)
-                                    dragX += step
-                                    feedback?.play(FeedbackSound.Tick)
+                                    aim()
                                 }
                             }
                         },
@@ -949,16 +1008,15 @@ fun AudioPlank(modifier: Modifier = Modifier) {
                     }
                 }
                 }
+                }
             }
-            item(key = "add") {
-                val shape = appCorner(10)
-                Box(
-                    Modifier.size(78.dp).liveClick(shape, sound = FeedbackSound.Add, pressedScale = 0.92f) { AudioNav.importing = true }
-                        .border(1.5.dp, AppColors.Accent.copy(alpha = 0.4f), shape)
-                        .semantics { contentDescription = "Добавить аудиокнигу" },
-                    contentAlignment = Alignment.Center,
-                ) { Icon(AppIcons.Plus, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp)) }
-            }
+            val addShape = appCorner(10)
+            Box(
+                Modifier.size(78.dp).liveClick(addShape, sound = FeedbackSound.Add, pressedScale = 0.92f) { AudioNav.importing = true }
+                    .border(1.5.dp, AppColors.Accent.copy(alpha = 0.4f), addShape)
+                    .semantics { contentDescription = "Добавить аудиокнигу" },
+                contentAlignment = Alignment.Center,
+            ) { Icon(AppIcons.Plus, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp)) }
         }
         Spacer(Modifier.height(2.dp))
         Plank("Аудиокниги · ${books.size}", false, null)

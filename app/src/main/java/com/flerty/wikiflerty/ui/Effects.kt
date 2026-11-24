@@ -337,6 +337,8 @@ private fun Modifier.revealCore(edgeDp: Float, liftDp: Float, delayMs: Int = 0, 
             if (!shown.value && visible) {
                 fromAbove.value = hiddenTop > 1f
                 shown.value = true
+            } else if (shown.value && !visible) {
+                shown.value = false
             }
             exit.floatValue = if (hiddenTop <= 0f) 1f else ((h - hiddenTop) / minOf(edge, h)).coerceIn(0f, 1f)
         }
