@@ -247,17 +247,24 @@ private fun SignedIn(account: Account, state: Account.State) {
     val feedback = LocalFeedback.current
     fun toast(text: String) = Toast.makeText(context, text, Toast.LENGTH_LONG).show()
     androidx.compose.runtime.LaunchedEffect(Unit) { account.refresh() }
+    val avatarPick = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) scope.launch {
+            val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { AccountAvatar.set(context, uri) }
+            if (!ok) Toast.makeText(context, "Не удалось открыть картинку", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Column(
         Modifier.fillMaxWidth().fieldSurface(appCorner(20)).animateContentSize(Motion.tween(260)).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            SettingIcon(AppIcons.Person, 42.dp)
+            AccountAvatarBox(52.dp, onClick = { avatarPick.launch("image/*") })
             Column(Modifier.weight(1f)) {
                 Text(state.login.orEmpty(), color = AppColors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(planLine(state), color = if (state.until > 0) AppColors.Accent else AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            AvatarEditMarker(Modifier.align(Alignment.Top))
         }
         val limit = state.limit.takeIf { it > 0 } ?: (500L shl 20)
         val fraction = if (state.used > 0) (state.used.toFloat() / limit).coerceIn(0.02f, 1f) else 0f
