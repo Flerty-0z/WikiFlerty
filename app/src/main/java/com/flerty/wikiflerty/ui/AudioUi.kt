@@ -732,32 +732,26 @@ private fun AudioSleep(onBack: () -> Unit) {
 private fun AudioLink(book: Audiobook, onBack: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
     val library by app.library.books.collectAsStateWithLifecycle()
-    var query by remember { mutableStateOf("") }
     val words = remember(book.title) { book.title.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter { it.length > 2 } }
-    val list = remember(library, query, words) {
-        val q = query.trim()
-        if (q.isNotEmpty()) {
-            library.filter { it.title.contains(q, true) || it.author.contains(q, true) }
-        } else {
-            library.sortedByDescending { b -> words.count { b.title.lowercase().contains(it) } }
-        }.take(40)
-    }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val books = remember(library) { library.filter { !it.paper && !it.isPdf } }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         HintNote("Свяжи аудиокнигу с её текстом из библиотеки — по нему появится подсветка во время прослушивания.", AppIcons.Link)
         if (book.bookId != null) AudioSyncCard(book)
-        InputField(query, { query = it }, "Поиск в библиотеке", icon = AppIcons.Search)
-        if (book.bookId != null) {
-            ChapterRow(AppIcons.Close, "Отвязать", "", false) {
-                app.audiobooks.update(book.id) { it.copy(bookId = null) }
-                onBack()
-            }
-        }
-        list.forEach { b ->
-            ChapterRow(AppIcons.Book, b.title, b.author.take(18), b.id == book.bookId) {
-                app.audiobooks.update(book.id) { it.copy(bookId = b.id) }
-                onBack()
-            }
-        }
+        BookPickList(
+            title = "Текст аудиокниги",
+            books = books,
+            selected = listOfNotNull(book.bookId),
+            onToggle = { b ->
+                if (b.id == book.bookId) {
+                    app.audioSync.clear(book.id)
+                    app.audiobooks.update(book.id) { it.copy(bookId = null) }
+                } else {
+                    if (book.bookId != null) app.audioSync.clear(book.id)
+                    app.audiobooks.update(book.id) { it.copy(bookId = b.id) }
+                }
+            },
+            sortKey = { b -> -words.count { b.title.lowercase().contains(it) } },
+        )
     }
 }
 

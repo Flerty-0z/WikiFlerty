@@ -131,7 +131,7 @@ html.leaving body{opacity:.4;transition:opacity .16s}
 .stats span{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:8px 14px;font-size:12px;color:var(--muted)}
 .stats b{color:var(--accent)}
 .meta.center{justify-content:center;gap:18px}
-.rail{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding:0 2px;padding:4px 2px 6px;margin:0 -2px;scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+.rail{display:flex;gap:14px;overflow-x:auto;overflow-y:hidden;touch-action:pan-x pan-y;scroll-snap-type:x mandatory;scroll-padding:0 2px;padding:4px 2px 6px;margin:0 -2px;scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
 .rail::-webkit-scrollbar{display:none}
 .rail>*{flex:0 0 min(80%,310px);scroll-snap-align:start;margin:0}
 .rail .tile{min-height:190px}

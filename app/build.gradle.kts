@@ -105,6 +105,7 @@ dependencies {
     implementation(libs.readium.navigator.media.tts)
     implementation(libs.media3.session)
     implementation(libs.media3.common)
+    implementation(libs.media3.exoplayer)
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.core)

@@ -552,7 +552,10 @@ internal object TextSelection {
             st.textContent =
               "#wf-hero-flags,#wf-hero-flags i{margin:0!important;padding:0!important;border:0!important;background-color:transparent!important;pointer-events:none!important;-webkit-user-select:none;user-select:none}" +
               "#wf-hero-flags{position:absolute!important;left:0;top:0;width:0;height:0;z-index:2;transition:opacity .3s ease}" +
-              "#wf-hero-flags i{position:absolute!important;display:block!important;background-repeat:no-repeat!important;background-size:100% 100%!important;background-image:" + flag + "!important;transform-origin:15% 95%;transition:transform .16s ease}" +
+              "#wf-hero-flags i{position:absolute!important;display:block!important;background-repeat:no-repeat!important;background-size:100% 100%!important;background-image:" + flag + "!important;transform-origin:15% 95%;transition:transform .16s ease,left .28s cubic-bezier(.2,.85,.25,1),top .28s cubic-bezier(.2,.85,.25,1),opacity .25s ease}" +
+              "#wf-hero-flags.trk i{transition:transform .16s ease,opacity .25s ease}" +
+              "#wf-hero-flags i.n{animation:wfFlagIn .34s cubic-bezier(.2,.85,.25,1) both}" +
+              "@keyframes wfFlagIn{from{opacity:0;transform:translateY(-4px) scale(.7)}to{opacity:1;transform:none}}" +
               "#wf-hero-flags i.q{background-image:" + qmark + "!important;transform-origin:50% 90%}";
             place();
           };
@@ -568,7 +571,12 @@ internal object TextSelection {
             "<circle cx='11.5' cy='23.6' r='2.6' fill='white' fill-opacity='.55'/>" +
             "<path d='M5.2 9.2c.5-3 2.8-4.9 5.6-4.9 3.2 0 5.6 2 5.6 4.9 0 2.2-1.2 3.5-2.9 4.6-1.5 1-2 1.6-2 3.2v1' fill='none' stroke='#E5484D' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/>" +
             "<circle cx='11.5' cy='23.6' r='1.7' fill='#E5484D'/></svg>") + '")';
-          var layer = null, pending = 0, sizes = new Map();
+          var layer = null, pending = 0, sizes = new Map(), els = new Map(), shown = false, revealT = 0;
+          function settle() {
+            if (shown) return;
+            clearTimeout(revealT);
+            revealT = setTimeout(function () { shown = true; if (layer) layer.style.opacity = "1"; }, 420);
+          }
           function place() {
             var host = document.documentElement;
             if (!hits.length) { if (layer && layer.isConnected) layer.remove(); return; }
@@ -579,7 +587,7 @@ internal object TextSelection {
               layer.setAttribute("aria-hidden", "true");
             }
             if (!layer.isConnected) host.appendChild(layer);
-            if (fresh) layer.style.opacity = "0";
+            if (fresh || !shown) layer.style.opacity = "0";
             var o = layer.getBoundingClientRect();
             sizes = new Map();
             var frag = document.createDocumentFragment();
@@ -587,7 +595,7 @@ internal object TextSelection {
             if (window.screen && screen.height > 0) vh = Math.min(vh, screen.height);
             var root = document.scrollingElement || document.documentElement;
             var paged = window.__wfScrollOn === true ? false : window.__wfScrollOn === false ? true : (root.scrollWidth > vw + 4 && root.scrollHeight <= (window.innerHeight || 1) + 4);
-            var seen = {};
+            var seen = {}, used = new Map();
             for (var i = 0; i < hits.length; i++) {
               hits[i].flag = null;
               var rs = hits[i].r.getClientRects(), b = null;
@@ -602,8 +610,11 @@ internal object TextSelection {
               if (fs === undefined) { fs = el ? parseFloat(getComputedStyle(el).fontSize) || 16 : 16; sizes.set(el, fs); }
               var q = hits[i].q;
               var h = Math.max(13, fs) * (q ? 0.82 : 1), w = h * (q ? 20 : 26) / 30;
-              var f = document.createElement("i");
-              if (q) f.className = "q";
+              var f = els.get(tag);
+              var made = !f;
+              if (made) f = document.createElement("i");
+              f.className = (q ? "q" : "") + (made && shown ? " n" : "");
+              used.set(tag, f);
               var e = b;
               if (q) for (var k = rs.length - 1; k >= 0; k--) if (rs[k].width > 0) { e = rs[k]; break; }
               f.style.left = (q ? e.right - o.left - w * 0.12 : b.left - o.left - fs * 0.22) + "px";
@@ -611,11 +622,12 @@ internal object TextSelection {
               f.style.width = w + "px";
               f.style.height = h + "px";
               hits[i].flag = f;
-              frag.appendChild(f);
+              if (made) frag.appendChild(f);
             }
-            while (layer.firstChild) layer.removeChild(layer.firstChild);
+            els.forEach(function (f, k) { if (!used.has(k) && f.parentNode) f.parentNode.removeChild(f); });
+            els = used;
             layer.appendChild(frag);
-            if (fresh) requestAnimationFrame(function () { requestAnimationFrame(function () { if (layer) layer.style.opacity = "1"; }); });
+            settle();
           }
           function later() {
             if (pending) clearTimeout(pending);
@@ -627,9 +639,11 @@ internal object TextSelection {
             var on = trackUntil > Date.now();
             trackUntil = Math.max(trackUntil, Date.now() + ms);
             if (on) return;
+            if (layer) layer.classList.add("trk");
             (function tick() {
               place();
               if (Date.now() < trackUntil) requestAnimationFrame(tick);
+              else if (layer) layer.classList.remove("trk");
             })();
           };
           window.addEventListener("resize", later);

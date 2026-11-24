@@ -7,7 +7,6 @@ import android.content.IntentFilter
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
-import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
 import android.os.Looper
@@ -17,6 +16,10 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.extractor.DefaultExtractorsFactory
+import androidx.media3.extractor.mp3.Mp3Extractor
 import com.flerty.wikiflerty.App
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -48,7 +51,8 @@ class AudioPlayer(private val app: App) {
     private val _state = MutableStateFlow(AudioState())
     val state: StateFlow<AudioState> = _state.asStateFlow()
 
-    private var player: MediaPlayer? = null
+    private var player: ExoPlayer? = null
+    private var completed = false
     private var loadedTrack = -1
     private var ticker: Job? = null
     private var fading: Job? = null
@@ -70,8 +74,8 @@ class AudioPlayer(private val app: App) {
     private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
         when (change) {
             AudioManager.AUDIOFOCUS_LOSS, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> pause()
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> player?.setVolume(0.3f, 0.3f)
-            AudioManager.AUDIOFOCUS_GAIN -> player?.setVolume(1f, 1f)
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> player?.volume = 0.3f
+            AudioManager.AUDIOFOCUS_GAIN -> player?.volume = 1f
         }
     }
 
@@ -86,53 +90,81 @@ class AudioPlayer(private val app: App) {
         invalidate()
     }
 
-    fun positionNow(): Long = runCatching { player?.takeIf { loadedTrack == _state.value.track && _state.value.ready }?.currentPosition?.toLong() }.getOrNull() ?: _state.value.positionMs
+    fun positionNow(): Long = runCatching { player?.takeIf { loadedTrack == _state.value.track && _state.value.ready }?.currentPosition }.getOrNull() ?: _state.value.positionMs
+
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    private fun create(): ExoPlayer {
+        val extractors = DefaultExtractorsFactory().setMp3ExtractorFlags(Mp3Extractor.FLAG_ENABLE_INDEX_SEEKING).setConstantBitrateSeekingEnabled(true)
+        val attrs = androidx.media3.common.AudioAttributes.Builder().setUsage(androidx.media3.common.C.USAGE_MEDIA).setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_SPEECH).build()
+        return ExoPlayer.Builder(app)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(app, extractors))
+            .setAudioAttributes(attrs, false)
+            .setWakeMode(androidx.media3.common.C.WAKE_MODE_LOCAL)
+            .setHandleAudioBecomingNoisy(false)
+            .build()
+    }
 
     private fun load(track: Int, at: Long, autoplay: Boolean) {
         val b = book ?: return
         val t = b.tracks.getOrNull(track) ?: return
         releasePlayer()
         loadedTrack = track
+        completed = false
         _state.value = _state.value.copy(track = track, positionMs = at, ready = false, error = null)
-        val mp = MediaPlayer()
-        player = mp
-        mp.setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
-        mp.setWakeMode(app, android.os.PowerManager.PARTIAL_WAKE_LOCK)
-        mp.setOnPreparedListener {
-            if (player !== mp) return@setOnPreparedListener
-            if (at > 0) mp.seekTo(at.toInt())
-            applySpeed(mp, _state.value.speed, false)
-            _state.value = _state.value.copy(ready = true)
-            if (autoplay || _state.value.playing) startNow()
+        val mp = try {
+            create()
+        } catch (e: Throwable) {
+            _state.value = _state.value.copy(playing = false, error = "Не получилось открыть файл")
             invalidate()
+            return
         }
-        mp.setOnCompletionListener {
-            if (player !== mp) return@setOnCompletionListener
-            val bk = book ?: return@setOnCompletionListener
-            if (_state.value.sleepChapter && bk.chapters.count { it.track == track } <= 1) {
-                stopForSleep()
-                return@setOnCompletionListener
+        player = mp
+        mp.addListener(object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                if (player !== mp) return
+                when (state) {
+                    Player.STATE_READY -> if (!_state.value.ready) {
+                        mp.setPlaybackSpeed(_state.value.speed)
+                        _state.value = _state.value.copy(ready = true)
+                        if (autoplay || _state.value.playing) startNow()
+                        invalidate()
+                    }
+                    Player.STATE_ENDED -> if (!completed) {
+                        completed = true
+                        finished(track, t.durationMs)
+                    }
+                }
             }
-            if (track + 1 < bk.tracks.size) {
-                load(track + 1, 0, true)
-            } else {
-                _state.value = _state.value.copy(playing = false, positionMs = t.durationMs)
-                saveNow()
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                if (player !== mp) return
+                _state.value = _state.value.copy(playing = false, ready = false, error = "Не получилось открыть файл. Возможно, он перемещён или удалён")
                 stopTicker()
                 invalidate()
             }
-        }
-        mp.setOnErrorListener { _, _, _ ->
-            _state.value = _state.value.copy(playing = false, ready = false, error = "Не получилось открыть файл. Возможно, он перемещён или удалён")
-            stopTicker()
-            invalidate()
-            true
-        }
+        })
         try {
-            mp.setDataSource(app, Uri.parse(t.uri))
-            mp.prepareAsync()
+            mp.setMediaItem(MediaItem.fromUri(Uri.parse(t.uri)), at.coerceAtLeast(0))
+            mp.prepare()
         } catch (e: Exception) {
             _state.value = _state.value.copy(playing = false, error = "Нет доступа к файлу. Добавь аудиокнигу заново")
+            invalidate()
+        }
+    }
+
+    private fun finished(track: Int, durationMs: Long) {
+        val bk = book ?: return
+        if (_state.value.sleepChapter && bk.chapters.count { it.track == track } <= 1) {
+            stopForSleep()
+            return
+        }
+        if (track + 1 < bk.tracks.size) {
+            load(track + 1, 0, true)
+        } else {
+            player?.playWhenReady = false
+            _state.value = _state.value.copy(playing = false, positionMs = durationMs)
+            saveNow()
+            stopTicker()
             invalidate()
         }
     }
@@ -157,9 +189,13 @@ class AudioPlayer(private val app: App) {
             noisyOn = true
         }
         fading?.cancel()
-        mp.setVolume(1f, 1f)
-        applySpeed(mp, _state.value.speed, true)
-        runCatching { mp.start() }
+        mp.volume = 1f
+        mp.setPlaybackSpeed(_state.value.speed)
+        if (completed) {
+            completed = false
+            mp.seekTo(0)
+        }
+        mp.playWhenReady = true
         _state.value = _state.value.copy(playing = true)
         app.audiobooks.update(_state.value.bookId ?: return) { it.copy(lastPlayedAt = System.currentTimeMillis()) }
         startService()
@@ -168,7 +204,7 @@ class AudioPlayer(private val app: App) {
     }
 
     fun pause() {
-        runCatching { if (player?.isPlaying == true) player?.pause() }
+        runCatching { player?.playWhenReady = false }
         _state.value = _state.value.copy(playing = false, positionMs = positionNow())
         fading?.cancel()
         abandonFocus()
@@ -186,7 +222,8 @@ class AudioPlayer(private val app: App) {
         if (t != loadedTrack || player == null) {
             load(t, at, _state.value.playing)
         } else {
-            runCatching { player?.seekTo(at.toInt()) }
+            completed = false
+            runCatching { player?.seekTo(at) }
             _state.value = _state.value.copy(positionMs = at)
         }
         saveNow()
@@ -226,17 +263,9 @@ class AudioPlayer(private val app: App) {
     fun setSpeed(speed: Float) {
         val v = speed.coerceIn(0.5f, 3f)
         _state.value = _state.value.copy(speed = v)
-        player?.let { applySpeed(it, v, _state.value.playing) }
+        player?.setPlaybackSpeed(v)
         _state.value.bookId?.let { id -> app.audiobooks.update(id) { it.copy(speed = v) } }
         invalidate()
-    }
-
-    private fun applySpeed(mp: MediaPlayer, speed: Float, playing: Boolean) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
-        runCatching {
-            mp.playbackParams = mp.playbackParams.setSpeed(speed)
-            if (!playing && mp.isPlaying) mp.pause()
-        }
     }
 
     fun sleep(minutes: Int) {
@@ -305,7 +334,7 @@ class AudioPlayer(private val app: App) {
                         stopForSleep()
                         continue
                     }
-                    if (left < 10_000) player?.let { val v = (left / 10_000f).coerceIn(0.05f, 1f); it.setVolume(v, v) }
+                    if (left < 10_000) player?.let { it.volume = (left / 10_000f).coerceIn(0.05f, 1f) }
                 }
                 if (System.currentTimeMillis() - lastSave > 5_000) saveNow()
             }
@@ -351,7 +380,7 @@ class AudioPlayer(private val app: App) {
     }
 
     private fun releasePlayer() {
-        player?.let { mp -> runCatching { mp.reset() }; runCatching { mp.release() } }
+        player?.let { mp -> runCatching { mp.release() } }
         player = null
         loadedTrack = -1
     }

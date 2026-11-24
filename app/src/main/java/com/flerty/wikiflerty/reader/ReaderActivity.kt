@@ -2542,51 +2542,69 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         }
     }
 
+    private var audioFollowJob: Job? = null
+    private val studio by lazy { packageName.endsWith(".studio") }
+
     private suspend fun followAudio() {
-        kotlinx.coroutines.flow.combine(app.audio.state, app.audiobooks.books) { s, books -> s to books.firstOrNull { it.id == s.bookId } }
-            .collectLatest { (s, ab) ->
-                val linked = ab != null && ab.bookId == bookId && app.audioSync.has(ab.id)
-                ui.audioLinked = linked
-                ui.audioPlaying = linked && s.playing
-                if (!linked || ab == null) {
-                    if (lastAudioMark != null) {
-                        lastAudioMark = null
-                        navigator.applyDecorations(emptyList(), AUDIO_GROUP)
-                    }
-                    return@collectLatest
+        var lastIdx = -2
+        var lastId: String? = null
+        var checkAt = 0L
+        while (true) {
+            val s = app.audio.state.value
+            val ab = app.audiobooks.find(s.bookId)
+            val linked = ab != null && ab.bookId == bookId && app.audioSync.has(ab.id)
+            if (ui.audioLinked != linked) ui.audioLinked = linked
+            val playing = linked && s.playing
+            if (ui.audioPlaying != playing) ui.audioPlaying = playing
+            if (!linked || ab == null) {
+                if (lastIdx != -2) {
+                    lastIdx = -2
+                    lastAudioMark = null
+                    audioFollowJob?.cancel()
+                    navigator.applyDecorations(emptyList(), AUDIO_GROUP)
                 }
-                var checkAt = 0L
-                while (true) {
-                    val now = app.audio.state.value
-                    val global = ab.offsetOf(now.track) + app.audio.positionNow()
-                    val points = app.audioSync.points(ab.id)
-                    val idx = app.audioSync.indexAt(ab.id, global)
-                    val point = points.getOrNull(idx)
-                    val loc = point?.locator
-                    val fresh = loc != lastAudioMark
-                    if (fresh) {
-                        lastAudioMark = loc
-                        navigator.applyDecorations(
-                            listOfNotNull(loc?.let { Decoration("audio", it, TtsMark(settings.ttsColor.toInt(), settings.ttsStrength.toFloat(), false)) }),
-                            AUDIO_GROUP,
-                        )
-                    }
-                    val clock = android.os.SystemClock.uptimeMillis()
-                    if (loc != null && point != null && s.playing && settings.ttsFollow && !turning && ui.selection == null && clock - manualTurnAt > 4000 && (fresh || clock >= checkAt)) {
-                        checkAt = clock + 900
-                        val stop = minOf(point.end, points.getOrNull(idx + 1)?.ms ?: point.end)
-                        val f = ((global - point.ms).toFloat() / (stop - point.ms).coerceAtLeast(1)).coerceIn(0f, 0.999f)
-                        if (fresh) delay(120)
-                        val out = runCatching { navigator.evaluateJavascript(AUDIO_OUT_JS.replace("__F__", "%.3f".format(java.util.Locale.US, f))) }.getOrNull().orEmpty()
-                        if (out.contains("out")) {
-                            if (!fresh && out.contains("next") && !settings.scroll) navigator.goForward(animated = true) else navigator.go(loc, animated = false)
-                            refreshPages()
-                        }
-                    }
-                    if (!s.playing) break
-                    delay(150)
+                delay(400)
+                continue
+            }
+            if (lastId != ab.id) {
+                lastId = ab.id
+                lastIdx = -2
+            }
+            val global = ab.offsetOf(s.track) + app.audio.positionNow() + if (s.playing) AUDIO_LEAD else 0L
+            val points = app.audioSync.points(ab.id)
+            val idx = app.audioSync.indexAt(ab.id, global)
+            val point = points.getOrNull(idx)
+            val fresh = idx != lastIdx
+            if (fresh) {
+                if (studio) android.util.Log.i("WFStudio", "audio t=$global idx=$idx " + point?.locator?.text?.highlight?.take(40))
+                lastIdx = idx
+                lastAudioMark = point?.locator
+                navigator.applyDecorations(
+                    listOfNotNull(point?.let { Decoration("audio", it.locator, TtsMark(settings.ttsColor.toInt(), settings.ttsStrength.toFloat(), false)) }),
+                    AUDIO_GROUP,
+                )
+            }
+            val clock = android.os.SystemClock.uptimeMillis()
+            if (point != null && s.playing && settings.ttsFollow && !turning && ui.selection == null && clock - manualTurnAt > 4000 && (fresh || (clock >= checkAt && audioFollowJob?.isActive != true))) {
+                checkAt = clock + 700
+                val stop = minOf(point.end, points.getOrNull(idx + 1)?.ms ?: point.end)
+                val f = ((global - point.ms).toFloat() / (stop - point.ms).coerceAtLeast(1)).coerceIn(0f, 0.999f)
+                val loc = point.locator
+                audioFollowJob?.cancel()
+                audioFollowJob = lifecycleScope.launch {
+                    if (fresh) delay(90)
+                    val out = runCatching { navigator.evaluateJavascript(AUDIO_OUT_JS.replace("__F__", "%.3f".format(java.util.Locale.US, f))) }.getOrNull().orEmpty()
+                    if (!out.contains("out") || turning || android.os.SystemClock.uptimeMillis() - manualTurnAt < 4000) return@launch
+                    if (!fresh && out.contains("next") && !settings.scroll) navigator.goForward(animated = true) else navigator.go(loc, animated = false)
+                    refreshPages()
                 }
             }
+            if (app.audio.state.value.playing) {
+                delay(100)
+            } else {
+                delay(250)
+            }
+        }
     }
 
     private var ttsSettingsSeen: ReaderSettings? = null
@@ -4547,6 +4565,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         const val TTS_GROUP = "tts"
         const val TTS_WORD_GROUP = "tts-word"
         const val AUDIO_GROUP = "audio"
+        private const val AUDIO_LEAD = 200L
         private const val AUDIO_OUT_JS = "(function(f){var c=document.querySelector('[data-group=\"audio\"]');if(!c)return '';var bs=[],all=c.querySelectorAll('*');for(var i=0;i<all.length;i++){if(all[i].style.position!=='absolute')continue;var r=all[i].getBoundingClientRect();if(r.width||r.height)bs.push(r);}if(!bs.length)return '';var r=bs[Math.min(bs.length-1,Math.floor(f*bs.length))];var w=window.innerWidth,h=window.innerHeight;if(r.right>1&&r.left<w-1&&r.bottom>1&&r.top<h-1)return 'in';return (r.left>=w-1||r.top>=h-1)?'out-next':'out';})(__F__)"
         const val SEARCH_GROUP = "search"
         const val AUTO_TICK = 100L

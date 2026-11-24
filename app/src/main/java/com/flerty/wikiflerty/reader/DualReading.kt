@@ -131,7 +131,7 @@ object DualTranslate {
           function style() {
             var st = document.getElementById("wf-dual-style");
             if (!st) { st = document.createElement("style"); st.id = "wf-dual-style"; (document.head || document.documentElement).appendChild(st); }
-            st.textContent =
+            var css =
               ".wf-dual{display:block;margin:0;padding:0}" +
               ".wf-dual[hidden]{display:none}" +
               ".wf-dual.wf-anim{overflow:hidden;transition:height .34s cubic-bezier(.2,.85,.25,1),opacity .3s ease}" +
@@ -146,7 +146,10 @@ object DualTranslate {
               ".wf-dual-tap.on>span{transform:rotate(180deg)}" +
               ".wf-dual-tap.busy{background:" + color + "22;color:" + color + "}" +
               ".wf-dual-tap.busy>span{animation:wfDualSpin .8s linear infinite}" +
-              "@keyframes wfDualSpin{to{transform:rotate(360deg)}}";
+              "@keyframes wfDualSpin{to{transform:rotate(360deg)}}" +
+              ".wf-dual-tap.n{animation:wfTapIn .42s cubic-bezier(.2,.85,.25,1) both}" +
+              "@keyframes wfTapIn{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}";
+            if (st.textContent !== css) st.textContent = css;
           }
           function pick(sel) {
             var all = Array.prototype.slice.call(document.body ? document.body.querySelectorAll(sel) : []);
@@ -286,7 +289,8 @@ object DualTranslate {
             var b = el.querySelector(':scope > .wf-dual-tap');
             if (b) return b;
             b = document.createElement("button");
-            b.className = "wf-dual-tap";
+            b.className = "wf-dual-tap n";
+            setTimeout(function () { b.classList.remove("n"); }, 600);
             b.type = "button";
             var g = document.createElement("span");
             g.textContent = "⇄";

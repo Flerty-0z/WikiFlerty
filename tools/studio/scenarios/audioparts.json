@@ -1,0 +1,113 @@
+{
+ "title": "Аудио из двух частей",
+ "lenient": true,
+ "steps": [
+  {
+   "do": "launch",
+   "fresh": true,
+   "ms": 2500
+  },
+  {
+   "do": "wait",
+   "text": "Моя полка",
+   "timeout": 10000,
+   "after": 1500
+  },
+  {
+   "do": "tap",
+   "text": "Позже",
+   "timeout": 1500,
+   "optional": true
+  },
+  {
+   "do": "wait",
+   "text": "Аудиокниги",
+   "timeout": 6000,
+   "after": 800
+  },
+  {
+   "do": "tap",
+   "text": "Аудиокнига «Белкин в двух частях",
+   "timeout": 5000,
+   "after": 2000,
+   "desc": true
+  },
+  {
+   "do": "tap",
+   "text": "Книга",
+   "desc": true,
+   "timeout": 4000,
+   "after": 2000
+  },
+  {
+   "do": "tap",
+   "text": "Сопоставить с текстом",
+   "timeout": 4000,
+   "after": 1000
+  },
+  {
+   "do": "wait",
+   "text": "совпало",
+   "timeout": 240000,
+   "after": 3000
+  },
+  {
+   "do": "back",
+   "after": 1500
+  },
+  {
+   "do": "tap",
+   "text": "Следующая глава",
+   "desc": true,
+   "timeout": 3000,
+   "after": 1200
+  },
+  {
+   "do": "tap",
+   "text": "Слушать",
+   "desc": true,
+   "timeout": 3000,
+   "after": 1500
+  },
+  {
+   "do": "tap",
+   "text": "Текст",
+   "desc": true,
+   "timeout": 4000,
+   "after": 9000
+  },
+  {
+   "do": "tap",
+   "text": "Назад на 15 секунд",
+   "desc": true,
+   "timeout": 3000,
+   "after": 7000
+  },
+  {
+   "do": "tap",
+   "text": "Назад на 15 секунд",
+   "desc": true,
+   "timeout": 3000,
+   "after": 700
+  },
+  {
+   "do": "tap",
+   "text": "Назад на 15 секунд",
+   "desc": true,
+   "timeout": 3000,
+   "after": 9000
+  },
+  {
+   "do": "tap",
+   "text": "Пауза",
+   "desc": true,
+   "timeout": 3000,
+   "after": 1500,
+   "optional": true
+  },
+  {
+   "do": "pause",
+   "ms": 1000
+  }
+ ]
+}

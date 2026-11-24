@@ -52,6 +52,10 @@ mkdir -p $A/audio2
 if curl -fsSL --retry 3 -o belkin.mp3 "https://archive.org/download/belkintales_1406_librivox/belkintales_00_pushkin_64kb.mp3" && curl -fsSL --retry 3 -o belkin.txt "http://lib.ru/LITRA/PUSHKIN/belkin.txt"; then
   ffmpeg -v error -y -i belkin.mp3 -map_metadata -1 -metadata album="Повести Белкина" -metadata artist="Пушкин" -metadata title="От издателя" -c copy "$A/audio2/01.mp3" || true
   python3 tools/studio/belkin.py belkin.txt "$A/library/90.epub" || true
+  mkdir -p $A/audio3
+  ffmpeg -v error -y -i belkin.mp3 -t 264 -map_metadata -1 -vn -metadata album="Белкин в двух частях" -metadata artist="Пушкин" -metadata title="Часть первая" -c:a aac -b:a 64k "$A/audio3/01.m4a" || true
+  ffmpeg -v error -y -ss 264 -i belkin.mp3 -map_metadata -1 -vn -metadata album="Белкин в двух частях" -metadata artist="Пушкин" -metadata title="Часть вторая" -c:a libmp3lame -q:a 7 "$A/audio3/02.mp3" || true
+  ls -la $A/audio3 || true
   rm -f belkin.mp3 belkin.txt
 fi
 ls -la $A/audio2 $A/library/90.epub || true
