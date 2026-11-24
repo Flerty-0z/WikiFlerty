@@ -606,7 +606,7 @@ private fun HeroTyping() {
                 initialValue = 0.25f,
                 targetValue = 1f,
                 animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                    com.flerty.wikiflerty.ui.Motion.tween<Float>(520, delayMillis = i * 160),
+                    com.flerty.wikiflerty.ui.Motion.loop<Float>(520, delayMillis = i * 160),
                     androidx.compose.animation.core.RepeatMode.Reverse,
                 ),
                 label = "d$i",

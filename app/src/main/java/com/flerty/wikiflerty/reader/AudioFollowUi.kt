@@ -40,7 +40,7 @@ fun AudioFollowPill(playing: Boolean, onHere: () -> Unit) {
     val pulse by transition.animateFloat(
         initialValue = 0.35f,
         targetValue = 1f,
-        animationSpec = androidx.compose.animation.core.infiniteRepeatable(Motion.tween<Float>(900), androidx.compose.animation.core.RepeatMode.Reverse),
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(Motion.loop<Float>(900), androidx.compose.animation.core.RepeatMode.Reverse),
         label = "pulse",
     )
     Row(

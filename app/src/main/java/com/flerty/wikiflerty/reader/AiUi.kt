@@ -1012,7 +1012,7 @@ private fun TypingDots() {
             val alpha by transition.animateFloat(
                 initialValue = 0.25f,
                 targetValue = 1f,
-                animationSpec = infiniteRepeatable(Motion.tween(520, delayMillis = i * 160), RepeatMode.Reverse),
+                animationSpec = infiniteRepeatable(Motion.loop(520, delayMillis = i * 160), RepeatMode.Reverse),
                 label = "dot$i",
             )
             Box(Modifier.size(7.dp).graphicsLayer { this.alpha = alpha }.clip(CircleShape).background(AppColors.Accent))

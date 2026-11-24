@@ -504,7 +504,7 @@ fun TtsMini(playing: Boolean, onExpand: () -> Unit) {
         initialValue = 0.35f,
         targetValue = 1f,
         animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-            com.flerty.wikiflerty.ui.Motion.tween<Float>(900),
+            com.flerty.wikiflerty.ui.Motion.loop<Float>(900),
             androidx.compose.animation.core.RepeatMode.Reverse,
         ),
         label = "pulse",

@@ -337,8 +337,29 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
     private val _seeking = MutableStateFlow(false)
     val seeking: StateFlow<Boolean> = _seeking.asStateFlow()
 
+    @OptIn(org.readium.r2.shared.ExperimentalReadiumApi::class)
+    private suspend fun speakable(locator: Locator): Boolean = withContext(Dispatchers.Default) {
+        val pub = book ?: return@withContext false
+        runCatching {
+            val content = pub.findService(org.readium.r2.shared.publication.services.content.ContentService::class)?.content(locator) ?: return@runCatching false
+            val it = content.iterator()
+            var steps = 0
+            while (steps < 300 && it.hasNext()) {
+                steps++
+                if (it.next() is org.readium.r2.shared.publication.services.content.Content.TextualElement) return@runCatching true
+            }
+            steps = 0
+            while (steps < 300 && it.hasPrevious()) {
+                steps++
+                if (it.previous() is org.readium.r2.shared.publication.services.content.Content.TextualElement) return@runCatching true
+            }
+            false
+        }.getOrDefault(false)
+    }
+
     private suspend fun jump(navigator: AndroidTtsNavigator, locator: Locator) {
         val before = navigator.location.value.utteranceLocator
+        if (!speakable(locator)) return
         navigator.go(locator)
         navigator.skipToNextUtterance()
         navigator.skipToPreviousUtterance()
@@ -384,7 +405,7 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
                 val beforeText = navigator.location.value.utterance
                 val target = squash(sentence)
                 val spot = withContext(Dispatchers.Default) { runCatching { locate(pub, page, target, prog) }.getOrNull() }
-                if (spot != null) {
+                if (spot != null && speakable(spot.locator)) {
                     navigator.go(spot.locator)
                     navigator.skipToNextUtterance()
                     navigator.skipToPreviousUtterance()

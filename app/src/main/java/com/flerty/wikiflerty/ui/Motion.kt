@@ -71,6 +71,9 @@ object Motion {
     fun <T> tween(durationMillis: Int, delayMillis: Int = 0, easing: Easing? = null): TweenSpec<T> =
         androidx.compose.animation.core.tween(ms(durationMillis), ms(delayMillis), easing ?: this.easing)
 
+    fun <T> loop(durationMillis: Int, delayMillis: Int = 0): TweenSpec<T> =
+        androidx.compose.animation.core.tween(if (enabled) ms(durationMillis).coerceAtLeast(1) else durationMillis, if (enabled) ms(delayMillis) else delayMillis, easing)
+
     fun <T> fade(durationMillis: Int): TweenSpec<T> =
         androidx.compose.animation.core.tween(ms(durationMillis), 0, FastOutSlowInEasing)
 
