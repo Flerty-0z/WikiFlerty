@@ -28,6 +28,8 @@ document.getElementById("ver").textContent="версия "+i.version;
 var mb=function(b){return b?" · "+Math.round(b/1048576)+" МБ":""};
 document.getElementById("x64").lastChild.textContent="Скачать для большинства телефонов"+mb(i.x64);
 document.getElementById("x32").lastChild.textContent="Для старых телефонов (x32)"+mb(i.x32);
+document.getElementById("x64").href="/download/x64?v="+encodeURIComponent(i.version);
+document.getElementById("x32").href="/download/x32?v="+encodeURIComponent(i.version);
 if(i.at){var d=new Date(i.at*1000);document.getElementById("when").textContent="от "+d.toLocaleDateString("ru-RU",{day:"numeric",month:"long"})}
 }).catch(function(){});
 </script>

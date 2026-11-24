@@ -138,7 +138,7 @@ def keyboard(links=None):
     links = links or {}
     return {
         "inline_keyboard": [
-            [{"text": "Скачать x32", "url": "https://wikiflerty.ru/download/x32"}, {"text": "Скачать x64", "url": "https://wikiflerty.ru/download/x64"}],
+            [{"text": "Скачать x32", "url": f"https://wikiflerty.ru/download/x32?v={version}"}, {"text": "Скачать x64", "url": f"https://wikiflerty.ru/download/x64?v={version}"}],
             [{"text": "Открыть на GitHub", "url": url, "style": "danger"}],
         ]
     }
