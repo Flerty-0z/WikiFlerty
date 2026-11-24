@@ -283,7 +283,7 @@ private fun ProviderCard(
                             .background(if (keyInput.isNotBlank() || hasKey) AppColors.Accent else AppColors.Line),
                         contentAlignment = Alignment.Center,
                     ) {
-                        ActionLabel(if (keyInput.isNotBlank()) "Сохранить и проверить" else "Проверить ключ", AppColors.OnAccent, fontSize = 14.sp, iconSize = 20.dp, icon = if (keyInput.isNotBlank()) AppIcons.Check else AppIcons.Search)
+                        ActionLabel(if (keyInput.isNotBlank()) "Сохранить" else "Проверить", AppColors.OnAccent, fontSize = 14.sp, iconSize = 20.dp, icon = if (keyInput.isNotBlank()) AppIcons.Check else AppIcons.Search)
                     }
                     if (hasKey || provider.custom) {
                         Box(
@@ -351,7 +351,7 @@ private fun ProviderCard(
                         searchable = models.size > 8,
                     ) { id -> ai.store.update { it.copy(models = it.models + (provider.id to id)) } }
                     if (!loadedModels && !provider.custom) {
-                        HintNote("Полный список — после «Проверить ключ»", AppIcons.Info)
+                        HintNote("Полный список — после «Проверить»", AppIcons.Info)
                     }
                 }
             }

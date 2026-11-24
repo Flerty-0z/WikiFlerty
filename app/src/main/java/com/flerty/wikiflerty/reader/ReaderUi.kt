@@ -1739,10 +1739,10 @@ internal fun RoundIconButton(
         modifier = Modifier
             .size(44.dp)
             .liveClick(CircleShape, sound = sound, pressedScale = 0.88f, onClick = onClick)
-            .background(if (filled) AppColors.Line else Color.Transparent),
+            .background(if (filled && icon != AppIcons.Close) AppColors.Line else Color.Transparent),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = description, tint = AppColors.Text, modifier = iconModifier.size(if (filled) 18.dp else 22.dp))
+        Icon(icon, contentDescription = description, tint = AppColors.Text, modifier = iconModifier.size(if (filled && icon != AppIcons.Close) 18.dp else 22.dp))
     }
 }
 

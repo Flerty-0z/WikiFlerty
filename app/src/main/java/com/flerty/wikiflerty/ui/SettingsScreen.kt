@@ -284,10 +284,9 @@ private fun InkContent() {
             "Очистка экрана",
             EInk.refreshChoices.map { if (it == 0) "Нет" else "$it стр." },
             EInk.refreshChoices.indexOf(EInk.refresh).coerceAtLeast(0),
+            help = "Очистка мигает чёрным раз в несколько страниц и убирает следы на экране. Режим работает только на этом устройстве — шаблон и тема вернутся, когда выключишь",
         ) { i -> EInk.refreshEvery(EInk.refreshChoices[i]) }
     }
-    HintNote("Очистка мигает чёрным раз в несколько страниц и убирает следы на экране", AppIcons.Info)
-    HintNote("Режим работает только на этом устройстве. Шаблон и тема вернутся, когда выключишь", AppIcons.Ereader)
 }
 
 @Composable

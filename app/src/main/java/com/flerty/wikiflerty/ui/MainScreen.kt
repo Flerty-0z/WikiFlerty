@@ -733,7 +733,12 @@ private fun BottomItem(item: Section, label: String, current: Section, onSelect:
 
 @Composable
 private fun AddBookSheet(onDismiss: () -> Unit, onFile: () -> Unit, onScan: () -> Unit, onPaper: () -> Unit, onAudio: () -> Unit) {
-    AppSheet(onDismiss = onDismiss, title = "Добавить книгу") {
+    val pending = remember { arrayOfNulls<() -> Unit>(1) }
+    AppSheet(onDismiss = {
+        onDismiss()
+        pending[0]?.invoke()
+        pending[0] = null
+    }, title = "Добавить книгу") {
         val close = sheetClose(onDismiss)
         val scope = rememberCoroutineScope()
         var picked by remember { mutableStateOf(-1) }
@@ -784,10 +789,10 @@ private fun AddBookSheet(onDismiss: () -> Unit, onFile: () -> Unit, onScan: () -
                             .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.96f) {
                                 if (picked >= 0) return@liveClick
                                 picked = i
+                                pending[0] = sp.action
                                 scope.launch {
-                                    kotlinx.coroutines.delay(Motion.ms(220).toLong())
+                                    kotlinx.coroutines.delay(Motion.ms(200).toLong())
                                     close()
-                                    sp.action()
                                 }
                             }
                             .padding(vertical = 14.dp),

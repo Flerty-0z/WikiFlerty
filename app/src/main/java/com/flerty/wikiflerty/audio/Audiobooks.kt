@@ -127,6 +127,20 @@ class AudiobookRepository(private val context: Context) {
         tmp.renameTo(file)
     }
 
+    private val prefs = context.getSharedPreferences("audiobooks", Context.MODE_PRIVATE)
+    private val _manual = MutableStateFlow(prefs.getBoolean("manual", false))
+    val manual: StateFlow<Boolean> = _manual.asStateFlow()
+
+    @Synchronized
+    fun reorder(ids: List<String>) {
+        val byId = _books.value.associateBy { it.id }
+        val list = ids.mapNotNull { byId[it] } + _books.value.filter { it.id !in ids }
+        _books.value = list
+        save(list)
+        prefs.edit().putBoolean("manual", true).apply()
+        _manual.value = true
+    }
+
     fun find(id: String?): Audiobook? = id?.let { k -> _books.value.firstOrNull { it.id == k } }
 
     fun forBook(bookId: String): Audiobook? = _books.value.firstOrNull { it.bookId == bookId }

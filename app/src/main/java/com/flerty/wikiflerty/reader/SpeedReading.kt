@@ -154,7 +154,15 @@ fun SpeedReader(session: SpeedSession, onClose: (Int) -> Unit) {
                     Text("$wpm сл/мин", color = AppColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
-            AnimatedVisibility(picker, enter = fadeIn(Motion.fade(180)), exit = fadeOut(Motion.fade(140))) {
+            AnimatedVisibility(
+                picker,
+                enter = androidx.compose.animation.expandVertically(Motion.tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing), expandFrom = Alignment.Top) +
+                    fadeIn(Motion.tween(240, 60, androidx.compose.animation.core.FastOutSlowInEasing)) +
+                    androidx.compose.animation.slideInVertically(Motion.tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { -it / 3 },
+                exit = androidx.compose.animation.shrinkVertically(Motion.tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing), shrinkTowards = Alignment.Top) +
+                    fadeOut(Motion.tween(160)) +
+                    androidx.compose.animation.slideOutVertically(Motion.tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { -it / 3 },
+            ) {
                 Row(
                     Modifier.padding(top = 10.dp).fillMaxWidth().border(1.dp, AppColors.PanelBorder, appCorner(14)).padding(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -261,7 +269,7 @@ fun SpeedReader(session: SpeedSession, onClose: (Int) -> Unit) {
 @Composable
 private fun RoundButton(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, sound: FeedbackSound, onClick: () -> Unit) {
     Box(
-        Modifier.size(44.dp).border(1.dp, AppColors.PanelBorder, CircleShape).liveClick(CircleShape, sound = sound, onClick = onClick),
+        Modifier.size(44.dp).then(if (icon == AppIcons.Close) Modifier else Modifier.border(1.dp, AppColors.PanelBorder, CircleShape)).liveClick(CircleShape, sound = sound, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, description, tint = AppColors.Text, modifier = Modifier.size(20.dp)) }
 }

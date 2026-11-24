@@ -185,9 +185,16 @@ fun SettingSlider(
 }
 
 @Composable
-fun SettingSegmented(label: String?, options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+fun SettingSegmented(label: String?, options: List<String>, selected: Int, help: String? = null, onSelect: (Int) -> Unit) {
+    var helpOpen by remember { mutableStateOf(false) }
     Column(Modifier.padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (label != null) Text(label, color = AppColors.Muted, fontSize = 13.sp)
+        if (label != null) {
+            Row(Modifier.height(28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(label, color = AppColors.Muted, fontSize = 13.sp)
+                if (help != null) HelpFlag(helpOpen) { helpOpen = !helpOpen }
+            }
+        }
+        if (help != null) HelpReveal(helpOpen, help)
         Row(
             Modifier
                 .fillMaxWidth()
@@ -329,8 +336,10 @@ private fun ChoiceBlock(
     icon: ImageVector?,
     lead: (@Composable () -> Unit)? = null,
     typeface: androidx.compose.ui.text.font.FontFamily? = null,
+    open: Boolean = false,
     onClick: () -> Unit,
 ) {
+    val turn by androidx.compose.animation.core.animateFloatAsState(if (open) 270f else 90f, Motion.tween(280, easing = androidx.compose.animation.core.FastOutSlowInEasing), label = "choice-turn")
     Column(
         Modifier
             .fillMaxWidth()
@@ -375,7 +384,7 @@ private fun ChoiceBlock(
                     .border(1.dp, AppColors.Accent.copy(alpha = 0.25f), appCorner(11)),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(AppIcons.Chevron, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp).rotate(90f))
+                Icon(AppIcons.Chevron, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp).rotate(turn))
             }
         }
     }
@@ -384,6 +393,18 @@ private fun ChoiceBlock(
 @Composable
 fun ValueRow(label: String, value: String, icon: ImageVector? = null, onClick: () -> Unit) {
     ChoiceBlock(label, value, icon, onClick = onClick)
+}
+
+@Composable
+fun NumberRow(label: String, value: Int, suffix: String, range: IntRange, icon: ImageVector? = null, onSet: (Int) -> Unit) {
+    var editing by remember { mutableStateOf(false) }
+    ChoiceBlock(label, "$value $suffix", icon) { editing = true }
+    if (editing) {
+        NumberInputSheet(label, suffix, value, range, onDismiss = { editing = false }) { v ->
+            onSet(v.coerceIn(range))
+            editing = false
+        }
+    }
 }
 
 @Composable
@@ -397,13 +418,37 @@ fun PickerRow(
 ) {
     var open by remember { mutableStateOf(false) }
     val selected = options.firstOrNull { it.id == selectedId }
+    val inline = !searchable && options.size <= 6
     ChoiceBlock(
         label,
         selected?.title ?: selectedId,
         icon,
         lead = if (selected != null) ({ OptionTile(selected, icon, 26.dp) }) else null,
         typeface = selected?.typeface,
-    ) { open = true }
+        open = inline && open,
+    ) { open = !open }
+    if (inline) {
+        androidx.compose.animation.AnimatedVisibility(
+            visible = open,
+            enter = androidx.compose.animation.expandVertically(Motion.tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing), expandFrom = Alignment.Top) +
+                androidx.compose.animation.fadeIn(Motion.tween(220, 60)),
+            exit = androidx.compose.animation.shrinkVertically(Motion.tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing), shrinkTowards = Alignment.Top) +
+                androidx.compose.animation.fadeOut(Motion.tween(150)),
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 6.dp).fieldSurface(appCorner(16)).padding(horizontal = 12.dp, vertical = 4.dp),
+            ) {
+                options.forEachIndexed { index, option ->
+                    if (index > 0) ListDivider()
+                    SheetOptionRow(option, option.id == selectedId, icon) {
+                        onSelect(option.id)
+                        open = false
+                    }
+                }
+            }
+        }
+        return
+    }
     if (open) {
         PickerSheet(label, options, selectedId, searchable, icon = icon, onDismiss = { open = false }) {
             onSelect(it)
@@ -546,7 +591,7 @@ fun SheetHeader(title: String, onClose: () -> Unit) {
         Box(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 12.dp), contentAlignment = Alignment.Center) {
             HeaderLabel(title, Modifier.padding(horizontal = 46.dp))
             Box(
-                Modifier.align(Alignment.CenterEnd).size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onClose).background(AppColors.Field),
+                Modifier.align(Alignment.CenterEnd).size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onClose),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Close, "Закрыть", tint = AppColors.Muted, modifier = Modifier.size(18.dp)) }
         }
@@ -834,5 +879,31 @@ fun ActionLabel(text: String, color: Color, fontSize: androidx.compose.ui.unit.T
         val w = chosen.width.coerceIn(constraints.minWidth, constraints.maxWidth.coerceAtLeast(constraints.minWidth))
         val h = chosen.height.coerceIn(constraints.minHeight, constraints.maxHeight.coerceAtLeast(constraints.minHeight))
         layout(w, h) { chosen.place((w - chosen.width) / 2, (h - chosen.height) / 2) }
+    }
+}
+
+@Composable
+fun HelpFlag(open: Boolean, onClick: () -> Unit) {
+    val tint by animateColorAsState(if (open) AppColors.OnAccent else AppColors.Accent, Motion.fade(220), label = "help-tint")
+    val bg by animateColorAsState(if (open) AppColors.Accent else AppColors.Accent.copy(alpha = 0.14f), Motion.fade(220), label = "help-bg")
+    Box(
+        Modifier
+            .size(28.dp)
+            .liveClick(androidx.compose.foundation.shape.CircleShape, sound = if (open) FeedbackSound.Collapse else FeedbackSound.Expand, pressedScale = 0.86f, onClick = onClick)
+            .background(bg, androidx.compose.foundation.shape.CircleShape),
+        contentAlignment = Alignment.Center,
+    ) { Icon(AppIcons.Help, if (open) "Скрыть пояснение" else "Пояснение", tint = tint, modifier = Modifier.size(16.dp)) }
+}
+
+@Composable
+fun HelpReveal(open: Boolean, text: String, icon: ImageVector = AppIcons.Info) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = open,
+        enter = androidx.compose.animation.expandVertically(Motion.tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing), expandFrom = Alignment.Top) +
+            androidx.compose.animation.fadeIn(Motion.tween(240, 80, androidx.compose.animation.core.FastOutSlowInEasing)),
+        exit = androidx.compose.animation.shrinkVertically(Motion.tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing), shrinkTowards = Alignment.Top) +
+            androidx.compose.animation.fadeOut(Motion.tween(160)),
+    ) {
+        HintNote(text, icon)
     }
 }

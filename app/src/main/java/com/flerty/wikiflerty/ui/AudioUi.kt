@@ -38,6 +38,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.offset
@@ -774,7 +776,17 @@ fun AudioPlank(modifier: Modifier = Modifier) {
     val books by app.audiobooks.books.collectAsStateWithLifecycle()
     val state by app.audio.state.collectAsStateWithLifecycle()
     if (books.isEmpty()) return
-    val sorted = remember(books) { books.sortedByDescending { it.lastPlayedAt ?: it.addedAt } }
+    val manual by app.audiobooks.manual.collectAsStateWithLifecycle()
+    val sorted = remember(books, manual) { if (manual) books else books.sortedByDescending { it.lastPlayedAt ?: it.addedAt } }
+    val byId = remember(books) { books.associateBy { it.id } }
+    val ids = sorted.map { it.id }
+    val order = remember(ids) { androidx.compose.runtime.mutableStateListOf<String>().apply { addAll(ids) } }
+    var dragId by remember { mutableStateOf<String?>(null) }
+    var dragX by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val step = with(density) { 90.dp.toPx() }
+    val feedback = LocalFeedback.current
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     Column(modifier.fillMaxWidth()) {
         LazyRow(
             Modifier.fillMaxWidth(),
@@ -782,12 +794,65 @@ fun AudioPlank(modifier: Modifier = Modifier) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
-            items(sorted.size, key = { sorted[it].id }) { i ->
-                val b = sorted[i]
+            items(order.size, key = { order[it] }) { i ->
+                val id = order[i]
+                val b = byId[id] ?: return@items
                 val playing = state.bookId == b.id && state.playing
                 val shape = appCorner(10)
                 val pulse = rememberInfiniteTransition(label = "audio-plank")
                 val glow by pulse.animateFloat(0.4f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "audio-plank-glow")
+                val dragging = dragId == id
+                val lift by androidx.compose.animation.core.animateFloatAsState(if (dragging) 1f else 0f, androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 420f), label = "audio-lift")
+                Box(
+                    Modifier
+                        .then(if (dragging) Modifier else Modifier.animateItem())
+                        .zIndex(if (dragging) 1f else 0f)
+                        .graphicsLayer {
+                            if (dragging) translationX = dragX
+                            translationY = -6.dp.toPx() * lift
+                            val sc = 1f + 0.08f * lift
+                            scaleX = sc
+                            scaleY = sc
+                            rotationZ = -3f * lift
+                            shadowElevation = 14.dp.toPx() * lift
+                            this.shape = shape
+                        }
+                        .pointerInput(id) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    dragId = id
+                                    dragX = 0f
+                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                    feedback?.play(FeedbackSound.Pick)
+                                },
+                                onDragEnd = {
+                                    dragId = null
+                                    dragX = 0f
+                                    feedback?.play(FeedbackSound.Place)
+                                    app.audiobooks.reorder(order.toList())
+                                },
+                                onDragCancel = {
+                                    dragId = null
+                                    dragX = 0f
+                                },
+                            ) { change, delta ->
+                                change.consume()
+                                dragX += delta.x
+                                val at = order.indexOf(id)
+                                if (dragX > step / 2 && at < order.lastIndex) {
+                                    order.removeAt(at)
+                                    order.add(at + 1, id)
+                                    dragX -= step
+                                    feedback?.play(FeedbackSound.Tick)
+                                } else if (dragX < -step / 2 && at > 0) {
+                                    order.removeAt(at)
+                                    order.add(at - 1, id)
+                                    dragX += step
+                                    feedback?.play(FeedbackSound.Tick)
+                                }
+                            }
+                        },
+                ) {
                 Box(
                     Modifier
                         .size(78.dp)
@@ -808,6 +873,7 @@ fun AudioPlank(modifier: Modifier = Modifier) {
                         ) { Icon(AppIcons.Headphones, null, tint = AppColors.OnAccent, modifier = Modifier.size(12.dp)) }
                     }
                 }
+                }
             }
             item(key = "add") {
                 val shape = appCorner(10)
@@ -827,9 +893,11 @@ fun AudioPlank(modifier: Modifier = Modifier) {
 @Composable
 fun AudioContinueStrip(modifier: Modifier = Modifier) {
     val app = LocalContext.current.applicationContext as App
-    val state by app.audio.state.collectAsStateWithLifecycle()
+    val live by app.audio.state.collectAsStateWithLifecycle()
     val books by app.audiobooks.books.collectAsStateWithLifecycle()
-    val b = remember(books, state.bookId) { books.firstOrNull { it.id == state.bookId } } ?: return
+    val kept = remember { arrayOfNulls<Pair<Audiobook, com.flerty.wikiflerty.audio.AudioState>>(1) }
+    books.firstOrNull { it.id == live.bookId }?.let { kept[0] = it to live }
+    val (b, state) = kept[0] ?: return
     val shape = appCorner(16)
     val chapter = b.chapters.getOrNull(b.chapterAt(state.track, state.positionMs))
     val global = b.offsetOf(state.track) + state.positionMs

@@ -622,6 +622,8 @@ private class ShelfDrag {
     var grab: Offset = Offset.Zero
     var dest by mutableStateOf<Offset?>(null)
     var fromSpec: LyingSpec? = null
+    var fromLean = false
+    var destLean = false
     var destSpec by mutableStateOf<LyingSpec?>(null)
     var root: androidx.compose.ui.layout.LayoutCoordinates? = null
     var onDrop: (Book, String, String) -> Unit = { _, _, _ -> }
@@ -908,6 +910,7 @@ private fun DragGhost(drag: ShelfDrag) {
     val lift = remember(book.id) { androidx.compose.animation.core.Animatable(0f) }
     val fade = remember(book.id) { androidx.compose.animation.core.Animatable(1f) }
     val form = remember(book.id) { androidx.compose.animation.core.Animatable(if (drag.fromSpec != null) 0f else 1f) }
+    val leanPose = remember(book.id) { androidx.compose.animation.core.Animatable(if (drag.fromLean) 1f else 0f) }
     val phase = drag.phase
     val held = remember(book.id) { arrayOf(Offset.Zero) }
     val snapped = remember(book.id) { booleanArrayOf(false) }
@@ -924,6 +927,7 @@ private fun DragGhost(drag: ShelfDrag) {
             fade.snapTo(1f)
             kotlinx.coroutines.coroutineScope {
                 if (drag.fromSpec != null) launch { form.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.78f, stiffness = 260f)) }
+                if (leanPose.value > 0f) launch { leanPose.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 320f)) }
                 launch { lift.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.62f, stiffness = 420f)) }
             }
         }
@@ -960,6 +964,7 @@ private fun DragGhost(drag: ShelfDrag) {
                             }
                             launch { lift.animateTo(0f, Motion.tween(240, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
                             launch { form.animateTo(if (lying) 0f else 1f, Motion.tween(if (lying) 300 else 160, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
+                            launch { leanPose.animateTo(if (!lying && drag.destLean) 1f else 0f, Motion.tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
                         }
                     }
                     val watch = launch {
@@ -1009,6 +1014,14 @@ private fun DragGhost(drag: ShelfDrag) {
     ) {
         Box(
             Modifier.graphicsLayer {
+                val k = leanPose.value
+                translationX = 14.dp.toPx() * k
+                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 1f)
+                rotationZ = -7f * k
+            },
+        ) {
+        Box(
+            Modifier.graphicsLayer {
                 val f = form.value
                 alpha = (f * 1.6f - 0.3f).coerceIn(0f, 1f)
                 transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
@@ -1034,11 +1047,12 @@ private fun DragGhost(drag: ShelfDrag) {
                 LyingFace(book, spec.width, spec.top, spec.pagesOut)
             }
         }
+        }
     }
 }
 
 @Composable
-private fun Modifier.shelfDraggable(book: Book, plank: String, spec: LyingSpec? = null): Modifier {
+private fun Modifier.shelfDraggable(book: Book, plank: String, spec: LyingSpec? = null, lean: Boolean = false): Modifier {
     val drag = LocalShelfDrag.current ?: return this
     if (!drag.enabled) return this
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
@@ -1071,6 +1085,7 @@ private fun Modifier.shelfDraggable(book: Book, plank: String, spec: LyingSpec? 
             coords = c
             if (landing) {
                 drag.destSpec = spec
+                drag.destLean = lean
                 drag.dest = c.positionInWindow()
             }
         }
@@ -1089,6 +1104,8 @@ private fun Modifier.shelfDraggable(book: Book, plank: String, spec: LyingSpec? 
                     drag.grab = offset
                     drag.from = plank
                     drag.fromSpec = spec
+                    drag.fromLean = lean
+                    drag.destLean = false
                     drag.destSpec = null
                     drag.dest = null
                     drag.pointer = c.positionInWindow() + offset
@@ -1177,7 +1194,7 @@ private fun Shelf(row: PlankRow, index: Int, onBook: (Book) -> Unit) {
     ) {
         val content: @Composable (Int, ShelfUnit) -> Unit = { i, unit ->
             when (unit) {
-                is ShelfUnit.Standing -> StandingBook(unit.book, unit.lean, Modifier.dropIn(index, i, unit.key).slot(unit.key, plank).shelfDraggable(unit.book, plank)) { onBook(unit.book) }
+                is ShelfUnit.Standing -> StandingBook(unit.book, unit.lean, Modifier.dropIn(index, i, unit.key).slot(unit.key, plank).shelfDraggable(unit.book, plank, lean = unit.lean)) { onBook(unit.book) }
                 is ShelfUnit.Stack -> BookStack(unit.books, Modifier.dropIn(index, i, unit.key).slot(unit.key, plank), plank, onBook)
                 is ShelfUnit.Add -> Box(Modifier.dropIn(index, i, unit.key)) { AddSlot(unit.onAdd) }
                 is ShelfUnit.Prop -> ShelfProp(AppStyle.kit.decor, unit.index, Modifier.dropIn(index, i, unit.key).propDraggable(unit, plank))

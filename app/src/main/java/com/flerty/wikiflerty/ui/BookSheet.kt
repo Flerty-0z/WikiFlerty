@@ -325,7 +325,7 @@ private fun PageHeader(title: String, onBack: () -> Unit, onClose: () -> Unit) {
             ) { Icon(AppIcons.Back, "Назад", tint = AppColors.Muted, modifier = Modifier.size(18.dp)) }
             HeaderLabel(title, Modifier.padding(horizontal = 46.dp))
             Box(
-                Modifier.align(Alignment.CenterEnd).size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onClose).background(AppColors.Field),
+                Modifier.align(Alignment.CenterEnd).size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onClose),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Close, "Закрыть", tint = AppColors.Muted, modifier = Modifier.size(18.dp)) }
         }
@@ -340,18 +340,19 @@ fun ConfirmSheet(
     confirm: String,
     danger: Boolean = true,
     sound: FeedbackSound? = null,
+    icon: androidx.compose.ui.graphics.vector.ImageVector = AppIcons.Info,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     AppSheet(onDismiss = onDismiss, title = title) {
         val close = sheetClose(onDismiss)
-        Text(
-            text,
-            color = AppColors.Muted,
-            fontSize = 14.sp,
-            lineHeight = 20.sp,
-            modifier = Modifier.fillMaxWidth().fieldSurface(appCorner(16)).padding(horizontal = 14.dp, vertical = 12.dp),
-        )
+        Row(
+            Modifier.fillMaxWidth().fieldSurface(appCorner(16)).padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.padding(top = 2.dp).size(18.dp))
+            Text(text, color = AppColors.Muted, fontSize = 14.sp, lineHeight = 20.sp)
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val shape = appCorner(12)
             Box(
@@ -381,7 +382,7 @@ fun ConfirmSheet(
 @Composable
 private fun RoundButton(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, tint: Color, sound: FeedbackSound, onClick: () -> Unit) {
     Box(
-        Modifier.size(40.dp).liveClick(CircleShape, sound = sound, onClick = onClick).background(AppColors.Field),
+        Modifier.size(40.dp).liveClick(CircleShape, sound = sound, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, description, tint = tint, modifier = Modifier.size(20.dp)) }
 }
@@ -415,8 +416,7 @@ private fun FavoriteButton(on: Boolean, onClick: () -> Unit) {
             .sparkBurst(burst, listOf(StarYellow, AppColors.Accent, Color.White), count = 14, reach = 0.9f)
             .liveClick(CircleShape, sound = if (on) FeedbackSound.Uncheck else FeedbackSound.Star) {
                 onClick()
-            }
-            .background(AppColors.Field),
+            },
         contentAlignment = Alignment.Center,
     ) {
         Icon(

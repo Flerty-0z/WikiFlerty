@@ -365,6 +365,7 @@ private fun SignedIn(account: Account, state: Account.State) {
             text = "Синхронизация на этом телефоне выключится. Книги и прогресс останутся на телефоне и в облаке.",
             confirm = "Выйти",
             sound = FeedbackSound.SignOut,
+            icon = AppIcons.Cloud,
             onConfirm = { scope.launch { account.logout() } },
             onDismiss = { leaving = false },
         )

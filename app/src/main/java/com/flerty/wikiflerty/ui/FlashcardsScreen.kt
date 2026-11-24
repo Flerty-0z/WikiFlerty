@@ -377,7 +377,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.StudyBody(
 @Composable
 private fun RoundButton(icon: ImageVector, description: String, onClick: () -> Unit) {
     Box(
-        Modifier.size(42.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onClick).background(AppColors.Shade.copy(alpha = 0.07f)),
+        Modifier.size(42.dp).liveClick(CircleShape, sound = FeedbackSound.Close, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, description, tint = AppColors.Text, modifier = Modifier.size(18.dp)) }
 }
@@ -696,12 +696,7 @@ fun FlashcardSettingsSheet(onDismiss: () -> Unit) {
     val prefs by app.flashcards.prefs.collectAsStateWithLifecycle()
     AppSheet(onDismiss, title = "Карточки") {
         SettingsGroup(null) {
-            PickerRow(
-                label = "Новых слов в день",
-                icon = AppIcons.Plus,
-                options = listOf(5, 10, 15, 20, 30, 50).map { PickerOption(it.toString(), it.toString()) },
-                selectedId = prefs.newPerDay.toString(),
-            ) { id -> app.flashcards.update { it.copy(newPerDay = id.toInt()) } }
+            NumberRow("Новых слов в день", prefs.newPerDay, "сл.", 1..300, AppIcons.Plus) { v -> app.flashcards.update { it.copy(newPerDay = v) } }
             PickerRow(
                 label = "Направление",
                 icon = AppIcons.Translate,

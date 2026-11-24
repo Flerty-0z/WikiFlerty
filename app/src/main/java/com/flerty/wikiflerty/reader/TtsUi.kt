@@ -458,7 +458,6 @@ fun TtsOptions(
 
     SwitchRow("Листать за голосом", settings.ttsFollow, icon = AppIcons.Pages) { v -> onSettingsChange { it.copy(ttsFollow = v) } }
     SwitchRow("Голос за листанием", settings.ttsJump, icon = AppIcons.Voice) { v -> onSettingsChange { it.copy(ttsJump = v) } }
-    SwitchRow("Читать с места нажатия", settings.ttsTap, icon = AppIcons.Gesture) { v -> onSettingsChange { it.copy(ttsTap = v) } }
 
     com.flerty.wikiflerty.ui.Appear(active) {
         PickerRow(

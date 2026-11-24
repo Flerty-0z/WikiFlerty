@@ -1974,7 +1974,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             val s = settings
             val x = event.point.x
             val y = event.point.y
-            if (s.ttsTap && mySession != null) {
+            if (mySession != null) {
                 val width = navigator.publicationView.width.toFloat()
                 if (s.edgeTaps && !s.scroll && width > 0f && (x < width * s.edgeZone || x > width * (1 - s.edgeZone))) return plainTap(x)
                 lifecycleScope.launch {
@@ -2606,7 +2606,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     if (!navAlive) return@launch
                     val out = runCatching { navigator.evaluateJavascript(AUDIO_OUT_JS.replace("__F__", "%.3f".format(java.util.Locale.US, f))) }.getOrNull().orEmpty()
                     if (!out.contains("out") || turning || !navAlive || android.os.SystemClock.uptimeMillis() - manualTurnAt < 4000) return@launch
-                    runCatching { if (!fresh && out.contains("next") && !settings.scroll) navigator.goForward(animated = true) else navigator.go(loc, animated = false) }
+                    runCatching { if (!fresh && out.contains("next") && !settings.scroll) navigator.goForward(animated = false) else navigator.go(loc, animated = false) }
                     refreshPages()
                 }
             }
@@ -4580,7 +4580,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         const val TTS_WORD_GROUP = "tts-word"
         const val AUDIO_GROUP = "audio"
         private const val AUDIO_LEAD = 200L
-        private const val AUDIO_OUT_JS = "(function(f){var c=document.querySelector('[data-group=\"audio\"]');if(!c)return '';var bs=[],all=c.querySelectorAll('*');for(var i=0;i<all.length;i++){if(all[i].style.position!=='absolute')continue;var r=all[i].getBoundingClientRect();if(r.width||r.height)bs.push(r);}if(!bs.length)return '';var r=bs[Math.min(bs.length-1,Math.floor(f*bs.length))];var w=window.innerWidth,h=window.innerHeight;if(r.right>1&&r.left<w-1&&r.bottom>1&&r.top<h-1)return 'in';return (r.left>=w-1||r.top>=h-1)?'out-next':'out';})(__F__)"
+        private const val AUDIO_OUT_JS = "(function(f){var c=document.querySelector('[data-group=\"audio\"]');if(!c)return '';var bs=[],all=c.querySelectorAll('*');for(var i=0;i<all.length;i++){if(all[i].style.position!=='absolute')continue;var r=all[i].getBoundingClientRect();if(r.width||r.height)bs.push(r);}if(!bs.length)return '';var W=window.innerWidth;bs.sort(function(a,b){var pa=Math.floor((a.left+1)/W),pb=Math.floor((b.left+1)/W);return pa!==pb?pa-pb:(Math.abs(a.top-b.top)>2?a.top-b.top:a.left-b.left);});var r=bs[Math.min(bs.length-1,Math.floor(f*bs.length))];var w=window.innerWidth,h=window.innerHeight;if(r.right>1&&r.left<w-1&&r.bottom>1&&r.top<h-1)return 'in';return (r.left>=w-1||r.top>=h-1)?'out-next':'out';})(__F__)"
         const val SEARCH_GROUP = "search"
         const val AUTO_TICK = 100L
         const val SEARCH_LIMIT = 500
