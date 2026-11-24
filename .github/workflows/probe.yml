@@ -4,15 +4,28 @@ on:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - name: Site and API
+      - name: Usage
+        env:
+          KEY: ${{ secrets.SELECTEL_S3_ACCESS }}
+          SECRET: ${{ secrets.SELECTEL_S3_SECRET }}
         run: |
-          for u in https://wikiflerty.ru/ https://wikiflerty.ru/download https://wikiflerty.ru/account https://wikiflerty.ru/offer https://wikiflerty.ru/privacy https://wikiflerty.ru/fx.js https://wikiflerty.ru/style.css https://sync.wikiflerty.ru/; do
-            echo "$u $(curl -s -o /dev/null -w '%{http_code} %{size_download}' --max-time 30 -L "$u")"
-          done
-          echo "me $(curl -s --max-time 30 -X POST https://sync.wikiflerty.ru/v1/me -d '{}')"
-          echo "pay $(curl -s --max-time 30 -X POST https://sync.wikiflerty.ru/v1/pay/create -H 'Authorization: Bearer x' -d '{"plan":"plus"}')"
-          curl -s --max-time 30 https://wikiflerty.ru/style.css | grep -o "overflow-y:hidden;touch-action:pan-x pan-y" | head -1
-          curl -s --max-time 30 https://wikiflerty.ru/account | grep -o 'class="lk"' | head -1
-          curl -s --max-time 30 -L https://wikiflerty.ru/download | grep -oE "WikiFlerty-0\.1\.[0-9]+\.apk|0\.1\.[0-9]+" | sort -u | head -5
+          base=https://wikiflerty-books.s3.ru-3.storage.selcloud.ru
+          s3() { curl -sS --fail --max-time 30 --aws-sigv4 "aws:amz:ru-3:s3" --user "$KEY:$SECRET" -H "x-amz-content-sha256: UNSIGNED-PAYLOAD" "$@"; }
+          mkdir u
+          for k in $(s3 "$base/?list-type=2&prefix=users/&max-keys=1000" | grep -o '<Key>[^<]*' | sed 's/<Key>//'); do s3 "$base/$k" > "u/$(basename $k)" || true; done
+          python3 - <<'PY'
+          import glob, json, time
+          now = time.time() * 1000
+          n = over = paid = 0
+          for f in glob.glob("u/*.json"):
+              try: u = json.load(open(f))
+              except Exception: continue
+              n += 1
+              used = sum((b or {}).get("size", 0) for b in (u.get("books") or {}).values())
+              active = (u.get("until") or 0) > now
+              paid += active
+              if used > 500 * 1024 * 1024 and not active: over += 1
+          print("users", n, "paid", paid, "over500free", over)
+          PY
