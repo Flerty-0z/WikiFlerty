@@ -139,7 +139,7 @@ object DualTranslate {
               ".wf-dual-in{display:block;margin:.3em 0 .85em;padding:0 0 0 .75em;border-left:2px solid " + color + "66;opacity:.74;font-size:.9em;font-style:normal;font-weight:inherit;text-indent:0;text-align:inherit;line-height:inherit;transition:transform .34s cubic-bezier(.2,.85,.25,1)}" +
               ".wf-dual.wf-anim.wf-closed .wf-dual-in{transform:translateY(-.6em)}" +
               "@keyframes wfDualFade{from{opacity:0;transform:translateY(.3em)}to{opacity:1;transform:none}}" +
-              ".wf-dual-tap{all:unset;display:inline-flex;align-items:center;justify-content:center;margin-left:.35em;min-width:1.7em;height:1.35em;border-radius:.7em;border:1px solid " + color + "88;color:" + color + ";background:transparent;font-size:.72em;line-height:1;text-indent:0;vertical-align:.12em;cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;transition:background .25s ease,color .25s ease,border-color .25s ease,transform .18s cubic-bezier(.3,1.6,.5,1)}" +
+              ".wf-dual-tap{all:unset;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;margin-left:.35em;margin-right:-2.05em;width:1.7em;height:1.35em;border-radius:.7em;border:1px solid " + color + "88;color:" + color + ";background:transparent;font-size:.72em;line-height:1;text-indent:0;vertical-align:.12em;cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;transition:background .25s ease,color .25s ease,border-color .25s ease,transform .18s cubic-bezier(.3,1.6,.5,1)}" +
               ".wf-dual-tap>span{display:inline-block;transition:transform .4s cubic-bezier(.3,1.4,.5,1)}" +
               ".wf-dual-tap:active,.wf-dual-tap.press{transform:scale(.82)}" +
               ".wf-dual-tap.on{background:" + color + ";border-color:" + color + ";color:#fff}" +
@@ -212,8 +212,49 @@ object DualTranslate {
           }
           function soft() { try { window.__wfPeoplePlace && window.__wfPeoplePlace(); } catch (x) {} }
           function track() { try { window.__wfPeopleTrack && window.__wfPeopleTrack(520); } catch (x) {} }
+          function paged() {
+            var cs = getComputedStyle(document.documentElement);
+            return (cs.columnCount && cs.columnCount !== "auto") || (cs.columnWidth && cs.columnWidth !== "auto") || document.scrollingElement.scrollWidth > window.innerWidth + 4;
+          }
+          function followers(d) {
+            var out = [], n = d, guard = 0, w = window.innerWidth * 2.05, h = window.innerHeight * 2.05;
+            while (n && n !== document.body && guard < 240) {
+              var s = n.nextElementSibling;
+              while (s && guard < 240) {
+                guard++;
+                var r = s.getBoundingClientRect();
+                if (r.left >= w || r.top >= h) return out;
+                out.push(s);
+                s = s.nextElementSibling;
+              }
+              n = n.parentElement;
+            }
+            return out;
+          }
+          function swap(fade, apply) {
+            fade.forEach(function (e) { e.style.transition = "opacity .14s ease"; e.style.opacity = "0"; });
+            setTimeout(function () {
+              apply();
+              soft();
+              requestAnimationFrame(function () {
+                fade.forEach(function (e) { e.style.transition = "opacity .24s ease"; e.style.opacity = ""; });
+                setTimeout(function () { fade.forEach(function (e) { e.style.transition = ""; }); soft(); }, 280);
+              });
+            }, 150);
+          }
           function reveal(d) {
             track();
+            if (paged()) {
+              d.style.opacity = "0";
+              swap(followers(d), function () {
+                d.removeAttribute("hidden");
+                void d.offsetHeight;
+                d.style.transition = "opacity .26s ease";
+                d.style.opacity = "1";
+                setTimeout(function () { d.style.transition = ""; d.style.opacity = ""; }, 320);
+              });
+              return;
+            }
             d.removeAttribute("hidden");
             var h = d.scrollHeight;
             d.classList.add("wf-closed");
@@ -228,6 +269,10 @@ object DualTranslate {
           }
           function conceal(d) {
             track();
+            if (paged()) {
+              swap([d].concat(followers(d)), function () { d.setAttribute("hidden", ""); d.style.transition = ""; d.style.opacity = ""; });
+              return;
+            }
             d.style.height = d.scrollHeight + "px";
             void d.offsetHeight;
             d.classList.add("wf-anim");

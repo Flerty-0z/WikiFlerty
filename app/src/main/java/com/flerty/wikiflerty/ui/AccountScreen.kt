@@ -510,7 +510,7 @@ private fun PlanSheet(account: Account, state: Account.State, onDismiss: () -> U
     var picked by remember { mutableStateOf(if (state.until > 0 && state.plan == "plus2") "plus2" else "plus") }
     var busy by remember { mutableStateOf(false) }
     var help by remember { mutableStateOf(false) }
-    AppSheet(onDismiss = onDismiss, title = "Больше места") {
+    AppSheet(onDismiss = onDismiss, title = "Больше места", smoothResize = false) {
         val close = sheetClose(onDismiss)
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             offers.forEach { o ->
@@ -518,32 +518,37 @@ private fun PlanSheet(account: Account, state: Account.State, onDismiss: () -> U
                 val selected = picked == o.id
                 val current = state.until > 0 && state.plan == o.id
                 val edge by androidx.compose.animation.animateColorAsState(if (selected) AppColors.Accent else AppColors.PanelBorder, Motion.fade(220), label = "plan-edge")
-                val lift by androidx.compose.animation.core.animateFloatAsState(if (selected) 1f else 0f, Motion.tween(260), label = "plan-lift")
-                Box(Modifier.fillMaxWidth().zIndex(if (selected) 1f else 0f)) {
+                val flag by androidx.compose.animation.core.animateFloatAsState(if (selected) 1f else 0f, Motion.tween(260), label = "plan-flag")
                 Column(
                     Modifier
                         .fillMaxWidth()
-                        .graphicsLayer { translationY = -lift * 3.dp.toPx() }
                         .liveClick(shape, sound = FeedbackSound.Plan, pressedScale = 0.98f) { picked = o.id }
                         .background(AppColors.Line.copy(alpha = 0.45f), shape)
                         .border(if (selected) 1.5.dp else 1.dp, edge, shape)
                         .padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(Modifier.height(28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("${o.title} · ${o.size}", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                                androidx.compose.animation.AnimatedVisibility(
-                                    visible = selected,
-                                    enter = androidx.compose.animation.fadeIn(Motion.fade(220)) + androidx.compose.animation.scaleIn(Motion.tween(280), initialScale = 0.4f),
-                                    exit = androidx.compose.animation.fadeOut(Motion.fade(160)) + androidx.compose.animation.scaleOut(Motion.tween(200), targetScale = 0.4f),
-                                ) { PlanHelpFlag(help) { help = !help } }
+                                Box(Modifier.size(28.dp).graphicsLayer { alpha = flag; scaleX = 0.4f + 0.6f * flag; scaleY = 0.4f + 0.6f * flag }) {
+                                    if (flag > 0.01f) PlanHelpFlag(help && selected) { if (selected) help = !help }
+                                }
                             }
                             Text(if (current) "твой тариф" else o.hint, color = if (selected || current) AppColors.Accent else AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         Text("${o.price} ₽", color = AppColors.Text, fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                     }
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = selected && help,
+                        enter = androidx.compose.animation.expandVertically(Motion.tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing), expandFrom = Alignment.Top) + androidx.compose.animation.fadeIn(Motion.tween(240, 80, androidx.compose.animation.core.FastOutSlowInEasing)),
+                        exit = androidx.compose.animation.shrinkVertically(Motion.tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing), shrinkTowards = Alignment.Top) + androidx.compose.animation.fadeOut(Motion.fade(160)),
+                    ) {
+                        Box(Modifier.padding(top = 10.dp)) {
+                            HintNote(planExplain(state, o.id), if (state.until > 0) AppIcons.Calendar else AppIcons.Help)
+                        }
+                    }
+                    androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
                     androidx.compose.runtime.key(selected) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             repeat(o.shelves) { k ->
@@ -551,20 +556,6 @@ private fun PlanSheet(account: Account, state: Account.State, onDismiss: () -> U
                             }
                         }
                     }
-                }
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = selected && help,
-                    modifier = Modifier.align(Alignment.TopStart).padding(start = 10.dp, end = 10.dp, top = 54.dp),
-                    enter = androidx.compose.animation.fadeIn(Motion.fade(200)) +
-                        androidx.compose.animation.slideInVertically(Motion.tween(260)) { -it / 6 } +
-                        androidx.compose.animation.scaleIn(Motion.tween(260), initialScale = 0.94f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.2f, 0f)),
-                    exit = androidx.compose.animation.fadeOut(Motion.fade(150)) +
-                        androidx.compose.animation.scaleOut(Motion.tween(180), targetScale = 0.96f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.2f, 0f)),
-                ) {
-                    Box(Modifier.fillMaxWidth().panelSurface(appCorner(14), elevation = 10.dp)) {
-                        HintNote(planExplain(state, o.id), if (state.until > 0) AppIcons.Calendar else AppIcons.Help)
-                    }
-                }
                 }
             }
             val price = offers.first { it.id == picked }.price

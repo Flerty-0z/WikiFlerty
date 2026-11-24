@@ -160,6 +160,7 @@ fun AppSheet(
     aboveHeight: androidx.compose.ui.unit.Dp = 0.dp,
     above: (@Composable androidx.compose.foundation.layout.BoxScope.() -> Unit)? = null,
     aura: List<Color>? = null,
+    smoothResize: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val host = LocalSheetPages.current
@@ -205,7 +206,7 @@ fun AppSheet(
                         .kitTexture(),
                 ) {
                     SheetStack(pages, sheetMaxHeight()) {
-                        Column(Modifier.fillMaxWidth().pageDepth(pages, null).sheetResize()) {
+                        Column(Modifier.fillMaxWidth().pageDepth(pages, null).then(if (smoothResize) Modifier.sheetResize() else Modifier)) {
                             if (title != null) Box(Modifier.padding(horizontal = 16.dp)) { SheetHeader(title, close) }
                             Column(
                                 Modifier.weight(1f, fill = false).revealViewport(viewport).padding(horizontal = 16.dp).navigationBarsPadding().revealScroll(viewport).padding(top = if (title == null) 16.dp else 14.dp, bottom = 16.dp),

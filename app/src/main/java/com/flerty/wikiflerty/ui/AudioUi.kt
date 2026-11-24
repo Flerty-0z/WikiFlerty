@@ -421,7 +421,6 @@ private fun AudioMain(book: Audiobook, open: (AudioPanel) -> Unit) {
         )
         Row(Modifier.fillMaxWidth()) {
             Text(audioTime((shown * length).toLong()), color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.weight(1f))
-            Text("осталось " + audioLeft(((book.totalMs - global) / state.speed).toLong()), color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
             Text("-" + audioTime(((1f - shown) * length).toLong()), color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
