@@ -1,10 +1,10 @@
 @font-face{font-family:"JetBrains Mono";src:url(/fonts/JetBrainsMono-Regular.woff2) format("woff2");font-weight:400;font-display:swap}
 @font-face{font-family:"JetBrains Mono";src:url(/fonts/JetBrainsMono-Bold.woff2) format("woff2");font-weight:700;font-display:swap}
-:root{--bg:#121417;--panel:#191c21;--panel2:#1e2228;--field:#15181c;--line:#2b3038;--line2:#363c46;--text:#e8eaed;--muted:#a2abb5;--faint:#7d8691;--accent:#e2626a;--accent-soft:rgba(226,98,106,.14);--accent-line:rgba(226,98,106,.42);--good:#7ed3a0;--r:18px}
+:root{--bg:#121417;--panel:#191c21;--panel2:#1e2228;--field:#15181c;--line:#2b3038;--line2:#363c46;--text:#e8eaed;--muted:#a2abb5;--faint:#7d8691;--accent:#6ab7f2;--accent-soft:rgba(106,183,242,.14);--accent-line:rgba(106,183,242,.42);--good:#7ed3a0;--r:18px}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 "JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-x:hidden}
-body:before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(600px 380px at 85% -10%,rgba(226,98,106,.10),transparent 70%),radial-gradient(500px 340px at -10% 30%,rgba(126,211,160,.05),transparent 70%)}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(600px 380px at 85% -10%,rgba(106,183,242,.10),transparent 70%),radial-gradient(500px 340px at -10% 30%,rgba(126,211,160,.05),transparent 70%)}
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
 main{position:relative;max-width:980px;margin:0 auto;padding:22px 18px 60px}
@@ -35,7 +35,7 @@ p,li{color:var(--muted)}
 .hero .frame{margin:0;padding:26px}
 .hero p{font-size:14px}
 .cta{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;height:50px;padding:0 22px;border-radius:15px;background:var(--accent);color:#fff;font-weight:700;font-size:14px;border:0;font-family:inherit;cursor:pointer;transition:filter .2s,transform .15s}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;height:50px;padding:0 22px;border-radius:15px;background:var(--accent);color:#0b1d2c;font-weight:700;font-size:14px;border:0;font-family:inherit;cursor:pointer;transition:filter .2s,transform .15s}
 .btn:hover{text-decoration:none;filter:brightness(1.07)}
 .btn:active{transform:scale(.97)}
 .btn svg{width:19px;height:19px}
@@ -100,7 +100,7 @@ td:first-child{color:var(--muted);width:40%}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line2);border-radius:14px;padding:10px 16px;font-size:13px;color:var(--text);z-index:9;max-width:90vw}
 footer{margin-top:44px;color:var(--faint);font-size:12px;border-top:1px solid var(--line);padding-top:16px;display:flex;gap:8px;flex-wrap:wrap}
 @keyframes drop{0%{transform:translateY(-46px);opacity:0}60%{opacity:1}100%{transform:none;opacity:1}}
-@keyframes glow{0%,100%{border-color:rgba(226,98,106,.45)}50%{border-color:rgba(226,98,106,1)}}
+@keyframes glow{0%,100%{border-color:rgba(106,183,242,.45)}50%{border-color:rgba(106,183,242,1)}}
 @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 .rise{animation:rise .6s both cubic-bezier(.2,.8,.2,1)}
 @media(max-width:760px){.grid{grid-template-columns:1fr}h1{font-size:24px}.shelfbox{min-height:0}.brand span{display:none}}

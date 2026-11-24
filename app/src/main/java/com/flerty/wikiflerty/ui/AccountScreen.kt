@@ -508,15 +508,11 @@ private fun PlanSheet(account: Account, state: Account.State, onDismiss: () -> U
     val scope = rememberCoroutineScope()
     var picked by remember { mutableStateOf(if (state.until > 0 && state.plan == "plus2") "plus2" else "plus") }
     var busy by remember { mutableStateOf(false) }
+    var help by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(picked) { help = false }
     AppSheet(onDismiss = onDismiss, title = "Больше места") {
         val close = sheetClose(onDismiss)
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (state.until > 0) {
-                HintNote(
-                    "Сейчас ${planTitle(state.plan)} до ${dayFormat.format(java.util.Date(state.until))}. Тот же тариф добавит 30 дней, другой пересчитает остаток по цене.",
-                    AppIcons.Calendar,
-                )
-            }
             offers.forEach { o ->
                 val shape = appCorner(18)
                 val selected = picked == o.id
@@ -535,10 +531,24 @@ private fun PlanSheet(account: Account, state: Account.State, onDismiss: () -> U
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("${o.title} · ${o.size}", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("${o.title} · ${o.size}", color = AppColors.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                                androidx.compose.animation.AnimatedVisibility(
+                                    visible = selected,
+                                    enter = androidx.compose.animation.fadeIn(Motion.fade(220)) + androidx.compose.animation.scaleIn(Motion.tween(280), initialScale = 0.4f),
+                                    exit = androidx.compose.animation.fadeOut(Motion.fade(160)) + androidx.compose.animation.scaleOut(Motion.tween(200), targetScale = 0.4f),
+                                ) { PlanHelpFlag(help) { help = !help } }
+                            }
                             Text(if (current) "твой тариф" else o.hint, color = if (selected || current) AppColors.Accent else AppColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         Text("${o.price} ₽", color = AppColors.Text, fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                    }
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = selected && help,
+                        enter = androidx.compose.animation.expandVertically(Motion.tween(300)) + androidx.compose.animation.fadeIn(Motion.fade(260)),
+                        exit = androidx.compose.animation.shrinkVertically(Motion.tween(240)) + androidx.compose.animation.fadeOut(Motion.fade(160)),
+                    ) {
+                        HintNote(planExplain(state, o.id), if (state.until > 0) AppIcons.Calendar else AppIcons.Help)
                     }
                     androidx.compose.runtime.key(selected) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -567,6 +577,25 @@ private fun PlanSheet(account: Account, state: Account.State, onDismiss: () -> U
             }
         }
     }
+}
+
+private fun planExplain(state: Account.State, id: String): String {
+    if (state.until <= 0) return "Тариф действует 30 дней и сам не продлевается. Когда срок закончится, книги не удалятся — только новые загрузки встанут на паузу."
+    val now = "Сейчас ${planTitle(state.plan)} до ${dayFormat.format(java.util.Date(state.until))}."
+    return if (state.plan == id) "$now Оплата добавит ещё 30 дней." else "$now Оставшиеся дни пересчитаются по цене этого тарифа."
+}
+
+@Composable
+private fun PlanHelpFlag(open: Boolean, onClick: () -> Unit) {
+    val tint by androidx.compose.animation.animateColorAsState(if (open) AppColors.OnAccent else AppColors.Accent, Motion.fade(220), label = "plan-help-tint")
+    val bg by androidx.compose.animation.animateColorAsState(if (open) AppColors.Accent else AppColors.Accent.copy(alpha = 0.14f), Motion.fade(220), label = "plan-help-bg")
+    Box(
+        Modifier
+            .size(28.dp)
+            .liveClick(CircleShape, sound = if (open) FeedbackSound.Collapse else FeedbackSound.Expand, pressedScale = 0.86f, onClick = onClick)
+            .background(bg, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) { Icon(AppIcons.Help, if (open) "Скрыть пояснение" else "Пояснение к тарифу", tint = tint, modifier = Modifier.size(16.dp)) }
 }
 
 @Composable

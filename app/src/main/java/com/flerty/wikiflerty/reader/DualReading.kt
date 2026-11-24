@@ -132,10 +132,21 @@ object DualTranslate {
             var st = document.getElementById("wf-dual-style");
             if (!st) { st = document.createElement("style"); st.id = "wf-dual-style"; (document.head || document.documentElement).appendChild(st); }
             st.textContent =
-              ".wf-dual{display:block;margin:.3em 0 .85em;padding:0 0 0 .75em;border-left:2px solid " + color + "66;opacity:.74;font-size:.9em;font-style:normal;font-weight:inherit;text-indent:0;text-align:inherit;line-height:inherit;-webkit-column-break-inside:avoid}" +
+              ".wf-dual{display:block;margin:0;padding:0;-webkit-column-break-inside:avoid}" +
               ".wf-dual[hidden]{display:none}" +
-              ".wf-dual-tap{all:unset;display:inline-block;margin-left:.35em;padding:0 .35em;border-radius:.6em;border:1px solid " + color + "88;color:" + color + ";font-size:.72em;line-height:1.5;text-indent:0;vertical-align:.12em;cursor:pointer;-webkit-user-select:none;user-select:none}" +
-              ".wf-dual-tap.on{background:" + color + "22}";
+              ".wf-dual.wf-anim{overflow:hidden;transition:height .34s cubic-bezier(.2,.85,.25,1),opacity .3s ease}" +
+              ".wf-dual.wf-fade{animation:wfDualFade .45s ease both}" +
+              ".wf-dual-in{display:block;margin:.3em 0 .85em;padding:0 0 0 .75em;border-left:2px solid " + color + "66;opacity:.74;font-size:.9em;font-style:normal;font-weight:inherit;text-indent:0;text-align:inherit;line-height:inherit;transition:transform .34s cubic-bezier(.2,.85,.25,1)}" +
+              ".wf-dual.wf-anim.wf-closed .wf-dual-in{transform:translateY(-.6em)}" +
+              "@keyframes wfDualFade{from{opacity:0;transform:translateY(.3em)}to{opacity:1;transform:none}}" +
+              ".wf-dual-tap{all:unset;display:inline-flex;align-items:center;justify-content:center;margin-left:.35em;min-width:1.7em;height:1.35em;border-radius:.7em;border:1px solid " + color + "88;color:" + color + ";background:transparent;font-size:.72em;line-height:1;text-indent:0;vertical-align:.12em;cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;transition:background .25s ease,color .25s ease,border-color .25s ease,transform .18s cubic-bezier(.3,1.6,.5,1)}" +
+              ".wf-dual-tap>span{display:inline-block;transition:transform .4s cubic-bezier(.3,1.4,.5,1)}" +
+              ".wf-dual-tap:active,.wf-dual-tap.press{transform:scale(.82)}" +
+              ".wf-dual-tap.on{background:" + color + ";border-color:" + color + ";color:#fff}" +
+              ".wf-dual-tap.on>span{transform:rotate(180deg)}" +
+              ".wf-dual-tap.busy{background:" + color + "22;color:" + color + "}" +
+              ".wf-dual-tap.busy>span{animation:wfDualSpin .8s linear infinite}" +
+              "@keyframes wfDualSpin{to{transform:rotate(360deg)}}";
           }
           function pick(sel) {
             var all = Array.prototype.slice.call(document.body ? document.body.querySelectorAll(sel) : []);
@@ -163,9 +174,13 @@ object DualTranslate {
           function holder(el, k) {
             var next = el.tagName === "LI" ? el.lastElementChild : el.nextElementSibling;
             if (next && next.classList.contains("wf-dual") && next.getAttribute("data-for") == k) return next;
-            var d = document.createElement(el.tagName === "LI" ? "span" : "div");
+            var tag = el.tagName === "LI" ? "span" : "div";
+            var d = document.createElement(tag);
             d.className = "wf-dual";
             d.setAttribute("data-for", k);
+            var inner = document.createElement(tag);
+            inner.className = "wf-dual-in";
+            d.appendChild(inner);
             if (el.tagName === "LI") el.appendChild(d); else el.parentNode.insertBefore(d, el.nextSibling);
             return d;
           }
@@ -189,24 +204,56 @@ object DualTranslate {
               }, 140);
             }, 90);
           }
+          function after(d, f) {
+            var fired = false;
+            function end(e) { if (fired || (e && e.target !== d)) return; fired = true; d.removeEventListener("transitionend", end); f(); }
+            d.addEventListener("transitionend", end);
+            setTimeout(end, 480);
+          }
+          function reveal(d) {
+            d.removeAttribute("hidden");
+            var h = d.scrollHeight;
+            d.classList.add("wf-closed");
+            d.style.height = "0px";
+            d.style.opacity = "0";
+            void d.offsetHeight;
+            d.classList.add("wf-anim");
+            d.classList.remove("wf-closed");
+            d.style.height = h + "px";
+            d.style.opacity = "1";
+            after(d, function () { d.classList.remove("wf-anim"); d.style.height = ""; d.style.opacity = ""; relayout(); });
+          }
+          function conceal(d) {
+            d.style.height = d.scrollHeight + "px";
+            void d.offsetHeight;
+            d.classList.add("wf-anim");
+            d.classList.add("wf-closed");
+            d.style.height = "0px";
+            d.style.opacity = "0";
+            after(d, function () { d.setAttribute("hidden", ""); d.classList.remove("wf-anim", "wf-closed"); d.style.height = ""; d.style.opacity = ""; relayout(); });
+          }
+          function press(b) { b.classList.add("press"); setTimeout(function () { b.classList.remove("press"); }, 160); }
           function tapButton(el, k) {
             var b = el.querySelector(':scope > .wf-dual-tap');
             if (b) return b;
             b = document.createElement("button");
             b.className = "wf-dual-tap";
             b.type = "button";
-            b.textContent = "⇄";
+            var g = document.createElement("span");
+            g.textContent = "⇄";
+            b.appendChild(g);
             b.setAttribute("data-for", k);
             b.addEventListener("click", function (e) {
               e.preventDefault(); e.stopPropagation();
+              press(b);
+              if (b.classList.contains("busy")) return;
               var d = document.querySelector('.wf-dual[data-for="' + k + '"]');
               if (d && d.textContent) {
                 var show = d.hasAttribute("hidden");
-                if (show) d.removeAttribute("hidden"); else d.setAttribute("hidden", "");
+                if (show) reveal(d); else conceal(d);
                 b.classList.toggle("on", show);
-                relayout();
               } else {
-                b.classList.add("on");
+                b.classList.add("busy");
                 try { window.${TextSelection.BRIDGE}.onEvent("dual:" + k); } catch (x) {}
               }
             }, true);
@@ -232,11 +279,21 @@ object DualTranslate {
                 var el = find(k);
                 if (!el) return;
                 var d = holder(el, k);
-                if (d.textContent !== map[k]) { d.textContent = map[k]; changed = true; }
+                var inner = d.firstElementChild;
+                var fresh = !inner.textContent;
+                if (inner.textContent !== map[k]) inner.textContent = map[k];
                 if (mode === "tap") {
                   var b = tapButton(el, k);
-                  if (b.classList.contains("on")) d.removeAttribute("hidden"); else d.setAttribute("hidden", "");
-                } else d.removeAttribute("hidden");
+                  if (b.classList.contains("busy")) {
+                    b.classList.remove("busy");
+                    b.classList.add("on");
+                    reveal(d);
+                  } else if (b.classList.contains("on")) d.removeAttribute("hidden");
+                  else d.setAttribute("hidden", "");
+                } else {
+                  d.removeAttribute("hidden");
+                  if (fresh) { d.classList.add("wf-fade"); changed = true; }
+                }
               });
               if (changed) relayout();
             },
@@ -260,7 +317,7 @@ object DualTranslate {
             },
             fail: function (k) {
               var b = document.querySelector('.wf-dual-tap[data-for="' + k + '"]');
-              if (b) b.classList.remove("on");
+              if (b) b.classList.remove("busy", "on");
             },
             off: function () {
               var any = document.querySelector(".wf-dual,.wf-dual-tap");
