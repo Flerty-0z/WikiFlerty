@@ -320,7 +320,7 @@ private fun PageHeader(title: String, onBack: () -> Unit, onClose: () -> Unit) {
     Column(Modifier.fillMaxWidth()) {
         Box(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 12.dp), contentAlignment = Alignment.Center) {
             Box(
-                Modifier.align(Alignment.CenterStart).size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Back, onClick = onBack).background(AppColors.Field),
+                Modifier.align(Alignment.CenterStart).size(38.dp).liveClick(CircleShape, sound = FeedbackSound.Back, onClick = onBack),
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Back, "Назад", tint = AppColors.Muted, modifier = Modifier.size(18.dp)) }
             HeaderLabel(title, Modifier.padding(horizontal = 46.dp))
@@ -346,13 +346,7 @@ fun ConfirmSheet(
 ) {
     AppSheet(onDismiss = onDismiss, title = title) {
         val close = sheetClose(onDismiss)
-        Row(
-            Modifier.fillMaxWidth().fieldSurface(appCorner(16)).padding(horizontal = 14.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.padding(top = 2.dp).size(18.dp))
-            Text(text, color = AppColors.Muted, fontSize = 14.sp, lineHeight = 20.sp)
-        }
+        HintNote(text, icon)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val shape = appCorner(12)
             Box(

@@ -187,16 +187,17 @@ fun SettingSlider(
 @Composable
 fun SettingSegmented(label: String?, options: List<String>, selected: Int, help: String? = null, onSelect: (Int) -> Unit) {
     var helpOpen by remember { mutableStateOf(false) }
-    Column(Modifier.padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.padding(vertical = 6.dp)) {
         if (label != null) {
             Row(Modifier.height(28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(label, color = AppColors.Muted, fontSize = 13.sp)
                 if (help != null) HelpFlag(helpOpen) { helpOpen = !helpOpen }
             }
         }
-        if (help != null) HelpReveal(helpOpen, help)
+        if (help != null) HelpReveal(helpOpen, help, top = 8.dp)
         Row(
             Modifier
+                .padding(top = if (label != null) 8.dp else 0.dp)
                 .fillMaxWidth()
                 .clip(appCorner(14))
                 .background(AppColors.Background.copy(alpha = 0.6f))
@@ -896,7 +897,7 @@ fun HelpFlag(open: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-fun HelpReveal(open: Boolean, text: String, icon: ImageVector = AppIcons.Info) {
+fun HelpReveal(open: Boolean, text: String, icon: ImageVector = AppIcons.Info, top: androidx.compose.ui.unit.Dp = 0.dp) {
     androidx.compose.animation.AnimatedVisibility(
         visible = open,
         enter = androidx.compose.animation.expandVertically(Motion.tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing), expandFrom = Alignment.Top) +
@@ -904,6 +905,6 @@ fun HelpReveal(open: Boolean, text: String, icon: ImageVector = AppIcons.Info) {
         exit = androidx.compose.animation.shrinkVertically(Motion.tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing), shrinkTowards = Alignment.Top) +
             androidx.compose.animation.fadeOut(Motion.tween(160)),
     ) {
-        HintNote(text, icon)
+        HintNote(text, icon, Modifier.padding(top = top))
     }
 }

@@ -78,6 +78,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 object SettingsNav {
+    val scrolls = HashMap<String, androidx.compose.foundation.ScrollState>()
+    var customList: androidx.compose.foundation.lazy.LazyListState? = null
     var open by mutableStateOf<String?>(null)
     var guideQuery by mutableStateOf("")
     var news by mutableStateOf(false)

@@ -891,7 +891,7 @@ private fun HeaderButton(icon: androidx.compose.ui.graphics.vector.ImageVector, 
         Modifier
             .size(44.dp)
             .liveClick(CircleShape, sound = sound, pressedScale = 0.88f, onClick = onClick)
-            .fieldSurface(CircleShape),
+            .then(if (icon == AppIcons.Back) Modifier else Modifier.fieldSurface(CircleShape)),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, description, tint = tint, modifier = Modifier.size(20.dp)) }
 }

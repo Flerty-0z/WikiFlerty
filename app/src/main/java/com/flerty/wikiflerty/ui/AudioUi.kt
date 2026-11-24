@@ -558,7 +558,7 @@ private fun FrameTool(icon: ImageVector, description: String, value: String?, ac
 @Composable
 private fun PanelHeader(title: String, onBack: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Box(Modifier.size(40.dp).liveClick(CircleShape, sound = FeedbackSound.Back, pressedScale = 0.88f, onClick = onBack).fieldSurface(CircleShape), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(40.dp).liveClick(CircleShape, sound = FeedbackSound.Back, pressedScale = 0.88f, onClick = onBack), contentAlignment = Alignment.Center) {
             Icon(AppIcons.Back, "Назад", tint = AppColors.Text, modifier = Modifier.size(18.dp))
         }
         Text(title, color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)

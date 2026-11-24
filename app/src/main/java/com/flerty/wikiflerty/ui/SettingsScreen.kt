@@ -124,10 +124,11 @@ fun SettingsScreen(modifier: Modifier = Modifier, onAbout: (() -> Unit)? = null)
             CustomizationContent { PageHeader(current.title) { page = null } }
             return@AnimatedContent
         }
+        val keep = SettingsNav.scrolls.getOrPut(current?.name ?: "home") { androidx.compose.foundation.ScrollState(0) }
         Column(
             Modifier
                 .fillMaxSize()
-                .revealScroll()
+                .revealScroll(keep = keep)
                 .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -356,8 +357,10 @@ private fun CustomizationContent(header: @Composable () -> Unit) {
         }
     }
 
+    val listState = SettingsNav.customList ?: androidx.compose.foundation.lazy.LazyListState().also { SettingsNav.customList = it }
     androidx.compose.foundation.lazy.LazyColumn(
         Modifier.fillMaxSize(),
+        state = listState,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
