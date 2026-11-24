@@ -576,11 +576,13 @@ fun ReaderOverlay(
             TtsMini(state.ttsPlaying) { state.ttsCollapsed = false }
         }
 
+        val askShown = state.askFinished && state.sheet == null && !state.panelsVisible && state.returnTo == null && state.footnote == null
+        val audioLift by androidx.compose.animation.core.animateDpAsState(if (askShown) maxOf(FlagBottom + 44.dp, flagSpace + 8.dp) + 60.dp else miniGap, Motion.tween(260), label = "audioLift")
         AnimatedVisibility(
             visible = state.audioLinked && !state.ttsActive && state.sheet == null && !state.panelsVisible,
             enter = fadeIn(Motion.fade(200)) + slideInHorizontally(Motion.tween(260)) { -it },
             exit = fadeOut(Motion.fade(160)) + slideOutHorizontally(Motion.tween(220)) { -it },
-            modifier = Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = miniGap),
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = audioLift),
         ) {
             AudioFollowPill(state.audioPlaying) { state.onAudioHere() }
         }
