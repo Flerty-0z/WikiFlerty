@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -873,30 +875,59 @@ private fun AudioSyncCard(book: Audiobook) {
     val states by app.audioSync.state.collectAsStateWithLifecycle()
     val st = states[book.id]
     val has = remember(st) { app.audioSync.has(book.id) }
+    val running = st != null && st.stage in setOf("model", "listen", "match")
+    val done = !running && st?.stage != "error" && has
+    val count = remember(has, st) { if (has) app.audioSync.points(book.id).size else 0 }
+    val coverage = remember(has, st) { if (has) (app.audioSync.coverage(book.id) * 100).toInt() else 0 }
+    val fill = when {
+        running && st?.stage == "match" -> 1f
+        running -> st?.progress ?: 0f
+        done -> 1f
+        else -> 0f
+    }
     val shape = appCorner(16)
     Column(
         Modifier.fillMaxWidth().fieldSurface(shape).animateContentSize(Motion.tween(260)).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            SettingIcon(AppIcons.Headphones)
-            Column(Modifier.weight(1f)) {
-                Text("Сопоставление с текстом", color = AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                val line = when (st?.stage) {
-                    "model" -> "Скачиваю распознавание речи · ${(st.progress * 100).toInt()}%"
-                    "listen" -> "Слушаю аудио · ${(st.progress * 100).toInt()}%"
-                    "match" -> "Ищу совпадения в тексте…"
-                    "error" -> st.message
-                    else -> if (has) "Готово · совпало ${(app.audioSync.coverage(book.id) * 100).toInt()}% слов" else "Ещё не сделано"
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(if (done) "Готово" else "Сопоставление", color = AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            androidx.compose.animation.AnimatedContent(
+                targetState = when {
+                    done -> "ok"
+                    running -> "run"
+                    else -> "idle"
+                },
+                transitionSpec = { androidx.compose.animation.fadeIn(Motion.fade(220)) togetherWith androidx.compose.animation.fadeOut(Motion.fade(140)) },
+                label = "sync-badge",
+            ) { mode ->
+                when (mode) {
+                    "ok" -> Text(
+                        "совпало $coverage%",
+                        color = AppColors.Good,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.background(AppColors.Good.copy(alpha = 0.14f), appCorner(8)).padding(horizontal = 8.dp, vertical = 3.dp),
+                    )
+                    "run" -> Text(if (st?.stage == "match") "" else "${((st?.progress ?: 0f) * 100).toInt()}%", color = AppColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    else -> Spacer(Modifier.size(1.dp))
                 }
-                Text(line, color = if (st?.stage == "error") AppColors.Accent else AppColors.Muted, fontSize = 12.sp)
             }
         }
-        val running = st != null && st.stage in setOf("model", "listen", "match")
+        SyncShelf(fill, pulse = running && st?.stage == "match")
+        val (icon, line) = when {
+            st?.stage == "model" -> AppIcons.Download to "скачиваю распознавание речи"
+            st?.stage == "listen" -> AppIcons.Headphones to "слушаю аудио"
+            st?.stage == "match" -> AppIcons.Search to "сверяю с текстом"
+            st?.stage == "error" -> AppIcons.Info to st.message
+            done -> AppIcons.Check to "$count ${countWord(count, "предложение", "предложения", "предложений")} с подсветкой"
+            else -> AppIcons.Link to "ещё не сделано"
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(icon, null, tint = if (st?.stage == "error") AppColors.Accent else if (done) AppColors.Good else AppColors.Accent, modifier = Modifier.size(14.dp))
+            Text(line, color = if (st?.stage == "error") AppColors.Accent else AppColors.Muted, fontSize = 12.sp)
+        }
         if (running) {
-            Box(Modifier.fillMaxWidth().height(5.dp).clip(CircleShape).background(AppColors.Accent.copy(alpha = 0.18f))) {
-                Box(Modifier.fillMaxWidth(if (st?.stage == "match") 1f else st?.progress?.coerceAtLeast(0.02f) ?: 0.02f).height(5.dp).background(AppColors.Accent, CircleShape))
-            }
             AppButton("Остановить", primary = false, modifier = Modifier.fillMaxWidth(), labeled = true, sound = FeedbackSound.Close) { app.audioSync.cancel(book.id) }
         } else {
             if (!has) {
@@ -911,5 +942,44 @@ private fun AudioSyncCard(book: Audiobook) {
                 app.audioSync.start(book.id)
             }
         }
+    }
+}
+
+private fun countWord(n: Int, one: String, few: String, many: String): String {
+    val m10 = n % 10
+    val m100 = n % 100
+    return when {
+        m10 == 1 && m100 != 11 -> one
+        m10 in 2..4 && m100 !in 12..14 -> few
+        else -> many
+    }
+}
+
+@Composable
+private fun SyncShelf(fill: Float, pulse: Boolean) {
+    val palette = spinePalette()
+    val total = 18
+    val shown by androidx.compose.animation.core.animateFloatAsState(fill, Motion.tween(420), label = "sync-fill")
+    val glow = androidx.compose.animation.core.rememberInfiniteTransition(label = "sync-glow")
+    val wave by glow.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1400), androidx.compose.animation.core.RepeatMode.Restart), label = "sync-wave")
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().height(58.dp).padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.Bottom) {
+            repeat(total) { i ->
+                val h = 0.5f + 0.5f * kotlin.math.abs(kotlin.math.sin(i * 1.9f))
+                val on = ((shown * total) - i).coerceIn(0f, 1f)
+                val lift = if (pulse) (1f - kotlin.math.abs(wave * total - i) / 3f).coerceIn(0f, 1f) else 0f
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight(h)
+                        .graphicsLayer {
+                            alpha = 0.15f + 0.85f * on
+                            translationY = -lift * 4.dp.toPx() + (1f - on) * 3.dp.toPx()
+                        }
+                        .background(palette[i % palette.size], RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp, bottomStart = 1.dp, bottomEnd = 1.dp)),
+                )
+            }
+        }
+        Plank(null, false, null)
     }
 }

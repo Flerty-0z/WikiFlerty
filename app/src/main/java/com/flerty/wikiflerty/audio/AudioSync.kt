@@ -32,7 +32,7 @@ import kotlin.coroutines.coroutineContext
 
 data class SyncState(val stage: String, val progress: Float = 0f, val message: String = "")
 
-data class SyncPoint(val locator: Locator, val ms: Long)
+data class SyncPoint(val locator: Locator, val ms: Long, val end: Long = Long.MAX_VALUE)
 
 object AsrModel {
     private const val BASE = "https://huggingface.co/alphacep/vosk-model-small-ru/resolve/main/"
@@ -125,14 +125,31 @@ object PcmDecoder {
             var pending = FloatArray(rate * chunkSeconds)
             var filled = 0
             var chunkStartUs = -1L
-            fun flush(): Boolean {
-                if (filled == 0) return true
-                val src = if (filled == pending.size) pending else pending.copyOf(filled)
-                val out = resample(src, rate)
+            fun emit(count: Int): Boolean {
+                if (count <= 0) return true
+                val out = resample(pending.copyOf(count), rate)
                 val keep = onChunk(out, (chunkStartUs / 1000).coerceAtLeast(0))
-                filled = 0
-                chunkStartUs = -1
+                System.arraycopy(pending, count, pending, 0, filled - count)
+                filled -= count
+                chunkStartUs += count * 1_000_000L / rate
                 return keep
+            }
+            fun quiet(): Int {
+                val win = (rate / 50).coerceAtLeast(1)
+                val from = (filled - rate * 3).coerceAtLeast(win)
+                var best = filled
+                var bestE = Double.MAX_VALUE
+                var i = from
+                while (i + win <= filled) {
+                    var e = 0.0
+                    for (k in i until i + win) e += pending[k] * pending[k]
+                    if (e < bestE) {
+                        bestE = e
+                        best = i + win / 2
+                    }
+                    i += win / 2
+                }
+                return best
             }
             loop@ while (true) {
                 if (!inputDone) {
@@ -172,17 +189,16 @@ object PcmDecoder {
                                 pending[filled++] = sum / channels
                                 f++
                                 if (filled == pending.size) {
-                                    if (!flush()) {
+                                    if (!emit(quiet())) {
                                         codec.releaseOutputBuffer(outIdx, false)
                                         break@loop
                                     }
-                                    chunkStartUs = info.presentationTimeUs + f * 1_000_000L / rate
                                 }
                             }
                         }
                         codec.releaseOutputBuffer(outIdx, false)
                         if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
-                            flush()
+                            emit(filled)
                             break@loop
                         }
                     }
@@ -213,42 +229,277 @@ object PcmDecoder {
 }
 
 object SyncAlign {
+    private const val GAP = -1
+    private const val MAX_CELLS = 2_000_000
+    private val splitter = Regex("[\\s\\p{Punct}«»—–…„“”]+")
+    private val stop = Regex("[.!?…]+[»\"”)]*\\s+(?=[«\"„(—–\\-\\p{Lu}\\d])")
+    private val abbr = Regex("(?:(?<![\\p{L}])\\p{Lu}\\.|(?<![\\p{L}])(?:г|гг|т|с|им|св|ст|см|др|пр|тов|ул|д)\\.)$")
+
     fun norm(w: String): String = w.lowercase().replace('ё', 'е').filter { it.isLetterOrDigit() }
 
-    fun words(text: String): List<String> = text.split(Regex("[\\s\\p{Punct}«»—–…]+")).map(::norm).filter { it.isNotEmpty() }
+    fun words(text: String): List<String> = text.split(splitter).map(::norm).filter { it.isNotEmpty() }
 
-    fun align(book: List<String>, rec: List<String>, recMs: LongArray): IntArray {
-        val map = IntArray(rec.size) { -1 }
-        if (book.size < 3 || rec.size < 3) return map
-        val index = HashMap<String, MutableList<Int>>()
-        for (i in 0 until book.size - 2) index.getOrPut(book[i] + " " + book[i + 1] + " " + book[i + 2]) { mutableListOf() }.add(i)
-        var last = -1
-        var j = 0
-        while (j < rec.size - 2) {
-            val key = rec[j] + " " + rec[j + 1] + " " + rec[j + 2]
-            val list = index[key]
-            var hit = -1
-            if (list != null) {
-                val limit = if (last < 0) Int.MAX_VALUE else last + 4000
-                for (i in list) if (i > last && i <= limit) { hit = i; break }
-                if (hit >= 0 && last < 0 && list.size > 3) hit = -1
+    fun sentences(text: String): List<IntRange> {
+        val out = ArrayList<IntRange>()
+        var start = 0
+        for (m in stop.findAll(text)) {
+            val head = text.substring(start, m.range.first + 1).trimEnd()
+            if (abbr.containsMatchIn(head)) continue
+            val end = m.range.last + 1
+            trimmed(text, start, end)?.let { out += it }
+            start = end
+        }
+        trimmed(text, start, text.length)?.let { out += it }
+        return out
+    }
+
+    private fun trimmed(text: String, from: Int, to: Int): IntRange? {
+        var a = from
+        var b = to
+        while (a < b && text[a].isWhitespace()) a++
+        while (b > a && text[b - 1].isWhitespace()) b--
+        return if (b > a) a until b else null
+    }
+
+    private fun prefix(a: String, b: String): Int {
+        val n = minOf(a.length, b.length)
+        var k = 0
+        while (k < n && a[k] == b[k]) k++
+        return k
+    }
+
+    private fun lev(a: String, b: String, cap: Int): Int {
+        if (kotlin.math.abs(a.length - b.length) > cap) return cap + 1
+        var prev = IntArray(b.length + 1) { it }
+        var cur = IntArray(b.length + 1)
+        for (i in 1..a.length) {
+            cur[0] = i
+            for (j in 1..b.length) {
+                cur[j] = minOf(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1)
             }
-            if (hit >= 0) {
-                map[j] = hit
-                map[j + 1] = hit + 1
-                map[j + 2] = hit + 2
-                last = hit + 2
-                j += 3
-                while (j < rec.size && last + 1 < book.size && rec[j] == book[last + 1]) {
-                    last++
-                    map[j] = last
-                    j++
+            val t = prev
+            prev = cur
+            cur = t
+        }
+        return prev[b.length]
+    }
+
+    fun sim(a: String, b: String): Int {
+        if (a == b) return 2
+        if (a.length >= 4 && b.length >= 4) {
+            val p = prefix(a, b)
+            if (p >= 4 || p >= minOf(a.length, b.length) - 1) return 1
+            val cap = maxOf(1, maxOf(a.length, b.length) / 4)
+            if (lev(a, b, cap) <= cap) return 1
+        }
+        return -1
+    }
+
+    private fun nw(book: List<String>, rec: List<String>, bFrom: Int, bTo: Int, rFrom: Int, rTo: Int, reversed: Boolean, freeEnd: Boolean, out: IntArray) {
+        val n = bTo - bFrom
+        val m = rTo - rFrom
+        if (n <= 0 || m <= 0 || n.toLong() * m > MAX_CELLS) return
+        fun bw(i: Int) = if (reversed) book[bTo - 1 - i] else book[bFrom + i]
+        fun rw(j: Int) = if (reversed) rec[rTo - 1 - j] else rec[rFrom + j]
+        val dir = ByteArray((n + 1) * (m + 1))
+        var prev = IntArray(m + 1) { GAP * it }
+        var cur = IntArray(m + 1)
+        val lastCol = IntArray(n + 1)
+        lastCol[0] = GAP * m
+        for (j in 1..m) dir[j] = 2
+        for (i in 1..n) {
+            cur[0] = GAP * i
+            dir[i * (m + 1)] = 1
+            val b = bw(i - 1)
+            for (j in 1..m) {
+                val d = prev[j - 1] + sim(b, rw(j - 1))
+                val u = prev[j] + GAP
+                val l = cur[j - 1] + GAP
+                val k = i * (m + 1) + j
+                if (d >= u && d >= l) {
+                    cur[j] = d
+                    dir[k] = 0
+                } else if (u >= l) {
+                    cur[j] = u
+                    dir[k] = 1
+                } else {
+                    cur[j] = l
+                    dir[k] = 2
                 }
-            } else {
-                j++
+            }
+            lastCol[i] = cur[m]
+            val t = prev
+            prev = cur
+            cur = t
+        }
+        var i = n
+        var j = m
+        if (freeEnd) {
+            var best = prev[m]
+            for (jj in 0..m) if (prev[jj] > best) { best = prev[jj]; i = n; j = jj }
+            for (ii in 0..n) if (lastCol[ii] > best) { best = lastCol[ii]; i = ii; j = m }
+        }
+        while (i > 0 && j > 0) {
+            when (dir[i * (m + 1) + j].toInt()) {
+                0 -> {
+                    if (sim(bw(i - 1), rw(j - 1)) > 0) {
+                        val bi = if (reversed) bTo - i else bFrom + i - 1
+                        val rj = if (reversed) rTo - j else rFrom + j - 1
+                        out[bi] = rj
+                    }
+                    i--
+                    j--
+                }
+                1 -> i--
+                else -> j--
             }
         }
-        return map
+    }
+
+    fun align(book: List<String>, rec: List<String>, check: () -> Unit = {}): IntArray {
+        val out = IntArray(book.size) { -1 }
+        if (book.size < 3 || rec.size < 3) return out
+        val index = HashMap<String, IntArray>()
+        val counts = HashMap<String, Int>()
+        for (i in 0 until book.size - 2) {
+            val key = book[i] + " " + book[i + 1] + " " + book[i + 2]
+            counts[key] = (counts[key] ?: 0) + 1
+        }
+        val fill = HashMap<String, Int>()
+        for (i in 0 until book.size - 2) {
+            val key = book[i] + " " + book[i + 1] + " " + book[i + 2]
+            val c = counts[key] ?: continue
+            if (c > 4) continue
+            val arr = index.getOrPut(key) { IntArray(c) }
+            val k = fill[key] ?: 0
+            arr[k] = i
+            fill[key] = k + 1
+        }
+        counts.clear()
+        fill.clear()
+        val pi = ArrayList<Int>()
+        val pj = ArrayList<Int>()
+        for (j in 0 until rec.size - 2) {
+            val arr = index[rec[j] + " " + rec[j + 1] + " " + rec[j + 2]] ?: continue
+            for (k in arr.indices.reversed()) {
+                pi += arr[k]
+                pj += j
+            }
+        }
+        index.clear()
+        check()
+        val tails = IntArray(pi.size)
+        val tailAt = IntArray(pi.size)
+        val back = IntArray(pi.size)
+        var len = 0
+        for (k in pi.indices) {
+            val v = pi[k]
+            var lo = 0
+            var hi = len
+            while (lo < hi) {
+                val mid = (lo + hi) ushr 1
+                if (tails[mid] < v) lo = mid + 1 else hi = mid
+            }
+            tails[lo] = v
+            tailAt[lo] = k
+            back[k] = if (lo > 0) tailAt[lo - 1] else -1
+            if (lo == len) len++
+        }
+        val chain = ArrayList<Int>()
+        var k = if (len > 0) tailAt[len - 1] else -1
+        while (k >= 0) {
+            chain += k
+            k = back[k]
+        }
+        chain.reverse()
+        var lastI = -1
+        var lastJ = -1
+        for (c in chain) {
+            for (d in 0 until 3) {
+                val i = pi[c] + d
+                val j = pj[c] + d
+                if (i > lastI && j > lastJ && i < book.size && j < rec.size) {
+                    out[i] = j
+                    lastI = i
+                    lastJ = j
+                }
+            }
+        }
+        check()
+        var pb = -1
+        var pr = -1
+        var steps = 0
+        for (i in 0..book.size) {
+            val j = if (i == book.size) rec.size else out[i]
+            if (i < book.size && j < 0) continue
+            if (i - pb > 1 && j - pr > 1) {
+                if (pb < 0) nw(book, rec, 0, i, 0, j, reversed = true, freeEnd = true, out = out)
+                else nw(book, rec, pb + 1, i, pr + 1, j, reversed = false, freeEnd = i == book.size, out = out)
+            }
+            pb = i
+            pr = j
+            if (++steps % 2000 == 0) check()
+        }
+        return out
+    }
+
+    class Timing(val start: LongArray, val end: LongArray)
+
+    fun timing(owner: IntArray, sentenceWords: IntArray, match: IntArray, recMs: LongArray, lead: Long = 50): Timing {
+        val ns = sentenceWords.size
+        val first = IntArray(ns) { -1 }
+        val firstK = IntArray(ns)
+        val last = IntArray(ns) { -1 }
+        val cnt = IntArray(ns)
+        val pos = IntArray(ns)
+        for (bi in owner.indices) {
+            val si = owner[bi]
+            val k = pos[si]++
+            val j = match[bi]
+            if (j < 0) continue
+            cnt[si]++
+            if (first[si] < 0) {
+                first[si] = j
+                firstK[si] = k
+            }
+            last[si] = j
+        }
+        val start = LongArray(ns) { -1 }
+        val end = LongArray(ns) { -1 }
+        var lastStart = -1L
+        for (si in 0 until ns) {
+            if (first[si] < 0) continue
+            val total = sentenceWords[si]
+            val need = if (total <= 2) 1 else maxOf(2, kotlin.math.ceil(0.3 * total).toInt())
+            if (cnt[si] < need) continue
+            val s = (recMs[first[si]] - 300L * firstK[si] - lead).coerceAtLeast(0)
+            if (s <= lastStart) continue
+            val jl = last[si]
+            val e = if (jl + 1 < recMs.size && recMs[jl + 1] - recMs[jl] < 1200) recMs[jl + 1] else recMs[jl] + 500
+            start[si] = s
+            end[si] = maxOf(e, s + 300)
+            lastStart = s
+        }
+        var prev = -1
+        for (si in 0 until ns) {
+            if (start[si] < 0) continue
+            if (prev >= 0 && si - prev > 1) {
+                var words = 0
+                for (k in prev + 1 until si) words += sentenceWords[k]
+                val gap = start[si] - end[prev]
+                val maxRate = if (words <= 3) 2500 else 1200
+                if (words in 1..12 && gap >= 120L * words && gap <= maxRate.toLong() * words) {
+                    var acc = 0
+                    for (k in prev + 1 until si) {
+                        start[k] = end[prev] + gap * acc / words
+                        acc += sentenceWords[k]
+                        end[k] = end[prev] + gap * acc / words
+                    }
+                }
+            }
+            prev = si
+        }
+        return Timing(start, end)
     }
 }
 
@@ -286,26 +537,32 @@ class AudioSync(private val app: App) {
         cache[id]?.let { return it }
         val list = runCatching {
             val arr = JSONObject(mapFile(id).readText()).getJSONArray("points")
-            (0 until arr.length()).mapNotNull { i ->
+            val raw = (0 until arr.length()).mapNotNull { i ->
                 val o = arr.getJSONObject(i)
-                Locator.fromJSON(o.getJSONObject("l"))?.let { SyncPoint(it, o.getLong("ms")) }
+                Locator.fromJSON(o.getJSONObject("l"))?.let { SyncPoint(it, o.getLong("ms"), o.optLong("e", -1)) }
             }
+            raw.mapIndexed { i, p -> if (p.end >= 0) p else p.copy(end = raw.getOrNull(i + 1)?.ms ?: (p.ms + 15_000)) }
         }.getOrDefault(emptyList())
         cache[id] = list
         return list
     }
 
-    fun pointAt(id: String, globalMs: Long): SyncPoint? {
+    fun indexAt(id: String, globalMs: Long): Int {
         val list = points(id)
-        if (list.isEmpty()) return null
+        if (list.isEmpty() || list[0].ms > globalMs) return -1
         var lo = 0
         var hi = list.lastIndex
         while (lo < hi) {
             val mid = (lo + hi + 1) / 2
             if (list[mid].ms <= globalMs) lo = mid else hi = mid - 1
         }
-        return list[lo].takeIf { it.ms <= globalMs + 500 }
+        val p = list[lo]
+        val next = list.getOrNull(lo + 1)?.ms ?: Long.MAX_VALUE
+        val hold = minOf(next, p.end + 2_500)
+        return if (globalMs < maxOf(p.end, hold)) lo else -1
     }
+
+    fun pointAt(id: String, globalMs: Long): SyncPoint? = indexAt(id, globalMs).takeIf { it >= 0 }?.let { points(id)[it] }
 
     fun msFor(id: String, at: Locator): Long? {
         val list = points(id)
@@ -336,8 +593,8 @@ class AudioSync(private val app: App) {
             if (best >= 0) {
                 val p = list[best]
                 val total = SyncAlign.words(p.locator.text.highlight.orEmpty()).size.coerceAtLeast(1)
-                val next = list.getOrNull(best + 1)?.ms ?: return p.ms
-                return p.ms + (next - p.ms) * bestAt / total
+                val stop = minOf(p.end, list.getOrNull(best + 1)?.ms ?: p.end)
+                return p.ms + (stop - p.ms).coerceAtLeast(0) * bestAt / total
             }
             size = if (size > 3) 3 else size - 1
         }
@@ -453,67 +710,55 @@ class AudioSync(private val app: App) {
     }
 
     @OptIn(org.readium.r2.shared.ExperimentalReadiumApi::class)
+    @OptIn(org.readium.r2.shared.ExperimentalReadiumApi::class)
     private suspend fun buildMap(id: String, publication: org.readium.r2.shared.publication.Publication, heard: List<Pair<String, Long>>) {
         val content = publication.findService(ContentService::class)?.content(null) ?: throw IllegalStateException("В книге не нашёлся текст")
         val iterator = content.iterator()
         val words = ArrayList<String>()
         val owners = ArrayList<Int>()
+        val counts = ArrayList<Int>()
         val locators = ArrayList<Locator>()
         var guard = 0
         while (iterator.hasNext() && guard < 400_000) {
             guard++
+            if (guard % 500 == 0) coroutineContext.ensureActive()
             val el = iterator.next() as? Content.TextualElement ?: continue
-            val parts = SyncAlign.words(el.text.orEmpty())
-            if (parts.isEmpty()) continue
-            val owner = locators.size
-            locators += el.locator
-            for (w in parts) {
-                words += w
-                owners += owner
+            val text = el.text.orEmpty()
+            if (text.isBlank()) continue
+            for (r in SyncAlign.sentences(text)) {
+                val parts = SyncAlign.words(text.substring(r.first, r.last + 1))
+                if (parts.isEmpty()) continue
+                val owner = locators.size
+                locators += el.locator.copy(
+                    text = Locator.Text(
+                        before = text.substring(maxOf(0, r.first - 60), r.first).takeIf { it.isNotEmpty() },
+                        highlight = text.substring(r.first, r.last + 1),
+                        after = text.substring(r.last + 1, minOf(text.length, r.last + 61)).takeIf { it.isNotEmpty() },
+                    ),
+                )
+                counts += parts.size
+                for (w in parts) {
+                    words += w
+                    owners += owner
+                }
             }
         }
         val rec = heard.map { SyncAlign.norm(it.first) }
         val recMs = LongArray(heard.size) { heard[it].second }
-        val match = SyncAlign.align(words, rec, recMs)
-        val firstMs = LongArray(locators.size) { -1L }
-        var matched = 0
-        match.forEachIndexed { j, i ->
-            if (i < 0) return@forEachIndexed
-            matched++
-            val o = owners[i]
-            if (firstMs[o] < 0 || recMs[j] < firstMs[o]) firstMs[o] = recMs[j]
-        }
-        val counts = IntArray(locators.size)
-        owners.forEach { counts[it]++ }
-        val before = LongArray(locators.size + 1)
-        for (o in locators.indices) before[o + 1] = before[o] + counts[o]
-        val kept = ArrayList<Int>()
-        var lastMs = -1L
-        firstMs.forEachIndexed { o, ms ->
-            if (ms < 0 || ms <= lastMs) return@forEachIndexed
-            lastMs = ms
-            kept += o
-        }
+        val job = coroutineContext[Job]
+        val match = SyncAlign.align(words, rec) { if (job?.isActive == false) throw CancellationException() }
+        val matched = match.count { it >= 0 }
+        val timing = SyncAlign.timing(owners.toIntArray(), counts.toIntArray(), match, recMs)
         val out = JSONArray()
-        kept.forEachIndexed { k, o ->
-            out.put(JSONObject().put("l", locators[o].toJSON()).put("ms", firstMs[o]))
-            val next = kept.getOrNull(k + 1) ?: return@forEachIndexed
-            val gap = next - o - 1
-            if (gap <= 0 || gap > 40) return@forEachIndexed
-            val span = (before[next] - before[o]).coerceAtLeast(1)
-            val dt = firstMs[next] - firstMs[o]
-            var prev = firstMs[o]
-            for (g in o + 1 until next) {
-                val ms = firstMs[o] + dt * (before[g] - before[o]) / span
-                if (ms <= prev || ms >= firstMs[next]) continue
-                prev = ms
-                out.put(JSONObject().put("l", locators[g].toJSON()).put("ms", ms).put("g", 1))
-            }
+        for (si in locators.indices) {
+            val st = timing.start[si]
+            if (st < 0) continue
+            out.put(JSONObject().put("l", locators[si].toJSON()).put("ms", st).put("e", timing.end[si]))
         }
         val coverage = if (rec.isEmpty()) 0f else matched.toFloat() / rec.size
         if (out.length() == 0) throw IllegalStateException("Текст не совпал с аудио. Проверь, что выбрана та же книга")
         val tmp = File(mapFile(id).path + ".tmp")
-        tmp.writeText(JSONObject().put("coverage", coverage.toDouble()).put("points", out).toString())
+        tmp.writeText(JSONObject().put("v", 2).put("coverage", coverage.toDouble()).put("points", out).toString())
         tmp.renameTo(mapFile(id))
         cache.remove(id)
     }

@@ -2560,7 +2560,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     val now = app.audio.state.value
                     val global = ab.offsetOf(now.track) + app.audio.positionNow()
                     val points = app.audioSync.points(ab.id)
-                    val point = app.audioSync.pointAt(ab.id, global)
+                    val idx = app.audioSync.indexAt(ab.id, global)
+                    val point = points.getOrNull(idx)
                     val loc = point?.locator
                     val fresh = loc != lastAudioMark
                     if (fresh) {
@@ -2573,9 +2574,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     val clock = android.os.SystemClock.uptimeMillis()
                     if (loc != null && point != null && s.playing && settings.ttsFollow && !turning && ui.selection == null && clock - manualTurnAt > 4000 && (fresh || clock >= checkAt)) {
                         checkAt = clock + 900
-                        val idx = points.indexOf(point)
-                        val next = points.getOrNull(idx + 1)?.ms ?: (point.ms + 10_000)
-                        val f = ((global - point.ms).toFloat() / (next - point.ms).coerceAtLeast(1)).coerceIn(0f, 0.999f)
+                        val stop = minOf(point.end, points.getOrNull(idx + 1)?.ms ?: point.end)
+                        val f = ((global - point.ms).toFloat() / (stop - point.ms).coerceAtLeast(1)).coerceIn(0f, 0.999f)
                         if (fresh) delay(120)
                         val out = runCatching { navigator.evaluateJavascript(AUDIO_OUT_JS.replace("__F__", "%.3f".format(java.util.Locale.US, f))) }.getOrNull().orEmpty()
                         if (out.contains("out")) {
@@ -2584,7 +2584,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         }
                     }
                     if (!s.playing) break
-                    delay(250)
+                    delay(150)
                 }
             }
     }
