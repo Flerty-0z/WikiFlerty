@@ -163,7 +163,7 @@ class App : Application() {
             if (!crashLog.autoSend) return@launch
             for (file in crashLog.unsent()) {
                 val text = runCatching { file.readText() }.getOrNull() ?: continue
-                if (account.sendCrash(crashLog.device(), crashLog.appVersion(), text)) crashLog.markSent(file) else break
+                if (account.sendCrash(crashLog.device(), Regex("Версия: ([0-9.]+)").find(text)?.groupValues?.get(1) ?: crashLog.appVersion(), text)) crashLog.markSent(file) else break
             }
         }
         com.flerty.wikiflerty.sync.Extras.watch(this) { sync.settingsChanged() }
