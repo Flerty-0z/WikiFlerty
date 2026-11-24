@@ -5,26 +5,25 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Sizes
+      - name: ASR check
         run: |
-          for u in \
-            https://alphacephei.com/vosk/models/vosk-model-tts-ru-0.9-multi.zip \
-            https://alphacephei.com/vosk/models/vosk-model-tts-ru-0.8-multi.zip \
-            https://alphacephei.com/vosk/models/vosk-model-tts-ru-0.7-multi.zip \
-            https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip \
-            https://huggingface.co/da1353/kokoro-ru/resolve/main/onnx/model_quantized.onnx \
-            https://huggingface.co/da1353/kokoro-ru/resolve/main/onnx/model_dima_quantized.onnx \
-            https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-t-one-russian-2025-09-08.tar.bz2 \
-            https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-ctc-giga-am-v2-russian-2025-04-19.tar.bz2 \
-            ; do
-            s=$(curl -sIL "$u" | grep -i '^content-length' | tail -1 | tr -d '\r' | awk '{print $2}')
-            echo "$u $((s/1048576)) MB"
-          done
-      - name: Vosk contents
-        run: |
-          curl -sL -o v.zip https://alphacephei.com/vosk/models/vosk-model-tts-ru-0.9-multi.zip || true
-          unzip -l v.zip | sort -k1 -n | tail -25 || true
-      - name: Kokoro repo files
-        run: |
-          curl -s https://huggingface.co/api/models/da1353/kokoro-ru/tree/main/onnx | python3 -c "import json,sys;[print(f['path'],f.get('size',0)//1048576,'MB') for f in json.load(sys.stdin)]" || true
-          curl -s https://huggingface.co/api/models/da1353/kokoro-ru/tree/main | python3 -c "import json,sys;[print(f['path'],f.get('size',0)//1024,'KB') for f in json.load(sys.stdin)]" || true
+          curl -s https://huggingface.co/api/models/alphacep/vosk-model-small-ru/tree/main | python3 -c "import json,sys;[print(f['path'],f.get('size',0)) for f in json.load(sys.stdin)]"
+          for d in am lang; do curl -s https://huggingface.co/api/models/alphacep/vosk-model-small-ru/tree/main/$d | python3 -c "import json,sys;[print(f['path'],f.get('size',0)) for f in json.load(sys.stdin)]"; done
+          pip install -q sherpa-onnx soundfile numpy 2>&1 | tail -1
+          sudo apt-get install -y -qq espeak-ng >/dev/null 2>&1
+          mkdir m && cd m
+          for f in am/encoder.int8.onnx am/decoder.onnx am/joiner.onnx lang/tokens.txt; do curl -sL -o $(basename $f) https://huggingface.co/alphacep/vosk-model-small-ru/resolve/main/$f; done
+          ls -la
+          espeak-ng -v ru -s 150 -w t.wav "Капитанская дочка. Береги честь смолоду. Отец мой Андрей Петрович Гринёв в молодости своей служил при графе Минихе и вышел в отставку премьер-майором."
+          python3 - <<'PY'
+          import sherpa_onnx, soundfile as sf, numpy as np, time
+          r = sherpa_onnx.OfflineRecognizer.from_transducer(encoder="encoder.int8.onnx", decoder="decoder.onnx", joiner="joiner.onnx", tokens="tokens.txt", num_threads=2)
+          a, sr = sf.read("t.wav", dtype="float32")
+          if sr != 16000:
+              import numpy as np
+              n = int(len(a) * 16000 / sr); a = np.interp(np.linspace(0, len(a) - 1, n), np.arange(len(a)), a).astype("float32"); sr = 16000
+          t = time.time(); s = r.create_stream(); s.accept_waveform(sr, a); r.decode_stream(s); dt = time.time() - t
+          print("audio", round(len(a) / sr, 1), "s decode", round(dt, 2), "s")
+          print(s.result.text)
+          print(list(zip(s.result.tokens, [round(x, 2) for x in s.result.timestamps]))[:40])
+          PY
