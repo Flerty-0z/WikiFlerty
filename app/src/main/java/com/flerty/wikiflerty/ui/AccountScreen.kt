@@ -273,7 +273,7 @@ private fun SignedIn(account: Account, state: Account.State) {
                 Text(line.orEmpty(), color = if (state.working != null) AppColors.Muted else AppColors.Bad, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         }
-        if (state.payOn) {
+        if (state.payOn || state.shopOn) {
             AppButton(if (state.until > 0) "Продлить полку" else "Расширить полку", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true, sound = FeedbackSound.Sheet) { buying = true }
         }
     }
@@ -559,6 +559,10 @@ private fun PlanSheet(account: Account, state: Account.State, onDismiss: () -> U
                 }
             }
             val price = offers.first { it.id == picked }.price
+            if (!state.payOn) {
+                LockedPay(price) { Toast.makeText(context, "Оплата откроется совсем скоро", Toast.LENGTH_SHORT).show() }
+                return@Column
+            }
             AppButton(if (busy) "Подожди…" else "Оплатить $price ₽", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true, sound = FeedbackSound.Pay) {
                 if (busy) return@AppButton
                 busy = true
@@ -575,6 +579,25 @@ private fun PlanSheet(account: Account, state: Account.State, onDismiss: () -> U
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun LockedPay(price: Int, onClick: () -> Unit) {
+    val shape = appCorner(12)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .liveClick(shape, sound = FeedbackSound.Deny, pressedScale = 0.98f, onClick = onClick)
+            .background(AppColors.Accent.copy(alpha = 0.12f), shape)
+            .border(1.dp, AppColors.Accent.copy(alpha = 0.35f), shape)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+    ) {
+        Icon(AppIcons.Lock, "Оплата пока закрыта", tint = AppColors.Accent.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
+        Text("Оплатить $price ₽", color = AppColors.Accent.copy(alpha = 0.8f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 

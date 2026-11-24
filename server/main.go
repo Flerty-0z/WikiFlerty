@@ -272,7 +272,7 @@ func (a *App) view(u *User) map[string]any {
 	}
 	return map[string]any{
 		"login": u.Login, "used": u.Used(), "limit": u.Quota(now), "base": u.Limit, "plan": plan, "until": until,
-		"books": books, "maxFile": maxFile, "created": u.Created, "pay": a.kassa.ready(),
+		"books": books, "maxFile": maxFile, "created": u.Created, "pay": a.kassa.open(u.Login), "shop": a.kassa != nil && a.kassa.Login != "",
 	}
 }
 

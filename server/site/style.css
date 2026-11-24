@@ -42,6 +42,9 @@ p,li{color:var(--muted)}
 .btn2{background:transparent;color:var(--accent);border:1px solid var(--accent-line)}
 .btn.wide{width:100%}
 .btn[disabled]{opacity:.55;cursor:default}
+.btn .lk{display:none}
+.btn.locked .lk{display:block}
+.btn.locked .cd{display:none}
 .badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--accent-line);color:var(--accent);background:var(--accent-soft)}
 .badge svg{width:13px;height:13px}
 .shelfbox{display:flex;flex-direction:column;justify-content:flex-end;gap:14px;min-height:240px}

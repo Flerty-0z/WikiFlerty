@@ -91,6 +91,7 @@ jobs:
           ROBOKASSA_LOGIN=wikiflerty
           ROBOKASSA_HASH=sha256
           ROBOKASSA_TEST=1
+          PAY_TESTERS=flerty0z
           ROBOKASSA_PASS1=$RK1
           ROBOKASSA_PASS2=$RK2
           ROBOKASSA_TEST1=$RKT1

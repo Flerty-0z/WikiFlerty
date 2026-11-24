@@ -239,7 +239,7 @@ func TestPay(t *testing.T) {
 	defer fs.Close()
 	s3 := &S3{Host: strings.TrimPrefix(fs.URL, "https://"), Region: "ru-3", Access: "a", Secret: "b", Client: fs.Client()}
 	st, _ := NewStore(s3)
-	k := &Robokassa{Login: "wikiflerty", Test1: "t1", Test2: "t2", Hash: "sha256", Test: true}
+	k := &Robokassa{Login: "wikiflerty", Test1: "t1", Test2: "t2", Hash: "sha256", Test: true, Testers: map[string]bool{"payer": true}}
 	app := &App{presence: &Presence{seen: map[string]time.Time{}}, st: st, pending: map[string]map[string]*pendingUpload{}, limiter: &Limiter{hits: map[string][]time.Time{}, fails: map[string][]time.Time{}}, kassa: k}
 	srv := httptest.NewServer(http.HandlerFunc(app.route))
 	defer srv.Close()
@@ -313,5 +313,26 @@ func TestPay(t *testing.T) {
 	u.Until = time.Now().Add(-time.Minute).UnixMilli()
 	if _, me := c.call("/v1/me", map[string]any{}); me["limit"].(float64) != float64(freeLimit) || me["plan"] != "free" {
 		t.Fatal("expire", me)
+	}
+}
+
+func TestPayLocked(t *testing.T) {
+	fs := fakeS3()
+	defer fs.Close()
+	s3 := &S3{Host: strings.TrimPrefix(fs.URL, "https://"), Region: "ru-3", Access: "a", Secret: "b", Client: fs.Client()}
+	st, _ := NewStore(s3)
+	k := &Robokassa{Login: "wikiflerty", Test1: "t1", Test2: "t2", Hash: "sha256", Test: true, Testers: map[string]bool{"owner": true}}
+	app := &App{presence: &Presence{seen: map[string]time.Time{}}, st: st, pending: map[string]map[string]*pendingUpload{}, limiter: &Limiter{hits: map[string][]time.Time{}, fails: map[string][]time.Time{}}, kassa: k}
+	srv := httptest.NewServer(http.HandlerFunc(app.route))
+	defer srv.Close()
+	c := &client{t: t, srv: srv}
+	_, out := c.call("/v1/register", map[string]any{"login": "guest", "password": "secret123", "sync": "ABCDE-FGHJK-MNPQR"})
+	c.token = out["token"].(string)
+	_, out = c.call("/v1/me", map[string]any{})
+	if out["pay"] != false || out["shop"] != true {
+		t.Fatal("view", out["pay"], out["shop"])
+	}
+	if code, _ := c.call("/v1/pay/create", map[string]any{"plan": "plus"}); code != 503 {
+		t.Fatal("locked pay allowed", code)
 	}
 }

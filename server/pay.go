@@ -34,25 +34,44 @@ var plans = map[string]Plan{
 }
 
 type Robokassa struct {
-	Login string
-	Pass1 string
-	Pass2 string
-	Test1 string
-	Test2 string
-	Hash  string
-	Test  bool
+	Login   string
+	Pass1   string
+	Pass2   string
+	Test1   string
+	Test2   string
+	Hash    string
+	Test    bool
+	Testers map[string]bool
 }
 
 func robokassaFromEnv() *Robokassa {
 	return &Robokassa{
-		Login: os.Getenv("ROBOKASSA_LOGIN"),
-		Pass1: os.Getenv("ROBOKASSA_PASS1"),
-		Pass2: os.Getenv("ROBOKASSA_PASS2"),
-		Test1: os.Getenv("ROBOKASSA_TEST1"),
-		Test2: os.Getenv("ROBOKASSA_TEST2"),
-		Hash:  strings.ToLower(os.Getenv("ROBOKASSA_HASH")),
-		Test:  os.Getenv("ROBOKASSA_TEST") == "1",
+		Login:   os.Getenv("ROBOKASSA_LOGIN"),
+		Pass1:   os.Getenv("ROBOKASSA_PASS1"),
+		Pass2:   os.Getenv("ROBOKASSA_PASS2"),
+		Test1:   os.Getenv("ROBOKASSA_TEST1"),
+		Test2:   os.Getenv("ROBOKASSA_TEST2"),
+		Hash:    strings.ToLower(os.Getenv("ROBOKASSA_HASH")),
+		Test:    os.Getenv("ROBOKASSA_TEST") == "1",
+		Testers: testersFrom(os.Getenv("PAY_TESTERS")),
 	}
+}
+
+func testersFrom(s string) map[string]bool {
+	m := map[string]bool{}
+	for _, v := range strings.Split(s, ",") {
+		if v = strings.ToLower(strings.TrimSpace(v)); v != "" {
+			m[v] = true
+		}
+	}
+	return m
+}
+
+func (k *Robokassa) open(login string) bool {
+	if !k.ready() {
+		return false
+	}
+	return !k.Test || k.Testers[strings.ToLower(login)]
 }
 
 func (k *Robokassa) ready() bool {
@@ -177,8 +196,8 @@ func (a *App) payCreate(r *http.Request, u *User) (any, *apiError) {
 		return nil, fail(400, "bad_request", "Неизвестный тариф")
 	}
 	k := a.kassa
-	if !k.ready() {
-		return nil, fail(503, "pay_off", "Оплата пока не подключена, попробуй позже")
+	if !k.open(u.Login) {
+		return nil, fail(503, "pay_off", "Оплата откроется совсем скоро")
 	}
 	if !a.limiter.allow("pay:"+u.Login, 10, time.Hour) {
 		return nil, fail(429, "slow", "Слишком много попыток оплаты, попробуй через час")

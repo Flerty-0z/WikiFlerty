@@ -49,6 +49,7 @@ class Account(private val app: App) {
         val until: Long = 0,
         val base: Long = 0,
         val payOn: Boolean = false,
+        val shopOn: Boolean = false,
         val books: List<CloudBook> = emptyList(),
         val uploadBooks: Boolean = true,
         val autoDownload: Boolean = true,
@@ -103,6 +104,7 @@ class Account(private val app: App) {
             until = j.optLong("until"),
             base = j.optLong("base"),
             payOn = j.optBoolean("pay"),
+            shopOn = j.optBoolean("shop"),
             books = books,
             loaded = true,
         )
