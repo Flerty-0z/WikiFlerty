@@ -1,0 +1,19 @@
+{
+ "title": "Перетаскивание аудиокниг и появление при прокрутке",
+ "lenient": true,
+ "steps": [
+  {"do": "launch", "fresh": true, "ms": 2500},
+  {"do": "tap", "text": "Позже", "timeout": 1500, "optional": true},
+  {"do": "wait", "text": "Моя полка", "timeout": 10000, "after": 2000},
+  {"do": "dump", "text": "before"},
+  {"do": "drag", "text": "Аудиокнига «Тестовая", "desc": true, "x2": 0.06, "y2": 0.24, "ms": 1600, "after": 1500},
+  {"do": "dump", "text": "after-left"},
+  {"do": "drag", "text": "Аудиокнига «Тестовая", "desc": true, "x2": 0.4, "y2": 0.24, "ms": 1200, "after": 1500},
+  {"do": "dump", "text": "after-right"},
+  {"do": "tap", "text": "Настройки", "desc": true, "timeout": 4000, "after": 1500},
+  {"do": "swipe", "x": 0.5, "y": 0.8, "x2": 0.5, "y2": 0.3, "ms": 600, "after": 1200},
+  {"do": "swipe", "x": 0.5, "y": 0.3, "x2": 0.5, "y2": 0.85, "ms": 600, "after": 1200},
+  {"do": "swipe", "x": 0.5, "y": 0.8, "x2": 0.5, "y2": 0.3, "ms": 600, "after": 1200},
+  {"do": "swipe", "x": 0.5, "y": 0.3, "x2": 0.5, "y2": 0.85, "ms": 600, "after": 1500}
+ ]
+}
