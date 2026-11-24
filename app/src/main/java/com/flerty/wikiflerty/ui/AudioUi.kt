@@ -575,7 +575,7 @@ private fun AudioChapters(book: Audiobook, onBack: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (book.marks.isNotEmpty()) {
             Text("Закладки", color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
-            book.marks.forEach { m ->
+            Ribbon(book.marks, key = { "${it.track}:${it.ms}:${it.at}" }, preview = 5, maxHeight = 300.dp, spacing = 4.dp) { _, m ->
                 val at = book.offsetOf(m.track) + m.ms
                 val title = book.chapters.getOrNull(book.chapterAt(m.track, m.ms))?.title.orEmpty()
                 ChapterRow(AppIcons.Bookmark, title, audioTime(at), false) {

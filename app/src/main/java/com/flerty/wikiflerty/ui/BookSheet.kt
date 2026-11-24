@@ -1004,7 +1004,6 @@ fun ShelfDialogView(dialog: ShelfDialog, shelves: List<String>, onDismiss: () ->
 }
 
 
-private const val PICK_PAGE = 50
 
 @Composable
 internal fun BookPickList(
@@ -1017,7 +1016,6 @@ internal fun BookPickList(
     empty: String = "Сначала добавь книги",
 ) {
     var query by remember { mutableStateOf("") }
-    var limit by remember { androidx.compose.runtime.mutableIntStateOf(PICK_PAGE) }
     val first = remember { selected.toSet() }
     val sorted = remember(books) {
         books.sortedWith(
@@ -1030,33 +1028,14 @@ internal fun BookPickList(
         val q = query.trim().lowercase()
         if (q.isEmpty()) sorted else sorted.filter { it.title.lowercase().contains(q) || it.author.lowercase().contains(q) }
     }
-    LaunchedEffect(query) { limit = PICK_PAGE }
     if (books.size > 8) SearchField(query, { query = it }, Modifier.fillMaxWidth(), placeholder = "Название или автор")
     SettingsGroup("$title · ${selected.size}/${books.size}") {
         Column(Modifier.padding(vertical = 6.dp)) {
-            shown.take(limit).forEachIndexed { i, b ->
-                androidx.compose.runtime.key(b.id) {
-                    if (i > 0) ListDivider()
-                    BookPickRow(b, b.id in selected, note(b)) { onToggle(b) }
-                }
-            }
             if (shown.isEmpty()) {
                 Text(if (books.isEmpty()) empty else "Ничего не нашлось", color = AppColors.Faint, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
             }
-            if (shown.size > limit) {
-                ListDivider()
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .liveClick(appCorner(12), sound = FeedbackSound.Expand, pressedScale = 0.98f) { limit += PICK_PAGE * 2 }
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                ) {
-                    Icon(AppIcons.Chevron, null, tint = AppColors.Accent, modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = 90f })
-                    Text("Показать ещё · ${shown.size - limit}", color = AppColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                }
+            Ribbon(shown, key = { it.id }, preview = 6, maxHeight = 420.dp, divider = true) { _, b ->
+                BookPickRow(b, b.id in selected, note(b)) { onToggle(b) }
             }
         }
     }

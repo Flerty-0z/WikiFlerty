@@ -263,7 +263,6 @@ fun PaperMain(book: Book, onEdit: () -> Unit) {
     val pace = remember(all, book.positions) { app.paper.pace(book) }
     var form by remember { mutableStateOf<SessionForm?>(null) }
     var celebrate by remember { mutableStateOf(false) }
-    var showAll by remember { mutableStateOf(false) }
     val current = sessions.maxOfOrNull { it.toPage } ?: 0
     val mine = watch?.takeIf { it.bookId == book.id }
 
@@ -341,23 +340,11 @@ fun PaperMain(book: Book, onEdit: () -> Unit) {
         Column(Modifier.animateContentSize(Motion.tween(320)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             BookProgressBlock(current, total, fraction, grew, pace)
             AddSessionCard { form = SessionForm(null, current, current, System.currentTimeMillis(), 0L, fromStopwatch = false) }
-            val shown = if (showAll) sessions else sessions.take(6)
-            val groups = shown.groupBy { it.day }.toList()
-            groups.forEachIndexed { index, (day, list) ->
-                androidx.compose.runtime.key(day) {
-                    DayCard(day, list, total, Modifier.riseIn(day.toString(), index)) { s ->
-                        form = SessionForm(s, s.fromPage, s.toPage, s.startAt, s.durationMs, fromStopwatch = false)
-                    }
+            val groups = remember(sessions) { sessions.groupBy { it.day }.toList() }
+            Ribbon(groups, key = { it.first }, preview = 4, maxHeight = 420.dp, spacing = 12.dp) { index, (day, list) ->
+                DayCard(day, list, total, Modifier.riseIn(day.toString(), index)) { s ->
+                    form = SessionForm(s, s.fromPage, s.toPage, s.startAt, s.durationMs, fromStopwatch = false)
                 }
-            }
-            Appear(sessions.size > 6) {
-                Text(
-                    if (showAll) "Свернуть" else "Показать все · ${sessions.size}",
-                    color = AppColors.Accent,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.liveClick(appCorner(8), sound = FeedbackSound.Expand) { showAll = !showAll }.padding(vertical = 4.dp),
-                )
             }
         }
     }

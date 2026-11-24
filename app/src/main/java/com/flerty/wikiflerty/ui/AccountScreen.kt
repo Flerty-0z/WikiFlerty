@@ -309,20 +309,12 @@ private fun SignedIn(account: Account, state: Account.State) {
                     if (q.isEmpty()) state.books else state.books.filter { it.name.lowercase().contains(q) }
                 }
                 if (shown.isEmpty()) Text("Ничего не нашлось", color = AppColors.Faint, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp))
-                val listState = androidx.compose.foundation.lazy.rememberLazyListState()
-                val hold = remember(listState) { HoldScroll(listState) }
-                androidx.compose.foundation.lazy.LazyColumn(
-                    Modifier.fillMaxWidth().heightIn(max = 296.dp).nestedScroll(hold).fadingEdges(listState),
-                    state = listState,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(shown.size, key = { shown[it].fp }) { i ->
-                        CloudBookRow(shown[i], shown[i].fp in localFps, localIds[shown[i].fp], shown[i].fp in busyBooks, onDownload = { b ->
-                            scope.launch {
-                                account.downloadNow(b.fp).onSuccess { toast("Книга в библиотеке") }.onFailure { toast(it.message ?: "Не получилось скачать") }
-                            }
-                        }, onDrop = { dropping = it })
-                    }
+                Ribbon(shown, key = { it.fp }, preview = 5, maxHeight = 340.dp, spacing = 8.dp) { _, b ->
+                    CloudBookRow(b, b.fp in localFps, localIds[b.fp], b.fp in busyBooks, onDownload = { book ->
+                        scope.launch {
+                            account.downloadNow(book.fp).onSuccess { toast("Книга в библиотеке") }.onFailure { toast(it.message ?: "Не получилось скачать") }
+                        }
+                    }, onDrop = { dropping = it })
                 }
             }
             if (state.books.isEmpty()) {
@@ -484,25 +476,6 @@ private fun CloudBookRow(b: Account.CloudBook, here: Boolean, localId: String?, 
         ) { Icon(AppIcons.Trash, "Удалить из облака", tint = AppColors.Bad, modifier = Modifier.size(18.dp)) }
     }
 }
-
-private class HoldScroll(private val state: androidx.compose.foundation.lazy.LazyListState) : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
-    private val active get() = state.canScrollForward || state.canScrollBackward
-    override fun onPostScroll(consumed: androidx.compose.ui.geometry.Offset, available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset =
-        if (active) available.copy(x = 0f) else androidx.compose.ui.geometry.Offset.Zero
-    override suspend fun onPostFling(consumed: androidx.compose.ui.unit.Velocity, available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity =
-        if (active) available.copy(x = 0f) else androidx.compose.ui.unit.Velocity.Zero
-}
-
-private fun Modifier.fadingEdges(state: androidx.compose.foundation.lazy.LazyListState): Modifier = this
-    .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
-    .drawWithContent {
-        drawContent()
-        val edge = 22.dp.toPx()
-        val top = state.canScrollBackward
-        val bottom = state.canScrollForward
-        if (top) drawRect(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color.Transparent, androidx.compose.ui.graphics.Color.Black), 0f, edge), size = androidx.compose.ui.geometry.Size(size.width, edge), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
-        if (bottom) drawRect(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color.Black, androidx.compose.ui.graphics.Color.Transparent), size.height - edge, size.height), topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - edge), size = androidx.compose.ui.geometry.Size(size.width, edge), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
-    }
 
 private class Offer(val id: String, val title: String, val size: String, val price: Int, val hint: String, val shelves: Int)
 
