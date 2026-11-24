@@ -38,4 +38,14 @@ fi
 rm -f $A/library/03.epub $A/library/06.epub $A/library/08.epub
 python3 tools/studio/litres_like.py $A/library/01.epub $A/library/11.epub || true
 cp tools/studio/scenarios/*.json $A/scenarios/
+mkdir -p $A/audio
+if command -v espeak-ng >/dev/null 2>&1 || sudo apt-get install -y -qq espeak-ng ffmpeg >/dev/null 2>&1; then
+  i=1
+  for t in "Глава первая. Мой дядя самых честных правил, когда не в шутку занемог, он уважать себя заставил и лучше выдумать не мог." "Глава вторая. Деревня, где скучал Евгений, была прелестный уголок. Там друг невинных наслаждений благословить бы небо мог." "Глава третья. Она была девушка, она была влюблена. Пора пришла, она влюбилась. Так в землю падшее зерно весны огнём оживлено."; do
+    espeak-ng -v ru -s 150 -w a.wav "$t $t $t" && ffmpeg -v error -y -i a.wav -metadata album="Тестовая аудиокнига" -metadata artist="WikiFlerty" -metadata title="Глава $i" -b:a 64k "$A/audio/0$i.mp3" || true
+    i=$((i+1))
+  done
+  rm -f a.wav
+fi
+ls -la $A/audio || true
 ls -la $A/library $A/files $A/scenarios

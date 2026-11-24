@@ -35,6 +35,18 @@ object Studio {
             if (result.isSuccess) books++
             f.delete()
         }
+        runCatching {
+            val names = context.assets.list("studio/audio")?.sorted().orEmpty()
+            if (names.isNotEmpty() && app.audiobooks.books.value.isEmpty()) {
+                val adir = File(context.filesDir, "studio-audio").apply { mkdirs() }
+                val uris = names.map { name ->
+                    val f = File(adir, name)
+                    context.assets.open("studio/audio/$name").use { input -> f.outputStream().use { input.copyTo(it) } }
+                    Uri.fromFile(f)
+                }
+                app.audiobooks.importFiles(uris, "Тестовая аудиокнига")
+            }
+        }.onFailure { android.util.Log.w(StudioDriver.TAG, "audio seed failed", it) }
         runCatching { seed(app) }.onFailure { android.util.Log.w(StudioDriver.TAG, "seed failed", it) }
         quiet(context)
         books to files

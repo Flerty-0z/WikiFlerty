@@ -1,0 +1,142 @@
+{
+ "title": "Плеер аудиокниг",
+ "lenient": true,
+ "steps": [
+  {
+   "do": "launch",
+   "fresh": true,
+   "ms": 2500
+  },
+  {
+   "do": "wait",
+   "text": "Моя полка",
+   "timeout": 10000,
+   "after": 1500
+  },
+  {
+   "do": "tap",
+   "text": "Позже",
+   "timeout": 1500,
+   "optional": true
+  },
+  {
+   "do": "wait",
+   "text": "Аудиокниги",
+   "timeout": 6000,
+   "after": 800
+  },
+  {
+   "do": "tap",
+   "text": "Тестовая аудиокнига",
+   "timeout": 5000,
+   "after": 2000
+  },
+  {
+   "do": "tap",
+   "text": "Слушать",
+   "desc": true,
+   "timeout": 4000,
+   "after": 5000
+  },
+  {
+   "do": "tap",
+   "text": "Вперёд на 30 секунд",
+   "desc": true,
+   "timeout": 3000,
+   "after": 2500,
+   "optional": true
+  },
+  {
+   "do": "tap",
+   "text": "Следующая глава",
+   "desc": true,
+   "timeout": 3000,
+   "after": 3000,
+   "optional": true
+  },
+  {
+   "do": "tap",
+   "text": "Скорость",
+   "desc": true,
+   "timeout": 3000,
+   "after": 1500,
+   "optional": true
+  },
+  {
+   "do": "tap",
+   "text": "1,5×",
+   "timeout": 3000,
+   "after": 1500,
+   "optional": true
+  },
+  {
+   "do": "tap",
+   "text": "Таймер сна",
+   "desc": true,
+   "timeout": 3000,
+   "after": 1500,
+   "optional": true
+  },
+  {
+   "do": "tap",
+   "text": "15 минут",
+   "timeout": 3000,
+   "after": 1500,
+   "optional": true
+  },
+  {
+   "do": "tap",
+   "text": "Главы",
+   "desc": true,
+   "timeout": 3000,
+   "after": 1800,
+   "optional": true
+  },
+  {
+   "do": "tap",
+   "text": "Глава 1",
+   "timeout": 3000,
+   "after": 3000,
+   "optional": true
+  },
+  {
+   "do": "tap",
+   "text": "Закладка",
+   "desc": true,
+   "timeout": 3000,
+   "after": 1500,
+   "optional": true
+  },
+  {
+   "do": "back",
+   "after": 1800
+  },
+  {
+   "do": "wait",
+   "text": "Тестовая аудиокнига",
+   "timeout": 4000,
+   "after": 3000,
+   "optional": true
+  },
+  {
+   "do": "tap",
+   "text": "Пауза",
+   "desc": true,
+   "timeout": 3000,
+   "after": 1500,
+   "optional": true
+  },
+  {
+   "do": "tap",
+   "text": "Закрыть плеер",
+   "desc": true,
+   "timeout": 3000,
+   "after": 1500,
+   "optional": true
+  },
+  {
+   "do": "pause",
+   "ms": 1500
+  }
+ ]
+}
