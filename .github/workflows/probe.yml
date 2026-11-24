@@ -12,13 +12,13 @@ jobs:
           pip install -q sherpa-onnx soundfile numpy 2>&1 | tail -1
           sudo apt-get install -y -qq espeak-ng >/dev/null 2>&1
           mkdir m && cd m
-          for f in am/encoder.int8.onnx am/decoder.onnx am/joiner.onnx lang/tokens.txt; do curl -sL -o $(basename $f) https://huggingface.co/alphacep/vosk-model-small-ru/resolve/main/$f; done
+          for f in test.wav am/encoder.int8.onnx am/decoder.onnx am/joiner.onnx lang/tokens.txt; do curl -sL -o $(basename $f) https://huggingface.co/alphacep/vosk-model-small-ru/resolve/main/$f; done
           ls -la
           espeak-ng -v ru -s 150 -w t.wav "Капитанская дочка. Береги честь смолоду. Отец мой Андрей Петрович Гринёв в молодости своей служил при графе Минихе и вышел в отставку премьер-майором."
           python3 - <<'PY'
           import sherpa_onnx, soundfile as sf, numpy as np, time
           r = sherpa_onnx.OfflineRecognizer.from_transducer(encoder="encoder.int8.onnx", decoder="decoder.onnx", joiner="joiner.onnx", tokens="tokens.txt", num_threads=2)
-          a, sr = sf.read("t.wav", dtype="float32")
+          a, sr = sf.read("test.wav", dtype="float32")
           if sr != 16000:
               import numpy as np
               n = int(len(a) * 16000 / sr); a = np.interp(np.linspace(0, len(a) - 1, n), np.arange(len(a)), a).astype("float32"); sr = 16000
