@@ -46,6 +46,18 @@ object Studio {
                 }
                 app.audiobooks.importFiles(uris, "Тестовая аудиокнига")
             }
+            val names2 = context.assets.list("studio/audio2")?.sorted().orEmpty()
+            if (names2.isNotEmpty() && app.audiobooks.books.value.none { it.title.startsWith("Золото") }) {
+                val adir = File(context.filesDir, "studio-audio2").apply { mkdirs() }
+                val uris = names2.map { name ->
+                    val f = File(adir, name)
+                    context.assets.open("studio/audio2/$name").use { input -> f.outputStream().use { input.copyTo(it) } }
+                    Uri.fromFile(f)
+                }
+                app.audiobooks.importFiles(uris, "Золото")?.let { ab ->
+                    app.library.books.value.firstOrNull { it.title.startsWith("Золото") }?.let { tb -> app.audiobooks.update(ab.id) { it.copy(bookId = tb.id) } }
+                }
+            }
         }.onFailure { android.util.Log.w(StudioDriver.TAG, "audio seed failed", it) }
         runCatching { seed(app) }.onFailure { android.util.Log.w(StudioDriver.TAG, "seed failed", it) }
         quiet(context)
