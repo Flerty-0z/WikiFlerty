@@ -42,6 +42,8 @@ import androidx.compose.ui.zIndex
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -414,25 +416,29 @@ private fun AudioMain(book: Audiobook, open: (AudioPanel) -> Unit) {
         ChapterSpines(book, ch) { app.audio.chapter(it) }
         val length = (end - start).coerceAtLeast(1)
         val shown = drag ?: ((global - start).toFloat() / length).coerceIn(0f, 1f)
-        KitSlider(
+        WaveSeek(
             value = shown,
-            onValueChange = { drag = it },
-            onValueChangeFinished = {
+            seed = book.id.hashCode() * 31 + ch,
+            onDrag = { drag = it },
+            onDone = {
                 drag?.let { app.audio.seekGlobal(start + (it * length).toLong()) }
                 drag = null
             },
-            modifier = Modifier.fillMaxWidth(),
         )
-        Row(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(top = 0.dp)) {
             Text(audioTime((shown * length).toLong()), color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.weight(1f))
             Text("-" + audioTime(((1f - shown) * length).toLong()), color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            RoundTool(AppIcons.SkipPrev, "Предыдущая глава", FeedbackSound.SkipBack) { app.audio.prevChapter() }
-            RoundTool(AppIcons.Rewind, "Назад на 15 секунд", FeedbackSound.SkipBack, label = "15") { app.audio.skip(-15_000) }
-            PlayButton(state.playing, 72.dp) { app.audio.toggle() }
-            RoundTool(AppIcons.FastForward, "Вперёд на 30 секунд", FeedbackSound.SkipNext, label = "30") { app.audio.skip(30_000) }
-            RoundTool(AppIcons.SkipNext, "Следующая глава", FeedbackSound.SkipNext) { app.audio.nextChapter() }
+        Row(
+            Modifier.fillMaxWidth().fieldSurface(RoundedCornerShape(40.dp)).padding(6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            RoundTool(AppIcons.SkipPrev, "Предыдущая глава", FeedbackSound.SkipBack, size = 44.dp) { app.audio.prevChapter() }
+            RoundTool(AppIcons.Rewind, "Назад на 15 секунд", FeedbackSound.SkipBack, label = "15", size = 48.dp) { app.audio.skip(-15_000) }
+            PlayButton(state.playing, 64.dp) { app.audio.toggle() }
+            RoundTool(AppIcons.FastForward, "Вперёд на 30 секунд", FeedbackSound.SkipNext, label = "30", size = 48.dp) { app.audio.skip(30_000) }
+            RoundTool(AppIcons.SkipNext, "Следующая глава", FeedbackSound.SkipNext, size = 44.dp) { app.audio.nextChapter() }
         }
         state.error?.let { HintNote(it, AppIcons.Info) }
         androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 2.dp)) {
@@ -502,6 +508,75 @@ private fun ChapterSpines(book: Audiobook, current: Int, onPick: (Int) -> Unit) 
     }
 }
 
+private fun waveHeights(seed: Int, count: Int): FloatArray {
+    val r = java.util.Random(seed.toLong())
+    val raw = FloatArray(count)
+    var a = 0.5f
+    var b = 0.5f
+    for (i in 0 until count) {
+        a += (r.nextFloat() - 0.5f) * 0.55f
+        a = a.coerceIn(0.1f, 1f)
+        b = b * 0.6f + a * 0.4f
+        raw[i] = (0.22f + 0.78f * (b * 0.7f + r.nextFloat() * 0.3f)).coerceIn(0.18f, 1f)
+    }
+    return raw
+}
+
+@Composable
+private fun WaveSeek(value: Float, seed: Int, onDrag: (Float) -> Unit, onDone: () -> Unit) {
+    val bars = remember(seed) { waveHeights(seed, 64) }
+    val played = AppColors.Accent
+    val rest = AppColors.Line
+    val shown by animateFloatAsState(value, Motion.tween(180), label = "wave-pos")
+    val latestDrag by androidx.compose.runtime.rememberUpdatedState(onDrag)
+    val latestDone by androidx.compose.runtime.rememberUpdatedState(onDone)
+    val feedback = LocalFeedback.current
+    androidx.compose.foundation.Canvas(
+        Modifier
+            .fillMaxWidth()
+            .height(34.dp)
+            .semantics { contentDescription = "Позиция в главе" }
+            .pointerInput(Unit) {
+                detectTapGestures { p ->
+                    latestDrag((p.x / size.width).coerceIn(0f, 1f))
+                    feedback?.play(FeedbackSound.Tick)
+                    latestDone()
+                }
+            }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = { p -> latestDrag((p.x / size.width).coerceIn(0f, 1f)) },
+                    onDragEnd = { latestDone() },
+                    onDragCancel = { latestDone() },
+                ) { change, _ ->
+                    change.consume()
+                    latestDrag((change.position.x / size.width).coerceIn(0f, 1f))
+                }
+            },
+    ) {
+        val n = bars.size
+        val gap = 2.dp.toPx()
+        val w = (size.width - gap * (n - 1)) / n
+        val edge = shown * size.width
+        val radius = androidx.compose.ui.geometry.CornerRadius(w / 2f, w / 2f)
+        for (i in 0 until n) {
+            val x = i * (w + gap)
+            val h = (size.height * bars[i]).coerceAtLeast(w)
+            val top = (size.height - h) / 2f
+            val topLeft = androidx.compose.ui.geometry.Offset(x, top)
+            val sz = androidx.compose.ui.geometry.Size(w, h)
+            when {
+                x + w <= edge -> drawRoundRect(played, topLeft, sz, radius)
+                x >= edge -> drawRoundRect(rest, topLeft, sz, radius)
+                else -> {
+                    drawRoundRect(rest, topLeft, sz, radius)
+                    clipRect(right = edge) { drawRoundRect(played, topLeft, sz, radius) }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun MarkTool(on: Boolean, onClick: () -> Unit) {
     val shape = appCorner(14)
@@ -526,9 +601,9 @@ private fun MarkTool(on: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun RoundTool(icon: ImageVector, description: String, sound: FeedbackSound, label: String? = null, onClick: () -> Unit) {
+private fun RoundTool(icon: ImageVector, description: String, sound: FeedbackSound, label: String? = null, size: Dp = 52.dp, onClick: () -> Unit) {
     Box(
-        Modifier.size(52.dp).liveClick(CircleShape, sound = sound, pressedScale = 0.86f, onClick = onClick).fieldSurface(CircleShape)
+        Modifier.size(size).liveClick(CircleShape, sound = sound, pressedScale = 0.86f, onClick = onClick).fieldSurface(CircleShape)
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) {

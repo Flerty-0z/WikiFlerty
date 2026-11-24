@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -237,7 +238,9 @@ fun TagCloudSheet(active: List<String>, onApply: (List<String>) -> Unit, onDismi
                 val name = lastEdit[0].orEmpty()
                 val count = counts.firstOrNull { it.name.equals(name, true) }?.count ?: 0
                 val pinned = prefs.tagShelves.any { it.equals(name, true) }
+                val fan = remember(books, name) { books.filter { it.hasTag(name) }.sortedByDescending { it.lastReadAt ?: it.addedAt }.take(5) }
                 TabbedFrame("#$name", icon = AppIcons.Pencil, trailing = { CountBadge(count) }) {
+                    if (fan.isNotEmpty()) TagFan(fan, Modifier.padding(top = 6.dp))
                     Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         TagActionTile(AppIcons.Pencil, "Имя", AppColors.Text, false, Modifier.weight(1f)) { rename = name }
                         TagActionTile(AppIcons.Shelf, "В шкафу", if (pinned) AppColors.Accent else AppColors.Text, pinned, Modifier.weight(1f)) {
@@ -336,15 +339,49 @@ private fun TagActionTile(icon: ImageVector, label: String, tint: androidx.compo
     val color by animateColorAsState(tint, Motion.fade(220), label = "tag-tint")
     Column(
         modifier
-            .height(84.dp)
+            .height(60.dp)
             .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.95f, onClick = onClick)
             .fieldSurface(shape)
             .border(1.dp, edge, shape),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
     ) {
-        Icon(icon, null, tint = color, modifier = Modifier.size(22.dp))
-        Text(label, color = color, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Icon(icon, null, tint = color, modifier = Modifier.size(19.dp))
+        Text(label, color = color, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+    }
+}
+
+@Composable
+internal fun TagFan(books: List<Book>, modifier: Modifier = Modifier) {
+    val n = books.size
+    val c = (n - 1) / 2f
+    val open = remember(books.map { it.id }) { androidx.compose.animation.core.Animatable(if (Motion.enabled) 0f else 1f) }
+    LaunchedEffect(books.map { it.id }) {
+        open.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.72f, stiffness = 260f))
+    }
+    val cover = 70.dp
+    Box(modifier.fillMaxWidth().height(136.dp), contentAlignment = Alignment.Center) {
+        books.forEachIndexed { i, b ->
+            val d = i - c
+            androidx.compose.runtime.key(b.id) {
+                BookCover(
+                    b.id,
+                    cover,
+                    Modifier
+                        .zIndex(-kotlin.math.abs(d))
+                        .graphicsLayer {
+                            val k = open.value
+                            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1.2f)
+                            translationX = d * 48.dp.toPx() * k
+                            translationY = (kotlin.math.abs(d) * 6.dp.toPx() - 8.dp.toPx()) * k
+                            rotationZ = d * 7f * k
+                            shadowElevation = 8.dp.toPx()
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                            clip = false
+                        },
+                )
+            }
+        }
     }
 }
 
@@ -356,30 +393,26 @@ fun TagActionsSheet(name: String, count: Int, onDismiss: () -> Unit) {
     var rename by remember { mutableStateOf(false) }
     var delete by remember { mutableStateOf(false) }
     val books by app.library.books.collectAsStateWithLifecycle()
-    val tagged = remember(books, name) { books.filter { it.hasTag(name) }.sortedByDescending { it.lastReadAt ?: it.addedAt }.take(3) }
+    val tagged = remember(books, name) { books.filter { it.hasTag(name) }.sortedByDescending { it.lastReadAt ?: it.addedAt }.take(5) }
     AppSheet(onDismiss, title = "Тег") {
-        Column(Modifier.fillMaxWidth().sheetReveal(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (tagged.isNotEmpty()) {
-                val angles = listOf(-6f, 5f, -2f)
-                Box(Modifier.padding(top = 4.dp, bottom = 8.dp).height(92.dp).width((60 + 30 * (tagged.size - 1)).dp)) {
-                    tagged.asReversed().forEachIndexed { r, b ->
-                        val i = tagged.size - 1 - r
-                        BookCover(
-                            b.id,
-                            58.dp,
-                            Modifier
-                                .offset(x = (30 * i).dp, y = (4 * (i % 2)).dp)
-                                .graphicsLayer { rotationZ = if (tagged.size == 1) 0f else angles[i] },
-                        )
-                    }
-                }
-            } else {
+        val headShape = appCorner(16)
+        Row(
+            Modifier.fillMaxWidth().sheetReveal().fieldSurface(headShape).padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(AppIcons.Tag, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
+            Text("#$name", color = AppColors.Text, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text("$count ${booksWord(count)}", color = AppColors.Muted, fontSize = 11.5.sp, maxLines = 1)
+        }
+        if (tagged.isNotEmpty()) {
+            TagFan(tagged, Modifier.sheetReveal())
+        } else {
+            Box(Modifier.fillMaxWidth().height(96.dp), contentAlignment = Alignment.Center) {
                 Box(Modifier.size(56.dp).clip(appCorner(16)).background(AppColors.AccentSoft), contentAlignment = Alignment.Center) {
                     Icon(AppIcons.Hash, null, tint = AppColors.Accent, modifier = Modifier.size(26.dp))
                 }
             }
-            Text("#$name", color = AppColors.Text, fontSize = 18.sp, lineHeight = 23.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis)
-            Text("$count ${booksWord(count)}", color = AppColors.Muted, fontSize = 12.5.sp, maxLines = 1)
         }
         Row(Modifier.fillMaxWidth().sheetReveal(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             TagActionTile(AppIcons.Pencil, "Имя", AppColors.Text, false, Modifier.weight(1f)) { rename = true }
