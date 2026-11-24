@@ -31,11 +31,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun AddBookFab(onFile: () -> Unit, onScan: () -> Unit) {
+fun AddBookFab(onFile: () -> Unit, onScan: () -> Unit, onAudio: () -> Unit = {}) {
     var open by rememberSaveable { mutableStateOf(false) }
     val turn by animateFloatAsState(if (open) 45f else 0f, Motion.spring(), label = "fabTurn")
     BackHandler(enabled = open) { open = false }
     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        FabItem(open, delay = 2, icon = AppIcons.Headphones, text = "Аудио") {
+            open = false
+            onAudio()
+        }
         FabItem(open, delay = 1, icon = AppIcons.Search, text = "Скан") {
             open = false
             onScan()

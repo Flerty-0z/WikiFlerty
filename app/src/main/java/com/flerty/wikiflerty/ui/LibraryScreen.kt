@@ -244,6 +244,15 @@ fun LibraryScreen(
     var showFilterSheet by rememberSaveable { mutableStateOf(false) }
 
     if (books.isEmpty()) {
+        val audioBooks by app.audiobooks.books.collectAsStateWithLifecycle()
+        if (audioBooks.isNotEmpty()) {
+            Column(modifier) {
+                AudioShelf(Modifier.padding(top = 6.dp, bottom = 10.dp))
+                EmptyLibrary(onAddBook, { controls.scanFolder = true }, Modifier.weight(1f))
+            }
+            if (controls.scanFolder) FolderScanSheet(onDismiss = { controls.scanFolder = false }, onImport = viewModel::importAll)
+            return
+        }
         EmptyLibrary(onAddBook, { controls.scanFolder = true }, modifier)
         if (controls.scanFolder) FolderScanSheet(onDismiss = { controls.scanFolder = false }, onImport = viewModel::importAll)
         return
@@ -372,6 +381,7 @@ fun LibraryScreen(
                 NextInSeriesCard(b, s, viewModel.coverFile(b), Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) { open(b) }
             }
         }
+        if (active.id == "all" && q.isEmpty()) AudioShelf(Modifier.padding(bottom = 10.dp))
 
         androidx.compose.animation.Crossfade(
             targetState = LibraryLayout(prefs.view, columns, prefs.coverSize < 2),

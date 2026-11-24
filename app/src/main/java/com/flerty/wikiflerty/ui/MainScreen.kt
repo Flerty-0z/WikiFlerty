@@ -239,6 +239,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                         AddBookFab(
                             onFile = { pickBook.launch(arrayOf("*/*")) },
                             onScan = { libraryControls.scanFolder = true },
+                            onAudio = { AudioNav.importing = true },
                         )
                     }
                 },
@@ -286,8 +287,15 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                     section = Section.Library
                     paperSheet = true
                 },
+                onAudio = {
+                    section = Section.Library
+                    AudioNav.importing = true
+                },
             )
             if (paperSheet) PaperBookSheet(null) { paperSheet = false }
+            AudioMiniPlayer(Modifier.align(Alignment.BottomCenter).padding(bottom = if (bottomNav) 84.dp else 88.dp))
+            AudioImportHost()
+            AudioPlayerHost()
             BookOpeningLayer()
             OnboardingHost(
                 libraryEmpty = libraryBooks.isEmpty(),
@@ -714,7 +722,7 @@ private fun BottomItem(item: Section, label: String, current: Section, onSelect:
 }
 
 @Composable
-private fun AddBookSheet(onDismiss: () -> Unit, onFile: () -> Unit, onScan: () -> Unit, onPaper: () -> Unit) {
+private fun AddBookSheet(onDismiss: () -> Unit, onFile: () -> Unit, onScan: () -> Unit, onPaper: () -> Unit, onAudio: () -> Unit) {
     AppSheet(onDismiss = onDismiss, title = "Добавить книгу") {
         val close = sheetClose(onDismiss)
         val scope = rememberCoroutineScope()
@@ -726,6 +734,7 @@ private fun AddBookSheet(onDismiss: () -> Unit, onFile: () -> Unit, onScan: () -
             Spine(AppIcons.Book, "Файл", AppColors.AccentLight, accent, AppColors.OnAccent, 168, -3f, onFile),
             Spine(AppIcons.FolderSearch, "Скан", accent.copy(alpha = 0.34f).compositeOver(panel), accent.copy(alpha = 0.2f).compositeOver(panel), AppColors.Text, 146, 0f, onScan),
             Spine(AppIcons.Pages, "Бумажная", accent.copy(alpha = 0.62f).compositeOver(panel), accent.copy(alpha = 0.44f).compositeOver(panel), AppColors.Text, 156, 4f, onPaper),
+            Spine(AppIcons.Headphones, "Аудио", accent.copy(alpha = 0.48f).compositeOver(panel), accent.copy(alpha = 0.3f).compositeOver(panel), AppColors.Text, 162, -2f, onAudio),
         )
         Column(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(

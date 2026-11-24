@@ -159,6 +159,9 @@ object AppIcons {
     val SkipNext by lazy { icon("skip-next", "M18 6v12", fills = listOf("M6 6.5v11a1 1 0 0 0 1.55.83l8-5.5a1 1 0 0 0 0-1.66l-8-5.5A1 1 0 0 0 6 6.5z")) }
     val SkipPrev by lazy { icon("skip-prev", "M6 6v12", fills = listOf("M18 6.5v11a1 1 0 0 1-1.55.83l-8-5.5a1 1 0 0 1 0-1.66l8-5.5A1 1 0 0 1 18 6.5z")) }
     val Stop by lazy { icon("stop", fills = listOf("M7.5 6h9A1.5 1.5 0 0 1 18 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 16.5v-9A1.5 1.5 0 0 1 7.5 6z")) }
+    val Rewind by lazy { icon("rewind", "M12 7l-5 5 5 5", "M18 7l-5 5 5 5") }
+    val FastForward by lazy { icon("fast-forward", "M12 7l5 5-5 5", "M6 7l5 5-5 5") }
+    val Link by lazy { icon("link", "M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1", "M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1") }
     val Speed by lazy { icon("speed", "M4 16a8 8 0 1 1 16 0", "M12 16l4-5", "M4 16h2M18 16h2") }
     val Voice by lazy { icon("voice", "M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z", "M6 11a6 6 0 0 0 12 0", "M12 17v4") }
     val Engine by lazy { icon("engine", "M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2") }

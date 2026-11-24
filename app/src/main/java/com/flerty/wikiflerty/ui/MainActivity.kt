@@ -66,6 +66,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIncomingBook(intent: Intent?) {
+        if (intent?.action == com.flerty.wikiflerty.audio.AudioService.ACTION_OPEN) {
+            AudioNav.player = true
+            intent.setAction(null)
+            return
+        }
         if (intent?.action == Intent.ACTION_VIEW && intent.data?.scheme == "wikiflerty") {
             SettingsNav.account = true
             val app = applicationContext as com.flerty.wikiflerty.App
