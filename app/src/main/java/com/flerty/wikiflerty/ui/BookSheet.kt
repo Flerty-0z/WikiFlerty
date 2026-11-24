@@ -457,6 +457,7 @@ fun BookSheet(
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
     onOpenBook: ((Book) -> Unit)? = null,
+    inReader: Boolean = false,
 ) {
     val app = LocalContext.current.applicationContext as App
     val scope = rememberCoroutineScope()
@@ -547,7 +548,7 @@ fun BookSheet(
                     BookMainContent(app, book, onRead = {
                         readAfter[0] = true
                         close()
-                    }, onStats = { showStats = true }, onRate = { rating = true }, onDelete = { confirmDelete = true }, onEdit = { editPaper = true }, onOpenBook = onOpenBook)
+                    }, onStats = { showStats = true }, onRate = { rating = true }, onDelete = { confirmDelete = true }, onEdit = { editPaper = true }, onOpenBook = onOpenBook, inReader = inReader)
                 }
             }
         }
@@ -690,6 +691,7 @@ private fun ColumnScope.BookMainContent(
     onDelete: () -> Unit,
     onEdit: () -> Unit,
     onOpenBook: ((Book) -> Unit)?,
+    inReader: Boolean = false,
 ) {
     val scope = rememberCoroutineScope()
     if (book.paper) {
@@ -700,28 +702,30 @@ private fun ColumnScope.BookMainContent(
         DeleteRow("Удалить книгу", onDelete)
         return
     }
-    val watching = app.readingTimer.watch.collectAsStateWithLifecycle().value?.let { it.bookId == book.id && it.running } == true
-    val readShape = appCorner(18)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .sheetReveal()
-            .heightIn(min = 56.dp)
-            .liveClick(readShape, sound = FeedbackSound.Read, pressedScale = 0.97f) { onRead() }
-            .accentHighlight(readShape),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(AppIcons.Play, null, tint = accentContent, modifier = Modifier.size(20.dp))
-        Text(
-            if (book.progress > 0.0) "Продолжить" else "Читать",
-            color = accentContent,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.ExtraBold,
-            maxLines = 1,
-            modifier = Modifier.padding(start = 8.dp),
-        )
-        if (watching) Icon(AppIcons.Clock, null, tint = accentContent, modifier = Modifier.padding(start = 8.dp).size(18.dp))
+    if (!inReader) {
+        val watching = app.readingTimer.watch.collectAsStateWithLifecycle().value?.let { it.bookId == book.id && it.running } == true
+        val readShape = appCorner(18)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .sheetReveal()
+                .heightIn(min = 56.dp)
+                .liveClick(readShape, sound = FeedbackSound.Read, pressedScale = 0.97f) { onRead() }
+                .accentHighlight(readShape),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(AppIcons.Play, null, tint = accentContent, modifier = Modifier.size(20.dp))
+            Text(
+                if (book.progress > 0.0) "Продолжить" else "Читать",
+                color = accentContent,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+                modifier = Modifier.padding(start = 8.dp),
+            )
+            if (watching) Icon(AppIcons.Clock, null, tint = accentContent, modifier = Modifier.padding(start = 8.dp).size(18.dp))
+        }
     }
 
     ReadingWatchCard(book)
@@ -731,7 +735,7 @@ private fun ColumnScope.BookMainContent(
 
     SettingsNavRow(AppIcons.Chart, "Статистика книги", "Время, скорость, остаток") { onStats() }
 
-    DeleteRow("Удалить с телефона", onDelete)
+    if (!inReader) DeleteRow("Удалить с телефона", onDelete)
 }
 
 @Composable

@@ -111,8 +111,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -463,6 +465,16 @@ fun ReaderOverlay(
     val miniGap = maxOf(MiniBottom, flagSpace + 4.dp)
     val feedback = LocalFeedback.current
     val view = LocalView.current
+    var about by remember { mutableStateOf(false) }
+    if (about) {
+        val app = LocalContext.current.applicationContext as com.flerty.wikiflerty.App
+        val books by app.library.books.collectAsStateWithLifecycle()
+        val book = books.firstOrNull { it.id == bookId }
+        val coverFile = remember(book?.id) { book?.let { app.library.coverFile(it) } }
+        if (book != null) {
+            com.flerty.wikiflerty.ui.BookSheet(book, coverFile, onRead = {}, onDelete = {}, onDismiss = { about = false }, inReader = true)
+        }
+    }
 
     BackHandler(enabled = state.illustration != null || state.sheet != null || state.panelsVisible || state.selection != null || state.footnote != null || state.person != null || state.word != null || state.translate != null) {
         val sheet = state.sheet
@@ -624,6 +636,40 @@ fun ReaderOverlay(
             ReaderTimerChip(bookId, hidden = state.panelsVisible, modifier = Modifier.align(Alignment.TopCenter))
         }
 
+        val quick: (QuickButton) -> Unit = { button ->
+            when (button) {
+                QuickButton.Toc -> state.sheet = ReaderSheet.Toc
+                QuickButton.Font -> state.sheet = ReaderSheet.Text
+                QuickButton.Theme -> state.sheet = ReaderSheet.Theme
+                QuickButton.Scroll -> state.sheet = ReaderSheet.Scroll
+                QuickButton.Screen -> state.sheet = ReaderSheet.Screen
+                QuickButton.Notes -> state.sheet = ReaderSheet.Notes
+                QuickButton.Bookmarks -> state.sheet = ReaderSheet.Bookmarks
+                QuickButton.People -> {
+                    state.peopleFocus = null
+                    state.sheet = ReaderSheet.People
+                }
+                QuickButton.Listen -> state.sheet = ReaderSheet.Listen
+                QuickButton.Search -> state.sheet = ReaderSheet.Search
+                QuickButton.Auto -> auto.onStart()
+                QuickButton.AiRecap, QuickButton.AiQuiz, QuickButton.AiTeacher -> if (ai.manager.current() == null) {
+                    state.sheet = ReaderSheet.AiChapter
+                } else {
+                    ai.onChapter(
+                        when (button) {
+                            QuickButton.AiRecap -> AiAction.Recap
+                            QuickButton.AiQuiz -> AiAction.Quiz
+                            else -> AiAction.Teacher
+                        },
+                    )
+                    state.sheet = ReaderSheet.AiChat
+                }
+                QuickButton.AiHeroes -> state.sheet = if (ai.manager.current() == null) ReaderSheet.AiChapter else ReaderSheet.Heroes
+                QuickButton.AiHistory -> state.sheet = ReaderSheet.AiHistory
+            }
+        }
+        val extra = remember(settings.quickButtons) { QuickButton.entries.filter { it.id !in settings.quickButtons } }
+
         AnimatedVisibility(
             visible = state.panelsVisible,
             enter = fadeIn(Motion.fade(200)) + slideInVertically(Motion.tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { -it },
@@ -643,6 +689,7 @@ fun ReaderOverlay(
                 onListen = { state.sheet = ReaderSheet.Listen },
                 onSearch = { state.sheet = ReaderSheet.Search },
                 onToc = { state.sheet = ReaderSheet.Toc },
+                onAbout = { about = true },
                 onSeek = onSeek,
                 onChapter = { dir ->
                     val p = state.progression.toFloat()
@@ -658,6 +705,8 @@ fun ReaderOverlay(
                 bookmarked = state.bookmarked,
                 onBookmark = bookmarkActions.onToggle,
                 onJump = { state.sheet = ReaderSheet.Jump },
+                extra = extra,
+                onQuick = quick,
             )
         }
 
@@ -669,38 +718,7 @@ fun ReaderOverlay(
         ) {
             BottomPanel(
                 buttons = settings.quickButtons.mapNotNull { QuickButton.of(it) },
-                onButton = { button ->
-                    when (button) {
-                        QuickButton.Toc -> state.sheet = ReaderSheet.Toc
-                        QuickButton.Font -> state.sheet = ReaderSheet.Text
-                        QuickButton.Theme -> state.sheet = ReaderSheet.Theme
-                        QuickButton.Scroll -> state.sheet = ReaderSheet.Scroll
-                        QuickButton.Screen -> state.sheet = ReaderSheet.Screen
-                        QuickButton.Notes -> state.sheet = ReaderSheet.Notes
-                        QuickButton.Bookmarks -> state.sheet = ReaderSheet.Bookmarks
-                        QuickButton.People -> {
-                            state.peopleFocus = null
-                            state.sheet = ReaderSheet.People
-                        }
-                        QuickButton.Listen -> state.sheet = ReaderSheet.Listen
-                        QuickButton.Search -> state.sheet = ReaderSheet.Search
-                        QuickButton.Auto -> auto.onStart()
-                        QuickButton.AiRecap, QuickButton.AiQuiz, QuickButton.AiTeacher -> if (ai.manager.current() == null) {
-                            state.sheet = ReaderSheet.AiChapter
-                        } else {
-                            ai.onChapter(
-                                when (button) {
-                                    QuickButton.AiRecap -> AiAction.Recap
-                                    QuickButton.AiQuiz -> AiAction.Quiz
-                                    else -> AiAction.Teacher
-                                },
-                            )
-                            state.sheet = ReaderSheet.AiChat
-                        }
-                        QuickButton.AiHeroes -> state.sheet = if (ai.manager.current() == null) ReaderSheet.AiChapter else ReaderSheet.Heroes
-                        QuickButton.AiHistory -> state.sheet = ReaderSheet.AiHistory
-                    }
-                },
+                onButton = quick,
                 onOptions = {
                     state.optionsScroll.dispatchRawDelta(-state.optionsScroll.value.toFloat())
                     state.sheet = ReaderSheet.Options
@@ -1364,11 +1382,14 @@ internal fun TopPanel(
     onListen: () -> Unit,
     onSearch: () -> Unit,
     onToc: () -> Unit,
+    onAbout: () -> Unit = onToc,
     onSeek: (Double) -> Unit,
     onChapter: (Int) -> Unit,
     bookmarked: Boolean,
     onBookmark: () -> Unit,
     onJump: () -> Unit,
+    extra: List<QuickButton> = emptyList(),
+    onQuick: (QuickButton) -> Unit = {},
 ) {
     var preview by remember { mutableStateOf<Double?>(null) }
     var menu by remember { mutableStateOf(false) }
@@ -1392,7 +1413,7 @@ internal fun TopPanel(
                     Modifier
                         .weight(1f)
                         .height(52.dp)
-                        .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onToc)
+                        .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.98f, onClick = onAbout)
                         .padding(horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -1420,29 +1441,46 @@ internal fun TopPanel(
                 }
                 BookmarkButton(bookmarked, onBookmark)
                 RoundIconButton(AppIcons.Search, "Поиск по книге", sound = FeedbackSound.Search, onClick = onSearch)
-                Box {
-                    RoundIconButton(AppIcons.More, "Ещё", sound = FeedbackSound.More) { menu = true }
-                    androidx.compose.material3.DropdownMenu(
-                        expanded = menu,
-                        onDismissRequest = { menu = false },
-                        shape = appCorner(16),
-                        containerColor = AppColors.Panel,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.PanelBorder),
-                    ) {
-                        listOf(
-                            Triple(AppIcons.Toc, "Оглавление", onToc),
-                            Triple(AppIcons.Pages, "Перейти к странице", onJump),
-                            Triple(AppIcons.Headphones, "Слушать", onListen),
-                        ).forEach { (icon, label, action) ->
-                            androidx.compose.material3.DropdownMenuItem(
-                                text = { Text(label, color = AppColors.Text, fontSize = 14.sp) },
-                                leadingIcon = { Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp)) },
-                                onClick = {
-                                    menu = false
-                                    action()
-                                },
-                            )
+                val turn by androidx.compose.animation.core.animateFloatAsState(if (menu) 90f else 0f, Motion.tween(260), label = "more-turn")
+                RoundIconButton(AppIcons.More, if (menu) "Скрыть меню" else "Ещё", sound = if (menu) FeedbackSound.Collapse else FeedbackSound.More, iconModifier = Modifier.rotate(turn)) { menu = !menu }
+            }
+            AnimatedVisibility(
+                visible = menu,
+                enter = expandVertically(Motion.tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing), expandFrom = Alignment.Top) + fadeIn(Motion.tween(220, 60)),
+                exit = shrinkVertically(Motion.tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing), shrinkTowards = Alignment.Top) + fadeOut(Motion.tween(150)),
+            ) {
+                val plain = listOf<Pair<String, Pair<ImageVector, () -> Unit>>>("Перейти к странице" to (AppIcons.Pages to onJump)) +
+                    extra.filter { !it.ai }.map { it.title to (quickIconVector(it) to { onQuick(it) }) }
+                val smart = extra.filter { it.ai }.map { it.title to (quickIconVector(it) to { onQuick(it) }) }
+                val context = androidx.compose.ui.platform.LocalContext.current
+                androidx.compose.foundation.lazy.LazyRow(
+                    Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp),
+                ) {
+                    fun tile(scope: androidx.compose.foundation.lazy.LazyListScope, key: String, icon: ImageVector, label: String, action: () -> Unit) {
+                        scope.item(key = key) {
+                            Box(
+                                Modifier
+                                    .size(width = 52.dp, height = 46.dp)
+                                    .liveClick(appCorner(13), sound = FeedbackSound.Open, pressedScale = 0.9f, onLongClick = {
+                                        android.widget.Toast.makeText(context, label, android.widget.Toast.LENGTH_SHORT).show()
+                                    }) {
+                                        menu = false
+                                        action()
+                                    }
+                                    .background(AppColors.Line.copy(alpha = 0.45f), appCorner(13))
+                                    .border(1.dp, AppColors.PanelBorder, appCorner(13))
+                                    .semantics { contentDescription = label },
+                                contentAlignment = Alignment.Center,
+                            ) { Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(21.dp)) }
                         }
+                    }
+                    plain.forEach { (label, pair) -> tile(this, "p:$label", pair.first, label, pair.second) }
+                    if (smart.isNotEmpty()) {
+                        item(key = "sep") { Box(Modifier.padding(horizontal = 4.dp).width(1.dp).height(30.dp).background(AppColors.PanelBorder)) }
+                        smart.forEach { (label, pair) -> tile(this, "a:$label", pair.first, label, pair.second) }
                     }
                 }
             }
