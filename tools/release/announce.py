@@ -60,8 +60,9 @@ def icons():
             }, {"app": os.path.join(here, "app.png"), "gh": os.path.join(here, "gh.png")})
             print("set", made.get("ok"), made.get("description", ""))
             found = call("getStickerSet", {"name": name})
-        ids = [st["custom_emoji_id"] for st in found["result"]["stickers"]]
-        return ids[0], ids[1]
+        ids = [st["custom_emoji_id"] for st in found.get("result", {}).get("stickers", [])]
+        print("icons", len(ids), found.get("description", ""))
+        return (ids[0] if ids else None), (ids[1] if len(ids) > 1 else None)
     except Exception as e:
         print("icons", e)
         return None, None
