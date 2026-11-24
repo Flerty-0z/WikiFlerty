@@ -1,0 +1,28 @@
+name: Crashes
+on:
+  workflow_dispatch:
+    inputs:
+      sig:
+        description: Код сбоя
+        required: false
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read
+        env:
+          KEY: ${{ secrets.SELECTEL_S3_ACCESS }}
+          SECRET: ${{ secrets.SELECTEL_S3_SECRET }}
+          SIG: ${{ inputs.sig }}
+        run: |
+          base=https://wikiflerty-books.s3.ru-3.storage.selcloud.ru
+          s3() { curl -sS --fail --max-time 30 --aws-sigv4 "aws:amz:ru-3:s3" --user "$KEY:$SECRET" -H "x-amz-content-sha256: UNSIGNED-PAYLOAD" "$@"; }
+          for d in $(date -u +%Y-%m-%d) $(date -u -d yesterday +%Y-%m-%d); do
+            keys=$(s3 "$base/?list-type=2&prefix=crashes/$d/" | grep -o '<Key>[^<]*' | sed 's/<Key>//' | sort)
+            for k in $keys; do
+              case "$k" in *"$SIG"*) ;; *) continue ;; esac
+              echo "=== $k"
+              s3 "$base/$k" | head -60
+            done
+          done
