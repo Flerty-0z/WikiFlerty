@@ -21,6 +21,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -332,11 +335,14 @@ fun TtsOptions(
             }
         }
         val piperOk by produceState(false) { value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.flerty.wikiflerty.tts.PiperVoices.supported() } }
-        val neuralOptions = if (piperOk) {
+        val neuralOptions = (if (piperOk) {
             listOf(PickerOption(NeuralVoices.PIPER, "Офлайн · нейроголос", "Без интернета, голос скачивается один раз", icon = AppIcons.Voice))
         } else {
             emptyList()
-        }
+        }) + listOf(
+            PickerOption(NeuralVoices.YANDEX, "Яндекс · онлайн", "Голоса SpeechKit по твоему ключу", icon = AppIcons.Sparkle),
+            PickerOption(NeuralVoices.AZURE, "Azure · онлайн", "Голоса Microsoft по твоему ключу", icon = AppIcons.Sparkle),
+        )
         PickerRow(
             label = "Движок",
             icon = AppIcons.Engine,
@@ -373,6 +379,7 @@ fun TtsOptions(
                 selectedId = NeuralVoices.voiceOrDefault(settings.ttsEngine, settings.ttsVoice),
                 searchable = list.size > 12,
             ) { id -> onSettingsChange { it.copy(ttsVoice = id, ttsVoiceLanguage = "") } }
+            if (NeuralVoices.isCloud(settings.ttsEngine)) CloudVoiceKey(settings.ttsEngine)
         } else {
         val voices by produceState(emptyList<TtsVoiceInfo>(), settings.ttsEngine) {
             value = ReadAloud.voices(context, settings.ttsEngine.ifBlank { null })
@@ -521,5 +528,34 @@ fun TtsMini(playing: Boolean, onExpand: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Icon(AppIcons.Eye, "Показать чтение вслух", tint = AppColors.Accent, modifier = Modifier.size(18.dp))
+    }
+}
+
+@Composable
+private fun CloudVoiceKey(engine: String) {
+    val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.flerty.wikiflerty.App
+    val keys by app.ai.vault.keys.collectAsStateWithLifecycle()
+    val yandex = engine == NeuralVoices.YANDEX
+    val keyId = if (yandex) NeuralVoices.YANDEX_KEY else NeuralVoices.AZURE_KEY
+    var key by remember(engine) { mutableStateOf(keys[keyId].orEmpty()) }
+    var region by remember(engine) { mutableStateOf(keys[NeuralVoices.AZURE_REGION].orEmpty()) }
+    Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        com.flerty.wikiflerty.ui.InputField(
+            value = key,
+            onValueChange = { key = it; app.ai.vault.set(keyId, it) },
+            placeholder = if (yandex) "API-ключ SpeechKit" else "Ключ Azure Speech",
+            secret = true,
+            monospace = true,
+            icon = AppIcons.Lock,
+        )
+        if (!yandex) {
+            com.flerty.wikiflerty.ui.InputField(
+                value = region,
+                onValueChange = { region = it; app.ai.vault.set(NeuralVoices.AZURE_REGION, it) },
+                placeholder = "Регион, например westeurope",
+                monospace = true,
+                icon = AppIcons.Globe,
+            )
+        }
     }
 }

@@ -103,6 +103,14 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
                 return null
             }
         }
+        if (neuralId == NeuralVoices.YANDEX && app.ai.vault.get(NeuralVoices.YANDEX_KEY) == null) {
+            _problems.emit(Problem("Для голосов Яндекса вставь API-ключ SpeechKit в настройках чтения вслух", openVoices = true))
+            return null
+        }
+        if (neuralId == NeuralVoices.AZURE && (app.ai.vault.get(NeuralVoices.AZURE_KEY) == null || app.ai.vault.get(NeuralVoices.AZURE_REGION) == null)) {
+            _problems.emit(Problem("Для голосов Azure вставь ключ и регион в настройках чтения вслух", openVoices = true))
+            return null
+        }
         val engines: List<String?> = if (neuralId != null) listOf(neuralId) else systemEngines(settings.ttsEngine.ifBlank { null })
         val places = startPlaces(publication, start)
         var engineFailed = false
