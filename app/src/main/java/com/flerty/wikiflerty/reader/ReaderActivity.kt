@@ -145,8 +145,8 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     private fun screensLayoutKey(): String {
         val s = settings
-        val v = navigator.publicationView
-        return listOf("b1", s.font, s.fontSize, s.lineHeight, s.margins, s.bold, s.columns, s.justify, s.hyphens, s.scroll, v.width / 8, v.height / 8).joinToString("|")
+        val v = runCatching { navigator.publicationView }.getOrNull()
+        return listOf("b1", s.font, s.fontSize, s.lineHeight, s.margins, s.bold, s.columns, s.justify, s.hyphens, s.scroll, (v?.width ?: 0) / 8, (v?.height ?: 0) / 8).joinToString("|")
     }
 
     private var fixedTotal = 0
@@ -2160,11 +2160,21 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         applyWindowSettings(initial)
 
         if (savedInstanceState == null) {
-            supportFragmentManager.commitNow {
-                add(R.id.navigator_container, EpubNavigatorFragment::class.java, Bundle(), NAVIGATOR_TAG)
+            val opened = runCatching {
+                supportFragmentManager.commitNow {
+                    add(R.id.navigator_container, EpubNavigatorFragment::class.java, Bundle(), NAVIGATOR_TAG)
+                }
+            }
+            if (opened.isFailure) {
+                android.widget.Toast.makeText(this, "Системный WebView обновляется — попробуй открыть книгу через минуту", android.widget.Toast.LENGTH_LONG).show()
+                finish()
+                return
             }
         }
-        navigator = supportFragmentManager.findFragmentByTag(NAVIGATOR_TAG) as EpubNavigatorFragment
+        navigator = supportFragmentManager.findFragmentByTag(NAVIGATOR_TAG) as? EpubNavigatorFragment ?: run {
+            finish()
+            return
+        }
         navigator.addInputListener(tapListener)
         lifecycleScope.launch {
             androidx.compose.runtime.snapshotFlow { ui.bookmarked }.collect { showRibbon(it, animate = !turning) }
@@ -2575,7 +2585,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
             val idx = app.audioSync.indexAt(ab.id, global)
             val point = points.getOrNull(idx)
             val fresh = idx != lastIdx
-            if (fresh) {
+            if (fresh && navAlive) {
                 if (studio) android.util.Log.i("WFStudio", "audio t=$global idx=$idx " + point?.locator?.text?.highlight?.take(40))
                 lastIdx = idx
                 lastAudioMark = point?.locator
@@ -2593,9 +2603,10 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                 audioFollowJob?.cancel()
                 audioFollowJob = lifecycleScope.launch {
                     if (fresh) delay(90)
+                    if (!navAlive) return@launch
                     val out = runCatching { navigator.evaluateJavascript(AUDIO_OUT_JS.replace("__F__", "%.3f".format(java.util.Locale.US, f))) }.getOrNull().orEmpty()
-                    if (!out.contains("out") || turning || android.os.SystemClock.uptimeMillis() - manualTurnAt < 4000) return@launch
-                    if (!fresh && out.contains("next") && !settings.scroll) navigator.goForward(animated = true) else navigator.go(loc, animated = false)
+                    if (!out.contains("out") || turning || !navAlive || android.os.SystemClock.uptimeMillis() - manualTurnAt < 4000) return@launch
+                    runCatching { if (!fresh && out.contains("next") && !settings.scroll) navigator.goForward(animated = true) else navigator.go(loc, animated = false) }
                     refreshPages()
                 }
             }
@@ -2610,14 +2621,17 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
     private var ttsSettingsSeen: ReaderSettings? = null
     private var ttsPageJob: Job? = null
 
+    private val navAlive: Boolean
+        get() = !isFinishing && !isDestroyed && runCatching { navigator.view != null && navigator.isAdded }.getOrDefault(false)
+
     private fun followWord(word: org.readium.r2.shared.publication.Locator) {
         ttsPageJob?.cancel()
         ttsPageJob = lifecycleScope.launch {
             delay(160)
-            if (turning || android.os.SystemClock.uptimeMillis() - manualTurnAt < 1500) return@launch
+            if (!navAlive || turning || android.os.SystemClock.uptimeMillis() - manualTurnAt < 1500) return@launch
             val out = runCatching { navigator.evaluateJavascript(TTS_WORD_OUT_JS) }.getOrNull().orEmpty()
-            if (!out.contains("out")) return@launch
-            if (out.contains("next") && !settings.scroll) navigator.goForward(animated = false) else navigator.go(word, animated = false)
+            if (!out.contains("out") || !navAlive) return@launch
+            runCatching { if (out.contains("next") && !settings.scroll) navigator.goForward(animated = false) else navigator.go(word, animated = false) }
             refreshPages()
         }
     }

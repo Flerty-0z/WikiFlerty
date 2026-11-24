@@ -82,7 +82,7 @@ class ReadAloud(private val app: App) : TtsNavigator.Listener {
                 }
                 _session.value = ReadAloudSession(bookId, navigator)
                 app.achievements.event("tts")
-                app.startService(Intent(app, ReadAloudService::class.java))
+                runCatching { app.startService(Intent(app, ReadAloudService::class.java)) }
                 watch(navigator, bookId)
                 navigator.play()
             } finally {
