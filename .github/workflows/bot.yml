@@ -18,7 +18,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         run: |
           mkdir -p audio
-          kid=$(gh api "repos/${{ github.repository }}/releases?per_page=100" -q '[.[] | select(.tag_name=="film-kit")][0].assets[0].id' || true)
+          kid=$(gh api --paginate "repos/${{ github.repository }}/releases?per_page=100" -q \'.[] | select(.tag_name=="film-kit") | .assets[0].id\' | head -1 || true)
           if [ -n "$kid" ]; then gh api -H "Accept: application/octet-stream" "repos/${{ github.repository }}/releases/assets/$kid" > kit.zip && unzip -oq kit.zip -d audio; fi
           python3 tools/film/tg.py audio/chat.txt ping
           rm -f kit.zip
