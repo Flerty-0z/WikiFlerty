@@ -1,0 +1,31 @@
+name: Synclab
+on:
+  workflow_dispatch:
+    inputs:
+      item:
+        default: belkintales_1406_librivox
+      parts:
+        default: "2"
+jobs:
+  lab:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Model
+        run: |
+          pip install -q sherpa-onnx soundfile numpy 2>&1 | tail -1
+          sudo apt-get install -y -qq ffmpeg >/dev/null 2>&1
+          mkdir -p m && cd m
+          for f in am/encoder.int8.onnx am/decoder.onnx am/joiner.onnx lang/tokens.txt; do curl -sL -o $(basename $f) https://huggingface.co/alphacep/vosk-model-small-ru/resolve/main/$f; done
+          ls -la
+      - name: Audio and text
+        env:
+          ITEM: ${{ inputs.item }}
+          PARTS: ${{ inputs.parts }}
+        run: python3 tools/synclab/fetch.py
+      - name: Transcribe
+        run: python3 tools/synclab/transcribe.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: synclab
+          path: out/
