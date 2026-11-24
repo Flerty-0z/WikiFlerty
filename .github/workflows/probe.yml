@@ -6,6 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - name: Live
-        run: python3 tools/check/live.py
+      - name: Download links
+        run: |
+          for a in x64 x32; do curl -s -o /dev/null -L --max-time 120 -w "$a %{http_code} %{size_download} %{content_type} %{url_effective}\n" https://wikiflerty.ru/download/$a; done
+          curl -s --max-time 30 https://wikiflerty.ru/download/info; echo
