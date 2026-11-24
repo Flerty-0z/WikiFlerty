@@ -905,8 +905,8 @@ fun AudioPlank(modifier: Modifier = Modifier) {
             verticalAlignment = Alignment.Bottom,
         ) {
             order.forEach { id ->
+                val b = byId[id] ?: return@forEach
                 androidx.compose.runtime.key(id) {
-                val b = byId[id] ?: return@key
                 val playing = state.bookId == b.id && state.playing
                 val shape = appCorner(10)
                 val pulse = rememberInfiniteTransition(label = "audio-plank")
