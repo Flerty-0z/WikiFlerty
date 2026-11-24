@@ -2,20 +2,104 @@
  "title": "Этап 2: о книге и теги",
  "lenient": true,
  "steps": [
-  {"do": "launch", "fresh": true, "ms": 2500},
-  {"do": "tap", "text": "Позже", "timeout": 1500, "optional": true},
-  {"do": "wait", "text": "Моя полка", "timeout": 10000, "after": 2000},
-  {"do": "tap", "text": "Все книги", "timeout": 4000, "after": 1500},
-  {"do": "tap", "text": "Теги", "timeout": 3000, "after": 1500},
-  {"do": "long", "text": "любимое", "timeout": 3000, "after": 1800},
-  {"do": "dump", "text": "tag-edit"},
-  {"do": "pause", "ms": 1500},
-  {"do": "home", "after": 800},
-  {"do": "open", "text": "Капитанская дочка", "after": 5000},
-  {"do": "tap", "text": "чтобы начать", "timeout": 1500, "optional": true, "after": 600},
-  {"do": "show", "text": "Ещё", "exact": true, "desc": true, "after": 1200, "x": 0.5, "y": 0.5},
-  {"do": "tap", "text": "Капитанская дочка", "exact": true, "timeout": 3000, "after": 2000},
-  {"do": "dump", "text": "about"},
-  {"do": "pause", "ms": 1500}
+  {
+   "do": "launch",
+   "fresh": true,
+   "ms": 2500
+  },
+  {
+   "do": "tap",
+   "text": "Позже",
+   "timeout": 1500,
+   "optional": true
+  },
+  {
+   "do": "wait",
+   "text": "Моя полка",
+   "timeout": 10000,
+   "after": 2000
+  },
+  {
+   "do": "tap",
+   "text": "Все книги",
+   "timeout": 4000,
+   "after": 1500
+  },
+  {
+   "do": "tap",
+   "text": "Теги",
+   "timeout": 3000,
+   "after": 1500
+  },
+  {
+   "do": "long",
+   "text": "любимое",
+   "timeout": 3000,
+   "after": 1800
+  },
+  {
+   "do": "dump",
+   "text": "tag-edit"
+  },
+  {
+   "do": "pause",
+   "ms": 1500
+  },
+  {
+   "do": "home",
+   "after": 800
+  },
+  {
+   "do": "open",
+   "text": "Капитанская дочка",
+   "after": 5000
+  },
+  {
+   "do": "tap",
+   "text": "чтобы начать",
+   "timeout": 1500,
+   "optional": true,
+   "after": 600
+  },
+  {
+   "do": "show",
+   "text": "Ещё",
+   "exact": true,
+   "desc": true,
+   "after": 1200,
+   "x": 0.5,
+   "y": 0.5
+  },
+  {
+   "do": "tapAt",
+   "x": 0.4,
+   "y": 0.042,
+   "after": 2500
+  },
+  {
+   "do": "dump",
+   "text": "about"
+  },
+  {
+   "do": "swipe",
+   "x": 0.5,
+   "y": 0.8,
+   "x2": 0.5,
+   "y2": 0.4,
+   "ms": 700,
+   "after": 1500
+  },
+  {
+   "do": "pause",
+   "ms": 1500
+  },
+  {
+   "do": "dump",
+   "text": "about-down"
+  },
+  {
+   "do": "pause",
+   "ms": 1500
+  }
  ]
 }
