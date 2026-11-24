@@ -61,6 +61,8 @@ class App : Application() {
 
     val audio: com.flerty.wikiflerty.audio.AudioPlayer by lazy { com.flerty.wikiflerty.audio.AudioPlayer(this) }
 
+    val audioSync: com.flerty.wikiflerty.audio.AudioSync by lazy { com.flerty.wikiflerty.audio.AudioSync(this) }
+
     val illustrations: com.flerty.wikiflerty.data.IllustrationsRepository by lazy { com.flerty.wikiflerty.data.IllustrationsRepository(this) }
     val customToc: com.flerty.wikiflerty.data.CustomTocRepository by lazy { com.flerty.wikiflerty.data.CustomTocRepository(this) }
 

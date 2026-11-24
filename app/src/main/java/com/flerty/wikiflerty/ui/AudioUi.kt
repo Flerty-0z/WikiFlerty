@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -589,6 +590,7 @@ private fun AudioLink(book: Audiobook, onBack: () -> Unit) {
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         HintNote("Свяжи аудиокнигу с её текстом из библиотеки — по нему появится подсветка во время прослушивания.", AppIcons.Link)
+        if (book.bookId != null) AudioSyncCard(book)
         InputField(query, { query = it }, "Поиск в библиотеке", icon = AppIcons.Search)
         if (book.bookId != null) {
             ChapterRow(AppIcons.Close, "Отвязать", "", false) {
@@ -709,5 +711,52 @@ fun AudioContinueStrip(modifier: Modifier = Modifier) {
             Modifier.size(32.dp).liveClick(CircleShape, sound = FeedbackSound.Close, pressedScale = 0.86f) { app.audio.close() },
             contentAlignment = Alignment.Center,
         ) { Icon(AppIcons.Close, "Закрыть плеер", tint = AppColors.Faint, modifier = Modifier.size(15.dp)) }
+    }
+}
+
+@Composable
+private fun AudioSyncCard(book: Audiobook) {
+    val app = LocalContext.current.applicationContext as App
+    val states by app.audioSync.state.collectAsStateWithLifecycle()
+    val st = states[book.id]
+    val has = remember(st) { app.audioSync.has(book.id) }
+    val shape = appCorner(16)
+    Column(
+        Modifier.fillMaxWidth().fieldSurface(shape).animateContentSize(Motion.tween(260)).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            SettingIcon(AppIcons.Headphones)
+            Column(Modifier.weight(1f)) {
+                Text("Сопоставление с текстом", color = AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                val line = when (st?.stage) {
+                    "model" -> "Скачиваю распознавание речи · ${(st.progress * 100).toInt()}%"
+                    "listen" -> "Слушаю аудио · ${(st.progress * 100).toInt()}%"
+                    "match" -> "Ищу совпадения в тексте…"
+                    "error" -> st.message
+                    else -> if (has) "Готово · совпало ${(app.audioSync.coverage(book.id) * 100).toInt()}% слов" else "Ещё не сделано"
+                }
+                Text(line, color = if (st?.stage == "error") AppColors.Accent else AppColors.Muted, fontSize = 12.sp)
+            }
+        }
+        val running = st != null && st.stage in setOf("model", "listen", "match")
+        if (running) {
+            Box(Modifier.fillMaxWidth().height(5.dp).clip(CircleShape).background(AppColors.Accent.copy(alpha = 0.18f))) {
+                Box(Modifier.fillMaxWidth(if (st?.stage == "match") 1f else st?.progress?.coerceAtLeast(0.02f) ?: 0.02f).height(5.dp).background(AppColors.Accent, CircleShape))
+            }
+            AppButton("Остановить", primary = false, modifier = Modifier.fillMaxWidth(), labeled = true, sound = FeedbackSound.Close) { app.audioSync.cancel(book.id) }
+        } else {
+            if (!has) {
+                HintNote(
+                    if (com.flerty.wikiflerty.audio.AsrModel.ready(app)) "Телефон прослушает аудиокнигу без интернета и найдёт, где какое предложение. Это делается один раз."
+                    else "Телефон прослушает аудиокнигу и найдёт, где какое предложение. Один раз скачается распознавание речи — ${com.flerty.wikiflerty.audio.AsrModel.SIZE_MB} МБ, дальше всё без интернета.",
+                    AppIcons.Info,
+                )
+            }
+            AppButton(if (has) "Сопоставить заново" else "Сопоставить с текстом", primary = !has, modifier = Modifier.fillMaxWidth(), labeled = true, sound = FeedbackSound.Go) {
+                if (has) app.audioSync.clear(book.id)
+                app.audioSync.start(book.id)
+            }
+        }
     }
 }
