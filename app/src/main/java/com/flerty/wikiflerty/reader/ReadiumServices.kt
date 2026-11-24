@@ -56,13 +56,13 @@ class ReadiumServices(context: Context) {
     }
 }
 
-private const val BOOT = "<script>(function(){" +
+internal const val BOOT = "<script>(function(){" +
     "var st=document.createElement('style');st.id='wf-boot';st.textContent='html{visibility:hidden !important}';" +
     "(document.head||document.documentElement).appendChild(st);" +
     "var wr=document.createElement('style');wr.textContent='body{overflow-wrap:break-word;word-wrap:break-word}" +
     "html.wf-solo:root:not(#wf-z) body img,html.wf-solo:root:not(#wf-z) body svg{width:100%!important;max-width:100%!important;height:auto!important;max-height:calc(100vh - 40px)!important;object-fit:contain!important;display:block!important;margin:0 auto!important}" +
     "html.wf-solo:root:not(#wf-z)[style*=readium-scroll-on] body img,html.wf-solo:root:not(#wf-z)[style*=readium-scroll-on] body svg{max-height:none!important}';(document.head||document.documentElement).appendChild(wr);" +
-    "function solo(){try{var b=document.body;if(!b)return;var n=b.querySelectorAll('img,svg image').length;if(n===1&&(b.innerText||'').replace(/\\s+/g,'').length<3)document.documentElement.classList.add('wf-solo');}catch(e){}}" +
+    "function solo(){try{var b=document.body;if(!b)return;var n=b.querySelectorAll('img,svg image').length;if(n===1){if(!((b.innerText||'').replace(/\\s+/g,'').length>2)){document.documentElement.classList.add('wf-solo');}}}catch(e){}}" +
     "function show(){var h=document.getElementById('wf-boot');if(h){h.parentNode.removeChild(h);}}" +
     "setTimeout(show,1500);" +
     "document.addEventListener('DOMContentLoaded',function(){" +
@@ -70,7 +70,7 @@ private const val BOOT = "<script>(function(){" +
     "solo();show();});" +
     "})();</script>"
 
-private const val COMIC = "<style id='wf-comic'>" +
+internal const val COMIC = "<style id='wf-comic'>" +
     "html:root:not(#wf-z){--RS__pageGutter:14px!important;--USER__pageMargins:1!important;--RS__maxLineLength:100vw!important}" +
     "html:root:not(#wf-z) body{max-width:none!important;width:auto!important}" +
     "html:root:not(#wf-z) body div.page{margin:0!important;padding:0!important}" +
