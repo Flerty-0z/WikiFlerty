@@ -2,37 +2,251 @@
  "title": "Этап 2",
  "lenient": true,
  "steps": [
-  {"do": "launch", "fresh": true, "ms": 2500},
-  {"do": "tap", "text": "Позже", "timeout": 1500, "optional": true},
-  {"do": "wait", "text": "Моя полка", "timeout": 10000, "after": 2000},
-  {"do": "tap", "text": "Отлично", "timeout": 2000, "optional": true, "after": 800},
-  {"do": "swipe", "x": 0.5, "y": 0.8, "x2": 0.5, "y2": 0.45, "ms": 500, "after": 150},
-  {"do": "dump", "text": "shelf-reveal"},
-  {"do": "pause", "ms": 1200},
-  {"do": "open", "text": "Капитанская дочка", "after": 5000},
-  {"do": "tap", "text": "чтобы начать", "timeout": 1500, "optional": true, "after": 600},
-  {"do": "show", "text": "Ещё", "exact": true, "desc": true, "after": 1200, "x": 0.5, "y": 0.5},
-  {"do": "tap", "text": "Ещё", "exact": true, "desc": true, "timeout": 4000, "after": 1200},
-  {"do": "dump", "text": "more-row"},
-  {"do": "tap", "text": "Закладки", "exact": true, "desc": true, "timeout": 3000, "after": 1600},
-  {"do": "dump", "text": "more-bookmarks"},
-  {"do": "back", "after": 1000},
-  {"do": "show", "text": "Ещё", "exact": true, "desc": true, "after": 1200, "x": 0.5, "y": 0.5},
-  {"do": "tapAt", "x": 0.45, "y": 0.085, "after": 2000},
-  {"do": "dump", "text": "about"},
-  {"do": "swipe", "x": 0.5, "y": 0.8, "x2": 0.5, "y2": 0.35, "ms": 700, "after": 1200},
-  {"do": "dump", "text": "about-down"},
-  {"do": "back", "after": 1000},
-  {"do": "back", "after": 1000},
-  {"do": "home", "after": 800},
-  {"do": "tap", "text": "Настройки", "desc": true, "timeout": 4000, "after": 300},
-  {"do": "dump", "text": "settings-in"},
-  {"do": "tap", "text": "Звук и отклик", "timeout": 4000, "after": 300},
-  {"do": "dump", "text": "sound-in"},
-  {"do": "pause", "ms": 1200},
-  {"do": "dump", "text": "sound"},
-  {"do": "home", "after": 800},
-  {"do": "tap", "text": "Итоги", "desc": true, "timeout": 4000, "after": 1500},
-  {"do": "dump", "text": "stats"}
+  {
+   "do": "launch",
+   "fresh": true,
+   "ms": 2500
+  },
+  {
+   "do": "tap",
+   "text": "Позже",
+   "timeout": 1500,
+   "optional": true
+  },
+  {
+   "do": "wait",
+   "text": "Моя полка",
+   "timeout": 10000,
+   "after": 2000
+  },
+  {
+   "do": "tap",
+   "text": "Отлично",
+   "timeout": 2000,
+   "optional": true,
+   "after": 800
+  },
+  {
+   "do": "swipe",
+   "x": 0.5,
+   "y": 0.8,
+   "x2": 0.5,
+   "y2": 0.45,
+   "ms": 500,
+   "after": 150
+  },
+  {
+   "do": "dump",
+   "text": "shelf-reveal"
+  },
+  {
+   "do": "swipe",
+   "x": 0.5,
+   "y": 0.45,
+   "x2": 0.5,
+   "y2": 0.8,
+   "ms": 500,
+   "after": 1000
+  },
+  {
+   "do": "tap",
+   "text": "Аудиокнига «Белкин в двух частях",
+   "timeout": 5000,
+   "after": 2000,
+   "desc": true,
+   "optional": true
+  },
+  {
+   "do": "dump",
+   "text": "player"
+  },
+  {
+   "do": "back",
+   "after": 1200
+  },
+  {
+   "do": "pause",
+   "ms": 1200
+  },
+  {
+   "do": "open",
+   "text": "Капитанская дочка",
+   "after": 5000
+  },
+  {
+   "do": "tap",
+   "text": "чтобы начать",
+   "timeout": 1500,
+   "optional": true,
+   "after": 600
+  },
+  {
+   "do": "show",
+   "text": "Ещё",
+   "exact": true,
+   "desc": true,
+   "after": 1200,
+   "x": 0.5,
+   "y": 0.5
+  },
+  {
+   "do": "tap",
+   "text": "Ещё",
+   "exact": true,
+   "desc": true,
+   "timeout": 4000,
+   "after": 1200
+  },
+  {
+   "do": "dump",
+   "text": "more-row"
+  },
+  {
+   "do": "tap",
+   "text": "Закладки",
+   "exact": true,
+   "desc": true,
+   "timeout": 3000,
+   "after": 1600
+  },
+  {
+   "do": "dump",
+   "text": "more-bookmarks"
+  },
+  {
+   "do": "back",
+   "after": 1000
+  },
+  {
+   "do": "show",
+   "text": "Ещё",
+   "exact": true,
+   "desc": true,
+   "after": 1200,
+   "x": 0.5,
+   "y": 0.5
+  },
+  {
+   "do": "tapAt",
+   "x": 0.45,
+   "y": 0.085,
+   "after": 2000
+  },
+  {
+   "do": "dump",
+   "text": "about"
+  },
+  {
+   "do": "swipe",
+   "x": 0.5,
+   "y": 0.8,
+   "x2": 0.5,
+   "y2": 0.35,
+   "ms": 700,
+   "after": 1200
+  },
+  {
+   "do": "dump",
+   "text": "about-down"
+  },
+  {
+   "do": "back",
+   "after": 1000
+  },
+  {
+   "do": "back",
+   "after": 1000
+  },
+  {
+   "do": "home",
+   "after": 800
+  },
+  {
+   "do": "tap",
+   "text": "Настройки",
+   "desc": true,
+   "timeout": 4000,
+   "after": 300
+  },
+  {
+   "do": "dump",
+   "text": "settings-in"
+  },
+  {
+   "do": "tap",
+   "text": "Звук и отклик",
+   "timeout": 4000,
+   "after": 300
+  },
+  {
+   "do": "dump",
+   "text": "sound-in"
+  },
+  {
+   "do": "pause",
+   "ms": 1200
+  },
+  {
+   "do": "dump",
+   "text": "sound"
+  },
+  {
+   "do": "home",
+   "after": 800
+  },
+  {
+   "do": "tap",
+   "text": "Итоги",
+   "desc": true,
+   "timeout": 4000,
+   "after": 1500
+  },
+  {
+   "do": "dump",
+   "text": "stats"
+  },
+  {
+   "do": "tap",
+   "text": "Настройки",
+   "desc": true,
+   "timeout": 4000,
+   "after": 1500
+  },
+  {
+   "do": "tap",
+   "text": "Режим E-Ink",
+   "timeout": 4000,
+   "after": 1500
+  },
+  {
+   "do": "tap",
+   "text": "Пояснение",
+   "desc": true,
+   "timeout": 3000,
+   "after": 200
+  },
+  {
+   "do": "dump",
+   "text": "eink-help-mid"
+  },
+  {
+   "do": "pause",
+   "ms": 800
+  },
+  {
+   "do": "dump",
+   "text": "eink-help"
+  },
+  {
+   "do": "tap",
+   "text": "Скрыть пояснение",
+   "desc": true,
+   "timeout": 3000,
+   "after": 900
+  },
+  {
+   "do": "dump",
+   "text": "eink-closed"
+  }
  ]
 }
