@@ -43,7 +43,7 @@ jobs:
           curl -fsSL --retry 3 -o fonts/Title.ttf "https://github.com/google/fonts/raw/main/ofl/robotocondensed/RobotoCondensed%5Bwght%5D.ttf"
           curl -fsSL --retry 3 -o fonts/Kicker.ttf "https://github.com/google/fonts/raw/main/ofl/lora/Lora-Italic%5Bwght%5D.ttf"
           PYTHONPATH=tools/film python3 tools/film/cover.py --results results --plan "$PLAN" --fonts fonts --out cover.jpg
-          kid=$(gh api --paginate "repos/${{ github.repository }}/releases?per_page=100" -q \'.[] | select(.tag_name=="film-kit") | .assets[0].id\' | head -1 || true)
+          kid=$(gh api --paginate "repos/${{ github.repository }}/releases?per_page=100" -q '.[] | select(.tag_name=="film-kit") | .assets[0].id' | head -1 || true)
           if [ -n "$kid" ]; then gh api -H "Accept: application/octet-stream" "repos/${{ github.repository }}/releases/assets/$kid" > kit.zip && unzip -oq kit.zip chat.txt -d audio || true; fi
           printf '%s' "$CAPTION" > caption.txt
           python3 tools/film/tg.py audio/chat.txt cover.jpg caption.txt

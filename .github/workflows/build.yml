@@ -159,6 +159,6 @@ jobs:
         run: |
           [ -n "$TELEGRAM_BOT_TOKEN" ] || { echo "no bot"; exit 0; }
           mkdir -p tg
-          kid=$(gh api --paginate "repos/$REPO/releases?per_page=100" -q \'.[] | select(.tag_name=="film-kit") | .assets[0].id\' | head -1 || true)
+          kid=$(gh api --paginate "repos/$REPO/releases?per_page=100" -q '.[] | select(.tag_name=="film-kit") | .assets[0].id' | head -1 || true)
           if [ -n "$kid" ]; then gh api -H "Accept: application/octet-stream" "repos/$REPO/releases/assets/$kid" > kit.zip && unzip -oq kit.zip chat.txt -d tg || true; fi
           python3 tools/release/announce.py tg/chat.txt "0.1.${{ inputs.public }}" tools/release/announce.txt out

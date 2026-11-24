@@ -53,7 +53,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          kid=$(gh api --paginate "repos/${{ github.repository }}/releases?per_page=100" -q \'.[] | select(.tag_name=="film-kit") | .assets[0].id\' | head -1 || true)
+          kid=$(gh api --paginate "repos/${{ github.repository }}/releases?per_page=100" -q '.[] | select(.tag_name=="film-kit") | .assets[0].id' | head -1 || true)
           if [ -n "$kid" ]; then gh api -H "Accept: application/octet-stream" "repos/${{ github.repository }}/releases/assets/$kid" > kit.zip && unzip -oq kit.zip chat.txt -d tg || true; fi
           echo "OWNER=$(cat tg/chat.txt 2>/dev/null)" >> "$GITHUB_ENV"
       - name: Bucket

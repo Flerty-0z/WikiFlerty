@@ -22,7 +22,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          kid=$(gh api --paginate "repos/${{ github.repository }}/releases?per_page=100" -q \'.[] | select(.tag_name=="film-kit") | .assets[0].id\' | head -1)
+          kid=$(gh api --paginate "repos/${{ github.repository }}/releases?per_page=100" -q '.[] | select(.tag_name=="film-kit") | .assets[0].id' | head -1)
           gh api -H "Accept: application/octet-stream" "repos/${{ github.repository }}/releases/assets/$kid" > kit.zip
           unzip -oq kit.zip chat.txt -d tg
           echo "OWNER=$(cat tg/chat.txt)" >> "$GITHUB_ENV"
