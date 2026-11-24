@@ -46,13 +46,6 @@ object NeuralVoices {
     const val GEMINI = "neural:gemini"
     const val OPENAI = "neural:openai"
     const val PIPER = "neural:piper"
-    const val YANDEX = "neural:yandex"
-    const val AZURE = "neural:azure"
-    const val YANDEX_KEY = "tts-yandex"
-    const val AZURE_KEY = "tts-azure"
-    const val AZURE_REGION = "tts-azure-region"
-
-    fun isCloud(engine: String) = engine == YANDEX || engine == AZURE
     const val SILENT = "neural:silent"
 
     fun isNeural(engine: String) = engine.startsWith("neural:")
@@ -112,31 +105,9 @@ object NeuralVoices {
         NeuralVoice("verse", "Verse", "Мужской · артистичный"),
     )
 
-    val yandex = listOf(
-        NeuralVoice("alena", "Алёна", "Женский · мягкий"),
-        NeuralVoice("jane", "Джейн", "Женский · выразительный"),
-        NeuralVoice("omazh", "Омаж", "Женский · низкий"),
-        NeuralVoice("filipp", "Филипп", "Мужской · спокойный"),
-        NeuralVoice("ermil", "Ермил", "Мужской · ровный"),
-        NeuralVoice("zahar", "Захар", "Мужской · тёплый"),
-        NeuralVoice("madirus", "Мадирус", "Мужской · низкий"),
-    )
-
-    val azure = listOf(
-        NeuralVoice("ru-RU-SvetlanaNeural", "Светлана", "Женский · русский"),
-        NeuralVoice("ru-RU-DariyaNeural", "Дарья", "Женский · русский"),
-        NeuralVoice("ru-RU-DmitryNeural", "Дмитрий", "Мужской · русский"),
-        NeuralVoice("en-US-AvaMultilingualNeural", "Ava", "Женский · многоязычный"),
-        NeuralVoice("en-US-EmmaMultilingualNeural", "Emma", "Женский · многоязычный"),
-        NeuralVoice("en-US-AndrewMultilingualNeural", "Andrew", "Мужской · многоязычный"),
-        NeuralVoice("en-US-BrianMultilingualNeural", "Brian", "Мужской · многоязычный"),
-    )
-
     fun voices(engine: String) = when (engine) {
         GEMINI -> gemini
         OPENAI -> openai
-        YANDEX -> yandex
-        AZURE -> azure
         PIPER -> PiperVoices.all.map { NeuralVoice(it.id, it.title, it.hint) }
         else -> emptyList()
     }
@@ -522,17 +493,6 @@ class NeuralTts(
         if (engineId == NeuralVoices.PIPER) {
             return@withContext piper(NeuralVoices.voiceOrDefault(engineId, app.readerSettings.settings.value.ttsVoice), text)
         }
-        if (engineId == NeuralVoices.YANDEX || engineId == NeuralVoices.AZURE) {
-            val voice = NeuralVoices.voiceOrDefault(engineId, app.readerSettings.settings.value.ttsVoice)
-            return@withContext if (engineId == NeuralVoices.YANDEX) {
-                val key = app.ai.vault.get(NeuralVoices.YANDEX_KEY) ?: throw NeuralException("Для голосов Яндекса нужен API-ключ SpeechKit в настройках чтения вслух")
-                yandex(key, voice, text)
-            } else {
-                val key = app.ai.vault.get(NeuralVoices.AZURE_KEY) ?: throw NeuralException("Для голосов Azure нужен ключ Speech в настройках чтения вслух")
-                val region = app.ai.vault.get(NeuralVoices.AZURE_REGION) ?: throw NeuralException("Укажи регион Azure в настройках чтения вслух")
-                azure(key, region, voice, text)
-            }
-        }
         val provider = NeuralVoices.providerId(engineId)
         val key = app.ai.vault.get(provider) ?: throw NeuralException(
             if (provider == "gemini") "Для голосов Gemini нужен ключ Gemini в настройках ИИ" else "Для голосов OpenAI нужен ключ ChatGPT в настройках ИИ",
@@ -606,94 +566,6 @@ class NeuralTts(
         throw last ?: NeuralException("Голоса OpenAI недоступны")
     }
 
-    private fun yandex(key: String, voice: String, text: String): Pcm {
-        val v3 = runCatching { yandexV3(key, voice, text) }
-        v3.getOrNull()?.let { return it }
-        val first = v3.exceptionOrNull()
-        return try {
-            yandexV1(key, voice, text)
-        } catch (e: NeuralException) {
-            if (first is NeuralException && !first.network) throw first else throw e
-        }
-    }
-
-    private fun yandexV3(key: String, voice: String, text: String): Pcm {
-        val body = JSONObject()
-            .put("text", text.take(4900))
-            .put("hints", JSONArray().put(JSONObject().put("voice", voice)))
-            .put("outputAudioSpec", JSONObject().put("rawAudio", JSONObject().put("audioEncoding", "LINEAR16_PCM").put("sampleRateHertz", "48000")))
-            .put("unsafeMode", true)
-        val conn = raw("https://tts.api.cloud.yandex.net/tts/v3/utteranceSynthesis", mapOf("Authorization" to "Api-Key $key", "Content-Type" to "application/json"), body.toString().toByteArray(Charsets.UTF_8))
-        val code = conn.responseCode
-        if (code !in 200..299) throw NeuralException(errorText("Яндекса", code, conn))
-        val out = ByteArrayOutputStream()
-        conn.inputStream.bufferedReader().useLines { lines ->
-            lines.forEach { line ->
-                val t = line.trim()
-                if (t.isEmpty()) return@forEach
-                val o = runCatching { JSONObject(t) }.getOrNull() ?: return@forEach
-                o.optJSONObject("error")?.let { throw NeuralException("Ошибка озвучки Яндекса: " + it.optString("message").take(160)) }
-                val data = o.optJSONObject("result")?.optJSONObject("audioChunk")?.optString("data").orEmpty()
-                if (data.isNotEmpty()) out.write(Base64.decode(data, Base64.DEFAULT))
-            }
-        }
-        if (out.size() < 64) throw NeuralException("Яндекс не вернул звук. Попробуй другой голос")
-        return Pcm(toShorts(out.toByteArray()), 48000)
-    }
-
-    private fun yandexV1(key: String, voice: String, text: String): Pcm {
-        val form = listOf(
-            "text" to text.take(4900),
-            "lang" to "ru-RU",
-            "voice" to voice,
-            "format" to "lpcm",
-            "sampleRateHertz" to "48000",
-        ).joinToString("&") { (k, v) -> k + "=" + java.net.URLEncoder.encode(v, "UTF-8") }
-        val conn = raw("https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize", mapOf("Authorization" to "Api-Key $key", "Content-Type" to "application/x-www-form-urlencoded"), form.toByteArray(Charsets.UTF_8))
-        val code = conn.responseCode
-        if (code !in 200..299) throw NeuralException(errorText("Яндекса", code, conn))
-        val bytes = conn.inputStream.use { it.readBytes() }
-        if (bytes.size < 64) throw NeuralException("Яндекс не вернул звук. Попробуй другой голос")
-        return Pcm(toShorts(bytes), 48000)
-    }
-
-    private fun azure(key: String, region: String, voice: String, text: String): Pcm {
-        val safe = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&apos;")
-        val ssml = "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='ru-RU'><voice name='$voice'><lang xml:lang='ru-RU'>$safe</lang></voice></speak>"
-        val host = region.trim().lowercase().filter { it.isLetterOrDigit() }
-        val conn = raw(
-            "https://$host.tts.speech.microsoft.com/cognitiveservices/v1",
-            mapOf(
-                "Ocp-Apim-Subscription-Key" to key,
-                "Content-Type" to "application/ssml+xml",
-                "X-Microsoft-OutputFormat" to "raw-24khz-16bit-mono-pcm",
-                "User-Agent" to "WikiFlerty",
-            ),
-            ssml.toByteArray(Charsets.UTF_8),
-        )
-        val code = conn.responseCode
-        if (code !in 200..299) throw NeuralException(errorText("Azure", code, conn))
-        val bytes = conn.inputStream.use { it.readBytes() }
-        if (bytes.size < 64) throw NeuralException("Azure не вернул звук. Попробуй другой голос")
-        return Pcm(toShorts(bytes), 24000)
-    }
-
-    private fun raw(url: String, headers: Map<String, String>, body: ByteArray): HttpURLConnection {
-        try {
-            val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                connectTimeout = 15_000
-                readTimeout = 60_000
-                doOutput = true
-                headers.forEach { (k, v) -> setRequestProperty(k, v) }
-            }
-            conn.outputStream.use { it.write(body) }
-            return conn
-        } catch (e: java.io.IOException) {
-            throw NeuralException("Нет связи с сервером озвучки. Проверь интернет", network = true)
-        }
-    }
-
     private fun open(url: String, headers: Map<String, String>, body: JSONObject): HttpURLConnection {
         try {
             val conn = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -713,15 +585,10 @@ class NeuralTts(
 
     private fun errorText(name: String, code: Int, conn: HttpURLConnection): String {
         val detail = runCatching { conn.errorStream?.bufferedReader()?.use { it.readText() } }.getOrNull().orEmpty()
-        val why = Regex("\"(?:error_message|message|description)\"\\s*:\\s*\"([^\"]{1,160})").find(detail)?.groupValues?.get(1)
-        val low = detail.lowercase()
-        return when {
-            "billing" in low || "payment" in low || "balance" in low -> "Платёжный аккаунт $name не активен. Привяжи карту или пополни баланс"
-            code == 401 || code == 403 -> "Ключ $name не подходит для озвучки" + (why?.let { ": $it" } ?: " ($code)")
-            else -> when (code) {
-                429 -> "Лимит озвучки $name исчерпан. Попробуй позже или выбери другой голос"
-                else -> "Ошибка озвучки $name ($code)" + (why?.let { ": $it" } ?: "")
-            }
+        return when (code) {
+            401, 403 -> "Ключ $name не подходит для озвучки"
+            429 -> "Лимит озвучки $name исчерпан. Попробуй позже или выбери другой голос"
+            else -> "Ошибка озвучки $name ($code)" + (Regex("\"message\"\\s*:\\s*\"([^\"]{1,140})").find(detail)?.groupValues?.get(1)?.let { ": $it" } ?: "")
         }
     }
 

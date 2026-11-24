@@ -622,6 +622,16 @@ internal object TextSelection {
             pending = setTimeout(function () { pending = 0; requestAnimationFrame(place); }, 140);
           }
           window.__wfPeoplePlace = later;
+          var trackUntil = 0;
+          window.__wfPeopleTrack = function (ms) {
+            var on = trackUntil > Date.now();
+            trackUntil = Math.max(trackUntil, Date.now() + ms);
+            if (on) return;
+            (function tick() {
+              place();
+              if (Date.now() < trackUntil) requestAnimationFrame(tick);
+            })();
+          };
           window.addEventListener("resize", later);
           try { new MutationObserver(later).observe(document.documentElement, { attributes: true, attributeFilter: ["style", "class"] }); } catch (x) {}
           try { if (window.ResizeObserver && document.body) new ResizeObserver(later).observe(document.body); } catch (x) {}

@@ -132,7 +132,7 @@ object DualTranslate {
             var st = document.getElementById("wf-dual-style");
             if (!st) { st = document.createElement("style"); st.id = "wf-dual-style"; (document.head || document.documentElement).appendChild(st); }
             st.textContent =
-              ".wf-dual{display:block;margin:0;padding:0;-webkit-column-break-inside:avoid}" +
+              ".wf-dual{display:block;margin:0;padding:0}" +
               ".wf-dual[hidden]{display:none}" +
               ".wf-dual.wf-anim{overflow:hidden;transition:height .34s cubic-bezier(.2,.85,.25,1),opacity .3s ease}" +
               ".wf-dual.wf-fade{animation:wfDualFade .45s ease both}" +
@@ -210,7 +210,9 @@ object DualTranslate {
             d.addEventListener("transitionend", end);
             setTimeout(end, 480);
           }
+          function track() { try { window.__wfPeopleTrack && window.__wfPeopleTrack(520); } catch (x) {} }
           function reveal(d) {
+            track();
             d.removeAttribute("hidden");
             var h = d.scrollHeight;
             d.classList.add("wf-closed");
@@ -224,6 +226,7 @@ object DualTranslate {
             after(d, function () { d.classList.remove("wf-anim"); d.style.height = ""; d.style.opacity = ""; relayout(); });
           }
           function conceal(d) {
+            track();
             d.style.height = d.scrollHeight + "px";
             void d.offsetHeight;
             d.classList.add("wf-anim");
