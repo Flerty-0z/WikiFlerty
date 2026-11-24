@@ -607,6 +607,41 @@ class NeuralTts(
     }
 
     private fun yandex(key: String, voice: String, text: String): Pcm {
+        val v3 = runCatching { yandexV3(key, voice, text) }
+        v3.getOrNull()?.let { return it }
+        val first = v3.exceptionOrNull()
+        return try {
+            yandexV1(key, voice, text)
+        } catch (e: NeuralException) {
+            if (first is NeuralException && !first.network) throw first else throw e
+        }
+    }
+
+    private fun yandexV3(key: String, voice: String, text: String): Pcm {
+        val body = JSONObject()
+            .put("text", text.take(4900))
+            .put("hints", JSONArray().put(JSONObject().put("voice", voice)))
+            .put("outputAudioSpec", JSONObject().put("rawAudio", JSONObject().put("audioEncoding", "LINEAR16_PCM").put("sampleRateHertz", "48000")))
+            .put("unsafeMode", true)
+        val conn = raw("https://tts.api.cloud.yandex.net/tts/v3/utteranceSynthesis", mapOf("Authorization" to "Api-Key $key", "Content-Type" to "application/json"), body.toString().toByteArray(Charsets.UTF_8))
+        val code = conn.responseCode
+        if (code !in 200..299) throw NeuralException(errorText("Яндекса", code, conn))
+        val out = ByteArrayOutputStream()
+        conn.inputStream.bufferedReader().useLines { lines ->
+            lines.forEach { line ->
+                val t = line.trim()
+                if (t.isEmpty()) return@forEach
+                val o = runCatching { JSONObject(t) }.getOrNull() ?: return@forEach
+                o.optJSONObject("error")?.let { throw NeuralException("Ошибка озвучки Яндекса: " + it.optString("message").take(160)) }
+                val data = o.optJSONObject("result")?.optJSONObject("audioChunk")?.optString("data").orEmpty()
+                if (data.isNotEmpty()) out.write(Base64.decode(data, Base64.DEFAULT))
+            }
+        }
+        if (out.size() < 64) throw NeuralException("Яндекс не вернул звук. Попробуй другой голос")
+        return Pcm(toShorts(out.toByteArray()), 48000)
+    }
+
+    private fun yandexV1(key: String, voice: String, text: String): Pcm {
         val form = listOf(
             "text" to text.take(4900),
             "lang" to "ru-RU",
@@ -678,10 +713,15 @@ class NeuralTts(
 
     private fun errorText(name: String, code: Int, conn: HttpURLConnection): String {
         val detail = runCatching { conn.errorStream?.bufferedReader()?.use { it.readText() } }.getOrNull().orEmpty()
-        return when (code) {
-            401, 403 -> "Ключ $name не подходит для озвучки"
-            429 -> "Лимит озвучки $name исчерпан. Попробуй позже или выбери другой голос"
-            else -> "Ошибка озвучки $name ($code)" + (Regex("\"message\"\\s*:\\s*\"([^\"]{1,140})").find(detail)?.groupValues?.get(1)?.let { ": $it" } ?: "")
+        val why = Regex("\"(?:error_message|message|description)\"\\s*:\\s*\"([^\"]{1,160})").find(detail)?.groupValues?.get(1)
+        val low = detail.lowercase()
+        return when {
+            "billing" in low || "payment" in low || "balance" in low -> "Платёжный аккаунт $name не активен. Привяжи карту или пополни баланс"
+            code == 401 || code == 403 -> "Ключ $name не подходит для озвучки" + (why?.let { ": $it" } ?: " ($code)")
+            else -> when (code) {
+                429 -> "Лимит озвучки $name исчерпан. Попробуй позже или выбери другой голос"
+                else -> "Ошибка озвучки $name ($code)" + (why?.let { ": $it" } ?: "")
+            }
         }
     }
 
