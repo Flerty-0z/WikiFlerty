@@ -36,6 +36,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -649,10 +651,10 @@ private fun AudioSpeed(speed: Float, onBack: () -> Unit) {
                             app.audio.setSpeed(SpeedOptions[i])
                         }
                     }
-                    androidx.compose.foundation.gestures.detectDragGestures(onDragStart = { select(it) }) { change, _ -> select(change.position) }
+                    detectDragGestures(onDragStart = { select(it) }) { change, _ -> select(change.position) }
                 }
                 .pointerInput(Unit) {
-                    androidx.compose.foundation.gestures.detectTapGestures { p ->
+                    detectTapGestures { p ->
                         val cx = size.width / 2f
                         val cy = size.height / 2f
                         var a = Math.toDegrees(kotlin.math.atan2((p.y - cy).toDouble(), (p.x - cx).toDouble())).toFloat()
