@@ -1449,7 +1449,7 @@ internal fun TopPanel(
                 enter = expandVertically(Motion.tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing), expandFrom = Alignment.Top) + fadeIn(Motion.tween(220, 60)),
                 exit = shrinkVertically(Motion.tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing), shrinkTowards = Alignment.Top) + fadeOut(Motion.tween(150)),
             ) {
-                val plain = listOf<Pair<String, Pair<ImageVector, () -> Unit>>>("Перейти к странице" to (AppIcons.Pages to onJump)) +
+                val plain = listOf<Pair<String, Pair<ImageVector, () -> Unit>>>("Перейти к странице" to (AppIcons.Percent to onJump)) +
                     extra.filter { !it.ai }.map { it.title to (quickIconVector(it) to { onQuick(it) }) }
                 val smart = extra.filter { it.ai }.map { it.title to (quickIconVector(it) to { onQuick(it) }) }
                 val context = androidx.compose.ui.platform.LocalContext.current
@@ -1747,9 +1747,9 @@ private fun QuickIcon(button: QuickButton, tint: Color) {
 
 private fun quickIconVector(button: QuickButton): ImageVector = when (button) {
     QuickButton.Toc -> AppIcons.Toc
-    QuickButton.Font -> AppIcons.Toc
+    QuickButton.Font -> AppIcons.TextSize
     QuickButton.Theme -> AppIcons.Theme
-    QuickButton.Scroll -> AppIcons.Pages
+    QuickButton.Scroll -> AppIcons.Scroll
     QuickButton.Screen -> AppIcons.Screen
     QuickButton.Notes -> AppIcons.Note
     QuickButton.Bookmarks -> AppIcons.Bookmark
