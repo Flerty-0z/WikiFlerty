@@ -123,6 +123,10 @@
    "after": 500
   },
   {
+   "do": "back",
+   "after": 800
+  },
+  {
    "do": "tap",
    "text": "Пароль ещё раз",
    "exact": true,
