@@ -4,32 +4,8 @@ on:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
-      - name: Usage
-        env:
-          KEY: ${{ secrets.SELECTEL_S3_ACCESS }}
-          SECRET: ${{ secrets.SELECTEL_S3_SECRET }}
-        run: |
-          base=https://wikiflerty-books.s3.ru-3.storage.selcloud.ru
-          s3() { curl -sS --fail --max-time 30 --aws-sigv4 "aws:amz:ru-3:s3" --user "$KEY:$SECRET" -H "x-amz-content-sha256: UNSIGNED-PAYLOAD" "$@"; }
-          mkdir u
-          for k in $(s3 "$base/?list-type=2&prefix=users/&max-keys=1000" | grep -o '<Key>[^<]*' | sed 's/<Key>//'); do s3 "$base/$k" > "u/$(basename $k)" || true; done
-          python3 - <<'PY'
-          import glob, json, time
-          now = time.time() * 1000
-          n = over = paid = 0
-          for f in glob.glob("u/*.json"):
-              try: u = json.load(open(f))
-              except Exception: continue
-              n += 1
-              used = sum((b or {}).get("size", 0) for b in (u.get("books") or {}).values())
-              active = (u.get("until") or 0) > now
-              paid += active
-              if u.get("paid"): print("hadpaid", u.get("login"), u.get("paid"), time.strftime("%Y-%m-%d", time.gmtime((u.get("until") or 0) / 1000)))
-              if active: print("paid", u.get("login"), u.get("paid"), u.get("limit"), time.strftime("%Y-%m-%d", time.gmtime(u["until"] / 1000)))
-              if used > 500 * 1024 * 1024 and not active:
-                  over += 1
-                  print("over", round(used / 1048576), "MB limit", u.get("limit"))
-          print("users", n, "paid", paid, "over500free", over)
-          PY
+      - uses: actions/checkout@v4
+      - name: Live
+        run: python3 tools/check/live.py
