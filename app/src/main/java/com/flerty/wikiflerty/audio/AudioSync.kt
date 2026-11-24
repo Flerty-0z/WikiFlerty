@@ -328,7 +328,7 @@ class AudioSync(private val app: App) {
     private suspend fun run(id: String) {
         val book = app.audiobooks.find(id) ?: return
         val textId = book.bookId ?: throw IllegalStateException("Сначала свяжи аудиокнигу с книгой")
-        if (!PiperVoices.supported()) throw IllegalStateException("Распознавание речи не работает на этом телефоне")
+        if (!com.flerty.wikiflerty.tts.PiperVoices.supported()) throw IllegalStateException("Распознавание речи не работает на этом телефоне")
         if (!AsrModel.ready(app)) {
             set(id, SyncState("model", 0f))
             AsrModel.download(app) { p -> set(id, SyncState("model", p)) }
