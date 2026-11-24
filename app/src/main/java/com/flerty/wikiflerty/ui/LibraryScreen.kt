@@ -247,7 +247,7 @@ fun LibraryScreen(
         val audioBooks by app.audiobooks.books.collectAsStateWithLifecycle()
         if (audioBooks.isNotEmpty()) {
             Column(modifier) {
-                AudioShelf(Modifier.padding(top = 6.dp, bottom = 10.dp))
+                AudioPlank(Modifier.padding(top = 10.dp, bottom = 14.dp))
                 EmptyLibrary(onAddBook, { controls.scanFolder = true }, Modifier.weight(1f))
             }
             if (controls.scanFolder) FolderScanSheet(onDismiss = { controls.scanFolder = false }, onImport = viewModel::importAll)
@@ -359,10 +359,19 @@ fun LibraryScreen(
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcons.Dice, "Случайная книга", tint = AppColors.Text, modifier = Modifier.size(21.dp)) }
         }
+        val audioState by app.audio.state.collectAsStateWithLifecycle()
+        val listening = audioState.bookId != null
+        androidx.compose.animation.AnimatedVisibility(
+            visible = listening,
+            enter = androidx.compose.animation.expandVertically(Motion.tween(280)) + androidx.compose.animation.fadeIn(Motion.fade(240)),
+            exit = androidx.compose.animation.shrinkVertically(Motion.tween(240)) + androidx.compose.animation.fadeOut(Motion.fade(180)),
+        ) {
+            AudioContinueStrip(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp))
+        }
         val lastBook = remember { arrayOfNulls<Book>(1) }
         if (current != null) lastBook[0] = current
         androidx.compose.animation.AnimatedVisibility(
-            visible = current != null,
+            visible = current != null && !listening,
             enter = androidx.compose.animation.expandVertically(Motion.tween(280)) + androidx.compose.animation.fadeIn(Motion.fade(240)),
             exit = androidx.compose.animation.shrinkVertically(Motion.tween(240)) + androidx.compose.animation.fadeOut(Motion.fade(180)),
         ) {
@@ -381,7 +390,7 @@ fun LibraryScreen(
                 NextInSeriesCard(b, s, viewModel.coverFile(b), Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) { open(b) }
             }
         }
-        if (active.id == "all" && q.isEmpty()) AudioShelf(Modifier.padding(bottom = 10.dp))
+        if (active.id == "all" && q.isEmpty() && prefs.view != LibraryView.Shelves) AudioPlank(Modifier.padding(bottom = 14.dp))
 
         androidx.compose.animation.Crossfade(
             targetState = LibraryLayout(prefs.view, columns, prefs.coverSize < 2),
@@ -467,6 +476,7 @@ fun LibraryScreen(
                             }
                         }
                     } else null,
+                    header = if (active.id == "all" && q.isEmpty()) ({ AudioPlank() }) else null,
                     footer = {
                         if (shown.isEmpty() && q.isNotEmpty()) {
                             Text("Ничего не нашлось", color = AppColors.Muted, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())

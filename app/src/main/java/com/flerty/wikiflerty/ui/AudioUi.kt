@@ -52,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -614,5 +615,99 @@ private fun AudioDelete(book: Audiobook, onBack: () -> Unit) {
             app.audiobooks.remove(book.id)
             AudioNav.player = false
         }
+    }
+}
+
+@Composable
+fun AudioPlank(modifier: Modifier = Modifier) {
+    val app = LocalContext.current.applicationContext as App
+    val books by app.audiobooks.books.collectAsStateWithLifecycle()
+    val state by app.audio.state.collectAsStateWithLifecycle()
+    if (books.isEmpty()) return
+    val sorted = remember(books) { books.sortedByDescending { it.lastPlayedAt ?: it.addedAt } }
+    Column(modifier.fillMaxWidth()) {
+        LazyRow(
+            Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 22.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            items(sorted.size, key = { sorted[it].id }) { i ->
+                val b = sorted[i]
+                val playing = state.bookId == b.id && state.playing
+                val shape = appCorner(10)
+                val pulse = rememberInfiniteTransition(label = "audio-plank")
+                val glow by pulse.animateFloat(0.4f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "audio-plank-glow")
+                Box(
+                    Modifier
+                        .size(78.dp)
+                        .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.94f) {
+                            app.audio.open(b.id, play = false)
+                            AudioNav.player = true
+                        },
+                ) {
+                    AudioCover(b.id, b.title, Modifier.fillMaxSize(), 10.dp)
+                    Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color.Black.copy(alpha = 0.35f))) {
+                        Box(Modifier.fillMaxWidth(b.progress.coerceAtLeast(0.03f)).height(3.dp).background(AppColors.Accent))
+                    }
+                    if (playing) {
+                        Box(
+                            Modifier.align(Alignment.TopEnd).padding(5.dp).size(22.dp).background(AppColors.Accent.copy(alpha = glow), CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(AppIcons.Headphones, null, tint = AppColors.OnAccent, modifier = Modifier.size(12.dp)) }
+                    }
+                }
+            }
+            item(key = "add") {
+                val shape = appCorner(10)
+                Box(
+                    Modifier.size(78.dp).liveClick(shape, sound = FeedbackSound.Add, pressedScale = 0.92f) { AudioNav.importing = true }
+                        .border(1.5.dp, AppColors.Accent.copy(alpha = 0.4f), shape)
+                        .semantics { contentDescription = "Добавить аудиокнигу" },
+                    contentAlignment = Alignment.Center,
+                ) { Icon(AppIcons.Plus, null, tint = AppColors.Accent, modifier = Modifier.size(20.dp)) }
+            }
+        }
+        Spacer(Modifier.height(2.dp))
+        Plank("Аудиокниги · ${books.size}", false, null)
+    }
+}
+
+@Composable
+fun AudioContinueStrip(modifier: Modifier = Modifier) {
+    val app = LocalContext.current.applicationContext as App
+    val state by app.audio.state.collectAsStateWithLifecycle()
+    val books by app.audiobooks.books.collectAsStateWithLifecycle()
+    val b = remember(books, state.bookId) { books.firstOrNull { it.id == state.bookId } } ?: return
+    val shape = appCorner(16)
+    val chapter = b.chapters.getOrNull(b.chapterAt(state.track, state.positionMs))
+    val global = b.offsetOf(state.track) + state.positionMs
+    val progress = if (b.totalMs > 0) (global.toFloat() / b.totalMs).coerceIn(0f, 1f) else 0f
+    Row(
+        modifier
+            .fillMaxWidth()
+            .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) { AudioNav.player = true }
+            .fieldSurface(shape)
+            .border(1.dp, AppColors.Accent.copy(alpha = 0.3f), shape)
+            .padding(9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(11.dp),
+    ) {
+        AudioCover(b.id, b.title, Modifier.size(46.dp), 8.dp)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(b.title, color = AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                Icon(AppIcons.Headphones, null, tint = AppColors.Accent, modifier = Modifier.size(12.dp))
+                Text((chapter?.title.orEmpty()) + " · осталось " + audioLeft(((b.totalMs - global) / state.speed).toLong()), color = AppColors.Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Box(Modifier.fillMaxWidth().height(3.dp).clip(CircleShape).background(AppColors.Accent.copy(alpha = 0.2f))) {
+                Box(Modifier.fillMaxWidth(progress).height(3.dp).background(AppColors.Accent, CircleShape))
+            }
+        }
+        PlayButton(state.playing, 40.dp) { app.audio.toggle() }
+        Box(
+            Modifier.size(32.dp).liveClick(CircleShape, sound = FeedbackSound.Close, pressedScale = 0.86f) { app.audio.close() },
+            contentAlignment = Alignment.Center,
+        ) { Icon(AppIcons.Close, "Закрыть плеер", tint = AppColors.Faint, modifier = Modifier.size(15.dp)) }
     }
 }

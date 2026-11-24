@@ -293,7 +293,6 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 },
             )
             if (paperSheet) PaperBookSheet(null) { paperSheet = false }
-            AudioMiniPlayer(Modifier.align(Alignment.BottomCenter).padding(bottom = if (bottomNav) 84.dp else 88.dp))
             AudioImportHost()
             AudioPlayerHost()
             BookOpeningLayer()

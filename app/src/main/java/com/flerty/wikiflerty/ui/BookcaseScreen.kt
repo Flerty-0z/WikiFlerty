@@ -238,6 +238,7 @@ fun BookcaseView(
     onMove: ((Book, String, String) -> Unit)? = null,
     onReorder: ((Book, String, List<String>) -> Unit)? = null,
     footer: (@Composable () -> Unit)? = null,
+    header: (@Composable () -> Unit)? = null,
 ) {
     androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxSize().bookcaseWall()) {
         val width = maxWidth.value - 44f
@@ -580,6 +581,7 @@ fun BookcaseView(
                     contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp),
                     verticalArrangement = Arrangement.spacedBy(28.dp),
                 ) {
+                    if (header != null) item(key = "header") { header() }
                     itemsIndexed(list, key = { _, r -> r.key }) { index, row ->
                         Box(
                             Modifier.animateItem(
@@ -1407,7 +1409,7 @@ private fun AddSlot(onClick: () -> Unit) {
 }
 
 @Composable
-private fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
+internal fun Plank(name: String?, highlighted: Boolean, onEdit: (() -> Unit)?) {
     val light = AppStyle.light
     val decor = AppStyle.kit.decor
     val accent = AppColors.Accent
