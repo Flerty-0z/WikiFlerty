@@ -247,11 +247,20 @@ class AudioPlayer(private val app: App) {
         if (_state.value.playing) startTicker()
     }
 
-    fun mark() {
+    fun markNear(book: Audiobook, track: Int, ms: Long): AudioMark? =
+        book.marks.firstOrNull { it.track == track && kotlin.math.abs(it.ms - ms) <= 4_000 }
+
+    fun toggleMark(): Boolean {
         val s = _state.value
-        val id = s.bookId ?: return
+        val id = s.bookId ?: return false
+        val b = book ?: return false
         val at = positionNow()
-        app.audiobooks.update(id) { b -> b.copy(marks = (b.marks + AudioMark(s.track, at, System.currentTimeMillis())).sortedWith(compareBy({ it.track }, { it.ms }))) }
+        val near = markNear(b, s.track, at)
+        app.audiobooks.update(id) { bk ->
+            val list = if (near != null) bk.marks - near else bk.marks + AudioMark(s.track, at, System.currentTimeMillis())
+            bk.copy(marks = list.sortedWith(compareBy({ it.track }, { it.ms })))
+        }
+        return near == null
     }
 
     fun close() {

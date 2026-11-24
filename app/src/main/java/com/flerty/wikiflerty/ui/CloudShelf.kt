@@ -48,7 +48,7 @@ private val SpineWidths = listOf(13, 16, 11, 15, 18, 12, 15, 10, 14, 17, 12, 16)
 private val SpineHeights = listOf(0.8f, 0.94f, 0.72f, 0.86f, 1f, 0.78f, 0.9f, 0.68f, 0.84f, 0.96f, 0.74f, 0.88f)
 
 @Composable
-private fun spinePalette(): List<Color> {
+internal fun spinePalette(): List<Color> {
     val panel = AppColors.Panel
     return listOf(
         AppColors.Accent,

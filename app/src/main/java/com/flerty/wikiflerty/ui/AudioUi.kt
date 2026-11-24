@@ -35,6 +35,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
@@ -389,19 +391,20 @@ private fun AudioMain(book: Audiobook, open: (AudioPanel) -> Unit) {
     var drag by remember { mutableStateOf<Float?>(null) }
     val breathe by animateFloatAsState(if (state.playing) 1f else 0.94f, Motion.spring(), label = "audio-cover")
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        AudioCover(book.id, book.title, Modifier.padding(top = 4.dp).size(220.dp).graphicsLayer { scaleX = breathe; scaleY = breathe }, 22.dp)
+        AudioCover(book.id, book.title, Modifier.padding(top = 4.dp).size(176.dp).graphicsLayer { scaleX = breathe; scaleY = breathe }, 18.dp)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(book.title, color = AppColors.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (book.author.isNotBlank()) Text(book.author, color = AppColors.Muted, fontSize = 13.sp, maxLines = 1)
+            val length = (end - start).coerceAtLeast(1)
+            Text(
+                (chapter?.title.orEmpty()) + " · " + audioTime(global - start) + " из " + audioTime(length),
+                color = AppColors.Muted,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.liveClick(appCorner(10), sound = FeedbackSound.Open) { open(AudioPanel.Chapters) }.padding(horizontal = 8.dp, vertical = 4.dp),
+            )
         }
-        Row(
-            Modifier.liveClick(appCorner(12), sound = FeedbackSound.Open) { open(AudioPanel.Chapters) }.padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Icon(AppIcons.Toc, null, tint = AppColors.Accent, modifier = Modifier.size(16.dp))
-            Text(chapter?.title.orEmpty(), color = AppColors.Accent, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
+        ChapterSpines(book, ch) { app.audio.chapter(it) }
         val length = (end - start).coerceAtLeast(1)
         val shown = drag ?: ((global - start).toFloat() / length).coerceIn(0f, 1f)
         KitSlider(
@@ -415,7 +418,8 @@ private fun AudioMain(book: Audiobook, open: (AudioPanel) -> Unit) {
         )
         Row(Modifier.fillMaxWidth()) {
             Text(audioTime((shown * length).toLong()), color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.weight(1f))
-            Text("-" + audioTime(((1f - shown) * length).toLong()), color = AppColors.Faint, fontSize = 12.sp)
+            Text("осталось " + audioLeft(((book.totalMs - global) / state.speed).toLong()), color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+            Text("-" + audioTime(((1f - shown) * length).toLong()), color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
             RoundTool(AppIcons.SkipPrev, "Предыдущая глава", FeedbackSound.SkipBack) { app.audio.prevChapter() }
@@ -425,11 +429,6 @@ private fun AudioMain(book: Audiobook, open: (AudioPanel) -> Unit) {
             RoundTool(AppIcons.SkipNext, "Следующая глава", FeedbackSound.SkipNext) { app.audio.nextChapter() }
         }
         state.error?.let { HintNote(it, AppIcons.Info) }
-        Text(
-            "осталось " + audioLeft(((book.totalMs - global) / state.speed).toLong()) + " · " + (global * 100 / book.totalMs.coerceAtLeast(1)) + "%",
-            color = AppColors.Faint,
-            fontSize = 12.sp,
-        )
         androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 2.dp)) {
             item { FrameTool(AppIcons.Speed, "Скорость", "%.2f×".format(state.speed).replace(".00", "").replace(",00", "")) { open(AudioPanel.Speed) } }
             item {
@@ -437,16 +436,83 @@ private fun AudioMain(book: Audiobook, open: (AudioPanel) -> Unit) {
                 FrameTool(AppIcons.Moon, "Таймер сна", left, active = left != null) { open(AudioPanel.Sleep) }
             }
             item {
-                val context = LocalContext.current
-                FrameTool(AppIcons.Bookmark, "Закладка", null, sound = FeedbackSound.Bookmark) {
-                    app.audio.mark()
-                    android.widget.Toast.makeText(context, "Закладка на " + audioTime(app.audio.positionNow()), android.widget.Toast.LENGTH_SHORT).show()
+                val near = app.audio.markNear(book, state.track, state.positionMs) != null
+                MarkTool(near) {
+                    val added = app.audio.toggleMark()
+                    android.widget.Toast.makeText(app, if (added) "Закладка на " + audioTime(app.audio.positionNow()) else "Закладка убрана", android.widget.Toast.LENGTH_SHORT).show()
                 }
             }
             item { FrameTool(AppIcons.Toc, "Главы", null) { open(AudioPanel.Chapters) } }
             item { FrameTool(AppIcons.Link, "Книга", null, active = book.bookId != null) { open(AudioPanel.Link) } }
             item { FrameTool(AppIcons.Trash, "Удалить", null, sound = FeedbackSound.Trash) { open(AudioPanel.Delete) } }
         }
+    }
+}
+
+private fun spineHeights(book: Audiobook): FloatArray {
+    val offsets = LongArray(book.tracks.size + 1)
+    book.tracks.forEachIndexed { i, t -> offsets[i + 1] = offsets[i] + t.durationMs }
+    val starts = book.chapters.map { offsets[it.track.coerceIn(0, book.tracks.size)] + it.startMs }
+    val lens = starts.mapIndexed { i, st -> ((if (i + 1 < starts.size) starts[i + 1] else offsets.last()) - st).coerceAtLeast(1) }
+    val max = lens.maxOrNull()?.toFloat() ?: 1f
+    return FloatArray(lens.size) { 0.38f + 0.62f * (lens[it] / max) }
+}
+
+@Composable
+private fun ChapterSpines(book: Audiobook, current: Int, onPick: (Int) -> Unit) {
+    val palette = spinePalette()
+    val heights = remember(book.id, book.chapters, book.tracks) { spineHeights(book) }
+    val list = androidx.compose.foundation.lazy.rememberLazyListState()
+    LaunchedEffect(current) { runCatching { list.animateScrollToItem((current - 3).coerceAtLeast(0)) } }
+    val many = book.chapters.size > 12
+    Column(Modifier.fillMaxWidth()) {
+        androidx.compose.foundation.lazy.LazyRow(
+            state = list,
+            modifier = Modifier.fillMaxWidth().height(112.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp, if (many) Alignment.Start else Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.Bottom,
+            contentPadding = PaddingValues(horizontal = 14.dp),
+        ) {
+            items(book.chapters.size) { i ->
+                val on = i == current
+                val lift by animateFloatAsState(if (on) 1f else 0f, Motion.spring(), label = "spine-lift")
+                val shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 1.dp, bottomEnd = 1.dp)
+                Box(
+                    Modifier
+                        .width(if (many) 22.dp else 30.dp)
+                        .height((100 * heights[i]).dp)
+                        .graphicsLayer { translationY = -lift * 9.dp.toPx() }
+                        .liveClick(shape, sound = FeedbackSound.Pick, pressedScale = 0.92f) { onPick(i) }
+                        .background(palette[i % palette.size], shape)
+                        .then(if (on) Modifier.border(2.dp, AppColors.Accent, shape) else Modifier)
+                        .semantics { contentDescription = book.chapters[i].title },
+                )
+            }
+        }
+        Plank(null, false, null)
+    }
+}
+
+@Composable
+private fun MarkTool(on: Boolean, onClick: () -> Unit) {
+    val shape = appCorner(14)
+    val fill by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent else AppColors.Accent.copy(alpha = 0f), Motion.fade(240), label = "mark-fill")
+    val tint by androidx.compose.animation.animateColorAsState(if (on) AppColors.OnAccent else AppColors.Accent, Motion.fade(240), label = "mark-tint")
+    val pop = remember { androidx.compose.animation.core.Animatable(1f) }
+    LaunchedEffect(on) {
+        pop.snapTo(0.82f)
+        pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.45f, stiffness = 500f))
+    }
+    Box(
+        Modifier
+            .size(width = 52.dp, height = 48.dp)
+            .liveClick(shape, sound = FeedbackSound.Bookmark, pressedScale = 0.9f, onClick = onClick)
+            .fieldSurface(shape, selected = on)
+            .background(fill, shape)
+            .semantics { contentDescription = if (on) "Убрать закладку" else "Поставить закладку" },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(AppIcons.Bookmark, null, tint = tint, modifier = Modifier.size(19.dp).graphicsLayer { scaleX = pop.value; scaleY = pop.value })
     }
 }
 
@@ -495,7 +561,9 @@ private fun AudioChapters(book: Audiobook, onBack: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
     val state by app.audio.state.collectAsStateWithLifecycle()
     val current = book.chapterAt(state.track, state.positionMs)
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val palette = spinePalette()
+    val heights = remember(book.id, book.chapters, book.tracks) { spineHeights(book) }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (book.marks.isNotEmpty()) {
             Text("Закладки", color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
             book.marks.forEach { m ->
@@ -509,9 +577,21 @@ private fun AudioChapters(book: Audiobook, onBack: () -> Unit) {
             Text("Главы", color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
         }
         book.chapters.forEachIndexed { i, c ->
-            ChapterRow(null, c.title, audioTime(book.chapterEnd(i) - book.chapterStart(i)), i == current) {
-                app.audio.chapter(i)
-                onBack()
+            val on = i == current
+            val shape = appCorner(12)
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 52.dp).liveClick(shape, sound = FeedbackSound.Go, pressedScale = 0.98f) {
+                    app.audio.chapter(i)
+                    onBack()
+                }
+                    .then(if (on) Modifier.background(AppColors.Accent.copy(alpha = 0.14f), shape) else Modifier)
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Box(Modifier.width(10.dp).height((16 + 24 * heights[i]).dp).background(palette[i % palette.size], androidx.compose.foundation.shape.RoundedCornerShape(2.dp)).then(if (on) Modifier.border(1.5.dp, AppColors.Accent, androidx.compose.foundation.shape.RoundedCornerShape(2.dp)) else Modifier))
+                Text(c.title, color = if (on) AppColors.Accent else AppColors.Text, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Text(audioTime(book.chapterEnd(i) - book.chapterStart(i)), color = AppColors.Faint, fontSize = 12.sp)
             }
         }
     }
@@ -534,23 +614,90 @@ private fun ChapterRow(icon: ImageVector?, title: String, time: String, active: 
     }
 }
 
+private val SpeedOptions = listOf(0.75f, 1f, 1.15f, 1.25f, 1.5f, 1.75f, 2f, 2.5f)
+
+private fun speedLabel(v: Float) = "%.2f".format(java.util.Locale.US, v).trimEnd('0').trimEnd('.') + "×"
+
 @Composable
 private fun AudioSpeed(speed: Float, onBack: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
-    val options = listOf(0.75f, 1f, 1.15f, 1.25f, 1.5f, 1.75f, 2f, 2.5f)
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        options.chunked(4).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { v ->
-                    val on = kotlin.math.abs(v - speed) < 0.01f
-                    val shape = appCorner(12)
-                    Box(
-                        Modifier.weight(1f).height(48.dp).liveClick(shape, sound = FeedbackSound.Pick, pressedScale = 0.92f) { app.audio.setSpeed(v); onBack() }.fieldSurface(shape, selected = on),
-                        contentAlignment = Alignment.Center,
-                    ) { Text("%.2f×".format(v).replace(".00", "").replace(",00", "").replace("0×", "×"), color = if (on) AppColors.Accent else AppColors.Text, fontSize = 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal) }
+    val feedback = LocalFeedback.current
+    var pick by remember { mutableStateOf(SpeedOptions.indexOfFirst { kotlin.math.abs(it - speed) < 0.01f }.coerceAtLeast(1)) }
+    val sweep = 270f
+    val startAngle = 135f
+    fun angleOf(i: Int) = startAngle + sweep * i / (SpeedOptions.size - 1)
+    val needle by animateFloatAsState(angleOf(pick), Motion.spring(), label = "speed-needle")
+    val accent = AppColors.Accent
+    val track = AppColors.Line
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        androidx.compose.foundation.layout.BoxWithConstraints(
+            Modifier
+                .size(280.dp)
+                .pointerInput(Unit) {
+                    fun select(p: androidx.compose.ui.geometry.Offset) {
+                        val cx = size.width / 2f
+                        val cy = size.height / 2f
+                        var a = Math.toDegrees(kotlin.math.atan2((p.y - cy).toDouble(), (p.x - cx).toDouble())).toFloat()
+                        if (a < 0) a += 360f
+                        var rel = a - startAngle
+                        if (rel < 0) rel += 360f
+                        if (rel > sweep) rel = if (rel - sweep < (360f - sweep) / 2) sweep else 0f
+                        val i = kotlin.math.round(rel / sweep * (SpeedOptions.size - 1)).toInt().coerceIn(0, SpeedOptions.lastIndex)
+                        if (i != pick) {
+                            pick = i
+                            feedback?.play(FeedbackSound.Tick)
+                            app.audio.setSpeed(SpeedOptions[i])
+                        }
+                    }
+                    androidx.compose.foundation.gestures.detectDragGestures(onDragStart = { select(it) }) { change, _ -> select(change.position) }
                 }
+                .pointerInput(Unit) {
+                    androidx.compose.foundation.gestures.detectTapGestures { p ->
+                        val cx = size.width / 2f
+                        val cy = size.height / 2f
+                        var a = Math.toDegrees(kotlin.math.atan2((p.y - cy).toDouble(), (p.x - cx).toDouble())).toFloat()
+                        if (a < 0) a += 360f
+                        var rel = a - startAngle
+                        if (rel < 0) rel += 360f
+                        if (rel <= sweep + 10f) {
+                            val i = kotlin.math.round(rel.coerceAtMost(sweep) / sweep * (SpeedOptions.size - 1)).toInt().coerceIn(0, SpeedOptions.lastIndex)
+                            pick = i
+                            feedback?.play(FeedbackSound.Pick)
+                            app.audio.setSpeed(SpeedOptions[i])
+                        }
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            val radius = maxWidth.value / 2f - 26f
+            androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                val stroke = 8.dp.toPx()
+                val r = size.minDimension / 2f - 26.dp.toPx()
+                val tl = androidx.compose.ui.geometry.Offset(size.width / 2f - r, size.height / 2f - r)
+                val sz = androidx.compose.ui.geometry.Size(r * 2, r * 2)
+                drawArc(track, startAngle, sweep, false, tl, sz, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                drawArc(accent, startAngle, needle - startAngle, false, tl, sz, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                val rad = Math.toRadians(needle.toDouble())
+                val c = androidx.compose.ui.geometry.Offset(size.width / 2f + (r * kotlin.math.cos(rad)).toFloat(), size.height / 2f + (r * kotlin.math.sin(rad)).toFloat())
+                drawCircle(accent, 11.dp.toPx(), c)
+                drawCircle(accent.copy(alpha = 0.25f), 18.dp.toPx(), c)
+            }
+            SpeedOptions.forEachIndexed { i, v ->
+                val rad = Math.toRadians(angleOf(i).toDouble())
+                val lr = radius - 34f
+                Text(
+                    speedLabel(v),
+                    color = if (i == pick) AppColors.Accent else AppColors.Muted,
+                    fontSize = 12.sp,
+                    fontWeight = if (i == pick) FontWeight.Bold else FontWeight.Normal,
+                    modifier = Modifier.offset((lr * kotlin.math.cos(rad)).toFloat().dp, (lr * kotlin.math.sin(rad)).toFloat().dp),
+                )
+            }
+            AnimatedContent(pick, transitionSpec = { (fadeIn(Motion.tween(160)) + scaleIn(Motion.tween(200), initialScale = 0.85f)) togetherWith fadeOut(Motion.tween(100)) }, label = "speed-value") { i ->
+                Text(speedLabel(SpeedOptions[i]), color = AppColors.Accent, fontSize = 40.sp, fontWeight = FontWeight.Bold)
             }
         }
+        AppButton("Готово", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true, sound = FeedbackSound.Confirm) { onBack() }
     }
 }
 
@@ -611,7 +758,7 @@ private fun AudioLink(book: Audiobook, onBack: () -> Unit) {
 private fun AudioDelete(book: Audiobook, onBack: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Аудиокнига пропадёт из библиотеки. Сами файлы на телефоне останутся.", color = AppColors.Muted, fontSize = 13.sp)
+        HintNote("Аудиокнига пропадёт из библиотеки. Сами файлы на телефоне останутся.", AppIcons.Trash)
         AppButton("Убрать", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true, sound = FeedbackSound.Trash) {
             if (app.audio.state.value.bookId == book.id) app.audio.close()
             app.audiobooks.remove(book.id)

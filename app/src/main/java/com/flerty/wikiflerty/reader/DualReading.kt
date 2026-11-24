@@ -210,6 +210,7 @@ object DualTranslate {
             d.addEventListener("transitionend", end);
             setTimeout(end, 480);
           }
+          function soft() { try { window.__wfPeoplePlace && window.__wfPeoplePlace(); } catch (x) {} }
           function track() { try { window.__wfPeopleTrack && window.__wfPeopleTrack(520); } catch (x) {} }
           function reveal(d) {
             track();
@@ -223,7 +224,7 @@ object DualTranslate {
             d.classList.remove("wf-closed");
             d.style.height = h + "px";
             d.style.opacity = "1";
-            after(d, function () { d.classList.remove("wf-anim"); d.style.height = ""; d.style.opacity = ""; relayout(); });
+            after(d, function () { d.classList.remove("wf-anim"); d.style.height = ""; d.style.opacity = ""; soft(); });
           }
           function conceal(d) {
             track();
@@ -233,7 +234,7 @@ object DualTranslate {
             d.classList.add("wf-closed");
             d.style.height = "0px";
             d.style.opacity = "0";
-            after(d, function () { d.setAttribute("hidden", ""); d.classList.remove("wf-anim", "wf-closed"); d.style.height = ""; d.style.opacity = ""; relayout(); });
+            after(d, function () { d.setAttribute("hidden", ""); d.classList.remove("wf-anim", "wf-closed"); d.style.height = ""; d.style.opacity = ""; soft(); });
           }
           function press(b) { b.classList.add("press"); setTimeout(function () { b.classList.remove("press"); }, 160); }
           function tapButton(el, k) {
@@ -303,7 +304,7 @@ object DualTranslate {
             marks: function (c) {
               mode = "tap"; color = c || color; style();
               document.querySelectorAll("[data-wfp]").forEach(function (el) { tapButton(el, el.getAttribute("data-wfp")); });
-              relayout();
+              soft();
             },
             at: function (x, y) {
               var best = null, dist = 1e9;
