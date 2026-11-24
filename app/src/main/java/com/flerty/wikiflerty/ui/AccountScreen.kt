@@ -509,7 +509,6 @@ private fun PlanSheet(account: Account, state: Account.State, onDismiss: () -> U
     var picked by remember { mutableStateOf(if (state.until > 0 && state.plan == "plus2") "plus2" else "plus") }
     var busy by remember { mutableStateOf(false) }
     var help by remember { mutableStateOf(false) }
-    androidx.compose.runtime.LaunchedEffect(picked) { help = false }
     AppSheet(onDismiss = onDismiss, title = "Больше места") {
         val close = sheetClose(onDismiss)
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -522,6 +521,7 @@ private fun PlanSheet(account: Account, state: Account.State, onDismiss: () -> U
                 Column(
                     Modifier
                         .fillMaxWidth()
+                        .animateContentSize(Motion.tween(320))
                         .graphicsLayer { translationY = -lift * 3.dp.toPx() }
                         .liveClick(shape, sound = FeedbackSound.Plan, pressedScale = 0.98f) { picked = o.id }
                         .background(AppColors.Line.copy(alpha = 0.45f), shape)

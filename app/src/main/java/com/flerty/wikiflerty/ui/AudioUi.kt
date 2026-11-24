@@ -350,18 +350,26 @@ fun AudioPlayerHost() {
     }
     var panel by remember { mutableStateOf(AudioPanel.Main) }
     AppSheet(onDismiss = { AudioNav.player = false }, title = null) {
-        AnimatedContent(
-            panel,
-            transitionSpec = { fadeIn(Motion.tween(220, 60)) togetherWith fadeOut(Motion.tween(120)) },
-            label = "audio-panel",
-        ) { p ->
-            when (p) {
-                AudioPanel.Main -> AudioMain(book) { panel = it }
-                AudioPanel.Chapters -> AudioChapters(book) { panel = AudioPanel.Main }
-                AudioPanel.Speed -> AudioSpeed(state.speed) { panel = AudioPanel.Main }
-                AudioPanel.Sleep -> AudioSleep { panel = AudioPanel.Main }
-                AudioPanel.Link -> AudioLink(book) { panel = AudioPanel.Main }
-                AudioPanel.Delete -> AudioDelete(book) { panel = AudioPanel.Main }
+        AudioMain(book) { panel = it }
+        if (panel != AudioPanel.Main) {
+            val title = when (panel) {
+                AudioPanel.Chapters -> "Главы"
+                AudioPanel.Speed -> "Скорость"
+                AudioPanel.Sleep -> "Таймер сна"
+                AudioPanel.Link -> "Текст этой книги"
+                AudioPanel.Delete -> "Убрать аудиокнигу?"
+                AudioPanel.Main -> ""
+            }
+            AppSheet(onDismiss = { panel = AudioPanel.Main }, title = title) {
+                val back = sheetClose { panel = AudioPanel.Main }
+                when (panel) {
+                    AudioPanel.Chapters -> AudioChapters(book, back)
+                    AudioPanel.Speed -> AudioSpeed(state.speed, back)
+                    AudioPanel.Sleep -> AudioSleep(back)
+                    AudioPanel.Link -> AudioLink(book, back)
+                    AudioPanel.Delete -> AudioDelete(book, back)
+                    AudioPanel.Main -> Unit
+                }
             }
         }
     }
@@ -486,7 +494,6 @@ private fun AudioChapters(book: Audiobook, onBack: () -> Unit) {
     val state by app.audio.state.collectAsStateWithLifecycle()
     val current = book.chapterAt(state.track, state.positionMs)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        PanelHeader("Главы", onBack)
         if (book.marks.isNotEmpty()) {
             Text("Закладки", color = AppColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
             book.marks.forEach { m ->
@@ -530,7 +537,6 @@ private fun AudioSpeed(speed: Float, onBack: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
     val options = listOf(0.75f, 1f, 1.15f, 1.25f, 1.5f, 1.75f, 2f, 2.5f)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        PanelHeader("Скорость", onBack)
         options.chunked(4).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { v ->
@@ -552,7 +558,6 @@ private fun AudioSleep(onBack: () -> Unit) {
     val state by app.audio.state.collectAsStateWithLifecycle()
     val options = listOf(15 to "15 минут", 30 to "30 минут", 45 to "45 минут", 60 to "1 час", -1 to "До конца главы", 0 to "Выключить")
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        PanelHeader("Таймер сна", onBack)
         options.forEach { (m, label) ->
             val on = when {
                 m == -1 -> state.sleepChapter
@@ -582,8 +587,7 @@ private fun AudioLink(book: Audiobook, onBack: () -> Unit) {
         }.take(40)
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        PanelHeader("Текст этой книги", onBack)
-        Text("Свяжи аудиокнигу с книгой из библиотеки — позже по ней появится подсветка текста во время прослушивания.", color = AppColors.Muted, fontSize = 12.sp)
+        HintNote("Свяжи аудиокнигу с её текстом из библиотеки — по нему появится подсветка во время прослушивания.", AppIcons.Link)
         InputField(query, { query = it }, "Поиск в библиотеке", icon = AppIcons.Search)
         if (book.bookId != null) {
             ChapterRow(AppIcons.Close, "Отвязать", "", false) {
@@ -604,7 +608,6 @@ private fun AudioLink(book: Audiobook, onBack: () -> Unit) {
 private fun AudioDelete(book: Audiobook, onBack: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        PanelHeader("Убрать аудиокнигу?", onBack)
         Text("Аудиокнига пропадёт из библиотеки. Сами файлы на телефоне останутся.", color = AppColors.Muted, fontSize = 13.sp)
         AppButton("Убрать", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true, sound = FeedbackSound.Trash) {
             if (app.audio.state.value.bookId == book.id) app.audio.close()
