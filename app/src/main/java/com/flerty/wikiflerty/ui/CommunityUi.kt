@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -1814,7 +1815,7 @@ private fun SprintCard(sprint: Community.Sprint?, signed: Boolean) {
                 when {
                     sprint == null -> "Спринт чтения"
                     live && now < sprint.startLocal -> "Спринт через ${((sprint.startLocal - now) / 1000).coerceAtLeast(0)} с"
-                    live -> "Идёт спринт · ${clock(sprint.endLocal - now)}"
+                    live -> "Идёт спринт · ${sprintClock(sprint.endLocal - now)}"
                     else -> "Спринт закончился"
                 },
                 color = AppColors.Text,
@@ -1847,7 +1848,7 @@ private fun SprintCard(sprint: Community.Sprint?, signed: Boolean) {
     }
 }
 
-private fun clock(ms: Long): String {
+private fun sprintClock(ms: Long): String {
     val s = (ms / 1000).coerceAtLeast(0)
     return "%d:%02d".format(s / 60, s % 60)
 }
@@ -2018,8 +2019,8 @@ private fun SprintPage(state: Community.State) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     when {
-                        waiting -> clock(sprint.startLocal - now)
-                        live -> clock(sprint.endLocal - now)
+                        waiting -> sprintClock(sprint.startLocal - now)
+                        live -> sprintClock(sprint.endLocal - now)
                         else -> "Готово"
                     },
                     color = AppColors.Text,
