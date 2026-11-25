@@ -3,8 +3,8 @@ name: Send
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: "черновой релиз с видео и caption.txt"
+      branch:
+        description: "временная ветка с видео и caption.txt"
         required: true
 
 permissions:
@@ -21,9 +21,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         run: |
-          mkdir -p audio out
+          mkdir -p audio
           kid=$(gh api --paginate "repos/${{ github.repository }}/releases?per_page=100" -q '.[] | select(.tag_name=="film-kit") | .assets[0].id' | head -1 || true)
           if [ -n "$kid" ]; then gh api -H "Accept: application/octet-stream" "repos/${{ github.repository }}/releases/assets/$kid" > kit.zip && unzip -oq kit.zip -d audio; fi
-          gh release download "${{ inputs.tag }}" -D out --repo "${{ github.repository }}"
+          git fetch --depth 1 origin "${{ inputs.branch }}"
+          mkdir -p out && git --work-tree=out checkout FETCH_HEAD -- .
           ls -la out
           for v in out/*.mp4; do python3 tools/film/tg.py audio/chat.txt "$v" out/caption.txt; done
+
+      - name: Cleanup
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/${{ inputs.branch }}" || true
