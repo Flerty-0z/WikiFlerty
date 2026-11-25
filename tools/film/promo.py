@@ -85,6 +85,30 @@ def project(w, h, pose):
     return np.stack([x, y], axis=1).astype(np.float32)
 
 
+def pcm(path, sr=22050):
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-vn", "-ac", "1", "-ar", str(sr), "-f", "f32le", "-"], stdout=subprocess.PIPE, check=True).stdout
+    return np.frombuffer(raw, np.float32)
+
+
+def onsets(a, sr=22050):
+    h = int(0.005 * sr)
+    n = len(a) // h
+    e = 20 * np.log10(np.sqrt((a[:n * h].reshape(n, h) ** 2).mean(1)) + 1e-9)
+    act = e > -48
+    out = []
+    i = 6
+    while i < n:
+        if act[i] and e[i] - e[i - 6:i].min() > 14:
+            j = i
+            while j < n and act[j:j + 20].any():
+                j += 1
+            out.append((i * h / sr, (j - i) * h / sr))
+            i = j
+        else:
+            i += 1
+    return out
+
+
 class Source:
     def __init__(self, path):
         self.path = path
@@ -130,8 +154,9 @@ def apply_blur(img, st, blurs):
 
 
 class Promo:
-    def __init__(self, fonts, sources):
+    def __init__(self, fonts, sources, audio=None):
         self.titles = Titles(fonts)
+        self.clicks = {k: onsets(pcm(v)) for k, v in (audio or {}).items()}
         self.sources = {k: Source(v) for k, v in sources.items()}
         self.bgw, self.bgh = OW + 160, OH + 160
         self.bg = background(self.bgw, self.bgh)
@@ -288,76 +313,31 @@ class Promo:
                 seq += [seq[-1]] * (n - len(seq))
         return seq[:n], cuts
 
-    @staticmethod
-    def dots(img):
-        half = cv2.resize(np.ascontiguousarray(img), (CW // 2, CH // 2), interpolation=cv2.INTER_AREA)
-        hsv = cv2.cvtColor(half, cv2.COLOR_RGB2HSV)
-        m = ((hsv[..., 1] < 40) & (hsv[..., 2] > 138) & (hsv[..., 2] < 192)).astype(np.uint8)
-        m = cv2.morphologyEx(m, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)))
-        n, _, st, cen = cv2.connectedComponentsWithStats(m)
-        out = []
-        for i in range(1, n):
-            x, y, w, h, area = st[i]
-            if 12 <= w <= 24 and 12 <= h <= 24 and abs(int(w) - int(h)) <= 5 and area / float(w * h) > 0.62:
-                cx, cy = int(cen[i][0]), int(cen[i][1])
-                core = hsv[max(0, cy - 4):cy + 5, max(0, cx - 4):cx + 5, 2]
-                if core.size and core.std() < 10:
-                    out.append((float(cen[i][0]), float(cen[i][1])))
-        return out
-
-    def actions(self, seq, cuts, dur, page=False):
-        n = len(seq)
-        dots = [self.dots(f) for f, _ in seq]
-        gray = [cv2.resize(cv2.cvtColor(np.ascontiguousarray(f), cv2.COLOR_RGB2GRAY), (40, 82), interpolation=cv2.INTER_AREA).astype(np.float32) for f, _ in seq]
-        banned = set()
-        for c in cuts:
-            banned.update(range(c - 2, c + 7))
-
-        def near(pts, p, r):
-            return any((q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2 < r * r for q in pts)
-
-        out, last = [], -99.0
-        for i in range(2, n):
-            t = i / FPS
-            if t < 0.5 or t > dur - 0.35 or i in banned:
+    def app_sounds(self, seq, dur, src):
+        out, last = [], -9.0
+        for t, length in self.clicks.get(src, []):
+            if length > 0.5:
                 continue
-            for p in dots[i]:
-                if near(dots[i - 1], p, 25) or near(dots[i - 2], p, 25):
-                    continue
-                if t - last < 0.5:
-                    continue
-                j, cur, moved = i, p, 0.0
-                while j + 1 < n and dots[j + 1]:
-                    nxt = min(dots[j + 1], key=lambda q: (q[0] - cur[0]) ** 2 + (q[1] - cur[1]) ** 2)
-                    step = math.hypot(nxt[0] - cur[0], nxt[1] - cur[1])
-                    if step > 60:
-                        break
-                    moved += step
-                    cur = nxt
-                    j += 1
-                if moved > 30:
-                    kind = "ui_scroll"
-                else:
-                    k2 = min(n - 1, i + 15)
-                    change = float(np.abs(gray[k2] - gray[max(0, i - 1)]).mean())
-                    kind = "ui_open" if change > 9 else ("ui_select" if change > 3 else "ui_click")
-                if page and kind == "ui_open":
-                    kind = "ui_page"
-                if out and out[-1][0] == kind and kind not in ("ui_click", "ui_page"):
-                    kind = "ui_select" if kind == "ui_open" else ("ui_click" if kind == "ui_select" else kind)
-                if kind == "ui_scroll" and any(o[0] == "ui_scroll" for o in out[-1:]):
-                    continue
-                out.append((kind, self.clock + t))
-                last = t
-                break
-        return out[:4]
+            for i in range(1, len(seq)):
+                s0, s1 = seq[i - 1][1], seq[i][1]
+                if s0 < t <= s1 and s1 - s0 < 0.2:
+                    at = (i - 1 + (t - s0) / max(1e-6, s1 - s0)) / FPS
+                    if 0.35 < at < dur - 0.25 and at - last > 0.28:
+                        out.append(("app", self.clock + at, src, t, length))
+                        last = at
+                    break
+        return out
 
     def beat_frames(self, beat, dur):
         items, _ = self.titles.word_images(beat, beat.get("top", 96 if beat.get("kicker") else 150))
         tags = self.titles.tag_images(beat.get("tags"))
         placed = place_tags(tags, beat.get("tags_y", 1640))
         seq, cuts = self.collect(beat, dur)
-        self.events.extend(self.actions(seq, cuts, dur, beat.get("src") == "comics"))
+        if beat.get("listen"):
+            sp = beat["spans"][0]
+            self.events.append(("listen", self.clock, beat.get("src", "main"), sp[0], sp[1]))
+        else:
+            self.events.extend(self.app_sounds(seq, dur, beat.get("src", "main")))
         zooms = beat.get("zoom", [])
         blurs = beat.get("blur", [])
         n = len(seq)
@@ -470,16 +450,51 @@ def mix(plan, video, events, total, audio, out, beats_at, voices=()):
             add(whooshes[k % len(whooshes)], max(0, at - 0.18), 0.5)
     pops = ["pop_a", "pop_b"]
     pc = 0
-    ac = 0
-    for kind, at in events:
+    sr = 48000
+    snips = os.path.join(os.path.dirname(os.path.abspath(out)), "snips")
+    os.makedirs(snips, exist_ok=True)
+    cache, keys = {}, []
+
+    def src_audio(name):
+        if name not in cache:
+            cache[name] = pcm(plan["app_audio"][name], sr)
+        return cache[name]
+
+    def snippet(name, t0, t1, fin, fout):
+        a = src_audio(name)[int(t0 * sr):int(t1 * sr)].copy()
+        fi, fo = int(fin * sr), int(fout * sr)
+        a[:fi] *= np.linspace(0, 1, fi, dtype=np.float32)
+        a[len(a) - fo:] *= np.linspace(1, 0, fo, dtype=np.float32)
+        path = os.path.join(snips, f"{name}_{t0:.3f}.f32")
+        a.astype(np.float32).tofile(path)
+        return path
+
+    def add_raw(path, at, vol, tag):
+        nonlocal n
+        inputs.extend(["-f", "f32le", "-ar", str(sr), "-ac", "1", "-i", path])
+        d = max(0, int(at * 1000))
+        filters.append(f"[{n}:a]adelay={d}|{d},volume={vol:.3f}[{tag}{n}]")
+        n += 1
+        return f"[{tag}{n - 1}]"
+
+    for ev in events:
+        kind, at = ev[0], ev[1]
         if kind == "pop":
             add(pops[pc % 2], at, 0.42)
             pc += 1
-        elif kind.startswith("ui_"):
-            ac += 1
-            variants = {"ui_click": ["ui_click1", "ui_click2", "ui_click3"], "ui_open": ["ui_open1", "ui_open2"], "ui_select": ["ui_select1", "ui_select2"], "ui_scroll": ["ui_scroll"], "ui_page": ["ui_page"]}[kind]
-            vol = {"ui_click": 0.6, "ui_open": 0.55, "ui_select": 0.55, "ui_scroll": 0.42, "ui_page": 0.5}[kind]
-            add(variants[ac % len(variants)], at, vol)
+        elif kind == "app":
+            _, _, name, t, length = ev
+            seg = src_audio(name)[int(t * sr):int((t + 0.12) * sr)]
+            peak = 20 * np.log10(np.abs(seg).max() + 1e-9) if len(seg) else -99
+            if peak < -40:
+                continue
+            gain = min(8.0, 10 ** ((plan.get("app_peak", -11.0) - peak) / 20))
+            p = snippet(name, max(0, t - 0.012), t + min(0.6, length + 0.12), 0.004, 0.05)
+            tracks.append(add_raw(p, at - 0.012, gain, "c"))
+        elif kind == "listen":
+            _, _, name, t0, t1 = ev
+            p = snippet(name, t0, t1, 0.25, 0.45)
+            keys.append(add_raw(p, at, plan.get("listen_volume", 1.6), "l"))
         elif kind == "impact":
             add("impact", at, 0.55)
         elif kind == "sparkle":
@@ -498,6 +513,7 @@ def mix(plan, video, events, total, audio, out, beats_at, voices=()):
         inputs.extend(["-stream_loop", "-1", "-i", music])
         filters.append(f"[{n}:a]atrim=0:{total:.3f},volume={plan.get('music_volume', 0.5)},afade=t=in:d=1.0,afade=t=out:st={max(0, total - 2.5):.2f}:d=2.5[m0]")
         n += 1
+    vtags += keys
     if vtags:
         filters.append(f"{''.join(vtags)}amix=inputs={len(vtags)}:normalize=0[vo]")
         if has_music:
@@ -525,7 +541,7 @@ def main():
     ap.add_argument("--stills", default="")
     a = ap.parse_args()
     plan = json.load(open(a.plan))
-    promo = Promo(a.fonts, plan["sources"])
+    promo = Promo(a.fonts, plan["sources"], plan.get("app_audio"))
     work = a.out[:-4] + "_work"
     os.makedirs(work, exist_ok=True)
     only = {int(x) for x in a.only.split(",") if x}
@@ -534,7 +550,8 @@ def main():
         dur = b.get("dur")
         if not dur:
             dur = sum((s[1] - s[0]) / (s[2] if len(s) > 2 else b.get("speed", 1.0)) for s in b["spans"]) - 5 / FPS * (len(b["spans"]) - 1)
-        vp = os.path.join(a.audio, f"line{k:02d}.mp3") if a.audio else ""
+        line = b.get("line", f"line{k:02d}")
+        vp = os.path.join(a.audio, f"{line}.mp3") if a.audio and line else ""
         if plan.get("voice") and vp and os.path.exists(vp):
             lead = plan.get("voice_lead", 0.45)
             need = lead + probe(vp) / plan.get("voice_tempo", 1.0) + plan.get("voice_tail", 0.4)
