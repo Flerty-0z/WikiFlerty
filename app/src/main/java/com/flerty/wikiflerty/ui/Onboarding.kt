@@ -115,7 +115,7 @@ class NewsItem(val group: String, val icon: ImageVector, val title: String, val 
 const val NewsRelease = 700
 
 val WhatsNewItems = listOf(
-    NewsItem("Сообщество", AppIcons.Chat, "Сообщество", "Общий чат читателей в стиле приложения: комнаты, ответы свайпом, реакции, цитаты и карточки книг. Открывается в настройках под «Что нового?»", NewsTarget.Community),
+    NewsItem("Сообщество", AppIcons.Chat, "Чат читателей", "Общий чат читателей в стиле приложения: комнаты, ответы свайпом, реакции, цитаты и карточки книг. Открывается в настройках под «Что нового?»", NewsTarget.Community),
     NewsItem("Сообщество", AppIcons.Book, "Обсуждение книги", "У каждой книги своя комната. Сообщения из глав дальше твоей скрыты, так что без спойлеров", NewsTarget.Community),
     NewsItem("Сообщество", AppIcons.Timer, "Спринт и общая цель", "Читаем вместе 15, 25 или 45 минут, а прочитанные страницы идут в общую цель месяца", NewsTarget.Community),
     NewsItem("Сообщество", AppIcons.Sparkle, "Доска идей", "Предлагай, что добавить в приложение, и голосуй за чужие идеи", NewsTarget.Community),

@@ -28,13 +28,6 @@
   },
   {
    "do": "tap",
-   "text": "Отлично",
-   "timeout": 4000,
-   "optional": true,
-   "after": 1500
-  },
-  {
-   "do": "tap",
    "text": "Сообщество",
    "timeout": 5000,
    "after": 3500
