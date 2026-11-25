@@ -288,13 +288,32 @@ class Promo:
                 seq += [seq[-1]] * (n - len(seq))
         return seq[:n], cuts
 
+    def actions(self, seq, cuts, dur):
+        small = [cv2.resize(cv2.cvtColor(np.ascontiguousarray(f), cv2.COLOR_RGB2GRAY), (40, 82), interpolation=cv2.INTER_AREA).astype(np.float32) for f, _ in seq]
+        d = [0.0] + [float(np.abs(small[i] - small[i - 1]).mean()) for i in range(1, len(small))]
+        banned = set()
+        for c in cuts:
+            banned.update(range(c - 2, c + 8))
+        out, last = [], -99
+        n = len(d)
+        for i in range(2, n):
+            t = i / FPS
+            if t < 0.6 or t > dur - 0.45 or i in banned:
+                continue
+            calm = max(d[max(0, i - 6):i]) if i >= 1 else 0
+            if d[i] > 2.5 and calm < 1.3 and d[i] > calm * 2.5 and t - last > 0.6:
+                burst = sum(1 for j in range(i, min(n, i + 8)) if d[j] > 1.6)
+                kind = "act_swish" if d[i] > 7 or burst >= 5 else "act_tap"
+                out.append((kind, self.clock + t))
+                last = t
+        return out[:5]
+
     def beat_frames(self, beat, dur):
         items, _ = self.titles.word_images(beat, beat.get("top", 96 if beat.get("kicker") else 150))
         tags = self.titles.tag_images(beat.get("tags"))
         placed = place_tags(tags, beat.get("tags_y", 1640))
         seq, cuts = self.collect(beat, dur)
-        for c in cuts:
-            self.events.append(("tap", self.clock + c / FPS))
+        self.events.extend(self.actions(seq, cuts, dur))
         zooms = beat.get("zoom", [])
         blurs = beat.get("blur", [])
         n = len(seq)
@@ -393,29 +412,32 @@ def mix(plan, video, events, total, audio, out, beats_at, voices=()):
             return
         inputs.extend(["-i", p])
         d = max(0, int(at * 1000))
-        filters.append(f"[{n}:a]adelay={d}|{d},volume={vol * plan.get('sfx_scale', 1.0):.3f}[s{n}]")
+        filters.append(f"[{n}:a]lowpass=f=4500,adelay={d}|{d},volume={vol * plan.get('sfx_scale', 1.0):.3f}[s{n}]")
         tracks.append(f"[s{n}]")
         n += 1
 
-    whooshes = ["w_fast", "w_soft", "w_tilt", "w_deep"]
+    whooshes = ["w_soft", "w_deep", "w_soft", "w_tilt"]
     for k, at in enumerate(beats_at):
         if k == 0:
             add("impact", at + 0.15, 0.5)
         elif k == 1:
-            add("sparkle", at + 0.1, 0.35)
             add("w_soft", max(0, at - 0.18), 0.45)
         else:
             add(whooshes[k % len(whooshes)], max(0, at - 0.18), 0.5)
     pops = ["pop_a", "pop_b"]
     pc = 0
+    ac = 0
     for kind, at in events:
         if kind == "pop":
             add(pops[pc % 2], at, 0.42)
             pc += 1
         elif kind == "zoom":
-            add("zoom", at, 0.38)
-        elif kind == "tap":
-            add("tap", at, 0.32)
+            add("act_swish2", at, 0.3)
+        elif kind == "act_tap":
+            ac += 1
+            add("act_tap1" if ac % 2 else "act_tap2", at, 0.32)
+        elif kind == "act_swish":
+            add("act_swish1", at, 0.34)
         elif kind == "impact":
             add("impact", at, 0.55)
         elif kind == "sparkle":
