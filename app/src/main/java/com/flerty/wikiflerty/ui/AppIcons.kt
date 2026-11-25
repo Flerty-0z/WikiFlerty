@@ -27,6 +27,18 @@ object AppIcons {
         return builder.build()
     }
 
+    val Chat by lazy { icon("chat", "M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z") }
+    val People by lazy { icon("people", "M9 4.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7z", "M2.5 20a6.5 6.5 0 0 1 13 0", "M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6") }
+    val Shield by lazy { icon("shield", "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z") }
+    val Power by lazy { icon("power", "M12 3v9", "M6.3 7a8 8 0 1 0 11.4 0") }
+    val Reply by lazy { icon("reply", "M10 7l-6 5 6 5", "M4 12h10a6 6 0 0 1 6 6") }
+    val Smile by lazy { icon("smile", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M8.5 14.5a4.5 4.5 0 0 0 7 0", "M9 9.5h.01M15 9.5h.01", width = 2f) }
+    val Thumb by lazy { icon("thumb", "M7 10v10H4V10z", "M7 10l4-7c1.5 0 2.5 1 2.2 2.6L12.5 9H19a2 2 0 0 1 2 2.3l-1.3 7A2 2 0 0 1 17.7 20H7") }
+    val Ban by lazy { icon("ban", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M5.6 5.6l12.8 12.8") }
+    val Mute by lazy { icon("mute", "M11 5L6 9H3v6h3l5 4z", "M16 9l5 6M21 9l-5 6") }
+    val At by lazy { icon("at", "M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8z", "M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8") }
+    val Pin by lazy { icon("pin", "M9 4h6l-1 6 3 3H7l3-3z", "M12 13v7") }
+    val Comic by lazy { icon("comic", "M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", "M3 12h10M13 4v16") }
     val Back by lazy { icon("back", "M15 6l-6 6 6 6") }
     val Close by lazy { icon("close", "M6 6l12 12M18 6L6 18", width = 2.2f) }
     val Chevron by lazy { icon("chevron", "M9 6l6 6-6 6") }

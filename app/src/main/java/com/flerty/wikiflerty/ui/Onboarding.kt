@@ -84,6 +84,7 @@ object SettingsNav {
     var guideQuery by mutableStateOf("")
     var news by mutableStateOf(false)
     var account by mutableStateOf(false)
+    var community by mutableStateOf(false)
 }
 
 object Tips {

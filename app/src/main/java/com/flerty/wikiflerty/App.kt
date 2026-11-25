@@ -94,6 +94,7 @@ class App : Application() {
     val autoBackup: com.flerty.wikiflerty.system.AutoBackup by lazy { com.flerty.wikiflerty.system.AutoBackup(this) }
     val cloud: com.flerty.wikiflerty.sync.CloudSync by lazy { com.flerty.wikiflerty.sync.CloudSync(this) }
     val account: com.flerty.wikiflerty.sync.Account by lazy { com.flerty.wikiflerty.sync.Account(this) }
+    val community: com.flerty.wikiflerty.sync.Community by lazy { com.flerty.wikiflerty.sync.Community(this) }
 
     fun syncedTitle(bookId: String?): String? {
         val fp = bookId?.takeIf { it.startsWith("fp:") }?.removePrefix("fp:") ?: return null

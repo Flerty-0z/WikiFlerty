@@ -10,7 +10,7 @@ import com.flerty.wikiflerty.R
 import com.flerty.wikiflerty.reader.ReaderSettings
 import kotlinx.coroutines.flow.StateFlow
 
-enum class FeedbackSound { Tap, Toggle, Open, Close, Star, Success, Freeze, Thaw, Tick, Pick, Place, Check, Uncheck, Pop, Trash, Page, Reveal, Copy, YearSwipe, YearRise, YearCount, YearFinale, Back, Nav, Segment, On, Off, Sheet, Confirm, Play, Pause, Bookmark, Search, Add, Deny, Edit, Ai, Expand, Collapse, Share, Photo, Voice, Timer, Note, Go, More, Marker, Download, Dice, Undo, Color, SkipBack, SkipNext, Hold, Sync, Read, SignIn, SignUp, SignOut, Wipe, Plan, Pay, Grow }
+enum class FeedbackSound { Tap, Toggle, Open, Close, Star, Success, Freeze, Thaw, Tick, Pick, Place, Check, Uncheck, Pop, Trash, Page, Reveal, Copy, YearSwipe, YearRise, YearCount, YearFinale, Back, Nav, Segment, On, Off, Sheet, Confirm, Play, Pause, Bookmark, Search, Add, Deny, Edit, Ai, Expand, Collapse, Share, Photo, Voice, Timer, Note, Go, More, Marker, Download, Dice, Undo, Color, SkipBack, SkipNext, Hold, Sync, Read, SignIn, SignUp, SignOut, Wipe, Plan, Pay, Grow, Send, Incoming, React, Report, Mention, Rules }
 
 class Feedback(context: Context, private val settings: StateFlow<ReaderSettings>) {
     private val pool: SoundPool = SoundPool.Builder()
@@ -58,6 +58,12 @@ class Feedback(context: Context, private val settings: StateFlow<ReaderSettings>
         FeedbackSound.Plan to pool.load(context, R.raw.ui_plan, 1),
         FeedbackSound.Pay to pool.load(context, R.raw.ui_pay, 1),
         FeedbackSound.Grow to pool.load(context, R.raw.ui_grow, 1),
+        FeedbackSound.Send to pool.load(context, R.raw.ui_send, 1),
+        FeedbackSound.Incoming to pool.load(context, R.raw.ui_incoming, 1),
+        FeedbackSound.React to pool.load(context, R.raw.ui_react, 1),
+        FeedbackSound.Report to pool.load(context, R.raw.ui_report, 1),
+        FeedbackSound.Mention to pool.load(context, R.raw.ui_mention, 1),
+        FeedbackSound.Rules to pool.load(context, R.raw.ui_rules, 1),
         FeedbackSound.Back to pool.load(context, R.raw.ui_back, 1),
         FeedbackSound.Nav to pool.load(context, R.raw.ui_nav, 1),
         FeedbackSound.Segment to pool.load(context, R.raw.ui_segment, 1),

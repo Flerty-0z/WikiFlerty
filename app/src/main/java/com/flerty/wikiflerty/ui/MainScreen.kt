@@ -104,6 +104,7 @@ enum class Section(val title: String, val icon: ImageVector) {
     Stats("Статистика", AppIcons.Chart),
     Settings("Настройки", AppIcons.Options),
     About("О приложении", AppIcons.Info),
+    Community("Сообщество", AppIcons.Chat),
 }
 
 @Composable
@@ -116,6 +117,14 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
             SettingsNav.open = "Sync"
             section = Section.Settings
             SettingsNav.account = false
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(SettingsNav.community) {
+        if (SettingsNav.community) {
+            CommunityNav.room = null
+            CommunityNav.mod = false
+            section = Section.Community
+            SettingsNav.community = false
         }
     }
     var drawerOpen by rememberSaveable { mutableStateOf(false) }
@@ -168,7 +177,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
     }
 
     BackHandler(enabled = drawerOpen || section != Section.Library) {
-        if (drawerOpen) drawerOpen = false else section = Section.Library
+        if (drawerOpen) drawerOpen = false else section = if (section == Section.Community) Section.Settings else Section.Library
     }
 
     val bottomNav = AppStyle.bottomNav
@@ -191,7 +200,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
         drawer = {
             DrawerLogo()
             Spacer(Modifier.height(10.dp))
-            Section.entries.forEach { item ->
+            Section.entries.filter { it != Section.Community }.forEach { item ->
                 if (item == Section.Settings) {
                     Box(Modifier.padding(horizontal = 22.dp, vertical = 8.dp).fillMaxWidth().height(1.dp).background(AppColors.Line))
                 }
@@ -223,6 +232,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                             onBack = when (section) {
                                 Section.Settings -> { { section = Section.Library } }
                                 Section.About -> { { section = Section.Settings } }
+                                Section.Community -> { { if (!CommunityNav.back()) section = Section.Settings } }
                                 else -> null
                             },
                         ) {
@@ -234,6 +244,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                                 HeaderButton(AppIcons.Options, "Настройки") { section = Section.Settings }
                             }
                             if (section == Section.Settings) ReadingNow()
+                            if (section == Section.Community) CommunityOnline()
                         }
                         if (busy != null) {
                             KitLinearProgress(Modifier.fillMaxWidth().align(Alignment.BottomCenter))
@@ -241,7 +252,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                     }
                 },
                 bottomBar = {
-                    if (bottomNav) {
+                    if (bottomNav && section != Section.Community) {
                         BottomNav(section, false, onSelect = { section = it }, onAdd = { addMenu = true })
                     }
                 },
@@ -281,6 +292,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                             Section.Stats -> StatsScreen(modifier)
                             Section.Settings -> SettingsScreen(modifier, onAbout = if (bottomNav) { { section = Section.About } } else null)
                             Section.About -> AboutScreen(modifier)
+                            Section.Community -> CommunityScreen(modifier)
                             Section.Library -> Unit
                         }
                     }
@@ -839,6 +851,7 @@ private fun AddBookSheet(onDismiss: () -> Unit, onFile: () -> Unit, onScan: () -
 private fun sectionTitle(section: Section): String = when (section) {
     Section.Library -> "Моя полка"
     Section.Stats -> "Итоги"
+    Section.Community -> CommunityNav.title
     else -> section.title
 }
 

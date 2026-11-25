@@ -248,9 +248,14 @@ class Account(private val app: App) {
         }
     }
 
-    private fun call(path: String, body: JSONObject = JSONObject(), auth: Boolean = true): JSONObject {
+    fun chat(path: String, body: JSONObject = JSONObject(), timeout: Int = 30_000): JSONObject = call("chat/$path", body, true, timeout)
+
+    private fun call(path: String, body: JSONObject = JSONObject(), auth: Boolean = true, timeout: Int = 30_000): JSONObject {
         val c = try {
-            connect(path, auth)
+            connect(path, auth) {
+                it.setRequestProperty("Content-Type", "application/json")
+                it.readTimeout = timeout
+            }
         } catch (e: IOException) {
             throw ServerError("network", "Нет связи с облаком. Проверь интернет")
         }
