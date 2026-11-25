@@ -288,32 +288,76 @@ class Promo:
                 seq += [seq[-1]] * (n - len(seq))
         return seq[:n], cuts
 
-    def actions(self, seq, cuts, dur):
-        small = [cv2.resize(cv2.cvtColor(np.ascontiguousarray(f), cv2.COLOR_RGB2GRAY), (40, 82), interpolation=cv2.INTER_AREA).astype(np.float32) for f, _ in seq]
-        d = [0.0] + [float(np.abs(small[i] - small[i - 1]).mean()) for i in range(1, len(small))]
+    @staticmethod
+    def dots(img):
+        half = cv2.resize(np.ascontiguousarray(img), (CW // 2, CH // 2), interpolation=cv2.INTER_AREA)
+        hsv = cv2.cvtColor(half, cv2.COLOR_RGB2HSV)
+        m = ((hsv[..., 1] < 40) & (hsv[..., 2] > 138) & (hsv[..., 2] < 192)).astype(np.uint8)
+        m = cv2.morphologyEx(m, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)))
+        n, _, st, cen = cv2.connectedComponentsWithStats(m)
+        out = []
+        for i in range(1, n):
+            x, y, w, h, area = st[i]
+            if 12 <= w <= 24 and 12 <= h <= 24 and abs(int(w) - int(h)) <= 5 and area / float(w * h) > 0.62:
+                cx, cy = int(cen[i][0]), int(cen[i][1])
+                core = hsv[max(0, cy - 4):cy + 5, max(0, cx - 4):cx + 5, 2]
+                if core.size and core.std() < 10:
+                    out.append((float(cen[i][0]), float(cen[i][1])))
+        return out
+
+    def actions(self, seq, cuts, dur, page=False):
+        n = len(seq)
+        dots = [self.dots(f) for f, _ in seq]
+        gray = [cv2.resize(cv2.cvtColor(np.ascontiguousarray(f), cv2.COLOR_RGB2GRAY), (40, 82), interpolation=cv2.INTER_AREA).astype(np.float32) for f, _ in seq]
         banned = set()
         for c in cuts:
-            banned.update(range(c - 2, c + 8))
-        out, last = [], -99
-        n = len(d)
+            banned.update(range(c - 2, c + 7))
+
+        def near(pts, p, r):
+            return any((q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2 < r * r for q in pts)
+
+        out, last = [], -99.0
         for i in range(2, n):
             t = i / FPS
-            if t < 0.6 or t > dur - 0.45 or i in banned:
+            if t < 0.5 or t > dur - 0.35 or i in banned:
                 continue
-            calm = max(d[max(0, i - 6):i]) if i >= 1 else 0
-            if d[i] > 2.5 and calm < 1.3 and d[i] > calm * 2.5 and t - last > 0.6:
-                burst = sum(1 for j in range(i, min(n, i + 8)) if d[j] > 1.6)
-                kind = "act_swish" if d[i] > 7 or burst >= 5 else "act_tap"
+            for p in dots[i]:
+                if near(dots[i - 1], p, 25) or near(dots[i - 2], p, 25):
+                    continue
+                if t - last < 0.5:
+                    continue
+                j, cur, moved = i, p, 0.0
+                while j + 1 < n and dots[j + 1]:
+                    nxt = min(dots[j + 1], key=lambda q: (q[0] - cur[0]) ** 2 + (q[1] - cur[1]) ** 2)
+                    step = math.hypot(nxt[0] - cur[0], nxt[1] - cur[1])
+                    if step > 60:
+                        break
+                    moved += step
+                    cur = nxt
+                    j += 1
+                if moved > 30:
+                    kind = "ui_scroll"
+                else:
+                    k2 = min(n - 1, i + 15)
+                    change = float(np.abs(gray[k2] - gray[max(0, i - 1)]).mean())
+                    kind = "ui_open" if change > 9 else ("ui_select" if change > 3 else "ui_click")
+                if page and kind == "ui_open":
+                    kind = "ui_page"
+                if out and out[-1][0] == kind and kind not in ("ui_click", "ui_page"):
+                    kind = "ui_select" if kind == "ui_open" else ("ui_click" if kind == "ui_select" else kind)
+                if kind == "ui_scroll" and any(o[0] == "ui_scroll" for o in out[-1:]):
+                    continue
                 out.append((kind, self.clock + t))
                 last = t
-        return out[:5]
+                break
+        return out[:4]
 
     def beat_frames(self, beat, dur):
         items, _ = self.titles.word_images(beat, beat.get("top", 96 if beat.get("kicker") else 150))
         tags = self.titles.tag_images(beat.get("tags"))
         placed = place_tags(tags, beat.get("tags_y", 1640))
         seq, cuts = self.collect(beat, dur)
-        self.events.extend(self.actions(seq, cuts, dur))
+        self.events.extend(self.actions(seq, cuts, dur, beat.get("src") == "comics"))
         zooms = beat.get("zoom", [])
         blurs = beat.get("blur", [])
         n = len(seq)
@@ -431,13 +475,11 @@ def mix(plan, video, events, total, audio, out, beats_at, voices=()):
         if kind == "pop":
             add(pops[pc % 2], at, 0.42)
             pc += 1
-        elif kind == "zoom":
-            add("act_swish2", at, 0.3)
-        elif kind == "act_tap":
+        elif kind.startswith("ui_"):
             ac += 1
-            add("act_tap1" if ac % 2 else "act_tap2", at, 0.32)
-        elif kind == "act_swish":
-            add("act_swish1", at, 0.34)
+            variants = {"ui_click": ["ui_click1", "ui_click2", "ui_click3"], "ui_open": ["ui_open1", "ui_open2"], "ui_select": ["ui_select1", "ui_select2"], "ui_scroll": ["ui_scroll"], "ui_page": ["ui_page"]}[kind]
+            vol = {"ui_click": 0.6, "ui_open": 0.55, "ui_select": 0.55, "ui_scroll": 0.42, "ui_page": 0.5}[kind]
+            add(variants[ac % len(variants)], at, vol)
         elif kind == "impact":
             add("impact", at, 0.55)
         elif kind == "sparkle":
