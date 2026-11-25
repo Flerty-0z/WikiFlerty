@@ -390,7 +390,8 @@ fun LibraryScreen(
                 NextInSeriesCard(b, s, viewModel.coverFile(b), Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) { open(b) }
             }
         }
-        if (active.id == "all" && q.isEmpty() && prefs.view != LibraryView.Shelves) AudioPlank(Modifier.padding(bottom = 14.dp))
+        val audioShelf = rememberAudioShelf()
+        val showAudio = active.id == "all" && q.isEmpty() && audioShelf.isNotEmpty()
 
         androidx.compose.animation.Crossfade(
             targetState = LibraryLayout(prefs.view, columns, prefs.coverSize < 2),
@@ -492,6 +493,23 @@ fun LibraryScreen(
                 verticalArrangement = Arrangement.spacedBy(if (lgrid) 16.dp else 10.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
+                if (showAudio) {
+                    if (lgrid) {
+                        item(key = "audio-label", span = { GridItemSpan(maxLineSpan) }) {
+                            LibrarySectionLabel(AppIcons.Headphones, "Аудиокниги", audioShelf.size, Modifier.scrollReveal()) { AudioNav.importing = true }
+                        }
+                        itemsIndexed(audioShelf, key = { _, a -> "audio:" + a.id }) { _, a ->
+                            AudioGridCell(a, Modifier.scrollReveal())
+                        }
+                    } else {
+                        item(key = "audio-list", span = { GridItemSpan(maxLineSpan) }) {
+                            AudioListBlock(audioShelf, Modifier.scrollReveal())
+                        }
+                    }
+                    item(key = "books-label", span = { GridItemSpan(maxLineSpan) }) {
+                        LibrarySectionLabel(AppIcons.Book, "Книги", shown.size, Modifier.scrollReveal())
+                    }
+                }
                 if (shown.isEmpty()) {
                     item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
                         Text(

@@ -1184,3 +1184,202 @@ private fun SyncShelf(fill: Float, pulse: Boolean) {
         Plank(null, false, null)
     }
 }
+
+@Composable
+fun rememberAudioShelf(): List<com.flerty.wikiflerty.audio.Audiobook> {
+    val app = LocalContext.current.applicationContext as App
+    val books by app.audiobooks.books.collectAsStateWithLifecycle()
+    val manual by app.audiobooks.manual.collectAsStateWithLifecycle()
+    return remember(books, manual) { if (manual) books else books.sortedByDescending { it.lastPlayedAt ?: it.addedAt } }
+}
+
+private fun leftText(ms: Long): String {
+    val m = (ms / 60_000).coerceAtLeast(0)
+    return if (m >= 60) "${m / 60} ч ${m % 60} м" else "$m м"
+}
+
+private fun chapterLine(b: com.flerty.wikiflerty.audio.Audiobook): String {
+    if (b.chapters.isEmpty()) return "Часть ${b.track + 1} из ${b.tracks.size.coerceAtLeast(1)}"
+    val i = b.chapterAt(b.track, b.positionMs)
+    val title = b.chapters.getOrNull(i)?.title.orEmpty().trim()
+    return title.ifBlank { "Глава ${i + 1} из ${b.chapters.size}" }
+}
+
+@Composable
+fun LibrarySectionLabel(icon: ImageVector, title: String, count: Int, modifier: Modifier = Modifier, onAdd: (() -> Unit)? = null) {
+    Row(modifier.fillMaxWidth().heightIn(min = 30.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(14.dp))
+        Text(title, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1)
+        Text("· $count", color = AppColors.Faint, fontSize = 12.sp, maxLines = 1)
+        Box(Modifier.weight(1f).height(1.dp).background(AppColors.Line))
+        if (onAdd != null) {
+            Box(
+                Modifier.size(30.dp).liveClick(CircleShape, sound = FeedbackSound.Add, pressedScale = 0.88f, onClick = onAdd).semantics { contentDescription = "Добавить аудиокнигу" },
+                contentAlignment = Alignment.Center,
+            ) { Icon(AppIcons.Plus, null, tint = AppColors.Accent, modifier = Modifier.size(16.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun ProgressRing(progress: Float, size: Dp = 14.dp) {
+    val track = AppColors.Line
+    val fill = AppColors.Accent
+    androidx.compose.foundation.Canvas(Modifier.size(size)) {
+        val stroke = 2.5.dp.toPx()
+        val inset = stroke / 2f
+        val box = androidx.compose.ui.geometry.Size(this.size.width - stroke, this.size.height - stroke)
+        val tl = androidx.compose.ui.geometry.Offset(inset, inset)
+        drawArc(track, 0f, 360f, false, tl, box, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+        drawArc(fill, -90f, 360f * progress.coerceIn(0f, 1f), false, tl, box, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+    }
+}
+
+@Composable
+private fun AudioBadge(playing: Boolean, size: Dp, modifier: Modifier = Modifier) {
+    val pulse = rememberInfiniteTransition(label = "audio-badge")
+    val glow by pulse.animateFloat(0.45f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "audio-badge-glow")
+    Box(
+        modifier.size(size).background(AppColors.Accent.copy(alpha = if (playing) glow else 1f), CircleShape),
+        contentAlignment = Alignment.Center,
+    ) { Icon(AppIcons.Headphones, null, tint = AppColors.OnAccent, modifier = Modifier.size(size * 0.55f)) }
+}
+
+@Composable
+fun AudioGridCell(b: com.flerty.wikiflerty.audio.Audiobook, modifier: Modifier = Modifier) {
+    val app = LocalContext.current.applicationContext as App
+    val state by app.audio.state.collectAsStateWithLifecycle()
+    val playing = state.bookId == b.id && state.playing
+    val shape = appCorner(10)
+    Column(
+        modifier
+            .fillMaxWidth()
+            .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.96f) {
+                app.audio.open(b.id, play = false)
+                AudioNav.player = true
+            }
+            .semantics(mergeDescendants = true) { contentDescription = "Аудиокнига «${b.title}»" },
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f), contentAlignment = Alignment.BottomCenter) {
+            Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(shape)) {
+                AudioCover(b.id, b.title, Modifier.fillMaxSize(), 10.dp)
+                Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color.Black.copy(alpha = 0.35f))) {
+                    Box(Modifier.fillMaxWidth(b.progress.coerceAtLeast(0.03f)).height(3.dp).background(AppColors.Accent))
+                }
+                AudioBadge(playing, 22.dp, Modifier.align(Alignment.TopEnd).padding(5.dp))
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            ProgressRing(b.progress)
+            Text(b.title, color = AppColors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Text(chapterLine(b), color = AppColors.Muted, fontSize = 10.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun StaticWave(progress: Float, seed: Int, modifier: Modifier = Modifier) {
+    val bars = remember(seed) { waveHeights(seed, 36) }
+    val played = AppColors.Accent
+    val rest = AppColors.Line
+    androidx.compose.foundation.Canvas(modifier.fillMaxWidth().height(18.dp)) {
+        val n = bars.size
+        val gap = 2.dp.toPx()
+        val w = (size.width - gap * (n - 1)) / n
+        val edge = progress * size.width
+        val radius = androidx.compose.ui.geometry.CornerRadius(w / 2f, w / 2f)
+        for (i in 0 until n) {
+            val x = i * (w + gap)
+            val h = (size.height * bars[i]).coerceAtLeast(w)
+            drawRoundRect(if (x + w / 2f <= edge) played else rest, androidx.compose.ui.geometry.Offset(x, (size.height - h) / 2f), androidx.compose.ui.geometry.Size(w, h), radius)
+        }
+    }
+}
+
+@Composable
+fun AudioListBlock(books: List<com.flerty.wikiflerty.audio.Audiobook>, modifier: Modifier = Modifier) {
+    if (books.isEmpty()) return
+    val app = LocalContext.current.applicationContext as App
+    val state by app.audio.state.collectAsStateWithLifecycle()
+    val current = books.firstOrNull { it.id == state.bookId } ?: books.maxByOrNull { it.lastPlayedAt ?: it.addedAt } ?: books.first()
+    val others = books.filter { it.id != current.id }
+    fun openPlayer(b: com.flerty.wikiflerty.audio.Audiobook) {
+        app.audio.open(b.id, play = false)
+        AudioNav.player = true
+    }
+    fun playPause(b: com.flerty.wikiflerty.audio.Audiobook) {
+        if (state.bookId == b.id) app.audio.toggle() else app.audio.open(b.id, play = true)
+    }
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        val shape = appCorner(18)
+        val playing = state.bookId == current.id && state.playing
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .liveClick(shape, sound = FeedbackSound.Open, pressedScale = 0.98f) { openPlayer(current) }
+                .fieldSurface(shape)
+                .border(1.dp, AppColors.Accent.copy(alpha = 0.45f), shape)
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            AudioCover(current.id, current.title, Modifier.size(76.dp), 10.dp)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(if (playing) "СЕЙЧАС ИГРАЕТ" else "ПРОДОЛЖИТЬ СЛУШАТЬ", color = AppColors.Accent, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(current.title, color = AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    "${chapterLine(current)} · осталось ${leftText(((current.totalMs - current.elapsedMs) / current.speed.coerceAtLeast(0.25f)).toLong())}",
+                    color = AppColors.Muted,
+                    fontSize = 10.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                StaticWave(current.progress, current.id.hashCode(), Modifier.padding(top = 3.dp))
+            }
+            PlayButton(playing, 48.dp) { playPause(current) }
+        }
+        others.forEach { b ->
+            androidx.compose.runtime.key(b.id) {
+                val on = state.bookId == b.id && state.playing
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .liveClick(appCorner(12), sound = FeedbackSound.Open, pressedScale = 0.98f) { openPlayer(b) }
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    AudioCover(b.id, b.title, Modifier.size(36.dp), 7.dp)
+                    Text(b.title, color = AppColors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Box(Modifier.width(64.dp).height(3.dp).clip(CircleShape).background(AppColors.Line)) {
+                        Box(Modifier.fillMaxWidth(b.progress.coerceAtLeast(0.02f)).fillMaxHeight().background(AppColors.Accent))
+                    }
+                    Box(
+                        Modifier
+                            .size(32.dp)
+                            .liveClick(CircleShape, sound = FeedbackSound.Tap, pressedScale = 0.88f) { playPause(b) }
+                            .border(1.dp, if (on) AppColors.Accent else AppColors.PanelBorder, CircleShape)
+                            .semantics { contentDescription = if (on) "Пауза" else "Слушать" },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(if (on) AppIcons.Pause else AppIcons.Play, null, tint = AppColors.Accent, modifier = Modifier.size(14.dp)) }
+                }
+            }
+        }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 40.dp)
+                .liveClick(appCorner(12), sound = FeedbackSound.Add, pressedScale = 0.98f) { AudioNav.importing = true }
+                .padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(Modifier.size(36.dp).border(1.dp, AppColors.Accent.copy(alpha = 0.4f), appCorner(7)), contentAlignment = Alignment.Center) {
+                Icon(AppIcons.Plus, null, tint = AppColors.Accent, modifier = Modifier.size(16.dp))
+            }
+            Text("Добавить аудиокнигу", color = AppColors.Muted, fontSize = 12.sp)
+        }
+    }
+}
