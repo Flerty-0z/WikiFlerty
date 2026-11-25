@@ -58,6 +58,51 @@ type ChatMsg struct {
 	Book    *ChatBook           `json:"book,omitempty"`
 	Reacts  map[string][]string `json:"reacts,omitempty"`
 	Gone    bool                `json:"gone,omitempty"`
+	Edited  bool                `json:"edited,omitempty"`
+	Ch      int                 `json:"ch,omitempty"`
+	ChTitle string              `json:"chTitle,omitempty"`
+	Kind    string              `json:"kind,omitempty"`
+}
+
+type ChatThread struct {
+	Title  string `json:"title"`
+	Author string `json:"author,omitempty"`
+	Last   int64  `json:"last"`
+	Count  int    `json:"count"`
+}
+
+type SprintSeat struct {
+	Pages  int   `json:"pages"`
+	Joined int64 `json:"joined"`
+}
+
+type ChatSprint struct {
+	ID      int64                  `json:"id"`
+	By      string                 `json:"by"`
+	Start   int64                  `json:"start"`
+	End     int64                  `json:"end"`
+	Minutes int                    `json:"minutes"`
+	People  map[string]*SprintSeat `json:"people"`
+}
+
+type ChatGoal struct {
+	Month   string         `json:"month"`
+	Target  int            `json:"target"`
+	Total   int            `json:"total"`
+	Readers map[string]int `json:"readers"`
+	Day     string         `json:"day"`
+	Today   map[string]int `json:"today"`
+}
+
+type ChatIdea struct {
+	ID     int64    `json:"id"`
+	Login  string   `json:"login"`
+	Title  string   `json:"title"`
+	Text   string   `json:"text,omitempty"`
+	At     int64    `json:"at"`
+	Votes  []string `json:"votes"`
+	Status string   `json:"status"`
+	Note   string   `json:"note,omitempty"`
 }
 
 type ChatRoom struct {
@@ -105,20 +150,22 @@ type ChatReport struct {
 }
 
 type ChatMention struct {
-	ID   int64  `json:"id"`
-	Room string `json:"room"`
-	From string `json:"from"`
-	Text string `json:"text"`
-	At   int64  `json:"at"`
+	ID    int64  `json:"id"`
+	Room  string `json:"room"`
+	From  string `json:"from"`
+	Text  string `json:"text"`
+	At    int64  `json:"at"`
+	Title string `json:"title,omitempty"`
 }
 
 type chatRoomState struct {
-	msgs  []*ChatMsg
-	ver   int64
-	wake  chan struct{}
-	seen  map[string]time.Time
-	dirty bool
-	last  map[string]time.Time
+	msgs   []*ChatMsg
+	ver    int64
+	wake   chan struct{}
+	seen   map[string]time.Time
+	dirty  bool
+	last   map[string]time.Time
+	loaded bool
 }
 
 type Chat struct {
@@ -136,7 +183,18 @@ type Chat struct {
 	journal  []string
 	recent   map[string]string
 	notify   func(string)
+	threads  map[string]*ChatThread
+	sprint   *ChatSprint
+	lastRun  *ChatSprint
+	starts   map[string]time.Time
+	goal     *ChatGoal
+	ideas    []*ChatIdea
+	ideaDay  map[string]int
 }
+
+var bookRoomRe = regexp.MustCompile(`^b:[0-9a-f]{16}$`)
+
+func isBook(id string) bool { return bookRoomRe.MatchString(id) }
 
 var defaultRooms = []ChatRoom{
 	{"general", "Общий", "chat"},
@@ -152,6 +210,8 @@ func NewChat(s3 *S3, notify func(string)) *Chat {
 		s3: s3, rooms: map[string]*chatRoomState{}, members: map[string]*ChatMember{},
 		reports: map[int64]*ChatReport{}, mentions: map[string][]ChatMention{},
 		admins: map[string]bool{}, dirty: map[string]bool{}, recent: map[string]string{}, notify: notify,
+		threads: map[string]*ChatThread{}, starts: map[string]time.Time{}, ideaDay: map[string]int{},
+		goal: &ChatGoal{Target: 50000, Readers: map[string]int{}, Today: map[string]int{}},
 	}
 	admins := os.Getenv("CHAT_ADMINS")
 	if admins == "" {
@@ -176,6 +236,26 @@ func NewChat(s3 *S3, notify func(string)) *Chat {
 	c.loadJSON("chat/members.json", &c.members)
 	c.loadJSON("chat/reports.json", &c.reports)
 	c.loadJSON("chat/mentions.json", &c.mentions)
+	c.loadJSON("chat/threads.json", &c.threads)
+	c.loadJSON("chat/goal.json", c.goal)
+	c.loadJSON("chat/ideas.json", &c.ideas)
+	if c.threads == nil {
+		c.threads = map[string]*ChatThread{}
+	}
+	if c.goal.Readers == nil {
+		c.goal.Readers = map[string]int{}
+	}
+	if c.goal.Today == nil {
+		c.goal.Today = map[string]int{}
+	}
+	if c.goal.Target <= 0 {
+		c.goal.Target = 50000
+	}
+	for _, i := range c.ideas {
+		if i.ID > c.lastID {
+			c.lastID = i.ID
+		}
+	}
 	if c.members == nil {
 		c.members = map[string]*ChatMember{}
 	}
@@ -186,18 +266,7 @@ func NewChat(s3 *S3, notify func(string)) *Chat {
 		c.mentions = map[string][]ChatMention{}
 	}
 	for _, r := range c.cfg.Rooms {
-		st := c.room(r.ID)
-		var msgs []*ChatMsg
-		c.loadJSON("chat/rooms/"+r.ID+".json", &msgs)
-		st.msgs = msgs
-		for _, m := range msgs {
-			if m.ID > c.lastID {
-				c.lastID = m.ID
-			}
-			if m.Ver > c.ver {
-				c.ver = m.Ver
-			}
-		}
+		c.room(r.ID)
 	}
 	for _, st := range c.rooms {
 		st.ver = c.ver
@@ -227,10 +296,35 @@ func (c *Chat) room(id string) *chatRoomState {
 		st = &chatRoomState{wake: make(chan struct{}), seen: map[string]time.Time{}, last: map[string]time.Time{}}
 		c.rooms[id] = st
 	}
+	if !st.loaded {
+		st.loaded = true
+		var msgs []*ChatMsg
+		c.loadJSON(roomKey(id), &msgs)
+		st.msgs = msgs
+		for _, m := range msgs {
+			if m.ID > c.lastID {
+				c.lastID = m.ID
+			}
+			if m.Ver > c.ver {
+				c.ver = m.Ver
+			}
+		}
+		st.ver = c.ver
+	}
 	return st
 }
 
+func roomKey(id string) string {
+	if isBook(id) {
+		return "chat/books/" + strings.TrimPrefix(id, "b:") + ".json"
+	}
+	return "chat/rooms/" + id + ".json"
+}
+
 func (c *Chat) roomOK(id string) bool {
+	if isBook(id) {
+		return true
+	}
 	for _, r := range c.cfg.Rooms {
 		if r.ID == id {
 			return true
@@ -297,7 +391,7 @@ func (c *Chat) Flush() {
 		if st.dirty {
 			st.dirty = false
 			b, _ := json.Marshal(st.msgs)
-			puts["chat/rooms/"+id+".json"] = b
+			puts[roomKey(id)] = b
 		}
 	}
 	for key := range c.dirty {
@@ -311,6 +405,12 @@ func (c *Chat) Flush() {
 			v = c.reports
 		case "mentions":
 			v = c.mentions
+		case "threads":
+			v = c.threads
+		case "goal":
+			v = c.goal
+		case "ideas":
+			v = c.ideas
 		}
 		b, _ := json.Marshal(v)
 		puts["chat/"+key+".json"] = b
@@ -444,30 +544,62 @@ func (c *Chat) publicMsg(m *ChatMsg) *ChatMsg {
 	return m
 }
 
-func (c *Chat) since(st *chatRoomState, after int64) []*ChatMsg {
+func visible(m *ChatMsg, upto int) bool { return !m.Gone && m.Ch <= upto }
+
+func (c *Chat) since(st *chatRoomState, after int64, upto int) []*ChatMsg {
 	out := []*ChatMsg{}
 	if after <= 0 {
 		start := len(st.msgs)
 		n := 0
 		for start > 0 && n < chatFirst {
 			start--
-			if !st.msgs[start].Gone {
+			if visible(st.msgs[start], upto) {
 				n++
 			}
 		}
 		for _, m := range st.msgs[start:] {
-			if !m.Gone {
+			if visible(m, upto) {
 				out = append(out, m)
 			}
 		}
 		return out
 	}
 	for _, m := range st.msgs {
-		if m.Ver > after {
+		if m.Ver > after && (m.Gone || m.Ch <= upto) {
 			out = append(out, c.publicMsg(m))
 		}
 	}
 	return out
+}
+
+func locked(st *chatRoomState, upto int) []map[string]any {
+	per := map[int]int{}
+	titles := map[int]string{}
+	for _, m := range st.msgs {
+		if !m.Gone && m.Ch > upto {
+			per[m.Ch]++
+			if titles[m.Ch] == "" {
+				titles[m.Ch] = m.ChTitle
+			}
+		}
+	}
+	keys := make([]int, 0, len(per))
+	for k := range per {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	out := []map[string]any{}
+	for _, k := range keys {
+		out = append(out, map[string]any{"ch": k, "title": titles[k], "count": per[k]})
+	}
+	return out
+}
+
+func (b *chatReq) limit() int {
+	if isBook(b.Room) {
+		return b.Upto
+	}
+	return 1 << 30
 }
 
 func (c *Chat) online(now time.Time) (int, map[string]int) {
@@ -516,6 +648,16 @@ type chatReq struct {
 	Viewer  string      `json:"viewer"`
 	Mention int64       `json:"mention"`
 	Profile *ChatMember `json:"profile"`
+	Q       string      `json:"q"`
+	Upto    int         `json:"upto"`
+	Ch      int         `json:"ch"`
+	ChTitle string      `json:"chTitle"`
+	Title   string      `json:"title"`
+	Author  string      `json:"author"`
+	Minutes int         `json:"minutes"`
+	Pages   int         `json:"pages"`
+	Status  string      `json:"status"`
+	Target  int         `json:"target"`
 }
 
 var reactKinds = map[string]bool{"heart": true, "flame": true, "thumb": true, "smile": true, "mark": true}
@@ -586,9 +728,12 @@ func (a *App) chatPoll(w http.ResponseWriter, r *http.Request, b *chatReq, viewe
 			return
 		}
 		if st.ver > b.After || b.After <= 0 {
-			msgs := c.since(st, b.After)
+			msgs := c.since(st, b.After, b.limit())
 			_, per := c.online(time.Now())
 			res := map[string]any{"msgs": msgs, "ver": st.ver, "online": per[b.Room], "slow": c.cfg.Slow}
+			if isBook(b.Room) {
+				res["locked"] = locked(st, b.Upto)
+			}
 			c.mu.Unlock()
 			reply(w, 200, res)
 			return
@@ -621,6 +766,12 @@ func (c *Chat) handle(op string, b *chatReq, login, viewer string, now time.Time
 		return c.history(b)
 	case "profile":
 		return c.profile(b.Login)
+	case "search":
+		return c.search(b)
+	case "ideas":
+		return c.ideaList(login), nil
+	case "sprintState":
+		return c.sprintView(login, now), nil
 	}
 	if login == "" {
 		return nil, fail(401, "auth", "Войди в аккаунт, чтобы писать в сообществе")
@@ -649,6 +800,16 @@ func (c *Chat) handle(op string, b *chatReq, login, viewer string, now time.Time
 			return nil, fail(403, "admin", "Нет доступа")
 		}
 		return c.admin(b, login, now)
+	case "edit":
+		return c.edit(b, login, now)
+	case "unsend":
+		return c.unsend(b, login, now)
+	case "sprint":
+		return c.sprintOp(b, login, now)
+	case "goal":
+		return c.goalAdd(b, login, now)
+	case "idea":
+		return c.ideaOp(b, login, now)
 	}
 	return nil, fail(404, "not_found", "Неизвестный запрос")
 }
@@ -709,6 +870,14 @@ func (c *Chat) state(b *chatReq, login string, now time.Time) map[string]any {
 		}
 	}
 	res := map[string]any{"on": c.cfg.On, "slow": c.cfg.Slow, "online": total, "rooms": rooms, "me": me}
+	c.rollGoal(now)
+	res["goal"] = map[string]any{"month": c.goal.Month, "target": c.goal.Target, "total": c.goal.Total, "readers": len(c.goal.Readers)}
+	if q := c.quoteOfDay(now); q != nil {
+		res["quote"] = q
+	}
+	if sp := c.sprintView(login, now); sp["sprint"] != nil {
+		res["sprint"] = sp["sprint"]
+	}
 	if c.cfg.Pin != nil && c.cfg.Pin.Text != "" {
 		res["pin"] = c.cfg.Pin
 	}
@@ -744,7 +913,7 @@ func (c *Chat) history(b *chatReq) (any, *apiError) {
 	out := []*ChatMsg{}
 	for i := len(st.msgs) - 1; i >= 0 && len(out) < chatPage; i-- {
 		m := st.msgs[i]
-		if m.ID < b.Before && !m.Gone {
+		if m.ID < b.Before && visible(m, b.limit()) {
 			out = append(out, m)
 		}
 	}
@@ -822,6 +991,25 @@ func (c *Chat) send(b *chatReq, login string, now time.Time) (any, *apiError) {
 	}
 	text := clip(cleanText(b.Text), chatMaxText)
 	msg := &ChatMsg{Room: b.Room, Login: login, Admin: admin, Text: text, At: now.UnixMilli(), Reading: m.Reading}
+	if isBook(b.Room) {
+		msg.Ch = bound(b.Ch, 0, 5000)
+		msg.ChTitle = clip(b.ChTitle, 60)
+		th := c.threads[b.Room]
+		if th == nil {
+			if strings.TrimSpace(b.Title) == "" {
+				return nil, fail(400, "bad_request", "Неизвестная книга")
+			}
+			th = &ChatThread{}
+			c.threads[b.Room] = th
+		}
+		if t := clip(b.Title, 120); t != "" {
+			th.Title = t
+			th.Author = clip(b.Author, 80)
+		}
+		th.Last = now.UnixMilli()
+		th.Count++
+		c.mark("threads")
+	}
 	if q := b.Quote; q != nil && strings.TrimSpace(q.Text) != "" {
 		msg.Quote = &ChatQuote{Text: clip(cleanText(q.Text), 600), Book: clip(q.Book, 120), Author: clip(q.Author, 80), Chapter: clip(q.Chapter, 60)}
 	}
@@ -839,11 +1027,8 @@ func (c *Chat) send(b *chatReq, login string, now time.Time) (any, *apiError) {
 		if msg.Book != nil {
 			all += " " + msg.Book.Title + " " + msg.Book.Author
 		}
-		if why := blockedText(all); why != "" {
-			return nil, fail(400, "filter", why)
-		}
-		if c.dirtyText(all) {
-			return nil, fail(400, "filter", "Сообщение не прошло фильтр: без мата и оскорблений")
+		if e := c.checkText(all); e != nil {
+			return nil, e
 		}
 		key := login + "\n" + strings.ToLower(all)
 		if c.recent[key] != "" {
@@ -867,8 +1052,12 @@ func (c *Chat) send(b *chatReq, login string, now time.Time) (any, *apiError) {
 	msg.ID = c.nextID()
 	msg.Ver = c.bump(b.Room)
 	st.msgs = append(st.msgs, msg)
-	if len(st.msgs) > chatKeep {
-		st.msgs = append([]*ChatMsg(nil), st.msgs[len(st.msgs)-chatKeep:]...)
+	keep := chatKeep
+	if isBook(b.Room) {
+		keep = 1000
+	}
+	if len(st.msgs) > keep {
+		st.msgs = append([]*ChatMsg(nil), st.msgs[len(st.msgs)-keep:]...)
 	}
 	st.last[login] = now
 	targets := map[string]bool{}
@@ -881,7 +1070,11 @@ func (c *Chat) send(b *chatReq, login string, now time.Time) (any, *apiError) {
 		}
 	}
 	for t := range targets {
-		list := append(c.mentions[t], ChatMention{ID: msg.ID, Room: msg.Room, From: login, Text: clip(previewText(msg), 90), At: msg.At})
+		title := ""
+		if th := c.threads[msg.Room]; th != nil {
+			title = th.Title
+		}
+		list := append(c.mentions[t], ChatMention{ID: msg.ID, Room: msg.Room, From: login, Text: clip(previewText(msg), 90), At: msg.At, Title: title})
 		if len(list) > 30 {
 			list = list[len(list)-30:]
 		}
@@ -1099,6 +1292,26 @@ func (c *Chat) admin(b *chatReq, login string, now time.Time) (any, *apiError) {
 		c.log("ban", map[string]any{"login": target, "why": why})
 	case "unban":
 		delete(c.cfg.Bans, target)
+	case "goal":
+		c.rollGoal(now)
+		c.goal.Target = bound(b.Target, 100, 100000000)
+		c.mark("goal")
+	case "idea":
+		for _, i := range c.ideas {
+			if i.ID == b.ID {
+				switch b.Status {
+				case "new", "review", "work", "done", "no":
+					i.Status = b.Status
+				}
+				if b.Text != "" || b.Status != "" {
+					i.Note = clip(cleanText(b.Text), 200)
+				}
+				if b.Op == "idea" && b.Status == "delete" {
+					i.Status = "gone"
+				}
+				c.mark("ideas")
+			}
+		}
 	default:
 		return nil, fail(400, "bad_request", "Неизвестное действие")
 	}
@@ -1128,4 +1341,352 @@ func (c *Chat) Forget(login string) {
 	delete(c.mentions, login)
 	c.mark("members")
 	c.mark("mentions")
+}
+
+func (c *Chat) checkText(all string) *apiError {
+	if why := blockedText(all); why != "" {
+		return fail(400, "filter", why)
+	}
+	if c.dirtyText(all) {
+		return fail(400, "filter", "Сообщение не прошло фильтр: без мата и оскорблений")
+	}
+	return nil
+}
+
+const editWindow = 10 * 60 * 1000
+
+func (c *Chat) own(b *chatReq, login string, now time.Time) (*ChatMsg, *apiError) {
+	m := c.find(b.Room, b.ID)
+	if m == nil || m.Gone {
+		return nil, fail(404, "gone", "Сообщение уже удалено")
+	}
+	if m.Login != login {
+		return nil, fail(403, "own", "Это не твоё сообщение")
+	}
+	if now.UnixMilli()-m.At > editWindow && !c.admins[login] {
+		return nil, fail(403, "late", "Изменить или удалить можно в течение 10 минут")
+	}
+	return m, nil
+}
+
+func (c *Chat) edit(b *chatReq, login string, now time.Time) (any, *apiError) {
+	m, e := c.own(b, login, now)
+	if e != nil {
+		return nil, e
+	}
+	text := clip(cleanText(b.Text), chatMaxText)
+	if text == "" && m.Quote == nil && m.Book == nil {
+		return nil, fail(400, "empty", "Пустое сообщение")
+	}
+	if !c.admins[login] {
+		if e := c.checkText(text); e != nil {
+			return nil, e
+		}
+	}
+	if text == m.Text {
+		return map[string]any{"msg": m}, nil
+	}
+	c.log("edit", map[string]any{"id": m.ID, "old": m.Text, "new": text})
+	m.Text = text
+	m.Edited = true
+	m.Ver = c.bump(m.Room)
+	return map[string]any{"msg": m}, nil
+}
+
+func (c *Chat) unsend(b *chatReq, login string, now time.Time) (any, *apiError) {
+	m, e := c.own(b, login, now)
+	if e != nil {
+		return nil, e
+	}
+	c.remove(m, login)
+	return map[string]any{"ok": true}, nil
+}
+
+func (c *Chat) search(b *chatReq) (any, *apiError) {
+	if !c.roomOK(b.Room) {
+		return nil, fail(404, "room", "Такой комнаты нет")
+	}
+	q := strings.ToLower(strings.TrimSpace(b.Q))
+	if utf8.RuneCountInString(q) < 2 {
+		return map[string]any{"msgs": []*ChatMsg{}}, nil
+	}
+	st := c.room(b.Room)
+	out := []*ChatMsg{}
+	for i := len(st.msgs) - 1; i >= 0 && len(out) < 50; i-- {
+		m := st.msgs[i]
+		if !visible(m, b.limit()) {
+			continue
+		}
+		hay := m.Text + " " + m.Login
+		if m.Quote != nil {
+			hay += " " + m.Quote.Text + " " + m.Quote.Book
+		}
+		if m.Book != nil {
+			hay += " " + m.Book.Title + " " + m.Book.Author
+		}
+		if strings.Contains(strings.ToLower(hay), q) {
+			out = append(out, m)
+		}
+	}
+	return map[string]any{"msgs": out}, nil
+}
+
+func (c *Chat) quoteOfDay(now time.Time) map[string]any {
+	var best *ChatMsg
+	score := -1
+	since := now.Add(-24 * time.Hour).UnixMilli()
+	week := now.Add(-7 * 24 * time.Hour).UnixMilli()
+	for _, r := range c.cfg.Rooms {
+		st := c.rooms[r.ID]
+		if st == nil {
+			continue
+		}
+		for _, m := range st.msgs {
+			if m.Gone || m.Quote == nil || m.At < week {
+				continue
+			}
+			n := 0
+			for _, l := range m.Reacts {
+				n += len(l)
+			}
+			if m.At >= since {
+				n += 1000
+			}
+			if n > score || (n == score && best != nil && m.At > best.At) {
+				best, score = m, n
+			}
+		}
+	}
+	if best == nil {
+		return nil
+	}
+	n := 0
+	for _, l := range best.Reacts {
+		n += len(l)
+	}
+	return map[string]any{"id": best.ID, "room": best.Room, "login": best.Login, "text": best.Quote.Text, "book": best.Quote.Book, "author": best.Quote.Author, "reacts": n}
+}
+
+func (c *Chat) sprintAlive(now time.Time) {
+	if c.sprint != nil && now.UnixMilli() > c.sprint.End {
+		c.lastRun = c.sprint
+		c.sprint = nil
+	}
+	if c.lastRun != nil && now.UnixMilli() > c.lastRun.End+15*60*1000 {
+		c.lastRun = nil
+	}
+}
+
+func sprintJSON(sp *ChatSprint, login string, now time.Time) map[string]any {
+	people := []map[string]any{}
+	for l, seat := range sp.People {
+		people = append(people, map[string]any{"login": l, "pages": seat.Pages})
+	}
+	sort.Slice(people, func(i, j int) bool {
+		if people[i]["pages"].(int) != people[j]["pages"].(int) {
+			return people[i]["pages"].(int) > people[j]["pages"].(int)
+		}
+		return people[i]["login"].(string) < people[j]["login"].(string)
+	})
+	_, joined := sp.People[login]
+	return map[string]any{"id": sp.ID, "by": sp.By, "start": sp.Start, "end": sp.End, "minutes": sp.Minutes, "people": people, "joined": joined, "now": now.UnixMilli(), "done": now.UnixMilli() > sp.End}
+}
+
+func (c *Chat) sprintView(login string, now time.Time) map[string]any {
+	c.sprintAlive(now)
+	switch {
+	case c.sprint != nil:
+		return map[string]any{"sprint": sprintJSON(c.sprint, login, now)}
+	case c.lastRun != nil:
+		return map[string]any{"sprint": sprintJSON(c.lastRun, login, now)}
+	}
+	return map[string]any{"sprint": nil}
+}
+
+func (c *Chat) sprintOp(b *chatReq, login string, now time.Time) (any, *apiError) {
+	c.sprintAlive(now)
+	switch b.Op {
+	case "start":
+		if !c.cfg.On {
+			return nil, fail(403, "off", "Сообщество временно выключено")
+		}
+		if _, ok := c.cfg.Bans[login]; ok {
+			return nil, fail(403, "banned", "Ты не можешь писать в сообществе")
+		}
+		if c.sprint != nil {
+			return nil, fail(409, "busy", "Спринт уже идёт — присоединяйся")
+		}
+		if t, ok := c.starts[login]; ok && now.Sub(t) < 30*time.Minute && !c.admins[login] {
+			return nil, fail(429, "slow", "Новый спринт можно начать через полчаса после прошлого")
+		}
+		minutes := b.Minutes
+		if minutes != 15 && minutes != 25 && minutes != 45 {
+			minutes = 25
+		}
+		start := now.Add(time.Minute).UnixMilli()
+		c.sprint = &ChatSprint{ID: c.nextID(), By: login, Start: start, End: start + int64(minutes)*60*1000, Minutes: minutes, People: map[string]*SprintSeat{login: {Joined: now.UnixMilli()}}}
+		c.starts[login] = now
+		st := c.room("general")
+		msg := &ChatMsg{ID: c.nextID(), Room: "general", Login: login, Admin: c.admins[login], Kind: "sprint", Text: fmt.Sprintf("Начинаю спринт чтения на %d минут — присоединяйся!", minutes), At: now.UnixMilli()}
+		msg.Ver = c.bump("general")
+		st.msgs = append(st.msgs, msg)
+		c.log("sprint", c.sprint)
+	case "join":
+		if c.sprint == nil {
+			return nil, fail(404, "none", "Спринт уже закончился")
+		}
+		if _, ok := c.sprint.People[login]; !ok {
+			if len(c.sprint.People) >= 500 {
+				return nil, fail(409, "full", "Слишком много участников")
+			}
+			c.sprint.People[login] = &SprintSeat{Joined: now.UnixMilli()}
+		}
+	case "leave":
+		if c.sprint != nil {
+			delete(c.sprint.People, login)
+		}
+	case "pages":
+		sp := c.sprint
+		if sp == nil && c.lastRun != nil && now.UnixMilli()-c.lastRun.End < 2*60*1000 {
+			sp = c.lastRun
+		}
+		if sp != nil {
+			if seat, ok := sp.People[login]; ok {
+				from := sp.Start
+				if seat.Joined > from {
+					from = seat.Joined
+				}
+				mins := float64(minI64(now.UnixMilli(), sp.End)-from) / 60000
+				cap := int(mins*6) + 2
+				seat.Pages = bound(b.Pages, seat.Pages, maxI(cap, seat.Pages))
+			}
+		}
+	}
+	return c.sprintView(login, now), nil
+}
+
+func minI64(a, b int64) int64 {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func maxI(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func (c *Chat) rollGoal(now time.Time) {
+	month := now.UTC().Add(3 * time.Hour).Format("2006-01")
+	if c.goal.Month != month {
+		c.goal.Month = month
+		c.goal.Total = 0
+		c.goal.Readers = map[string]int{}
+		c.mark("goal")
+	}
+	day := today()
+	if c.goal.Day != day {
+		c.goal.Day = day
+		c.goal.Today = map[string]int{}
+		c.mark("goal")
+	}
+}
+
+func (c *Chat) goalAdd(b *chatReq, login string, now time.Time) (any, *apiError) {
+	c.rollGoal(now)
+	add := bound(b.Pages, 0, 600)
+	room := 1500 - c.goal.Today[login]
+	if add > room {
+		add = maxI(room, 0)
+	}
+	if add > 0 {
+		c.goal.Today[login] += add
+		c.goal.Readers[login] += add
+		c.goal.Total += add
+		c.mark("goal")
+	}
+	return map[string]any{"month": c.goal.Month, "target": c.goal.Target, "total": c.goal.Total, "readers": len(c.goal.Readers), "mine": c.goal.Readers[login]}, nil
+}
+
+func (c *Chat) ideaList(login string) map[string]any {
+	list := []map[string]any{}
+	for _, i := range c.ideas {
+		if i.Status == "gone" {
+			continue
+		}
+		mine := false
+		for _, v := range i.Votes {
+			if v == login {
+				mine = true
+			}
+		}
+		list = append(list, map[string]any{"id": i.ID, "login": i.Login, "title": i.Title, "text": i.Text, "at": i.At, "votes": len(i.Votes), "voted": mine, "status": i.Status, "note": i.Note})
+	}
+	return map[string]any{"ideas": list}
+}
+
+func (c *Chat) ideaOp(b *chatReq, login string, now time.Time) (any, *apiError) {
+	switch b.Op {
+	case "add":
+		if !c.cfg.On {
+			return nil, fail(403, "off", "Сообщество временно выключено")
+		}
+		if _, ok := c.cfg.Bans[login]; ok {
+			return nil, fail(403, "banned", "Ты не можешь писать в сообществе")
+		}
+		if _, ok := c.muted(login, now); ok {
+			return nil, fail(403, "muted", "Пока нельзя писать")
+		}
+		key := login + "\n" + today()
+		if c.ideaDay[key] >= 3 && !c.admins[login] {
+			return nil, fail(429, "slow", "Не больше трёх идей в день")
+		}
+		title := clip(cleanText(b.Title), 80)
+		text := clip(cleanText(b.Text), 600)
+		if utf8.RuneCountInString(title) < 4 {
+			return nil, fail(400, "short", "Опиши идею хотя бы парой слов")
+		}
+		if !c.admins[login] {
+			if e := c.checkText(title + " " + text); e != nil {
+				return nil, e
+			}
+		}
+		c.ideaDay[key]++
+		idea := &ChatIdea{ID: c.nextID(), Login: login, Title: title, Text: text, At: now.UnixMilli(), Votes: []string{login}, Status: "new"}
+		c.ideas = append(c.ideas, idea)
+		c.log("idea", idea)
+		if c.notify != nil {
+			c.notify("Сообщество: новая идея от " + login + ": " + title)
+		}
+	case "vote":
+		for _, i := range c.ideas {
+			if i.ID != b.ID || i.Status == "gone" {
+				continue
+			}
+			idx := -1
+			for k, v := range i.Votes {
+				if v == login {
+					idx = k
+				}
+			}
+			if idx >= 0 {
+				i.Votes = append(i.Votes[:idx], i.Votes[idx+1:]...)
+			} else {
+				i.Votes = append(i.Votes, login)
+			}
+		}
+	case "delete":
+		for _, i := range c.ideas {
+			if i.ID == b.ID && (c.admins[login] || (i.Login == login && now.UnixMilli()-i.At < editWindow)) {
+				i.Status = "gone"
+			}
+		}
+	default:
+		return nil, fail(400, "bad_request", "Неизвестное действие")
+	}
+	c.mark("ideas")
+	return c.ideaList(login), nil
 }
