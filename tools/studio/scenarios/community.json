@@ -2,34 +2,190 @@
  "title": "Сообщество",
  "lenient": true,
  "steps": [
-  {"do": "launch", "fresh": true, "ms": 2500},
-  {"do": "tap", "text": "Позже", "timeout": 1500, "optional": true},
-  {"do": "wait", "text": "Моя полка", "timeout": 10000, "after": 2000},
-  {"do": "tap", "text": "Настройки", "desc": true, "timeout": 5000, "after": 3500},
-  {"do": "dump", "text": "settings"},
-  {"do": "tap", "text": "Сообщество", "timeout": 5000, "after": 3500},
-  {"do": "dump", "text": "rooms"},
-  {"do": "swipe", "x": 0.5, "y": 0.8, "x2": 0.5, "y2": 0.35, "ms": 900, "after": 1800},
-  {"do": "swipe", "x": 0.5, "y": 0.35, "x2": 0.5, "y2": 0.85, "ms": 900, "after": 1500},
-  {"do": "tap", "text": "Общий", "exact": true, "timeout": 5000, "after": 4000},
-  {"do": "dump", "text": "room"},
-  {"do": "swipe", "x": 0.5, "y": 0.3, "x2": 0.5, "y2": 0.8, "ms": 900, "after": 2000},
-  {"do": "swipe", "x": 0.5, "y": 0.8, "x2": 0.5, "y2": 0.3, "ms": 900, "after": 2000},
-  {"do": "long", "text": "Попробуй ещё", "timeout": 5000, "after": 3000},
-  {"do": "dump", "text": "actions"},
-  {"do": "tap", "text": "Ответить", "timeout": 4000, "after": 2500},
-  {"do": "tap", "text": "Ответ для", "timeout": 4000, "after": 1500, "optional": true},
-  {"do": "type", "text": "Спасибо, добавлю в планы!", "after": 2500, "optional": true},
-  {"do": "dump", "text": "composer"},
-  {"do": "back", "after": 1200},
-  {"do": "long", "text": "Согласен", "timeout": 5000, "after": 2500},
-  {"do": "tap", "text": "Профиль mark_t", "timeout": 4000, "after": 3500},
-  {"do": "dump", "text": "profile"},
-  {"do": "back", "after": 1500},
-  {"do": "back", "after": 2500},
-  {"do": "tap", "text": "Модерация", "timeout": 4000, "after": 3500, "optional": true},
-  {"do": "back", "after": 2000},
-  {"do": "back", "after": 2500},
-  {"do": "dump", "text": "settings-again"}
+  {
+   "do": "launch",
+   "fresh": true,
+   "ms": 2500
+  },
+  {
+   "do": "tap",
+   "text": "Позже",
+   "timeout": 1500,
+   "optional": true
+  },
+  {
+   "do": "wait",
+   "text": "Моя полка",
+   "timeout": 10000,
+   "after": 1500
+  },
+  {
+   "do": "tap",
+   "text": "Настройки",
+   "desc": true,
+   "timeout": 5000,
+   "after": 2500
+  },
+  {
+   "do": "tap",
+   "text": "Сообщество",
+   "timeout": 5000,
+   "after": 3500
+  },
+  {
+   "do": "dump",
+   "text": "rooms"
+  },
+  {
+   "do": "swipe",
+   "x": 0.5,
+   "y": 0.8,
+   "x2": 0.5,
+   "y2": 0.3,
+   "ms": 900,
+   "after": 2000
+  },
+  {
+   "do": "swipe",
+   "x": 0.5,
+   "y": 0.8,
+   "x2": 0.5,
+   "y2": 0.3,
+   "ms": 900,
+   "after": 2000
+  },
+  {
+   "do": "swipe",
+   "x": 0.5,
+   "y": 0.3,
+   "x2": 0.5,
+   "y2": 0.85,
+   "ms": 900,
+   "after": 1200
+  },
+  {
+   "do": "swipe",
+   "x": 0.5,
+   "y": 0.3,
+   "x2": 0.5,
+   "y2": 0.85,
+   "ms": 900,
+   "after": 1500
+  },
+  {
+   "do": "tap",
+   "text": "Общий",
+   "exact": true,
+   "timeout": 5000,
+   "after": 3500
+  },
+  {
+   "do": "swipe",
+   "x": 0.62,
+   "y": 0.81,
+   "x2": 0.2,
+   "y2": 0.81,
+   "ms": 420,
+   "after": 2500
+  },
+  {
+   "do": "dump",
+   "text": "swipe"
+  },
+  {
+   "do": "back",
+   "after": 1200
+  },
+  {
+   "do": "long",
+   "text": "А мне посоветовали",
+   "timeout": 5000,
+   "after": 3000
+  },
+  {
+   "do": "dump",
+   "text": "own"
+  },
+  {
+   "do": "tap",
+   "text": "Изменить",
+   "timeout": 4000,
+   "after": 3000
+  },
+  {
+   "do": "back",
+   "after": 1200
+  },
+  {
+   "do": "tap",
+   "text": "Поиск",
+   "desc": true,
+   "timeout": 4000,
+   "after": 2000
+  },
+  {
+   "do": "tap",
+   "text": "Поиск по комнате",
+   "timeout": 3000,
+   "after": 800,
+   "optional": true
+  },
+  {
+   "do": "type",
+   "text": "Дракул",
+   "after": 3000,
+   "optional": true
+  },
+  {
+   "do": "dump",
+   "text": "search"
+  },
+  {
+   "do": "back",
+   "after": 1200
+  },
+  {
+   "do": "back",
+   "after": 1500
+  },
+  {
+   "do": "back",
+   "after": 2000
+  },
+  {
+   "do": "tap",
+   "text": "Идёт спринт",
+   "timeout": 4000,
+   "after": 4000,
+   "optional": true
+  },
+  {
+   "do": "dump",
+   "text": "sprint"
+  },
+  {
+   "do": "back",
+   "after": 2000
+  },
+  {
+   "do": "tap",
+   "text": "Идеи для WikiFlerty",
+   "timeout": 4000,
+   "after": 3500,
+   "scroll": 3,
+   "optional": true
+  },
+  {
+   "do": "dump",
+   "text": "ideas"
+  },
+  {
+   "do": "back",
+   "after": 2000
+  },
+  {
+   "do": "back",
+   "after": 2000
+  }
  ]
 }
