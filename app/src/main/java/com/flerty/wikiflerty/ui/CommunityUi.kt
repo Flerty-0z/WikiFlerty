@@ -1795,7 +1795,7 @@ private fun SprintCard(sprint: Community.Sprint?, signed: Boolean) {
         }
     }
     val live = sprint != null && !sprint.done && now < sprint.endLocal
-    val shape = appCorner(18)
+    val shape = appCorner(20)
     Row(
         Modifier
             .fillMaxWidth()
@@ -1806,21 +1806,14 @@ private fun SprintCard(sprint: Community.Sprint?, signed: Boolean) {
                 else Toast.makeText(app, "Войди в аккаунт, чтобы участвовать", Toast.LENGTH_SHORT).show()
             }
             .clip(shape)
-            .background(if (live) AppColors.AccentTintStrong else AppColors.Panel)
-            .border(1.dp, if (live) AppColors.Accent.copy(alpha = 0.55f) else AppColors.PanelBorder, shape)
-            .padding(12.dp),
+            .background(AppColors.Panel)
+            .border(1.dp, AppColors.PanelBorder, shape)
+            .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            if (live && sprint != null) {
-                val total = (sprint.endLocal - sprint.startLocal).toFloat().coerceAtLeast(1f)
-                val left = if (now < sprint.startLocal) 1f else ((sprint.endLocal - now) / total).coerceIn(0f, 1f)
-                SprintRing(left, 42.dp)
-            }
-            Tile(AppIcons.Timer, if (live) 32.dp else 40.dp, filled = live)
-        }
-        Column(Modifier.weight(1f)) {
+        Tile(AppIcons.Timer, 42.dp, filled = live)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 when {
                     sprint == null -> "Спринт чтения"
@@ -1829,8 +1822,9 @@ private fun SprintCard(sprint: Community.Sprint?, signed: Boolean) {
                     else -> "Спринт закончился"
                 },
                 color = AppColors.Text,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
             )
             Text(
                 when {
@@ -1840,6 +1834,8 @@ private fun SprintCard(sprint: Community.Sprint?, signed: Boolean) {
                 },
                 color = AppColors.Muted,
                 fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
         if (live && sprint != null && !sprint.joined && signed) {
@@ -1852,8 +1848,6 @@ private fun SprintCard(sprint: Community.Sprint?, signed: Boolean) {
                     scope.launch { app.community.joinSprint().onSuccess { CommunityNav.sprint = true }.onFailure { Toast.makeText(app, it.message, Toast.LENGTH_SHORT).show() } }
                 }.clip(appCorner(10)).background(AppColors.Accent).padding(horizontal = 12.dp, vertical = 7.dp),
             )
-        } else {
-            Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(20.dp))
         }
     }
 }
@@ -1898,40 +1892,77 @@ private fun DayQuoteCard(q: Community.DayQuote) {
     }
 }
 
+private val ShelfSpines = listOf(0xFF7A3E44, 0xFF3F5A7A, 0xFF6B5A32, 0xFF2F5A46, 0xFF5A3F6E, 0xFF8A5A3A, 0xFF4E7A7A).map { Color(it) }
+private val ShelfHeights = listOf(0.80f, 0.92f, 0.76f, 0.88f, 1f, 0.84f)
+
+private fun pagesText(n: Int) = "%,d".format(Locale.ROOT, n).replace(',', '\u00A0')
+
 @Composable
 private fun GoalCard(g: Community.Goal) {
     val app = LocalContext.current.applicationContext as App
     val fraction = (g.total.toFloat() / g.target.coerceAtLeast(1)).coerceIn(0f, 1f)
-    val anim by androidx.compose.animation.core.animateFloatAsState(fraction, Motion.tween(900), label = "goal")
-    val month = remember(g.month) { runCatching { java.time.YearMonth.parse(g.month).month.getDisplayName(java.time.format.TextStyle.FULL_STANDALONE, Locale.forLanguageTag("ru")) }.getOrDefault("месяц") }
-    val shine = androidx.compose.animation.core.rememberInfiniteTransition(label = "goal-shine")
-    val sweep by shine.animateFloat(-0.3f, 1.3f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(2600), androidx.compose.animation.core.RepeatMode.Restart), label = "goal-sweep")
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { shown = true }
+    val anim by androidx.compose.animation.core.animateFloatAsState(if (shown) fraction else 0f, Motion.tween(1400, easing = androidx.compose.animation.core.FastOutSlowInEasing), label = "goal")
+    val month = remember(g.month) { runCatching { java.time.YearMonth.parse(g.month).month.getDisplayName(java.time.format.TextStyle.FULL, Locale.forLanguageTag("ru")) }.getOrDefault("месяца") }
+    val count = 25
+    val per = (g.target / count).coerceAtLeast(1)
+    val line = AppColors.Line
+    val shape = appCorner(20)
     Column(
-        Modifier.fillMaxWidth().scrollReveal().fieldSurface(appCorner(18)).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.fillMaxWidth().scrollReveal().clip(shape).background(AppColors.Panel).border(1.dp, AppColors.PanelBorder, shape).padding(16.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Tile(AppIcons.Target, 32.dp)
-            Column(Modifier.weight(1f)) {
-                Text("Общая цель · $month", color = AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                Text("Каждая твоя страница двигает полосу", color = AppColors.Muted, fontSize = 11.sp)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Tile(AppIcons.Book, 40.dp)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Полка $month", color = AppColors.Text, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text("Собираем вместе", color = AppColors.Muted, fontSize = 12.sp, maxLines = 1)
             }
-            Text("${(fraction * 100).toInt()}%", color = AppColors.Accent, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("${(fraction * 100).toInt()}%", color = AppColors.Accent, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         }
-        Box(Modifier.fillMaxWidth().height(10.dp).clip(CircleShape).background(AppColors.Line)) {
-            Box(
-                Modifier.fillMaxWidth(anim).height(10.dp).clip(CircleShape).background(Brush.horizontalGradient(listOf(AppColors.AccentDark, AppColors.Accent, AppColors.AccentLight)))
-                    .drawBehind {
-                        val x = size.width * sweep
-                        drawRect(Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.35f), Color.Transparent), startX = x - 60f, endX = x + 60f))
-                    },
-            )
+        androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().padding(top = 16.dp).height(56.dp)) {
+            val pad = 4.dp.toPx()
+            val gap = 3.dp.toPx()
+            val w = (size.width - pad * 2 - gap * (count - 1)) / count
+            val filled = anim * count
+            val radius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
+            val dash = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 2.dp.toPx()))
+            for (i in 0 until count) {
+                val h = size.height * ShelfHeights[i % ShelfHeights.size]
+                val x = pad + i * (w + gap)
+                val k = (filled - i).coerceIn(0f, 1f)
+                drawRoundRect(line, androidx.compose.ui.geometry.Offset(x, size.height - h), androidx.compose.ui.geometry.Size(w, h), radius, style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx(), pathEffect = dash), alpha = 1f - k)
+                if (k > 0f) {
+                    val hh = h * (0.6f + 0.4f * k)
+                    val top = size.height - hh
+                    drawRoundRect(ShelfSpines[i % ShelfSpines.size], androidx.compose.ui.geometry.Offset(x, top), androidx.compose.ui.geometry.Size(w, hh), radius, alpha = k)
+                    drawRoundRect(Color.Black.copy(alpha = 0.35f), androidx.compose.ui.geometry.Offset(x, top), androidx.compose.ui.geometry.Size(w, hh), radius, style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()), alpha = k)
+                    drawRect(Color.White.copy(alpha = 0.10f * k), androidx.compose.ui.geometry.Offset(x + w * 0.2f, top + hh * 0.18f), androidx.compose.ui.geometry.Size(w * 0.6f, 1.5.dp.toPx()))
+                }
+            }
         }
-        Text(
-            "Вместе прочитали ${"%,d".format(Locale.forLanguageTag("ru"), g.total).replace(' ', ' ')} из ${"%,d".format(Locale.forLanguageTag("ru"), g.target).replace(' ', ' ')} стр. · читателей: ${g.readers}",
-            color = AppColors.Muted,
-            fontSize = 11.sp,
+        Box(
+            Modifier.fillMaxWidth().height(9.dp)
+                .drawBehind { drawRoundRect(Color.Black.copy(alpha = 0.35f), androidx.compose.ui.geometry.Offset(0f, 4.dp.toPx()), size, androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())) }
+                .clip(appCorner(4))
+                .background(Brush.verticalGradient(listOf(Color(0xFF6B4A28), Color(0xFF3D2A17)))),
         )
+        Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                androidx.compose.ui.text.buildAnnotatedString {
+                    pushStyle(androidx.compose.ui.text.SpanStyle(color = AppColors.Text, fontWeight = FontWeight.Bold))
+                    append(pagesText(g.total))
+                    pop()
+                    append(" из ${pagesText(g.target)} стр.")
+                },
+                color = AppColors.Muted,
+                fontSize = 12.sp,
+                maxLines = 1,
+                modifier = Modifier.weight(1f),
+            )
+            Text("читателей: ${g.readers}", color = AppColors.Muted, fontSize = 12.sp, maxLines = 1)
+        }
+        Text("Каждые ${pagesText(per)} страниц — новый корешок на полке", color = AppColors.Muted.copy(alpha = 0.75f), fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
         LaunchedEffect(Unit) { app.community.reportPages() }
     }
 }
