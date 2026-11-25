@@ -1893,6 +1893,7 @@ private fun DayQuoteCard(q: Community.DayQuote) {
 }
 
 private val ShelfSpines = listOf(0xFF7A3E44, 0xFF3F5A7A, 0xFF6B5A32, 0xFF2F5A46, 0xFF5A3F6E, 0xFF8A5A3A, 0xFF4E7A7A).map { Color(it) }
+private val ShelfMonths = listOf("января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря")
 private val ShelfHeights = listOf(0.80f, 0.92f, 0.76f, 0.88f, 1f, 0.84f)
 
 private fun pagesText(n: Int) = "%,d".format(Locale.ROOT, n).replace(',', '\u00A0')
@@ -1904,7 +1905,7 @@ private fun GoalCard(g: Community.Goal) {
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { shown = true }
     val anim by androidx.compose.animation.core.animateFloatAsState(if (shown) fraction else 0f, Motion.tween(1400, easing = androidx.compose.animation.core.FastOutSlowInEasing), label = "goal")
-    val month = remember(g.month) { runCatching { java.time.YearMonth.parse(g.month).month.getDisplayName(java.time.format.TextStyle.FULL, Locale.forLanguageTag("ru")) }.getOrDefault("месяца") }
+    val month = remember(g.month) { runCatching { ShelfMonths[java.time.YearMonth.parse(g.month).monthValue - 1] }.getOrDefault("месяца") }
     val count = 25
     val per = (g.target / count).coerceAtLeast(1)
     val line = AppColors.Line
