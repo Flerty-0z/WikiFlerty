@@ -14,13 +14,6 @@
    "optional": true
   },
   {
-   "do": "tap",
-   "text": "Отлично",
-   "timeout": 3000,
-   "optional": true,
-   "after": 1200
-  },
-  {
    "do": "wait",
    "text": "Моя полка",
    "timeout": 10000,
@@ -32,6 +25,13 @@
    "desc": true,
    "timeout": 5000,
    "after": 2500
+  },
+  {
+   "do": "tap",
+   "text": "Отлично",
+   "timeout": 4000,
+   "optional": true,
+   "after": 1500
   },
   {
    "do": "tap",
