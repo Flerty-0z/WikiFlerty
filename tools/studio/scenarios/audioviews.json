@@ -2,16 +2,114 @@
  "title": "Аудиокниги в сетке и списке",
  "lenient": true,
  "steps": [
-  {"do": "launch", "fresh": true, "ms": 2500},
-  {"do": "tap", "text": "Позже", "timeout": 1500, "optional": true},
-  {"do": "wait", "text": "Моя полка", "timeout": 10000, "after": 1500},
-  {"do": "tap", "text": "Вид", "desc": true, "exact": true, "timeout": 3000, "after": 2000},
-  {"do": "dump", "text": "grid"},
-  {"do": "swipe", "x": 0.5, "y": 0.8, "x2": 0.5, "y2": 0.45, "ms": 600, "after": 1200},
-  {"do": "swipe", "x": 0.5, "y": 0.45, "x2": 0.5, "y2": 0.85, "ms": 600, "after": 1200},
-  {"do": "tap", "text": "Вид", "desc": true, "exact": true, "timeout": 3000, "after": 2000},
-  {"do": "dump", "text": "list"},
-  {"do": "swipe", "x": 0.5, "y": 0.8, "x2": 0.5, "y2": 0.45, "ms": 600, "after": 1200},
-  {"do": "swipe", "x": 0.5, "y": 0.45, "x2": 0.5, "y2": 0.85, "ms": 600, "after": 1500}
+  {
+   "do": "launch",
+   "fresh": true,
+   "ms": 2500
+  },
+  {
+   "do": "tap",
+   "text": "Позже",
+   "timeout": 1500,
+   "optional": true
+  },
+  {
+   "do": "wait",
+   "text": "Моя полка",
+   "timeout": 10000,
+   "after": 1500
+  },
+  {
+   "do": "tapAt",
+   "x": 0.643,
+   "y": 0.085,
+   "after": 1500
+  },
+  {
+   "do": "scrollTo",
+   "text": "Сетка",
+   "y": 0.8,
+   "y2": 0.5,
+   "timeout": 3000
+  },
+  {
+   "do": "tap",
+   "text": "Сетка",
+   "exact": true,
+   "timeout": 3000,
+   "after": 800
+  },
+  {
+   "do": "back",
+   "after": 1800
+  },
+  {
+   "do": "dump",
+   "text": "grid"
+  },
+  {
+   "do": "swipe",
+   "x": 0.5,
+   "y": 0.8,
+   "x2": 0.5,
+   "y2": 0.45,
+   "ms": 600,
+   "after": 1200
+  },
+  {
+   "do": "swipe",
+   "x": 0.5,
+   "y": 0.45,
+   "x2": 0.5,
+   "y2": 0.85,
+   "ms": 600,
+   "after": 1200
+  },
+  {
+   "do": "tapAt",
+   "x": 0.643,
+   "y": 0.085,
+   "after": 1500
+  },
+  {
+   "do": "scrollTo",
+   "text": "Список",
+   "y": 0.8,
+   "y2": 0.5,
+   "timeout": 3000
+  },
+  {
+   "do": "tap",
+   "text": "Список",
+   "exact": true,
+   "timeout": 3000,
+   "after": 800
+  },
+  {
+   "do": "back",
+   "after": 1800
+  },
+  {
+   "do": "dump",
+   "text": "list"
+  },
+  {
+   "do": "swipe",
+   "x": 0.5,
+   "y": 0.8,
+   "x2": 0.5,
+   "y2": 0.45,
+   "ms": 600,
+   "after": 1200
+  },
+  {
+   "do": "swipe",
+   "x": 0.5,
+   "y": 0.45,
+   "x2": 0.5,
+   "y2": 0.85,
+   "ms": 600,
+   "after": 1500
+  }
  ]
 }
