@@ -10,10 +10,12 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -85,6 +87,7 @@ type App struct {
 	bot      string
 	owner    string
 	kassa    *Robokassa
+	chat     *Chat
 }
 
 type Limiter struct {
@@ -421,6 +424,10 @@ func (a *App) route(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		reply(w, 200, map[string]any{"reading": a.presence.touch(b.ID, b.Reading, b.Peek)})
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, "/v1/chat/") && a.chat != nil {
+		a.chatRoute(w, r, ip)
 		return
 	}
 	a.st.mu.Lock()
@@ -897,6 +904,15 @@ func main() {
 		owner:    os.Getenv("OWNER_CHAT"),
 		kassa:    robokassaFromEnv(),
 	}
+	app.chat = NewChat(s3, app.notify)
+	go app.chat.Run()
+	go func() {
+		sig := make(chan os.Signal, 1)
+		signal.Notify(sig, syscall.SIGTERM, os.Interrupt)
+		<-sig
+		app.chat.Flush()
+		os.Exit(0)
+	}()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", app.route)
 	srv := &http.Server{
