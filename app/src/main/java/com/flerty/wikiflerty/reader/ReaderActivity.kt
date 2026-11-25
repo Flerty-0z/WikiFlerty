@@ -1355,6 +1355,19 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                     addChapter(title, selection.locator)
                 }
             },
+            onSelectionChat = {
+                val selection = ui.selection
+                if (selection != null) {
+                    endSelection()
+                    ui.panelsVisible = false
+                    com.flerty.wikiflerty.ui.ChatShare.quote = com.flerty.wikiflerty.sync.Community.Quote(
+                        selection.text.replace(Regex("\\s+"), " ").trim().take(600),
+                        bookTitle,
+                        bookAuthor,
+                        ui.chapter.orEmpty().take(60),
+                    )
+                }
+            },
             onSelectionQuote = {
                 val selection = ui.selection
                 if (selection != null) {
@@ -2310,6 +2323,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                         },
                     )
                     com.flerty.wikiflerty.ui.AchievementToast()
+                    com.flerty.wikiflerty.ui.ChatShareHost()
                     if (rateBook) com.flerty.wikiflerty.ui.RatingSheet(session.bookId, celebrate = true) { rateBook = false }
                 }
             }

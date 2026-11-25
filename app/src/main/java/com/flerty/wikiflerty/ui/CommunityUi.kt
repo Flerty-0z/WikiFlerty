@@ -1253,3 +1253,70 @@ fun CommunityOnline() {
         }
     }
 }
+
+object ChatShare {
+    var quote by mutableStateOf<Community.Quote?>(null)
+}
+
+@Composable
+fun ChatShareHost() {
+    val q = ChatShare.quote ?: return
+    val app = LocalContext.current.applicationContext as App
+    val community = app.community
+    val state by community.state.collectAsStateWithLifecycle()
+    val account by app.account.state.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    val feedback = LocalFeedback.current
+    var room by remember { mutableStateOf("general") }
+    var comment by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var rules by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { community.refresh() }
+    val close = { ChatShare.quote = null }
+    if (rules) RulesSheet(onAccept = { rules = false }) { rules = false }
+    AppSheet(onDismiss = close, title = "Цитата в чат") {
+        QuoteCard(q)
+        when {
+            account.login == null -> HintNote("Чтобы писать в сообществе, войди в аккаунт в настройках", AppIcons.Lock)
+            !state.loaded -> Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) { KitSpinner(Modifier.size(24.dp)) }
+            !state.on -> HintNote("Сообщество временно выключено", AppIcons.Power)
+            else -> {
+                TitlePill("Куда отправить", icon = AppIcons.Chat)
+                state.rooms.forEach { r ->
+                    val on = r.id == room
+                    Row(
+                        Modifier.fillMaxWidth().liveClick(appCorner(14), sound = FeedbackSound.Pick, pressedScale = 0.98f) { room = r.id }
+                            .clip(appCorner(14)).background(if (on) AppColors.AccentTintStrong else AppColors.Field)
+                            .border(1.dp, if (on) AppColors.Accent else AppColors.Line, appCorner(14)).padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Tile(roomIcon(r.icon), 30.dp)
+                        Text(r.title, color = AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        if (on) Icon(AppIcons.Check, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
+                    }
+                }
+                InputField(comment, { comment = it.take(300) }, "Комментарий, если хочешь")
+                AppButton(if (busy) "Подожди…" else "Отправить", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true, sound = FeedbackSound.Tap) {
+                    if (busy) return@AppButton
+                    if (!state.me.accepted) {
+                        rules = true
+                        return@AppButton
+                    }
+                    busy = true
+                    scope.launch {
+                        community.send(room, comment.trim(), null, quote = q).onSuccess {
+                            feedback?.play(FeedbackSound.Send)
+                            Toast.makeText(app, "Цитата в сообществе", Toast.LENGTH_SHORT).show()
+                            close()
+                        }.onFailure {
+                            feedback?.play(FeedbackSound.Deny)
+                            Toast.makeText(app, it.message ?: "Не отправилось", Toast.LENGTH_LONG).show()
+                        }
+                        busy = false
+                    }
+                }
+            }
+        }
+    }
+}

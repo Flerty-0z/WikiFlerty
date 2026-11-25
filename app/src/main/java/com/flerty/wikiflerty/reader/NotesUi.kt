@@ -112,6 +112,7 @@ class NoteActions(
     val onSelectionListen: () -> Unit = {},
     val onSelectionTranslate: () -> Unit = {},
     val onSelectionDictionary: () -> Unit = {},
+    val onSelectionChat: () -> Unit = {},
 )
 
 @Composable
@@ -217,6 +218,7 @@ private fun SelectionAction(button: SelectionButton, markerColor: Long, actions:
         SelectionButton.Copy -> actions.onSelectionCopy
         SelectionButton.Chapter -> actions.onSelectionChapter
         SelectionButton.Listen -> actions.onSelectionListen
+        SelectionButton.Chat -> actions.onSelectionChat
     }
     MenuAction(
         button.title,
@@ -224,6 +226,7 @@ private fun SelectionAction(button: SelectionButton, markerColor: Long, actions:
         sound = when (button) {
             SelectionButton.Marker -> FeedbackSound.Marker
             SelectionButton.Copy -> FeedbackSound.Copy
+            SelectionButton.Chat -> FeedbackSound.Share
             else -> FeedbackSound.Open
         },
         onClick = click,
@@ -250,6 +253,7 @@ internal fun SelectionIcon(button: SelectionButton, markerColor: Long, tint: Col
                 SelectionButton.Person -> AppIcons.Person
                 SelectionButton.Chapter -> AppIcons.Toc
                 SelectionButton.Listen -> AppIcons.Headphones
+                SelectionButton.Chat -> AppIcons.Chat
                 else -> AppIcons.Copy
             },
             null,

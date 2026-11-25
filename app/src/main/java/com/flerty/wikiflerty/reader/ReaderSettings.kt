@@ -100,12 +100,13 @@ enum class SelectionButton(val id: String, val title: String) {
     Copy("copy", "Копировать"),
     Chapter("chapter", "Глава"),
     Listen("listen", "Слушать отсюда"),
+    Chat("chat", "В чат"),
     ;
 
     companion object {
         fun of(id: String) = entries.firstOrNull { it.id == id }
         val defaults = listOf(Note, Marker, Translate, Dictionary, Ai)
-        val defaultMore = listOf(Quote, Person, Copy, Chapter, Listen)
+        val defaultMore = listOf(Quote, Chat, Person, Copy, Chapter, Listen)
         const val MAX = 5
     }
 }
