@@ -144,6 +144,7 @@ object Studio {
         }
         com.flerty.wikiflerty.tts.ReadAloud.trace = { line -> log("TTS $line") }
         if (scene == "ttsjump" || scene == "memsoak") (app as App).readerSettings.update { it.copy(ttsEngine = com.flerty.wikiflerty.tts.NeuralVoices.SILENT) }
+        if (scene == "community") communityDemo(app as App)
         val memory = scope.launch {
             val rt = Runtime.getRuntime()
             val began = SystemClock.uptimeMillis()
@@ -216,3 +217,35 @@ object Studio {
         return Scenario.parse(id, raw)
     }
 }
+
+private fun communityDemo(app: App) {
+    val now = System.currentTimeMillis()
+    fun m(i: Int, login: String, text: String, ago: Long, admin: Boolean = false, reading: String = "", reply: Pair<Int, String>? = null, quote: com.flerty.wikiflerty.sync.Community.Quote? = null, book: com.flerty.wikiflerty.sync.Community.BookRef? = null, reacts: Map<String, List<String>> = emptyMap()) =
+        com.flerty.wikiflerty.sync.Community.Msg((now - ago) * 1000 + i, i.toLong(), "general", login, admin, text, now - ago, reading, reply?.let { com.flerty.wikiflerty.sync.Community.Ref((now - 3_600_000L) * 1000 + it.first, it.second, "Кто дочитал «Дракулу»?") }, quote, book, reacts, false)
+    val msgs = listOf(
+        m(1, "lisa_reads", "Кто дочитал «Дракулу»? Концовка мне показалась слишком быстрой", 3_600_000, reading = "Дракула"),
+        m(2, "mark_t", "Согласен, но дневниковый формат держит до конца", 3_500_000, reading = "Три мушкетёра", reacts = mapOf("thumb" to listOf("a", "b", "c", "d"), "heart" to listOf("e", "f"))),
+        m(3, "f1erty0z", "Друзья, в чате можно делиться цитатами прямо из книги — выделите текст и нажмите «В чат»", 1_800_000, admin = true, reacts = mapOf("heart" to List(18) { "u$it" }, "flame" to List(7) { "v$it" })),
+        m(4, "lisa_reads", "Попробовала, красиво!", 1_200_000, reading = "Мастер и Маргарита", quote = com.flerty.wikiflerty.sync.Community.Quote("Рукописи не горят.", "Мастер и Маргарита", "М. Булгаков", "Глава 24"), reacts = mapOf("heart" to List(9) { "w$it" }, "mark" to listOf("x", "y", "z"))),
+        m(5, "flerty", "А мне посоветовали вот это, кто читал?", 900_000, reading = "Шерлок Холмс", book = com.flerty.wikiflerty.sync.Community.BookRef("Остров сокровищ", "Р. Л. Стивенсон", 3)),
+        m(6, "mark_t", "@flerty читал, затягивает с первой главы", 600_000, reading = "Три мушкетёра", reply = 5 to "flerty"),
+        m(7, "danya", "Попробуй ещё «Убийство в Восточном экспрессе»", 120_000, reading = "Остров сокровищ"),
+    )
+    val rooms = listOf(
+        com.flerty.wikiflerty.sync.Community.Room("general", "Общий", "chat", 12, com.flerty.wikiflerty.sync.Community.Preview(msgs.last().id, "danya", msgs.last().text, msgs.last().at)),
+        com.flerty.wikiflerty.sync.Community.Room("reading", "Что читаю", "book", 5, com.flerty.wikiflerty.sync.Community.Preview(1, "mark_t", "Начал «Трёх мушкетёров», пока бодро", now - 1_500_000)),
+        com.flerty.wikiflerty.sync.Community.Room("advice", "Посоветуйте книгу", "search", 3, com.flerty.wikiflerty.sync.Community.Preview(2, "sova_night", "Что-то похожее на «Шерлока»?", now - 2_400_000)),
+        com.flerty.wikiflerty.sync.Community.Room("audio", "Аудиокниги", "head", 2, com.flerty.wikiflerty.sync.Community.Preview(3, "danya", "Слушаю «Остров сокровищ» на 1.25×", now - 5_400_000)),
+        com.flerty.wikiflerty.sync.Community.Room("comics", "Комиксы", "comic", 1, com.flerty.wikiflerty.sync.Community.Preview(4, "alex_k", "«Маленький Немо» — шедевр", now - 9_000_000)),
+        com.flerty.wikiflerty.sync.Community.Room("ideas", "Идеи для WikiFlerty", "bulb", 4, com.flerty.wikiflerty.sync.Community.Preview(5, "knigoman", "Тёмная тема для словаря", now - 20_000_000)),
+    )
+    val state = com.flerty.wikiflerty.sync.Community.State(
+        loaded = true, on = true, slow = 10, online = 24, rooms = rooms,
+        me = com.flerty.wikiflerty.sync.Community.Me(login = "flerty", accepted = true, admin = true, reports = 2, mentions = listOf(com.flerty.wikiflerty.sync.Community.Mention(9, "general", "mark_t", "@flerty отличная идея с цитатами", now - 300_000))),
+        pin = "Вышло большое обновление: сообщество, аудиокниги и комиксы. Пишите идеи в «Идеях»!",
+        latest = com.flerty.wikiflerty.sync.Community.Preview(msgs.last().id, "danya", msgs.last().text, msgs.last().at, "general", "Общий"),
+    )
+    val profiles = listOf(com.flerty.wikiflerty.sync.Community.Profile("mark_t", false, now - 20L * 86_400_000, "Три мушкетёра", 38, 47, 31, 212, app.achievements.unlocked.value.keys.take(4).toList()))
+    app.community.demo(state, com.flerty.wikiflerty.sync.Community.RoomView(msgs = msgs, loaded = true, online = 12, more = false), profiles)
+}
+

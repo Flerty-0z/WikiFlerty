@@ -107,6 +107,16 @@ class Community(private val app: App) {
 
     val account get() = app.account
 
+    @Volatile
+    private var demoRoom: RoomView? = null
+    private var demoProfiles: Map<String, Profile> = emptyMap()
+
+    fun demo(state: State, room: RoomView, profiles: List<Profile>) {
+        demoRoom = room
+        demoProfiles = profiles.associateBy { it.login }
+        _state.value = state
+    }
+
     private fun loadSeen(): Map<String, Long> = prefs.all.filterKeys { it.startsWith("seen:") }.mapNotNull { (k, v) -> (v as? Long)?.let { k.removePrefix("seen:") to it } }.toMap()
 
     fun markSeen(room: String, id: Long) {
@@ -132,6 +142,7 @@ class Community(private val app: App) {
     private fun base(): JSONObject = JSONObject().put("viewer", viewer)
 
     suspend fun refresh(): Result<State> = withContext(Dispatchers.IO) {
+        if (demoRoom != null) return@withContext Result.success(_state.value)
         runCatching {
             val j = account.chat("state", base().put("mention", mentionSeen))
             parseState(j).also { _state.value = it }
@@ -170,6 +181,10 @@ class Community(private val app: App) {
 
     fun open(roomId: String) {
         pollJob?.cancel()
+        demoRoom?.let { d ->
+            _room.value = d.copy(room = roomId, msgs = d.msgs.map { it.copy(room = roomId) })
+            return
+        }
         _room.value = RoomView(room = roomId)
         pollJob = scope.launch {
             var ver = 0L
@@ -234,6 +249,13 @@ class Community(private val app: App) {
     }
 
     suspend fun send(room: String, text: String, reply: Long?, quote: Quote? = null, book: BookRef? = null): Result<Msg> = withContext(Dispatchers.IO) {
+        if (demoRoom != null) {
+            val me = account.state.value.login ?: "flerty"
+            val r = reply?.let { id -> _room.value.msgs.firstOrNull { it.id == id } }?.let { Ref(it.id, it.login, it.text.take(80)) }
+            val m = Msg(System.currentTimeMillis() * 1000, 0, room, me, false, text, System.currentTimeMillis(), "", r, quote, book, emptyMap(), false)
+            put(m)
+            return@withContext Result.success(m)
+        }
         runCatching {
             val body = base().put("room", room).put("text", text)
             if (reply != null) body.put("reply", reply)
@@ -244,6 +266,13 @@ class Community(private val app: App) {
     }
 
     suspend fun react(m: Msg, kind: String): Result<Unit> = withContext(Dispatchers.IO) {
+        if (demoRoom != null) {
+            val me = account.state.value.login ?: "flerty"
+            val list = m.reacts[kind].orEmpty()
+            val next = if (me in list) list - me else list + me
+            put(m.copy(reacts = (m.reacts + (kind to next)).filterValues { it.isNotEmpty() }))
+            return@withContext Result.success(Unit)
+        }
         runCatching { put(parseMsg(account.chat("react", base().put("room", m.room).put("id", m.id).put("kind", kind)).getJSONObject("msg"))) }
     }
 
@@ -260,6 +289,7 @@ class Community(private val app: App) {
     }
 
     suspend fun profile(login: String): Result<Profile> = withContext(Dispatchers.IO) {
+        demoProfiles[login]?.let { return@withContext Result.success(it) }
         runCatching {
             val j = account.chat("profile", base().put("login", login))
             Profile(

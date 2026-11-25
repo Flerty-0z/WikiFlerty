@@ -541,7 +541,7 @@ private fun RoomPage(roomId: String, state: Community.State, askRules: () -> Uni
     var actions by remember { mutableStateOf<Community.Msg?>(null) }
     var reporting by remember { mutableStateOf<Community.Msg?>(null) }
     var profile by remember { mutableStateOf<String?>(null) }
-    val me = account.login
+    val me = account.login ?: state.me.login
     val msgs = if (view.room == roomId) view.msgs else emptyList()
     val rows = remember(msgs) {
         val out = ArrayList<ChatRow>()
