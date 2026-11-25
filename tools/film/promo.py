@@ -151,24 +151,23 @@ class Promo:
         x = CX + 10 * math.sin(2 * math.pi * g / 6.1 + 0.5)
         s = 0.94 + 0.012 * math.sin(2 * math.pi * g / 3.7)
         side = self.side
-        e = out_back(t / 0.55, 1.2)
-        ry += 30 * (1 - e)
-        rz += side * 4 * (1 - e)
-        x += 260 * (1 - smooth(t / 0.5))
-        y += side * 50 * (1 - smooth(t / 0.5))
-        s *= 0.9 + 0.1 * smooth(t / 0.45)
-        o = smooth((t - (dur - 0.28)) / 0.28)
-        ry -= 22 * o
-        x -= 170 * o
+        e = 1 - (1 - min(1.0, max(0.0, t / 0.6))) ** 3
+        ry += -72 * (1 - e)
+        rz += side * 3 * (1 - e)
+        x += 50 * (1 - e)
+        s *= 0.9 + 0.1 * e
+        o = min(1.0, max(0.0, (t - (dur - 0.34)) / 0.34)) ** 2
+        ry += 72 * o
+        x -= 50 * o
         rz -= side * 3 * o
-        s *= 1 - 0.05 * o
+        s *= 1 - 0.08 * o
         if push:
-            k, px, py = push
+            k, px, py, tilt = push
             s *= k
             x += (CX - px) * (k - 1) * 0.94 * s / k
             y += (CY - 60 - py) * (k - 1) * 0.94 * s / k
-            rx *= 1 - 0.6 * (k - 1)
-            ry *= 1 - 0.6 * (k - 1)
+            rx += tilt * 7
+            ry += -tilt * 11 * side
         return dict(rx=rx, ry=ry, rz=rz, x=x, y=y, s=s), o
 
     def render_phone(self, frame, content, pose, glare):
@@ -275,8 +274,18 @@ class Promo:
             else:
                 seq.extend(fr)
         n = int(round(dur * FPS))
+        if len(seq) > n and len(seq) <= n * 1.7:
+            m = len(seq)
+            seq = [seq[min(m - 1, int(j * m / n))] for j in range(n)]
+            cuts = [int(c * n / m) for c in cuts]
         if len(seq) < n:
-            seq += [seq[-1]] * (n - len(seq))
+            m = len(seq)
+            if m >= n * 0.68:
+                seq = [seq[min(m - 1, int(j * m / n))] for j in range(n)]
+                cuts = [int(c * n / m) for c in cuts]
+            else:
+                seq = [seq[min(m - 1, int(j * 0.75))] for j in range(int(m / 0.75))]
+                seq += [seq[-1]] * (n - len(seq))
         return seq[:n], cuts
 
     def beat_frames(self, beat, dur):
@@ -306,7 +315,17 @@ class Promo:
                     kk = 1 + (z.get("k", 1.5) - 1) * k
                     dim = max(dim, k)
                     pose0 = (CX - CW * 0.94 / 2 + z["c"][0] * CW * 0.94, CY - CH * 0.94 / 2 + z["c"][1] * CH * 0.94)
-                    push = (kk, pose0[0], pose0[1])
+                    push = (kk, pose0[0], pose0[1], k)
+            if push is None and beat.get("travel", True) is not False:
+                y0, y1 = beat.get("travel") if isinstance(beat.get("travel"), list) else (0.3, 0.62)
+                u = smooth((t - 0.45) / max(0.5, dur - 0.9))
+                k = smooth((t - 0.45) / 0.9) * (1 - smooth((t - (dur - 0.55)) / 0.4))
+                kk = 1 + beat.get("travel_k", 0.16) * k
+                cy = y0 + (y1 - y0) * u
+                cx = 0.5 + 0.06 * math.sin(u * math.pi) * self.side
+                pose0 = (CX - CW * 0.94 / 2 + cx * CW * 0.94, CY - CH * 0.94 / 2 + cy * CH * 0.94)
+                push = (kk, pose0[0], pose0[1], k * 0.8)
+                dim = max(dim, k * 0.3)
             pose, o = self.pose(t, dur, beat, push)
             frame = self.base(self.clock + t, pose["ry"])
             glare = None
@@ -362,7 +381,7 @@ def encode(path, frames):
     return n
 
 
-def mix(plan, video, events, total, audio, out, beats_at):
+def mix(plan, video, events, total, audio, out, beats_at, voices=()):
     inputs = ["-i", video]
     filters, tracks = [], []
     n = 1
@@ -374,7 +393,7 @@ def mix(plan, video, events, total, audio, out, beats_at):
             return
         inputs.extend(["-i", p])
         d = max(0, int(at * 1000))
-        filters.append(f"[{n}:a]adelay={d}|{d},volume={vol}[s{n}]")
+        filters.append(f"[{n}:a]adelay={d}|{d},volume={vol * plan.get('sfx_scale', 1.0):.3f}[s{n}]")
         tracks.append(f"[s{n}]")
         n += 1
 
@@ -401,12 +420,32 @@ def mix(plan, video, events, total, audio, out, beats_at):
             add("impact", at, 0.55)
         elif kind == "sparkle":
             add("sparkle", at, 0.35)
-    music = os.path.join(audio, "music.mp3")
-    if os.path.exists(music):
-        inputs.extend(["-stream_loop", "-1", "-i", music])
-        filters.append(f"[{n}:a]atrim=0:{total:.3f},volume={plan.get('music_volume', 0.5)},afade=t=in:d=0.8,afade=t=out:st={max(0, total - 2.5):.2f}:d=2.5[m]")
-        tracks.append("[m]")
+    vtags = []
+    tempo = plan.get("voice_tempo", 1.0)
+    for p, at in voices:
+        inputs.extend(["-i", p])
+        d = max(0, int(at * 1000))
+        filters.append(f"[{n}:a]atempo={tempo},adelay={d}|{d},volume={plan.get('voice_volume', 1.0)}[v{n}]")
+        vtags.append(f"[v{n}]")
         n += 1
+    music = os.path.join(audio, "music.mp3")
+    has_music = os.path.exists(music)
+    if has_music:
+        inputs.extend(["-stream_loop", "-1", "-i", music])
+        filters.append(f"[{n}:a]atrim=0:{total:.3f},volume={plan.get('music_volume', 0.5)},afade=t=in:d=1.0,afade=t=out:st={max(0, total - 2.5):.2f}:d=2.5[m0]")
+        n += 1
+    if vtags:
+        filters.append(f"{''.join(vtags)}amix=inputs={len(vtags)}:normalize=0[vo]")
+        if has_music:
+            filters.append("[vo]asplit=2[vo1][key]")
+            filters.append("[m0][key]sidechaincompress=threshold=0.03:ratio=5:attack=30:release=450[m]")
+            tracks.append("[vo1]")
+            tracks.append("[m]")
+        else:
+            tracks.append("[vo]")
+    elif has_music:
+        filters.append("[m0]anull[m]")
+        tracks.append("[m]")
     filters.append(f"{''.join(tracks)}amix=inputs={len(tracks)}:normalize=0,atrim=0:{total:.3f},alimiter=limit=0.92[aout]")
     run(["ffmpeg", "-v", "error", "-y", *inputs, "-filter_complex", ";".join(filters), "-map", "0:v", "-map", "[aout]",
          "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "-shortest", out])
@@ -426,11 +465,17 @@ def main():
     work = a.out[:-4] + "_work"
     os.makedirs(work, exist_ok=True)
     only = {int(x) for x in a.only.split(",") if x}
-    files, starts = [], []
+    files, starts, voices = [], [], []
     for k, b in enumerate(plan["beats"], 1):
         dur = b.get("dur")
         if not dur:
             dur = sum((s[1] - s[0]) / (s[2] if len(s) > 2 else b.get("speed", 1.0)) for s in b["spans"]) - 5 / FPS * (len(b["spans"]) - 1)
+        vp = os.path.join(a.audio, f"line{k:02d}.mp3") if a.audio else ""
+        if plan.get("voice") and vp and os.path.exists(vp):
+            lead = plan.get("voice_lead", 0.45)
+            need = lead + probe(vp) / plan.get("voice_tempo", 1.0) + plan.get("voice_tail", 0.4)
+            dur = max(need, min(dur, need + plan.get("max_gap", 1.4)))
+            voices.append((vp, promo.clock + lead))
         dur = round(dur * FPS) / FPS
         starts.append(promo.clock)
         name = os.path.join(work, f"b{k:02d}.mp4")
@@ -448,7 +493,7 @@ def main():
             gen = iter(frames)
         cnt = encode(name, gen)
         print(f"beat {k} {b.get('title', '')} {dur:.2f}s frames={cnt}", flush=True)
-    json.dump({"events": promo.events, "starts": starts, "total": promo.clock}, open(os.path.join(work, "events.json"), "w"))
+    json.dump({"events": promo.events, "starts": starts, "total": promo.clock, "voices": voices}, open(os.path.join(work, "events.json"), "w"))
     if only:
         return
     lst = os.path.join(work, "beats.txt")
@@ -456,7 +501,7 @@ def main():
     video = os.path.join(work, "video.mp4")
     run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", video])
     if a.audio:
-        mix(plan, video, promo.events, promo.clock, a.audio, a.out, starts)
+        mix(plan, video, promo.events, promo.clock, a.audio, a.out, starts, voices)
     else:
         os.replace(video, a.out)
     print("done", a.out, f"{promo.clock:.1f}s")
