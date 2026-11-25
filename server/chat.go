@@ -1120,3 +1120,12 @@ func (c *Chat) settle(b *chatReq, login string) {
 		c.remove(m, login)
 	}
 }
+
+func (c *Chat) Forget(login string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.members, login)
+	delete(c.mentions, login)
+	c.mark("members")
+	c.mark("mentions")
+}

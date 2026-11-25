@@ -679,6 +679,9 @@ func (a *App) remove(r *http.Request, u *User) (any, *apiError) {
 		return nil, fail(503, "storage", "Облако временно недоступно")
 	}
 	delete(a.st.users, u.Login)
+	if a.chat != nil {
+		a.chat.Forget(u.Login)
+	}
 	delete(a.pending, u.Login)
 	a.st.stats.Total -= freed
 	if a.st.stats.Total < 0 {
