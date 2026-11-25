@@ -346,6 +346,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                         SettingsNav.open = "Ai"
                         section = Section.Settings
                     }
+                    NewsTarget.Community -> SettingsNav.community = true
                     NewsTarget.None -> Unit
                 }
             }
