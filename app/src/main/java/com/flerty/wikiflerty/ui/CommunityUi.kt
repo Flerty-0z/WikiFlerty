@@ -1231,7 +1231,6 @@ private fun Composer(
     val wait = if (state.me.admin || editing != null) 0 else ((sentAt + state.slow * 1000L - now + 999) / 1000).toInt().coerceAtLeast(0)
     Column(
         Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Transparent, AppColors.Background.copy(alpha = 0.9f)))).navigationBarsPadding().padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(7.dp),
     ) {
         when {
             me == null -> {
@@ -1251,16 +1250,27 @@ private fun Composer(
             }
         }
         val target = editing ?: reply
-        AnimatedVisibility(target != null, enter = expandVertically(Motion.tween(220)) + fadeIn(Motion.fade(200)), exit = shrinkVertically(Motion.tween(200)) + fadeOut(Motion.fade(140))) {
-            val r = target
+        val lastTarget = remember { arrayOf<Community.Msg?>(null) }
+        val lastEdit = remember { booleanArrayOf(false) }
+        if (target != null) {
+            lastTarget[0] = target
+            lastEdit[0] = editing != null
+        }
+        AnimatedVisibility(
+            target != null,
+            enter = expandVertically(Motion.tween(240, easing = androidx.compose.animation.core.FastOutSlowInEasing), expandFrom = Alignment.Bottom) + fadeIn(Motion.fade(200)),
+            exit = shrinkVertically(Motion.tween(240, easing = androidx.compose.animation.core.FastOutSlowInEasing), shrinkTowards = Alignment.Bottom) + fadeOut(Motion.fade(160)),
+        ) {
+            val r = lastTarget[0]
+            val isEdit = lastEdit[0]
             if (r != null) Row(
-                Modifier.fillMaxWidth().fieldSurface(appCorner(14)).padding(horizontal = 10.dp, vertical = 7.dp),
+                Modifier.padding(bottom = 7.dp).fillMaxWidth().fieldSurface(appCorner(14)).padding(horizontal = 10.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Icon(if (editing != null) AppIcons.Pencil else AppIcons.Reply, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
+                Icon(if (isEdit) AppIcons.Pencil else AppIcons.Reply, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(if (editing != null) "Изменить сообщение" else r.login, color = AppColors.Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text(if (isEdit) "Изменить сообщение" else r.login, color = AppColors.Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                     Text(r.text.ifBlank { r.quote?.text ?: r.book?.title.orEmpty() }, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Box(Modifier.size(32.dp).liveClick(CircleShape, sound = FeedbackSound.Close) {
@@ -1339,8 +1349,8 @@ private fun Composer(
                 if (sending) KitSpinner(Modifier.size(18.dp))
             }
         }
-        AnimatedVisibility(wait > 0, enter = fadeIn(Motion.fade(200)) + expandVertically(Motion.tween(200)), exit = fadeOut(Motion.fade(160)) + shrinkVertically(Motion.tween(200))) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+        AnimatedVisibility(wait > 0, enter = fadeIn(Motion.fade(200)) + expandVertically(Motion.tween(220), expandFrom = Alignment.Top), exit = fadeOut(Motion.fade(160)) + shrinkVertically(Motion.tween(220), shrinkTowards = Alignment.Top)) {
+            Row(Modifier.padding(top = 7.dp).fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                 Icon(AppIcons.Clock, null, tint = AppColors.Muted, modifier = Modifier.size(13.dp))
                 Spacer(Modifier.width(5.dp))
                 Text("Медленный режим: ещё $wait с", color = AppColors.Muted, fontSize = 11.sp)

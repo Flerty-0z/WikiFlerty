@@ -222,8 +222,6 @@ fun TagCloudSheet(active: List<String>, onApply: (List<String>) -> Unit, onDismi
                     }
                 }
             }
-            val lastEdit = remember { arrayOf<String?>(null) }
-            if (editing != null) lastEdit[0] = editing
             val bring = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
             LaunchedEffect(editing) {
                 if (editing != null) {
@@ -231,26 +229,44 @@ fun TagCloudSheet(active: List<String>, onApply: (List<String>) -> Unit, onDismi
                     bring.bringIntoView()
                 }
             }
-            androidx.compose.animation.AnimatedVisibility(
-                visible = editing != null,
+            androidx.compose.animation.Crossfade(
+                targetState = editing,
+                animationSpec = Motion.fade(220),
+                label = "tag-panel",
                 modifier = Modifier.bringIntoViewRequester(bring),
-                enter = androidx.compose.animation.fadeIn(Motion.tween(260, delayMillis = 60)) + androidx.compose.animation.slideInVertically(Motion.tween(300)) { it / 8 },
-                exit = androidx.compose.animation.fadeOut(Motion.fade(120)),
-            ) {
-                val name = lastEdit[0].orEmpty()
-                val count = counts.firstOrNull { it.name.equals(name, true) }?.count ?: 0
-                val pinned = prefs.tagShelves.any { it.equals(name, true) }
-                val fan = remember(books, name) { books.filter { it.hasTag(name) }.sortedByDescending { it.lastReadAt ?: it.addedAt }.take(5) }
-                TabbedFrame("#$name", icon = AppIcons.Pencil, trailing = { CountBadge(count) }) {
-                    if (fan.isNotEmpty()) TagFan(fan, Modifier.padding(top = 6.dp))
-                    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        TagActionTile(AppIcons.Pencil, "Имя", AppColors.Text, false, Modifier.weight(1f)) { rename = name }
-                        TagActionTile(AppIcons.Shelf, "В шкафу", if (pinned) AppColors.Accent else AppColors.Text, pinned, Modifier.weight(1f)) {
-                            app.libraryPrefs.update { p ->
-                                p.copy(tagShelves = if (!pinned) (p.tagShelves + name).distinctBy { it.lowercase() } else p.tagShelves.filterNot { it.equals(name, true) })
+            ) { current ->
+                if (current == null) {
+                    TabbedFrame("Тег", icon = AppIcons.Pencil) {
+                        Box(Modifier.padding(top = 6.dp).fillMaxWidth().height(136.dp), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(AppIcons.Hash, null, tint = AppColors.Accent.copy(alpha = 0.6f), modifier = Modifier.size(30.dp))
+                                Text("Выбери тег в облаке —\nздесь появятся его книги", color = AppColors.Muted, fontSize = 13.sp, lineHeight = 18.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                             }
                         }
-                        TagActionTile(AppIcons.Trash, "Удалить", AppColors.Bad, false, Modifier.weight(1f)) { delete = name }
+                        Row(Modifier.fillMaxWidth().padding(vertical = 10.dp).graphicsLayer { alpha = 0.35f }, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            TagActionTile(AppIcons.Pencil, "Имя", AppColors.Text, false, Modifier.weight(1f)) {}
+                            TagActionTile(AppIcons.Shelf, "В шкафу", AppColors.Text, false, Modifier.weight(1f)) {}
+                            TagActionTile(AppIcons.Trash, "Удалить", AppColors.Bad, false, Modifier.weight(1f)) {}
+                        }
+                    }
+                } else {
+                    val name = current
+                    val count = counts.firstOrNull { it.name.equals(name, true) }?.count ?: 0
+                    val pinned = prefs.tagShelves.any { it.equals(name, true) }
+                    val fan = remember(books, name) { books.filter { it.hasTag(name) }.sortedByDescending { it.lastReadAt ?: it.addedAt }.take(5) }
+                    TabbedFrame("#$name", icon = AppIcons.Pencil, trailing = { CountBadge(count) }) {
+                        Box(Modifier.padding(top = 6.dp).fillMaxWidth().height(136.dp), contentAlignment = Alignment.Center) {
+                            if (fan.isNotEmpty()) TagFan(fan) else Text("Книг с этим тегом нет", color = AppColors.Faint, fontSize = 13.sp)
+                        }
+                        Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            TagActionTile(AppIcons.Pencil, "Имя", AppColors.Text, false, Modifier.weight(1f)) { rename = name }
+                            TagActionTile(AppIcons.Shelf, "В шкафу", if (pinned) AppColors.Accent else AppColors.Text, pinned, Modifier.weight(1f)) {
+                                app.libraryPrefs.update { p ->
+                                    p.copy(tagShelves = if (!pinned) (p.tagShelves + name).distinctBy { it.lowercase() } else p.tagShelves.filterNot { it.equals(name, true) })
+                                }
+                            }
+                            TagActionTile(AppIcons.Trash, "Удалить", AppColors.Bad, false, Modifier.weight(1f)) { delete = name }
+                        }
                     }
                 }
             }
