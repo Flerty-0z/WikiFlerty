@@ -89,6 +89,8 @@ if __name__ == "__main__":
         for name, (prompt, sec) in kit.items():
             sfx(name, prompt, sec)
         music(os.environ.get("MUSIC_PROMPT", "Energetic modern electronic pop instrumental for a fast-paced mobile app promo video, punchy tight drums, bright plucky synths, warm bass, uplifting and cozy, clear sections with small builds and drops every 20 seconds, no vocals, 120 bpm"), int(os.environ.get("MUSIC_MS", "180000")))
+    if "calm" in what:
+        music(os.environ.get("MUSIC_PROMPT", "Calm warm background instrumental for an app video with voiceover, soft felt piano, gentle airy pads, light soft lo-fi beat, cozy and relaxed, steady and unobtrusive, no build ups, no vocals, 82 bpm"), int(os.environ.get("MUSIC_MS", "190000")))
     if "pops" in what:
         sfx("pop_a", "soft bubbly ui pop, bright, short", 0.5)
         sfx("pop_b", "tiny glassy pop click, modern app sticker appearing", 0.5)
