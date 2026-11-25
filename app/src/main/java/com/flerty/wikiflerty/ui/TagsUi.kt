@@ -117,7 +117,7 @@ private fun CloudChip(tag: TagCount, weight: Float, selected: Boolean, editing: 
             "#" + tag.name,
             color = fg,
             fontSize = (12.5f + 4f * weight).sp,
-            fontWeight = if (weight > 0.6f || selected) FontWeight.SemiBold else FontWeight.Normal,
+            fontWeight = if (weight > 0.6f) FontWeight.SemiBold else FontWeight.Normal,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.widthIn(max = 240.dp),
@@ -227,15 +227,15 @@ fun TagCloudSheet(active: List<String>, onApply: (List<String>) -> Unit, onDismi
             val bring = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
             LaunchedEffect(editing) {
                 if (editing != null) {
-                    kotlinx.coroutines.delay(Motion.ms(340).toLong())
+                    kotlinx.coroutines.delay(Motion.ms(420).toLong())
                     bring.bringIntoView()
                 }
             }
             androidx.compose.animation.AnimatedVisibility(
                 visible = editing != null,
                 modifier = Modifier.bringIntoViewRequester(bring),
-                enter = androidx.compose.animation.expandVertically(Motion.tween(320, easing = androidx.compose.animation.core.FastOutSlowInEasing), expandFrom = Alignment.Top) + androidx.compose.animation.fadeIn(Motion.tween(240, delayMillis = 80)),
-                exit = androidx.compose.animation.shrinkVertically(Motion.tween(280, easing = androidx.compose.animation.core.FastOutSlowInEasing), shrinkTowards = Alignment.Top) + androidx.compose.animation.fadeOut(Motion.fade(140)),
+                enter = androidx.compose.animation.fadeIn(Motion.tween(260, delayMillis = 60)) + androidx.compose.animation.slideInVertically(Motion.tween(300)) { it / 8 },
+                exit = androidx.compose.animation.fadeOut(Motion.fade(120)),
             ) {
                 val name = lastEdit[0].orEmpty()
                 val count = counts.firstOrNull { it.name.equals(name, true) }?.count ?: 0

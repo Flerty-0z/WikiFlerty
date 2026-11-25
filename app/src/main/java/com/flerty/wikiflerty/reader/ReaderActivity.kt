@@ -2250,6 +2250,18 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
         var cover by mutableStateOf<ImageBitmap?>(null)
 
         if (!com.flerty.wikiflerty.ui.Tips.readerCoachDone(this)) ui.coach = true
+        com.flerty.wikiflerty.ui.CommunityNav.readerDiscuss = {
+            val room = app.community.bookRoom(bookTitle, bookAuthor)
+            app.community.rememberSpot(bookTitle, bookAuthor, (ui.progression * 100).toInt(), ui.chapter.orEmpty())
+            startActivity(
+                android.content.Intent(this, com.flerty.wikiflerty.ui.MainActivity::class.java)
+                    .setAction(com.flerty.wikiflerty.system.CommunityNotify.ACTION_OPEN)
+                    .putExtra(com.flerty.wikiflerty.system.CommunityNotify.EXTRA_ROOM, room)
+                    .putExtra("title", bookTitle)
+                    .putExtra("author", bookAuthor)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            )
+        }
         findViewById<ComposeView>(R.id.reader_overlay).setContent {
             CompositionLocalProvider(LocalFeedback provides app.feedback) {
                 WikiFlertyTheme {
@@ -2386,6 +2398,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
                             ui.position = locator.locations.position
                         }
                         ui.chapter = if (tocCustom.value) chapterFor(href, total) else locator.title?.takeIf { it.isNotBlank() } ?: chapterFor(href, total)
+                        if (bookTitle.isNotBlank()) app.community.rememberSpot(bookTitle, bookAuthor, ((total ?: ui.progression) * 100).toInt(), ui.chapter.orEmpty())
                         ui.currentHref = href
                         hasImages(href)
                         inkSurface()
@@ -4447,6 +4460,7 @@ class ReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Listener {
 
     override fun onDestroy() {
         if (ReaderReveal.run != null) ReaderReveal.run = null
+        com.flerty.wikiflerty.ui.CommunityNav.readerDiscuss = null
         flushProgress()
         super.onDestroy()
         if (isFinishing && !restarting) {

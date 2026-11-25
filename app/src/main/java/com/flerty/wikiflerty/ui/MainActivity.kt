@@ -71,6 +71,13 @@ class MainActivity : ComponentActivity() {
             intent.setAction(null)
             return
         }
+        if (intent?.action == com.flerty.wikiflerty.system.CommunityNotify.ACTION_OPEN) {
+            SettingsNav.community = true
+            intent.getStringExtra(com.flerty.wikiflerty.system.CommunityNotify.EXTRA_ROOM)?.let { CommunityNav.pendingRoom = it }
+            intent.getStringExtra("title")?.let { t -> CommunityNav.pendingThread = t to intent.getStringExtra("author").orEmpty() }
+            intent.setAction(null)
+            return
+        }
         if (intent?.action == Intent.ACTION_VIEW && intent.data?.scheme == "wikiflerty") {
             SettingsNav.account = true
             val app = applicationContext as com.flerty.wikiflerty.App

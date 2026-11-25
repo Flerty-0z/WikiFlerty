@@ -136,6 +136,10 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun openNote(note: Note) {
+        if (note.bookId == COMMUNITY_NOTES) {
+            SettingsNav.community = true
+            return
+        }
         val book = app.library.books.value.firstOrNull { it.id == note.bookId }
         if (book == null) {
             _messages.tryEmit("Книга этой заметки удалена")

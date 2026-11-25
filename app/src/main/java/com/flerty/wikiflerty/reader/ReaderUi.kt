@@ -666,6 +666,7 @@ fun ReaderOverlay(
                 }
                 QuickButton.AiHeroes -> state.sheet = if (ai.manager.current() == null) ReaderSheet.AiChapter else ReaderSheet.Heroes
                 QuickButton.AiHistory -> state.sheet = ReaderSheet.AiHistory
+                QuickButton.Discuss -> com.flerty.wikiflerty.ui.CommunityNav.readerDiscuss?.invoke()
             }
         }
         val extra = remember(settings.quickButtons) { QuickButton.entries.filter { it.id !in settings.quickButtons } }
@@ -1762,6 +1763,7 @@ private fun quickIconVector(button: QuickButton): ImageVector = when (button) {
     QuickButton.AiTeacher -> AppIcons.Pencil
     QuickButton.AiHeroes -> AppIcons.Voice
     QuickButton.AiHistory -> AppIcons.Clock
+    QuickButton.Discuss -> AppIcons.Chat
 }
 
 @Composable

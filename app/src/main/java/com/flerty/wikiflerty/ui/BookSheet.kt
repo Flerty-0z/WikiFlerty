@@ -729,6 +729,17 @@ private fun ColumnScope.BookMainContent(
 
     SettingsNavRow(AppIcons.Chart, "Статистика книги", "Время, скорость, остаток") { onStats() }
 
+    if (!inReader && app.account.available) {
+        val closeAll = LocalSheetCloseAll.current
+        SettingsNavRow(AppIcons.Chat, "Обсуждение книги", "Без спойлеров дальше твоего места") {
+            CommunityNav.pendingThread = book.title to book.author
+            CommunityNav.pendingRoom = app.community.bookRoom(book.title, book.author)
+            CommunityNav.pendingProgress = book.progress
+            SettingsNav.community = true
+            closeAll?.invoke()
+        }
+    }
+
     if (!inReader) DeleteRow("Удалить с телефона", onDelete)
 }
 

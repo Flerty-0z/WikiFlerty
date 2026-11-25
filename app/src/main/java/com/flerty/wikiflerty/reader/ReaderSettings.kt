@@ -80,6 +80,7 @@ enum class QuickButton(val id: String, val title: String, val ai: Boolean = fals
     AiTeacher("ai_teacher", "ИИ-Учитель", ai = true),
     AiHeroes("ai_heroes", "Герои книги", ai = true),
     AiHistory("ai_history", "История ИИ", ai = true),
+    Discuss("discuss", "Обсуждение"),
     ;
 
     companion object {

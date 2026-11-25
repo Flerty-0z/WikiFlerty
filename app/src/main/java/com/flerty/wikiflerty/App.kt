@@ -161,6 +161,7 @@ class App : Application() {
         }
         flashcards.onChanged = { sync.flashcardsChanged() }
         account.start()
+        runCatching { com.flerty.wikiflerty.system.CommunityNotify.schedule(this) }
         appScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             kotlinx.coroutines.delay(6_000)
             if (!crashLog.autoSend) return@launch

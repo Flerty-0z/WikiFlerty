@@ -27,6 +27,7 @@ object AppIcons {
         return builder.build()
     }
 
+    val Timer by lazy { icon("timer", "M12 8a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13z", "M12 11v3.5l2 1.5", "M10 3h4M12 3v2.5M18.5 7l1.5-1.5") }
     val Chat by lazy { icon("chat", "M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z") }
     val People by lazy { icon("people", "M9 4.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7z", "M2.5 20a6.5 6.5 0 0 1 13 0", "M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6") }
     val Shield by lazy { icon("shield", "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z") }

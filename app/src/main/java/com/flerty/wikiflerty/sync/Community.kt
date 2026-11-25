@@ -35,10 +35,24 @@ class Community(private val app: App) {
         val book: BookRef?,
         val reacts: Map<String, List<String>>,
         val gone: Boolean,
+        val edited: Boolean = false,
+        val ch: Int = 0,
+        val chTitle: String = "",
+        val kind: String = "",
     )
+    data class Locked(val ch: Int, val title: String, val count: Int)
+    data class Goal(val month: String, val target: Int, val total: Int, val readers: Int)
+    data class DayQuote(val id: Long, val room: String, val login: String, val text: String, val book: String, val author: String, val reacts: Int)
+    data class Runner(val login: String, val pages: Int)
+    data class Sprint(val id: Long, val by: String, val start: Long, val end: Long, val minutes: Int, val people: List<Runner>, val joined: Boolean, val now: Long, val done: Boolean) {
+        private val skew = System.currentTimeMillis() - now
+        val startLocal: Long get() = start + skew
+        val endLocal: Long get() = end + skew
+    }
+    data class Idea(val id: Long, val login: String, val title: String, val text: String, val at: Long, val votes: Int, val voted: Boolean, val status: String, val note: String)
     data class Preview(val id: Long, val login: String, val text: String, val at: Long, val room: String = "", val roomTitle: String = "")
     data class Room(val id: String, val title: String, val icon: String, val online: Int, val last: Preview?)
-    data class Mention(val id: Long, val room: String, val from: String, val text: String, val at: Long)
+    data class Mention(val id: Long, val room: String, val from: String, val text: String, val at: Long, val title: String = "")
     data class Me(
         val login: String? = null,
         val accepted: Boolean = false,
@@ -59,6 +73,9 @@ class Community(private val app: App) {
         val pin: String? = null,
         val latest: Preview? = null,
         val error: String? = null,
+        val goal: Goal? = null,
+        val quote: DayQuote? = null,
+        val sprint: Sprint? = null,
     )
     data class Profile(
         val login: String,
@@ -79,6 +96,8 @@ class Community(private val app: App) {
         val off: Boolean = false,
         val more: Boolean = true,
         val error: String? = null,
+        val locked: List<Locked> = emptyList(),
+        val upto: Int = Int.MAX_VALUE,
     )
     data class Report(val msg: Msg, val count: Int, val reasons: Map<String, Int>, val hidden: Boolean)
     data class Mod(
@@ -162,7 +181,7 @@ class Community(private val app: App) {
                 muted = m.optLong("muted"),
                 banned = m.optBoolean("banned"),
                 why = m.optString("why"),
-                mentions = m.optJSONArray("mentions").objects().map { Mention(it.optLong("id"), it.optString("room"), it.optString("from"), it.optString("text"), it.optLong("at")) },
+                mentions = m.optJSONArray("mentions").objects().map { Mention(it.optLong("id"), it.optString("room"), it.optString("from"), it.optString("text"), it.optLong("at"), it.optString("title")) },
                 reports = m.optInt("reports"),
             )
         } ?: Me()
@@ -176,23 +195,32 @@ class Community(private val app: App) {
             me = me,
             pin = j.optJSONObject("pin")?.optString("text")?.ifBlank { null },
             latest = latest,
+            goal = j.optJSONObject("goal")?.let { Goal(it.optString("month"), it.optInt("target"), it.optInt("total"), it.optInt("readers")) },
+            quote = j.optJSONObject("quote")?.let { DayQuote(it.optLong("id"), it.optString("room"), it.optString("login"), it.optString("text"), it.optString("book"), it.optString("author"), it.optInt("reacts")) },
+            sprint = j.optJSONObject("sprint")?.let(::parseSprint),
         )
     }
 
-    fun open(roomId: String) {
+    private fun parseSprint(j: JSONObject): Sprint = Sprint(
+        j.optLong("id"), j.optString("by"), j.optLong("start"), j.optLong("end"), j.optInt("minutes"),
+        j.optJSONArray("people").objects().map { Runner(it.optString("login"), it.optInt("pages")) },
+        j.optBoolean("joined"), j.optLong("now"), j.optBoolean("done"),
+    )
+
+    fun open(roomId: String, upto: Int = Int.MAX_VALUE) {
         pollJob?.cancel()
         demoRoom?.let { d ->
             _room.value = d.copy(room = roomId, msgs = d.msgs.map { it.copy(room = roomId) })
             return
         }
-        _room.value = RoomView(room = roomId)
+        _room.value = RoomView(room = roomId, upto = upto)
         pollJob = scope.launch {
             var ver = 0L
             var fails = 0
             val me = account.state.value.login
             while (isActive) {
                 try {
-                    val j = account.chat("poll", base().put("room", roomId).put("after", ver), timeout = 45_000)
+                    val j = account.chat("poll", base().put("room", roomId).put("after", ver).put("upto", upto.coerceAtMost(100000)), timeout = 45_000)
                     fails = 0
                     if (j.optBoolean("off")) {
                         _room.value = _room.value.copy(off = true, loaded = true)
@@ -206,7 +234,8 @@ class Community(private val app: App) {
                     val cur = _room.value
                     val merged = if (first) fresh.filterNot { it.gone } else merge(cur.msgs, fresh)
                     val arrived = !first && fresh.any { m -> !m.gone && m.login != me && cur.msgs.none { it.id == m.id } }
-                    _room.value = cur.copy(msgs = merged, loaded = true, online = j.optInt("online"), off = false, error = null, more = if (first) fresh.size >= 60 else cur.more)
+                    val locked = j.optJSONArray("locked").objects().map { Locked(it.optInt("ch"), it.optString("title"), it.optInt("count")) }
+                    _room.value = cur.copy(msgs = merged, loaded = true, online = j.optInt("online"), off = false, error = null, more = if (first) fresh.size >= 60 else cur.more, locked = locked)
                     if (arrived) incoming.value = System.currentTimeMillis()
                     merged.lastOrNull()?.let { markSeen(roomId, it.id) }
                 } catch (e: Exception) {
@@ -241,14 +270,14 @@ class Community(private val app: App) {
         runCatching {
             val cur = _room.value
             val first = cur.msgs.firstOrNull()?.id ?: return@runCatching
-            val j = account.chat("history", base().put("room", cur.room).put("before", first))
+            val j = account.chat("history", base().put("room", cur.room).put("before", first).put("upto", cur.upto.coerceAtMost(100000)))
             val msgs = j.optJSONArray("msgs").objects().map(::parseMsg)
             val now = _room.value
             if (now.room == cur.room) _room.value = now.copy(msgs = merge(msgs, now.msgs), more = j.optBoolean("more"))
         }
     }
 
-    suspend fun send(room: String, text: String, reply: Long?, quote: Quote? = null, book: BookRef? = null): Result<Msg> = withContext(Dispatchers.IO) {
+    suspend fun send(room: String, text: String, reply: Long?, quote: Quote? = null, book: BookRef? = null, chapter: Pair<Int, String>? = null, thread: Pair<String, String>? = null): Result<Msg> = withContext(Dispatchers.IO) {
         if (demoRoom != null) {
             val me = account.state.value.login ?: "flerty"
             val r = reply?.let { id -> _room.value.msgs.firstOrNull { it.id == id } }?.let { Ref(it.id, it.login, it.text.take(80)) }
@@ -261,6 +290,8 @@ class Community(private val app: App) {
             if (reply != null) body.put("reply", reply)
             if (quote != null) body.put("quote", JSONObject().put("text", quote.text).put("book", quote.book).put("author", quote.author).put("chapter", quote.chapter))
             if (book != null) body.put("book", JSONObject().put("title", book.title).put("author", book.author).put("tint", book.tint))
+            if (chapter != null) body.put("ch", chapter.first).put("chTitle", chapter.second)
+            if (thread != null) body.put("title", thread.first).put("author", thread.second)
             parseMsg(account.chat("send", body).getJSONObject("msg")).also { put(it); markSeen(room, it.id) }
         }
     }
@@ -355,7 +386,161 @@ class Community(private val app: App) {
         book = j.optJSONObject("book")?.let { BookRef(it.optString("title"), it.optString("author"), it.optInt("tint")) },
         reacts = j.optJSONObject("reacts")?.let { o -> o.keys().asSequence().associateWith { o.optJSONArray(it).strings() } }.orEmpty(),
         gone = j.optBoolean("gone"),
+        edited = j.optBoolean("edited"),
+        ch = j.optInt("ch"),
+        chTitle = j.optString("chTitle"),
+        kind = j.optString("kind"),
     )
+
+    suspend fun edit(m: Msg, text: String): Result<Msg> = withContext(Dispatchers.IO) {
+        runCatching { parseMsg(account.chat("edit", base().put("room", m.room).put("id", m.id).put("text", text)).getJSONObject("msg")).also { put(it) } }
+    }
+
+    suspend fun unsend(m: Msg): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            account.chat("unsend", base().put("room", m.room).put("id", m.id))
+            val cur = _room.value
+            _room.value = cur.copy(msgs = cur.msgs.filterNot { it.id == m.id })
+        }
+    }
+
+    suspend fun search(room: String, q: String, upto: Int = Int.MAX_VALUE): Result<List<Msg>> = withContext(Dispatchers.IO) {
+        runCatching { account.chat("search", base().put("room", room).put("q", q).put("upto", upto.coerceAtMost(100000))).optJSONArray("msgs").objects().map(::parseMsg) }
+    }
+
+    fun bookRoom(title: String, author: String): String {
+        val key = title.trim().lowercase().replace(Regex("\\s+"), " ") + "|" + author.trim().lowercase().replace(Regex("\\s+"), " ")
+        val hash = java.security.MessageDigest.getInstance("SHA-1").digest(key.toByteArray()).joinToString("") { "%02x".format(it) }
+        return "b:" + hash.take(16)
+    }
+
+    private val _sprint = MutableStateFlow<Sprint?>(null)
+    val sprint: StateFlow<Sprint?> = _sprint.asStateFlow()
+
+    suspend fun sprintOp(op: String, minutes: Int = 0, pages: Int = 0): Result<Sprint?> = withContext(Dispatchers.IO) {
+        runCatching {
+            val j = account.chat("sprint", base().put("op", op).put("minutes", minutes).put("pages", pages))
+            j.optJSONObject("sprint")?.let(::parseSprint).also { sp -> _sprint.value = sp; _state.value = _state.value.copy(sprint = sp) }
+        }
+    }
+
+    suspend fun sprintState(): Result<Sprint?> = withContext(Dispatchers.IO) {
+        runCatching {
+            account.chat("sprintState", base()).optJSONObject("sprint")?.let(::parseSprint).also { sp -> _sprint.value = sp; _state.value = _state.value.copy(sprint = sp) }
+        }
+    }
+
+    private var sprintJob: Job? = null
+
+    suspend fun startSprint(minutes: Int): Result<Sprint?> = sprintOp("start", minutes = minutes).onSuccess { sp -> sp?.let(::track) }
+
+    suspend fun joinSprint(): Result<Sprint?> = sprintOp("join").onSuccess { sp -> sp?.let(::track) }
+
+    suspend fun leaveSprint(): Result<Sprint?> = sprintOp("leave").onSuccess { sprintJob?.cancel() }
+
+    fun sprintPages(): Int = (todayPages() - prefs.getInt("sprintBase", todayPages())).coerceAtLeast(0)
+
+    private fun track(sp: Sprint) {
+        if (!sp.joined || sp.done) return
+        if (prefs.getLong("sprintId", 0L) != sp.id) prefs.edit().putLong("sprintId", sp.id).putInt("sprintBase", todayPages()).putBoolean("sprintStarted", false).apply()
+        if (sprintJob?.isActive == true) return
+        sprintJob = scope.launch {
+            while (isActive) {
+                val cur = _sprint.value ?: break
+                if (cur.id != sp.id) break
+                val now = System.currentTimeMillis()
+                if (now < cur.startLocal) {
+                    prefs.edit().putInt("sprintBase", todayPages()).apply()
+                    delay(minOf(5_000L, cur.startLocal - now + 50))
+                    continue
+                }
+                if (!prefs.getBoolean("sprintStarted", false)) prefs.edit().putBoolean("sprintStarted", true).apply()
+                val last = now >= cur.endLocal
+                runCatching { sprintOp("pages", pages = sprintPages()) }
+                if (last) break
+                delay(minOf(20_000L, (cur.endLocal - now).coerceAtLeast(1_000L)))
+            }
+        }
+    }
+
+    fun resumeSprint() {
+        _sprint.value?.let(::track)
+    }
+
+    fun todayPages(): Int {
+        val day = java.time.LocalDate.now().toString()
+        return app.stats.days.value[day]?.values?.sumOf { it.pages } ?: 0
+    }
+
+    fun reportPages() {
+        if (account.state.value.login == null || demoRoom != null) return
+        val day = java.time.LocalDate.now().toString()
+        val now = System.currentTimeMillis()
+        if (now - prefs.getLong("goalAt", 0L) < 10 * 60_000L) return
+        val sentDay = prefs.getString("goalDay", "")
+        val sent = if (sentDay == day) prefs.getInt("goalSent", 0) else 0
+        val total = todayPages()
+        val delta = total - sent
+        if (delta <= 0) return
+        prefs.edit().putLong("goalAt", now).apply()
+        scope.launch {
+            runCatching {
+                account.chat("goal", base().put("pages", delta.coerceAtMost(600)))
+                prefs.edit().putString("goalDay", day).putInt("goalSent", sent + delta.coerceAtMost(600)).apply()
+            }
+        }
+    }
+
+    suspend fun ideas(): Result<List<Idea>> = withContext(Dispatchers.IO) { runCatching { parseIdeas(account.chat("ideas", base())) } }
+
+    suspend fun idea(op: String, fill: JSONObject.() -> Unit = {}): Result<List<Idea>> = withContext(Dispatchers.IO) {
+        runCatching { parseIdeas(account.chat("idea", base().put("op", op).apply(fill))) }
+    }
+
+    private fun parseIdeas(j: JSONObject): List<Idea> = j.optJSONArray("ideas").objects().map {
+        Idea(it.optLong("id"), it.optString("login"), it.optString("title"), it.optString("text"), it.optLong("at"), it.optInt("votes"), it.optBoolean("voted"), it.optString("status"), it.optString("note"))
+    }
+
+    fun pendingMentions(): List<Mention> {
+        if (account.state.value.login == null) return emptyList()
+        val after = maxOf(mentionSeen, prefs.getLong("notified", 0L))
+        val j = account.chat("state", base().put("mention", after), timeout = 15_000)
+        val list = j.optJSONObject("me")?.optJSONArray("mentions").objects().map { Mention(it.optLong("id"), it.optString("room"), it.optString("from"), it.optString("text"), it.optLong("at"), it.optString("title")) }
+        list.maxOfOrNull { it.id }?.let { prefs.edit().putLong("notified", it).apply() }
+        return list
+    }
+
+    data class Spot(val percent: Int, val chapter: String)
+
+    fun rememberSpot(title: String, author: String, percent: Int, chapter: String) {
+        val room = bookRoom(title, author)
+        val p = percent.coerceIn(0, 100)
+        val old = prefs.getString("spot:$room", null)
+        val value = "$p|$chapter"
+        if (old != value) prefs.edit().putString("spot:$room", value).putString("meta:$room", "$title|$author").apply()
+    }
+
+    fun spot(room: String): Spot? {
+        val raw = prefs.getString("spot:$room", null) ?: return null
+        return Spot(raw.substringBefore('|').toIntOrNull() ?: 0, raw.substringAfter('|', ""))
+    }
+
+    fun threadMeta(room: String): Pair<String, String>? {
+        val raw = prefs.getString("meta:$room", null) ?: return null
+        return raw.substringBefore('|') to raw.substringAfter('|', "")
+    }
+
+    fun spotForBook(title: String, author: String, progress: Double): Spot {
+        return spot(bookRoom(title, author)) ?: Spot((progress * 100).toInt().coerceIn(0, 100), "")
+    }
+
+    var notifyOn: Boolean
+        get() = prefs.getBoolean("notify", true)
+        set(v) { prefs.edit().putBoolean("notify", v).apply() }
+
+    var quietNight: Boolean
+        get() = prefs.getBoolean("quiet", true)
+        set(v) { prefs.edit().putBoolean("quiet", v).apply() }
 
     private fun JSONArray?.objects(): List<JSONObject> = if (this == null) emptyList() else (0 until length()).mapNotNull { optJSONObject(it) }
     private fun JSONArray?.strings(): List<String> = if (this == null) emptyList() else (0 until length()).map { optString(it) }

@@ -244,7 +244,10 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                                 HeaderButton(AppIcons.Options, "Настройки") { section = Section.Settings }
                             }
                             if (section == Section.Settings) ReadingNow()
-                            if (section == Section.Community) CommunityOnline()
+                            if (section == Section.Community) {
+                                CommunitySearchButton()
+                                CommunityOnline()
+                            }
                         }
                         if (busy != null) {
                             KitLinearProgress(Modifier.fillMaxWidth().align(Alignment.BottomCenter))
