@@ -43,7 +43,16 @@ field = "document" if is_doc else "video"
 ctype = "image/jpeg" if is_doc else "video/mp4"
 parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{field}\"; filename=\"{os.path.basename(video)}\"\r\nContent-Type: {ctype}\r\n\r\n".encode())
 parts.append(open(video, "rb").read())
-parts.append(f"\r\n--{boundary}--\r\n".encode())
+parts.append(b"\r\n")
+for key, name in (("cover", "cover.jpg"), ("thumbnail", "thumb.jpg")):
+    path = os.path.join(os.path.dirname(video), name)
+    if is_doc or not os.path.exists(path):
+        continue
+    parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{key}\"\r\n\r\nattach://{key}file\r\n".encode())
+    parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{key}file\"; filename=\"{name}\"\r\nContent-Type: image/jpeg\r\n\r\n".encode())
+    parts.append(open(path, "rb").read())
+    parts.append(b"\r\n")
+parts.append(f"--{boundary}--\r\n".encode())
 import time
 body = b"".join(parts)
 for attempt in range(4):
