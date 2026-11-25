@@ -33,6 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -335,19 +337,23 @@ private fun TagRow(tag: TagCount, pinned: Boolean, onClick: () -> Unit) {
 @Composable
 private fun TagActionTile(icon: ImageVector, label: String, tint: androidx.compose.ui.graphics.Color, active: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val shape = appCorner(16)
+    val context = androidx.compose.ui.platform.LocalContext.current
     val edge by animateColorAsState(if (active) AppColors.Accent.copy(alpha = 0.6f) else AppColors.PanelBorder, Motion.fade(220), label = "tag-edge")
     val color by animateColorAsState(tint, Motion.fade(220), label = "tag-tint")
-    Column(
+    val fill by animateColorAsState(if (active) AppColors.AccentSoft else androidx.compose.ui.graphics.Color.Transparent, Motion.fade(220), label = "tag-fill")
+    Box(
         modifier
-            .height(60.dp)
-            .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.95f, onClick = onClick)
+            .height(52.dp)
+            .liveClick(shape, sound = FeedbackSound.Toggle, pressedScale = 0.95f, onLongClick = {
+                android.widget.Toast.makeText(context, label, android.widget.Toast.LENGTH_SHORT).show()
+            }, onClick = onClick)
             .fieldSurface(shape)
-            .border(1.dp, edge, shape),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+            .background(fill, shape)
+            .border(1.dp, edge, shape)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, null, tint = color, modifier = Modifier.size(19.dp))
-        Text(label, color = color, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Icon(icon, null, tint = color, modifier = Modifier.size(22.dp))
     }
 }
 

@@ -856,7 +856,7 @@ fun AudioPlank(modifier: Modifier = Modifier) {
     val sorted = remember(books, manual) { if (manual) books else books.sortedByDescending { it.lastPlayedAt ?: it.addedAt } }
     val byId = remember(books) { books.associateBy { it.id } }
     val ids = sorted.map { it.id }
-    val order = remember(ids) { androidx.compose.runtime.mutableStateListOf<String>().apply { addAll(ids) } }
+    val order = remember { androidx.compose.runtime.mutableStateListOf<String>().apply { addAll(ids) } }
     var dragId by remember { mutableStateOf<String?>(null) }
     var dragX by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
     var from by remember { androidx.compose.runtime.mutableIntStateOf(0) }
@@ -896,6 +896,12 @@ fun AudioPlank(modifier: Modifier = Modifier) {
         jobs.clear()
         goals.clear()
         offs.clear()
+    }
+    LaunchedEffect(ids, dragId) {
+        if (dragId == null && order.toList() != ids) {
+            order.clear()
+            order.addAll(ids)
+        }
     }
     val scroll = androidx.compose.foundation.rememberScrollState()
     Column(modifier.fillMaxWidth()) {

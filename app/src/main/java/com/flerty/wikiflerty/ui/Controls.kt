@@ -813,7 +813,7 @@ fun actionIcon(label: String): ImageVector? {
         starts("создать", "добавить", "ещё", "новая", "новый") -> AppIcons.Plus
         starts("отмена", "не сейчас", "закрыть", "без цели", "пропустить") -> AppIcons.Close
         starts("отправить", "экспорт", "telegram") -> AppIcons.Send
-        starts("импорт", "установить", "скачать", "rustore", "обновить") -> AppIcons.Download
+        starts("импорт", "установить", "скачать", "rustore", "обновить", "сайт") -> AppIcons.Download
         starts("повторить", "сбросить", "пройти", "заново", "вернуть") -> AppIcons.Rotate
         starts("позже") -> AppIcons.Clock
         starts("копировать") -> AppIcons.Copy

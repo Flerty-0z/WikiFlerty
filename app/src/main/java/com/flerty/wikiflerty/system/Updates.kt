@@ -103,6 +103,10 @@ class Updates(private val context: Context) {
         const val TELEGRAM = "https://t.me/wikiflerty"
         const val RUSTORE = "https://www.rustore.ru/catalog/app/com.flerty.wikiflerty"
         const val IN_RUSTORE = false
+        fun site(version: String): String {
+            val abi = if (android.os.Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()) "x64" else "x32"
+            return "https://wikiflerty.ru/download/$abi?v=$version"
+        }
         private const val LATEST = "https://api.github.com/repos/Flerty-0z/WikiFlerty/releases/latest"
     }
 }

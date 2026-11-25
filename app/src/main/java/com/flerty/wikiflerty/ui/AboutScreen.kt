@@ -170,14 +170,14 @@ fun AboutScreen(modifier: Modifier = Modifier) {
 fun UpdatePanel(app: App, modifier: Modifier = Modifier, onLater: (() -> Unit)? = null) {
     val scope = rememberCoroutineScope()
     val state by app.updates.state.collectAsStateWithLifecycle()
-    val where = if (com.flerty.wikiflerty.system.Updates.IN_RUSTORE) "RuStore" else "Telegram-канале"
+    val where = if (com.flerty.wikiflerty.system.Updates.IN_RUSTORE) "в RuStore" else "на сайте или в Telegram-канале"
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         val (title, subtitle, color) = when (val s = state) {
             UpdateState.Idle -> Triple("Проверить обновления", "Узнать, вышла ли новая версия", AppColors.Text)
             UpdateState.Checking -> Triple("Проверяю…", "Секунду", AppColors.Text)
             UpdateState.UpToDate -> Triple("Установлена последняя версия", "Обновлений нет", Good)
-            is UpdateState.Available -> Triple("Вышла версия ${s.info.version}", "Скачай её в $where", AppColors.Accent)
+            is UpdateState.Available -> Triple("Вышла версия ${s.info.version}", "Скачай её $where", AppColors.Accent)
             is UpdateState.Failed -> Triple("Не получилось", s.message, Bad)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -220,14 +220,23 @@ fun UpdatePanel(app: App, modifier: Modifier = Modifier, onLater: (() -> Unit)? 
                             app.updates.open(com.flerty.wikiflerty.system.Updates.RUSTORE)
                         }
                     }
-                    AppButton("Telegram", primary = !com.flerty.wikiflerty.system.Updates.IN_RUSTORE, modifier = Modifier.weight(1f)) {
+                    if (!com.flerty.wikiflerty.system.Updates.IN_RUSTORE) {
+                        val version = (state as UpdateState.Available).info.version
+                        AppButton("Сайт", primary = true, modifier = Modifier.weight(1f)) {
+                            app.updates.open(com.flerty.wikiflerty.system.Updates.site(version))
+                        }
+                    }
+                    AppButton("Telegram", primary = false, modifier = Modifier.weight(1f)) {
                         app.updates.open(com.flerty.wikiflerty.system.Updates.TELEGRAM)
                     }
                 }
             }
-            if (onLater != null) {
+            if (onLater != null && state !is UpdateState.Available) {
                 AppButton("Позже", primary = false, modifier = Modifier.weight(0.6f), onClick = onLater)
             }
+        }
+        if (onLater != null && state is UpdateState.Available) {
+            AppButton("Позже", primary = false, modifier = Modifier.fillMaxWidth(), onClick = onLater)
         }
     }
 }
