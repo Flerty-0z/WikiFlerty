@@ -69,6 +69,10 @@ def icons():
 
 
 raw_notes = open(notes_file, encoding="utf-8").read().strip()
+patch = raw_notes.startswith("!patch")
+if patch:
+    raw_notes = raw_notes.split("\n", 1)[1].strip() if "\n" in raw_notes else ""
+kind = "мини-патч" if patch else "обновление"
 sections = []
 for chunk in [p.strip() for p in raw_notes.split("\n\n") if p.strip()]:
     for row in [r.strip() for r in chunk.split("\n") if r.strip()]:
@@ -127,9 +131,9 @@ if any(title for title, _ in sections):
 else:
     body = "<blockquote>" + "\n\n".join(line(i) for i in items) + "</blockquote>"
 text = (
-    f"<b>Ребята, вышло обновление {version}</b>\u00a0{logo}\n\n"
+    f"<b>Ребята, {'вышел' if patch else 'вышло'} {kind} {version}</b>\u00a0{logo}\n\n"
     f"{body}\n\n"
-    f"<blockquote>Огромная просьба перед обновлением сделать «Резервную копию» {emoji('🛡')}\n\n"
+    f"<blockquote>Огромная просьба перед {'установкой' if patch else 'обновлением'} сделать «Резервную копию» {emoji('🛡')}\n\n"
     f"{contact}</blockquote>"
 )
 
@@ -191,7 +195,7 @@ wait = int(os.environ.get("WAIT_MINUTES") or "180")
 if channel and wait > 0:
     pending = call("getUpdates", {"offset": -1, "timeout": 0}).get("result", [])
     offset = pending[-1]["update_id"] + 1 if pending else 0
-    mark = f"обновление {version}"
+    mark = f"{kind} {version}"
     deadline = time.time() + wait * 60
     post_id = None
     files = {}
