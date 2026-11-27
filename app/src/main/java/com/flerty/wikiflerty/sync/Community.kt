@@ -542,6 +542,25 @@ class Community(private val app: App) {
         get() = prefs.getBoolean("quiet", true)
         set(v) { prefs.edit().putBoolean("quiet", v).apply() }
 
+    var quietFrom: Int
+        get() = prefs.getInt("quiet_from", 23 * 60)
+        set(v) { prefs.edit().putInt("quiet_from", v).apply() }
+
+    var quietTo: Int
+        get() = prefs.getInt("quiet_to", 8 * 60)
+        set(v) { prefs.edit().putInt("quiet_to", v).apply() }
+
+    fun quietNow(minute: Int): Boolean {
+        if (!quietNight) return false
+        val from = quietFrom
+        val to = quietTo
+        return when {
+            from == to -> false
+            from < to -> minute in from until to
+            else -> minute >= from || minute < to
+        }
+    }
+
     private fun JSONArray?.objects(): List<JSONObject> = if (this == null) emptyList() else (0 until length()).mapNotNull { optJSONObject(it) }
     private fun JSONArray?.strings(): List<String> = if (this == null) emptyList() else (0 until length()).map { optString(it) }
 }

@@ -43,10 +43,8 @@ object CommunityNotify {
         val app = context.applicationContext as? App ?: return
         val community = app.community
         if (!community.notifyOn || app.account.state.value.login == null) return
-        if (community.quietNight) {
-            val h = LocalTime.now().hour
-            if (h >= 23 || h < 8) return
-        }
+        val now = LocalTime.now()
+        if (community.quietNow(now.hour * 60 + now.minute)) return
         if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val fresh = runCatching { community.pendingMentions() }.getOrNull().orEmpty()
         if (fresh.isEmpty()) return

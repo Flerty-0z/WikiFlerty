@@ -4,6 +4,10 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.ui.draw.shadow
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.expandVertically
@@ -104,6 +108,7 @@ object CommunityNav {
     var pendingThread: Pair<String, String>? = null
     var pendingProgress: Double = 0.0
     var readerDiscuss: (() -> Unit)? = null
+    var roomsY = 0
     val title: String get() = when {
         mod -> "Модерация"
         sprint -> "Спринт чтения"
@@ -378,10 +383,12 @@ private fun RoomsPage(state: Community.State, login: String?) {
             }
         }
     }
+    val scroll = rememberScrollState(CommunityNav.roomsY)
+    DisposableEffect(scroll) { onDispose { CommunityNav.roomsY = scroll.value } }
     Column(
         Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scroll)
             .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp)
             .navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -651,19 +658,33 @@ private fun RoomPage(roomId: String, state: Community.State, askRules: () -> Uni
         if (newest != null && list.firstVisibleItemIndex <= 2) list.animateScrollToItem(0)
     }
     var jumpTo by remember { mutableStateOf<Long?>(null) }
+    var flash by remember { mutableStateOf<Long?>(null) }
+    val backStack = remember(roomId) { mutableStateListOf<Long>() }
+    var tries by remember { mutableStateOf(0) }
     LaunchedEffect(jumpTo, rows) {
         val id = jumpTo ?: return@LaunchedEffect
         val i = rows.indexOfFirst { it is ChatRow.Item && it.msg.id == id }
-        if (i >= 0) list.animateScrollToItem(i)
-        jumpTo = null
+        if (i >= 0) {
+            flash = null
+            delay(24)
+            list.animateScrollToItem(i, -list.layoutInfo.viewportSize.height / 3)
+            flash = id
+            jumpTo = null
+            tries = 0
+        } else if (view.more && tries < 12 && msgs.isNotEmpty() && id < msgs.first().id) {
+            tries++
+            community.older()
+        } else {
+            jumpTo = null
+            tries = 0
+            Toast.makeText(app, "Сообщение не найдено — возможно, его удалили", Toast.LENGTH_SHORT).show()
+        }
     }
-    var flash by remember { mutableStateOf<Long?>(null) }
     Column(Modifier.fillMaxSize().imePadding()) {
         if (book && spot != null) ChapterBar(spot, view.locked.sumOf { it.count })
         AnimatedVisibility(CommunityNav.searching, enter = expandVertically(Motion.tween(240)) + fadeIn(Motion.fade(200)), exit = shrinkVertically(Motion.tween(200)) + fadeOut(Motion.fade(140))) {
             SearchPanel(roomId, spot?.percent ?: Int.MAX_VALUE) { m ->
                 CommunityNav.searching = false
-                flash = m.id
                 jumpTo = m.id
             }
         }
@@ -703,6 +724,11 @@ private fun RoomPage(roomId: String, state: Community.State, askRules: () -> Uni
                                             fresh = fresh,
                                             flash = flash == r.msg.id,
                                             onAvatar = { profile = r.msg.login },
+                                            onQuote = { id ->
+                                                if (backStack.lastOrNull() != r.msg.id) backStack.add(r.msg.id)
+                                                if (backStack.size > 20) backStack.removeAt(0)
+                                                jumpTo = id
+                                            },
                                             onLong = { actions = r.msg },
                                             onSwipe = {
                                                 if (me != null) {
@@ -720,6 +746,28 @@ private fun RoomPage(roomId: String, state: Community.State, askRules: () -> Uni
                             }
                         }
                     }
+                }
+            }
+            AnimatedVisibility(
+                backStack.isNotEmpty(),
+                enter = scaleIn(Motion.spring(), initialScale = 0.6f) + fadeIn(Motion.fade(180)),
+                exit = scaleOut(Motion.tween(160), targetScale = 0.6f) + fadeOut(Motion.fade(140)),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 14.dp),
+            ) {
+                Box(
+                    Modifier
+                        .size(44.dp)
+                        .liveClick(CircleShape, sound = FeedbackSound.Back, pressedScale = 0.9f) {
+                            val id = backStack.removeAt(backStack.lastIndex)
+                            jumpTo = id
+                        }
+                        .shadow(8.dp, CircleShape, ambientColor = AppColors.Shade.copy(alpha = 0.3f), spotColor = AppColors.Shade.copy(alpha = 0.3f))
+                        .clip(CircleShape)
+                        .background(AppColors.Panel)
+                        .border(1.dp, AppColors.Accent.copy(alpha = 0.5f), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(AppIcons.Chevron, "Вернуться к ответу", tint = AppColors.Accent, modifier = Modifier.size(22.dp).graphicsLayer { rotationZ = 90f })
                 }
             }
             if (view.error != null && view.loaded) {
@@ -914,6 +962,7 @@ private fun MessageItem(
     onLong: () -> Unit,
     onSwipe: () -> Unit,
     onReact: (String) -> Unit,
+    onQuote: (Long) -> Unit = {},
 ) {
     val corner = (16 * AppStyle.corners).dp
     val small = (5 * AppStyle.corners).dp
@@ -1031,7 +1080,7 @@ private fun MessageItem(
                         }
                     }
                     m.reply?.let { r ->
-                        Row(Modifier.clip(appCorner(8)).background(AppColors.Background.copy(alpha = 0.5f)).height(androidx.compose.foundation.layout.IntrinsicSize.Min)) {
+                        Row(Modifier.liveClick(appCorner(8), sound = FeedbackSound.Nav, pressedScale = 0.97f, onLongClick = onLong) { onQuote(r.id) }.clip(appCorner(8)).background(AppColors.Background.copy(alpha = 0.5f)).height(androidx.compose.foundation.layout.IntrinsicSize.Min)) {
                             Box(Modifier.width(2.dp).fillMaxHeight().background(AppColors.Accent))
                             Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
                                 Text(r.login, color = AppColors.Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
@@ -1515,7 +1564,7 @@ private fun ProfileSheet(login: String, canMention: Boolean, onDismiss: () -> Un
                         GeneratedCover(profile.reading, "", Modifier.width(34.dp).height(48.dp).clip(appCorner(4)))
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text("Сейчас читает", color = AppColors.Muted, fontSize = 11.sp)
-                            Text(profile.reading, color = AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(profile.reading, color = AppColors.Text, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(AppColors.Line)) {
                                 Box(Modifier.fillMaxWidth(profile.progress / 100f).height(4.dp).clip(CircleShape).background(AppColors.Accent))
                             }
@@ -1557,29 +1606,28 @@ private fun AttachSheet(roomId: String, chapter: Pair<Int, String>?, thread: Pai
     val books by app.library.books.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val feedback = LocalFeedback.current
-    AppSheet(onDismiss = onDismiss, title = "Книга из библиотеки") {
+    val order = remember(books) { books.sortedByDescending { it.lastReadAt ?: it.addedAt }.mapIndexed { i, b -> b.id to i }.toMap() }
+    var chosen by remember { mutableStateOf(books.maxByOrNull { it.lastReadAt ?: it.addedAt }?.id) }
+    AppSheet(onDismiss = onDismiss, title = "Книга в чат") {
+        val close = sheetClose(onDismiss)
+        BookPickList(
+            "Библиотека",
+            books,
+            listOfNotNull(chosen),
+            onToggle = { b -> chosen = b.id },
+            sortKey = { order[it.id] ?: Int.MAX_VALUE },
+            note = { b -> b.author.takeIf { it.isNotBlank() } },
+            single = true,
+        )
         HintNote("Уйдут только название, автор и обложка — сам файл книги не передаётся", AppIcons.Book)
-        val sorted = remember(books) { books.sortedByDescending { it.lastReadAt ?: it.addedAt }.take(60) }
-        sorted.forEach { b ->
-            Row(
-                Modifier.fillMaxWidth().liveClick(appCorner(14), sound = FeedbackSound.Pick, pressedScale = 0.98f) {
-                    scope.launch {
-                        app.community.send(roomId, "", null, book = Community.BookRef(b.title, b.author, (b.title.hashCode() and 0x7fffffff) % 12), chapter = chapter, thread = thread)
-                            .onSuccess { feedback?.play(FeedbackSound.Send) }
-                            .onFailure { Toast.makeText(app, it.message, Toast.LENGTH_LONG).show() }
-                    }
-                    onDismiss()
-                }.fieldSurface(appCorner(14)).padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                BookCover(b.id, 34.dp)
-                Column(Modifier.weight(1f)) {
-                    Text(b.title, color = AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (b.author.isNotBlank()) Text(b.author, color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                Icon(AppIcons.Send, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
+        AppButton("Отправить", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true) {
+            val b = books.firstOrNull { it.id == chosen } ?: return@AppButton
+            scope.launch {
+                app.community.send(roomId, "", null, book = Community.BookRef(b.title, b.author, (b.title.hashCode() and 0x7fffffff) % 12), chapter = chapter, thread = thread)
+                    .onSuccess { feedback?.play(FeedbackSound.Send) }
+                    .onFailure { Toast.makeText(app, it.message, Toast.LENGTH_LONG).show() }
             }
+            close()
         }
     }
 }
@@ -1907,7 +1955,6 @@ private fun GoalCard(g: Community.Goal) {
     val anim by androidx.compose.animation.core.animateFloatAsState(if (shown) fraction else 0f, Motion.tween(1400, easing = androidx.compose.animation.core.FastOutSlowInEasing), label = "goal")
     val month = remember(g.month) { runCatching { ShelfMonths[java.time.YearMonth.parse(g.month).monthValue - 1] }.getOrDefault("месяца") }
     val count = 25
-    val per = (g.target / count).coerceAtLeast(1)
     val line = AppColors.Line
     val shape = appCorner(20)
     Column(
@@ -1963,7 +2010,6 @@ private fun GoalCard(g: Community.Goal) {
             )
             Text("читателей: ${g.readers}", color = AppColors.Muted, fontSize = 12.sp, maxLines = 1)
         }
-        Text("Каждые ${pagesText(per)} страниц — новый корешок на полке", color = AppColors.Muted.copy(alpha = 0.75f), fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
         LaunchedEffect(Unit) { app.community.reportPages() }
     }
 }
@@ -1974,6 +2020,9 @@ private fun NotifySettings() {
     val community = app.community
     var on by remember { mutableStateOf(community.notifyOn) }
     var quiet by remember { mutableStateOf(community.quietNight) }
+    var from by remember { mutableStateOf(community.quietFrom) }
+    var to by remember { mutableStateOf(community.quietTo) }
+    var picking by remember { mutableStateOf(false) }
     val ask = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { }
     SettingsGroup(null) {
         SettingSwitch("Уведомления об ответах", on, hint = "Проверка раз в 15 минут, когда приложение закрыто", icon = AppIcons.Bell) { v ->
@@ -1982,9 +2031,65 @@ private fun NotifySettings() {
             com.flerty.wikiflerty.system.CommunityNotify.schedule(app)
             if (v && android.os.Build.VERSION.SDK_INT >= 33) ask.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
-        SettingSwitch("Не беспокоить ночью", quiet, hint = "С 23:00 до 8:00", icon = AppIcons.Moon, enabled = on) { v ->
+        SettingSwitch("Не беспокоить", quiet, hint = "С ${quietClock(from)} до ${quietClock(to)}", icon = AppIcons.Moon, enabled = on) { v ->
             quiet = v
             community.quietNight = v
+        }
+        AnimatedVisibility(on && quiet, enter = expandVertically(Motion.tween(260)) + fadeIn(Motion.fade(200)), exit = shrinkVertically(Motion.tween(220)) + fadeOut(Motion.fade(140))) {
+            Row(
+                Modifier.fillMaxWidth().padding(top = 4.dp).liveClick(appCorner(12), sound = FeedbackSound.Sheet, pressedScale = 0.98f) { picking = true }.padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                SettingIcon(AppIcons.Timer)
+                Text("Время тишины", color = AppColors.Text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                Text("${quietClock(from)} – ${quietClock(to)}", color = AppColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Icon(AppIcons.Chevron, null, tint = AppColors.Muted, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+    if (picking) QuietSheet(from, to, onDismiss = { picking = false }) { f, t ->
+        from = f
+        to = t
+        community.quietFrom = f
+        community.quietTo = t
+    }
+}
+
+private fun quietClock(m: Int) = "%d:%02d".format(m / 60, m % 60)
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun QuietSheet(from: Int, to: Int, onDismiss: () -> Unit, onSave: (Int, Int) -> Unit) {
+    var edge by remember { mutableStateOf(0) }
+    val start = androidx.compose.material3.rememberTimePickerState(from / 60, from % 60, is24Hour = true)
+    val end = androidx.compose.material3.rememberTimePickerState(to / 60, to % 60, is24Hour = true)
+    AppSheet(onDismiss, title = "Время тишины") {
+        val close = sheetClose(onDismiss)
+        SettingSegmented(null, listOf("С ${quietClock(start.hour * 60 + start.minute)}", "До ${quietClock(end.hour * 60 + end.minute)}"), edge) { edge = it }
+        Box(Modifier.fillMaxWidth().fieldSurface(appCorner(18)).padding(vertical = 14.dp), contentAlignment = Alignment.Center) {
+            androidx.compose.animation.Crossfade(edge, animationSpec = Motion.fade(220), label = "quiet-edge") { e ->
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    androidx.compose.material3.TimePicker(
+                        if (e == 0) start else end,
+                        colors = androidx.compose.material3.TimePickerDefaults.colors(
+                            clockDialColor = AppColors.Field,
+                            selectorColor = AppColors.Accent,
+                            timeSelectorSelectedContainerColor = AppColors.AccentTint,
+                            timeSelectorUnselectedContainerColor = AppColors.Field,
+                            timeSelectorSelectedContentColor = AppColors.Accent,
+                            timeSelectorUnselectedContentColor = AppColors.Text,
+                            clockDialSelectedContentColor = AppColors.OnAccent,
+                            clockDialUnselectedContentColor = AppColors.Text,
+                        ),
+                    )
+                }
+            }
+        }
+        HintNote("В это время уведомления об ответах не придут — прочитаешь их, когда откроешь сообщество", AppIcons.Moon)
+        AppButton("Сохранить", primary = true, modifier = Modifier.fillMaxWidth(), labeled = true, sound = FeedbackSound.Success) {
+            onSave(start.hour * 60 + start.minute, end.hour * 60 + end.minute)
+            close()
         }
     }
 }
@@ -2195,7 +2300,7 @@ private fun IdeasPage(state: Community.State, askRules: () -> Unit) {
         }
     }
     managing?.let { idea ->
-        AppSheet(onDismiss = { managing = null }, title = idea.title) {
+        AppSheet(onDismiss = { managing = null }, title = "Выбор статуса") {
             ActionGroup(ideaStatus.map { (id, look) ->
                 ActionItem(look.second, look.first, null, FeedbackSound.Toggle) {
                     scope.launch { community.admin("idea") { put("id", idea.id); put("status", id) }; community.ideas().onSuccess { ideas = it } }
@@ -2219,8 +2324,10 @@ private fun IdeaCard(idea: Community.Idea, bump: Int, canManage: Boolean, onVote
         "no" -> AppColors.Faint
         else -> AppColors.Muted
     }
+    var expanded by remember(idea.id) { mutableStateOf(false) }
+    var long by remember(idea.id) { mutableStateOf(false) }
     Row(
-        Modifier.fillMaxWidth().scrollReveal().liveClick(appCorner(18), sound = FeedbackSound.Sheet, pressedScale = 0.99f, enabled = canManage, onLongClick = if (canManage) onManage else null) {}.fieldSurface(appCorner(18)).padding(12.dp),
+        Modifier.fillMaxWidth().scrollReveal().liveClick(appCorner(18), sound = if (expanded) FeedbackSound.Collapse else FeedbackSound.Expand, pressedScale = 0.99f, enabled = long || canManage, onLongClick = if (canManage) onManage else null) { if (long) expanded = !expanded }.fieldSurface(appCorner(18)).padding(12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         val scale = remember { androidx.compose.animation.core.Animatable(1f) }
@@ -2246,9 +2353,26 @@ private fun IdeaCard(idea: Community.Idea, bump: Int, canManage: Boolean, onVote
             Icon(AppIcons.Thumb, null, tint = if (idea.voted) AppColors.OnAccent else AppColors.Accent, modifier = Modifier.size(18.dp))
             Text("${idea.votes}", color = if (idea.voted) AppColors.OnAccent else AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Column(Modifier.weight(1f).animateContentSize(Motion.tween(320, easing = androidx.compose.animation.core.FastOutSlowInEasing)), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(idea.title, color = AppColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, lineHeight = 19.sp)
-            if (idea.text.isNotBlank()) Text(idea.text, color = AppColors.Muted, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
+            if (idea.text.isNotBlank()) {
+                Text(
+                    idea.text,
+                    color = AppColors.Muted,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                    maxLines = if (expanded) Int.MAX_VALUE else 4,
+                    overflow = TextOverflow.Ellipsis,
+                    onTextLayout = { if (!expanded && it.hasVisualOverflow) long = true },
+                )
+                if (long) {
+                    val turn by androidx.compose.animation.core.animateFloatAsState(if (expanded) 270f else 90f, Motion.tween(280), label = "idea-turn")
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(if (expanded) "Свернуть" else "Развернуть", color = AppColors.Accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        Icon(AppIcons.Chevron, null, tint = AppColors.Accent, modifier = Modifier.size(14.dp).graphicsLayer { rotationZ = turn })
+                    }
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
                     Modifier.clip(appCorner(8)).border(1.dp, statusColor.copy(alpha = 0.6f), appCorner(8)).padding(horizontal = 6.dp, vertical = 2.dp),

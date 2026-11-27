@@ -1019,6 +1019,7 @@ internal fun BookPickList(
     sortKey: ((com.flerty.wikiflerty.data.Book) -> Int)? = null,
     note: (com.flerty.wikiflerty.data.Book) -> String? = { null },
     empty: String = "Сначала добавь книги",
+    single: Boolean = false,
 ) {
     var query by remember { mutableStateOf("") }
     val first = remember { selected.toSet() }
@@ -1040,14 +1041,14 @@ internal fun BookPickList(
                 Text(if (books.isEmpty()) empty else "Ничего не нашлось", color = AppColors.Faint, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
             }
             Ribbon(shown, key = { it.id }, preview = 6, maxHeight = 420.dp, divider = true) { _, b ->
-                BookPickRow(b, b.id in selected, note(b)) { onToggle(b) }
+                BookPickRow(b, b.id in selected, note(b), single) { onToggle(b) }
             }
         }
     }
 }
 
 @Composable
-private fun BookPickRow(b: com.flerty.wikiflerty.data.Book, on: Boolean, note: String?, onClick: () -> Unit) {
+private fun BookPickRow(b: com.flerty.wikiflerty.data.Book, on: Boolean, note: String?, single: Boolean = false, onClick: () -> Unit) {
     val tint by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent else AppColors.Text, Motion.fade(200), label = "pick-tint")
     val fill by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent else Color.Transparent, Motion.fade(200), label = "pick-fill")
     val edge by androidx.compose.animation.animateColorAsState(if (on) AppColors.Accent else AppColors.Line, Motion.fade(200), label = "pick-edge")
@@ -1073,7 +1074,17 @@ private fun BookPickRow(b: com.flerty.wikiflerty.data.Book, on: Boolean, note: S
                 Text(last[0], color = AppColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
             }
         }
-        Box(
+        if (single) {
+            val dot by androidx.compose.animation.core.animateFloatAsState(if (on) 1f else 0f, Motion.spring(), label = "pick-dot")
+            Box(
+                Modifier
+                    .size(24.dp)
+                    .border(1.5.dp, edge, androidx.compose.foundation.shape.CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(Modifier.size(12.dp).graphicsLayer { scaleX = dot; scaleY = dot; alpha = dot }.clip(androidx.compose.foundation.shape.CircleShape).background(AppColors.Accent))
+            }
+        } else Box(
             Modifier
                 .size(24.dp)
                 .clip(appCorner(7))

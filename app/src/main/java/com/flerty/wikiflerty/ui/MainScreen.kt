@@ -270,6 +270,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                 },
                 snackbarHost = { SnackbarHost(snackbar) },
             ) { padding ->
+                val sectionStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
                 androidx.compose.animation.AnimatedContent(
                     targetState = section,
                     transitionSpec = {
@@ -279,6 +280,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                     },
                     label = "section",
                 ) { current ->
+                sectionStates.SaveableStateProvider(current.name) {
                 if (current == Section.Library) {
                     LibraryScreen(
                         viewModel = libraryViewModel,
@@ -299,6 +301,7 @@ fun MainScreen(libraryViewModel: LibraryViewModel) {
                             Section.Library -> Unit
                         }
                     }
+                }
                 }
                 }
             }

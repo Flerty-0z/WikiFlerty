@@ -244,7 +244,7 @@ private fun communityDemo(app: App) {
         me = com.flerty.wikiflerty.sync.Community.Me(login = "flerty", accepted = true, admin = true, reports = 2, mentions = listOf(com.flerty.wikiflerty.sync.Community.Mention(9, "general", "mark_t", "@flerty отличная идея с цитатами", now - 300_000))),
         pin = "Вышло большое обновление: сообщество, аудиокниги и комиксы. Пишите идеи в «Идеях»!",
         latest = com.flerty.wikiflerty.sync.Community.Preview(msgs.last().id, "danya", msgs.last().text, msgs.last().at, "general", "Общий"),
-        goal = com.flerty.wikiflerty.sync.Community.Goal("2026-11", 50000, 31240, 412),
+        goal = com.flerty.wikiflerty.sync.Community.Goal("2026-11", 100000, 62480, 412),
         quote = com.flerty.wikiflerty.sync.Community.DayQuote(4, "general", "lisa_reads", "Рукописи не горят.", "Мастер и Маргарита", "М. Булгаков", 12),
         sprint = com.flerty.wikiflerty.sync.Community.Sprint(77, "lisa_reads", now - 240_000, now + 1_260_000, 25, listOf(com.flerty.wikiflerty.sync.Community.Runner("lisa_reads", 14), com.flerty.wikiflerty.sync.Community.Runner("mark_t", 11), com.flerty.wikiflerty.sync.Community.Runner("danya", 6)), false, now, false),
     )

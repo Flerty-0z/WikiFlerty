@@ -211,7 +211,7 @@ func NewChat(s3 *S3, notify func(string)) *Chat {
 		reports: map[int64]*ChatReport{}, mentions: map[string][]ChatMention{},
 		admins: map[string]bool{}, dirty: map[string]bool{}, recent: map[string]string{}, notify: notify,
 		threads: map[string]*ChatThread{}, starts: map[string]time.Time{}, ideaDay: map[string]int{},
-		goal: &ChatGoal{Target: 50000, Readers: map[string]int{}, Today: map[string]int{}},
+		goal: &ChatGoal{Target: 100000, Readers: map[string]int{}, Today: map[string]int{}},
 	}
 	admins := os.Getenv("CHAT_ADMINS")
 	if admins == "" {
@@ -248,8 +248,8 @@ func NewChat(s3 *S3, notify func(string)) *Chat {
 	if c.goal.Today == nil {
 		c.goal.Today = map[string]int{}
 	}
-	if c.goal.Target <= 0 {
-		c.goal.Target = 50000
+	if c.goal.Target <= 0 || c.goal.Target == 50000 {
+		c.goal.Target = 100000
 	}
 	for _, i := range c.ideas {
 		if i.ID > c.lastID {
