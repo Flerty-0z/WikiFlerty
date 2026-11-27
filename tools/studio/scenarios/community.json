@@ -93,10 +93,6 @@
    "text": "swipe"
   },
   {
-   "do": "back",
-   "after": 1200
-  },
-  {
    "do": "tap",
    "text": "Кто дочитал «Дракулу»?",
    "exact": true,
@@ -122,8 +118,8 @@
   },
   {
    "do": "tap",
-   "text": "Сообщение…",
-   "dx": -1.15,
+   "text": "Ответ для",
+   "dx": -0.87,
    "timeout": 4000,
    "after": 3000,
    "optional": true
@@ -134,34 +130,30 @@
   },
   {
    "do": "back",
-   "after": 1500
+   "after": 1800
   },
   {
    "do": "long",
    "text": "А мне посоветовали",
    "timeout": 5000,
-   "after": 3000
+   "after": 3000,
+   "optional": true
   },
   {
    "do": "dump",
    "text": "own"
   },
   {
-   "do": "tap",
-   "text": "Изменить",
-   "timeout": 4000,
-   "after": 3000
-  },
-  {
    "do": "back",
-   "after": 1200
+   "after": 1500
   },
   {
    "do": "tap",
    "text": "Поиск",
    "desc": true,
    "timeout": 4000,
-   "after": 2000
+   "after": 2000,
+   "optional": true
   },
   {
    "do": "tap",
@@ -186,38 +178,7 @@
   },
   {
    "do": "back",
-   "after": 1500
-  },
-  {
-   "do": "back",
-   "after": 2000
-  },
-  {
-   "do": "tap",
-   "text": "Идёт спринт",
-   "timeout": 4000,
-   "after": 4000,
-   "optional": true
-  },
-  {
-   "do": "dump",
-   "text": "sprint"
-  },
-  {
-   "do": "back",
-   "after": 2000
-  },
-  {
-   "do": "tap",
-   "text": "Идеи для WikiFlerty",
-   "timeout": 4000,
-   "after": 3500,
-   "scroll": 3,
-   "optional": true
-  },
-  {
-   "do": "dump",
-   "text": "ideas"
+   "after": 1200
   },
   {
    "do": "back",
@@ -228,7 +189,7 @@
    "text": "Время тишины",
    "timeout": 4000,
    "after": 3000,
-   "scroll": 4,
+   "scroll": 5,
    "optional": true
   },
   {
@@ -238,6 +199,17 @@
   {
    "do": "back",
    "after": 1500
+  },
+  {
+   "do": "tap",
+   "text": "Идеи для WikiFlerty",
+   "timeout": 4000,
+   "after": 3500,
+   "optional": true
+  },
+  {
+   "do": "dump",
+   "text": "ideas"
   },
   {
    "do": "back",
