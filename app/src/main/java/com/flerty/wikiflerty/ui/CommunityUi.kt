@@ -748,27 +748,8 @@ private fun RoomPage(roomId: String, state: Community.State, askRules: () -> Uni
                     }
                 }
             }
-            AnimatedVisibility(
-                backStack.isNotEmpty(),
-                enter = scaleIn(Motion.spring(), initialScale = 0.6f) + fadeIn(Motion.fade(180)),
-                exit = scaleOut(Motion.tween(160), targetScale = 0.6f) + fadeOut(Motion.fade(140)),
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 14.dp),
-            ) {
-                Box(
-                    Modifier
-                        .size(44.dp)
-                        .liveClick(CircleShape, sound = FeedbackSound.Back, pressedScale = 0.9f) {
-                            val id = backStack.removeAt(backStack.lastIndex)
-                            jumpTo = id
-                        }
-                        .shadow(8.dp, CircleShape, ambientColor = AppColors.Shade.copy(alpha = 0.3f), spotColor = AppColors.Shade.copy(alpha = 0.3f))
-                        .clip(CircleShape)
-                        .background(AppColors.Panel)
-                        .border(1.dp, AppColors.Accent.copy(alpha = 0.5f), CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(AppIcons.Chevron, "Вернуться к ответу", tint = AppColors.Accent, modifier = Modifier.size(22.dp).graphicsLayer { rotationZ = 90f })
-                }
+            ReturnButton(backStack.isNotEmpty(), Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 14.dp)) {
+                if (backStack.isNotEmpty()) jumpTo = backStack.removeAt(backStack.lastIndex)
             }
             if (view.error != null && view.loaded) {
                 Text(
@@ -804,6 +785,29 @@ private fun RoomPage(roomId: String, state: Community.State, askRules: () -> Uni
     }
     reporting?.let { m -> ReportSheet(m) { reporting = null } }
     profile?.let { l -> ProfileSheet(l, canMention = me != null && l != me) { profile = null } }
+}
+
+@Composable
+private fun ReturnButton(visible: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    AnimatedVisibility(
+        visible,
+        enter = scaleIn(Motion.spring(), initialScale = 0.6f) + fadeIn(Motion.fade(180)),
+        exit = scaleOut(Motion.tween(160), targetScale = 0.6f) + fadeOut(Motion.fade(140)),
+        modifier = modifier,
+    ) {
+        Box(
+            Modifier
+                .size(44.dp)
+                .liveClick(CircleShape, sound = FeedbackSound.Back, pressedScale = 0.9f, onClick = onClick)
+                .shadow(8.dp, CircleShape, ambientColor = AppColors.Shade.copy(alpha = 0.3f), spotColor = AppColors.Shade.copy(alpha = 0.3f))
+                .clip(CircleShape)
+                .background(AppColors.Panel)
+                .border(1.dp, AppColors.Accent.copy(alpha = 0.5f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(AppIcons.Chevron, "Вернуться к ответу", tint = AppColors.Accent, modifier = Modifier.size(22.dp).graphicsLayer { rotationZ = 90f })
+        }
+    }
 }
 
 @Composable
