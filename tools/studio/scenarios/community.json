@@ -97,6 +97,46 @@
    "after": 1200
   },
   {
+   "do": "tap",
+   "text": "Кто дочитал «Дракулу»?",
+   "exact": true,
+   "timeout": 4000,
+   "after": 2500,
+   "optional": true
+  },
+  {
+   "do": "dump",
+   "text": "jump"
+  },
+  {
+   "do": "tap",
+   "text": "Вернуться к ответу",
+   "desc": true,
+   "timeout": 4000,
+   "after": 2500,
+   "optional": true
+  },
+  {
+   "do": "dump",
+   "text": "return"
+  },
+  {
+   "do": "tap",
+   "text": "Сообщение…",
+   "dx": -1.15,
+   "timeout": 4000,
+   "after": 3000,
+   "optional": true
+  },
+  {
+   "do": "dump",
+   "text": "attach"
+  },
+  {
+   "do": "back",
+   "after": 1500
+  },
+  {
    "do": "long",
    "text": "А мне посоветовали",
    "timeout": 5000,
@@ -182,6 +222,22 @@
   {
    "do": "back",
    "after": 2000
+  },
+  {
+   "do": "tap",
+   "text": "Время тишины",
+   "timeout": 4000,
+   "after": 3000,
+   "scroll": 4,
+   "optional": true
+  },
+  {
+   "do": "dump",
+   "text": "quiet"
+  },
+  {
+   "do": "back",
+   "after": 1500
   },
   {
    "do": "back",

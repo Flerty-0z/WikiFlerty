@@ -228,7 +228,7 @@ private fun communityDemo(app: App) {
         m(3, "f1erty0z", "Друзья, в чате можно делиться цитатами прямо из книги — выделите текст и нажмите «В чат»", 1_800_000, admin = true, reacts = mapOf("heart" to List(18) { "u$it" }, "flame" to List(7) { "v$it" })),
         m(4, "lisa_reads", "Попробовала, красиво!", 1_200_000, reading = "Мастер и Маргарита", quote = com.flerty.wikiflerty.sync.Community.Quote("Рукописи не горят.", "Мастер и Маргарита", "М. Булгаков", "Глава 24"), reacts = mapOf("heart" to List(9) { "w$it" }, "mark" to listOf("x", "y", "z"))),
         m(5, "flerty", "А мне посоветовали вот это, кто читал?", 240_000, reading = "Шерлок Холмс", book = com.flerty.wikiflerty.sync.Community.BookRef("Остров сокровищ", "Р. Л. Стивенсон", 3)),
-        m(6, "mark_t", "@flerty читал, затягивает с первой главы", 180_000, reading = "Три мушкетёра", reply = 5 to "flerty"),
+        m(6, "mark_t", "Дочитал, финал и правда быстрый, но мне зашло", 180_000, reading = "Три мушкетёра", reply = 1 to "lisa_reads"),
         m(7, "danya", "Попробуй ещё «Убийство в Восточном экспрессе»", 120_000, reading = "Остров сокровищ"),
     )
     val rooms = listOf(
