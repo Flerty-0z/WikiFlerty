@@ -90,7 +90,7 @@ jobs:
           PUBLIC_KEY=/opt/wikiflerty/le.key
           ROBOKASSA_LOGIN=wikiflerty
           ROBOKASSA_HASH=sha256
-          ROBOKASSA_TEST=1
+          ROBOKASSA_TEST=0
           PAY_TESTERS=f1erty0z
           ROBOKASSA_PASS1=$RK1
           ROBOKASSA_PASS2=$RK2
